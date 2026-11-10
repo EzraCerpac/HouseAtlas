@@ -7,7 +7,7 @@ assert.equal(process.version, 'v26.10.0');
 const source = readFileSync(new URL('../src/ai/suggestion-review/controller.ts', import.meta.url), 'utf8');
 const code = stripTypeScriptTypes(source, { mode: 'strip' });
 assert(!/^\s*import(?:\s|['"])/m.test(code), 'actual controller is transport-free');
-const { createSuggestionReviewController } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { createSuggestionReviewController, suggestionFieldTextLimit } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 function setup(overrides = {}, portOverrides = {}) {
   const context = {}, view = {
@@ -595,4 +595,80 @@ test('same-product identity-unknown retains stale context and unavailable-source
     await held.controller.decide('accept-for-review'); await held.controller.inspectSource('source-1');
     assert.equal(held.intents.length, 0); assert.equal(held.checks.length, 0); assert.equal(held.inspected.length, 0); held.controller.dispose();
   }
+});
+
+function tagsView(proposed) {
+  const source = setup();
+  const field = { ...source.view.fields[0], key: 'tags', label: 'Tags (JSON list)', proposed };
+  source.controller.dispose();
+  return { fields: [field], candidates: [] };
+}
+function maximalEscapedTags() {
+  // Sixteen distinct printable ASCII strings, exactly 128 UTF-8 bytes each.
+  // Every payload character is a quote or backslash and therefore escapes to two.
+  return Array.from({ length: 16 }, (_, index) =>
+    Array.from({ length: 4 }, (_, bit) => (index >> bit) & 1 ? '\\' : '"').join('') + '"'.repeat(124));
+}
+test('inventory tag JSON preserves canonical-sized UTF-8 text and allowed LF TAB escapes', () => {
+  const values = ['é'.repeat(64), '😀'.repeat(32), 'x'.repeat(126) + '\n\t'];
+  assert.deepEqual(values.map(v => Buffer.byteLength(v, 'utf8')), [128, 128, 128]);
+  const proposed = JSON.stringify(values), s = setup(tagsView(proposed));
+  assert.equal(s.controller.getSnapshot().view.fields[0].proposed, proposed);
+  assert.equal(s.controller.getSnapshot().fields[0].value, proposed);
+  assert.equal(JSON.parse(proposed)[2], 'x'.repeat(126) + '\n\t');
+  assert.equal(suggestionFieldTextLimit('inventory', 'tags'), 4145);
+  s.controller.dispose();
+});
+test('inventory tags admit exact escaped JSON bound for initial copy edit and input cap', () => {
+  const values = maximalEscapedTags(), proposed = JSON.stringify(values);
+  assert.equal(new Set(values).size, 16);
+  assert(values.every(v => Buffer.byteLength(v, 'utf8') === 128 && v.length === 128));
+  assert.equal(proposed.length, 4145);
+  const s = setup(tagsView(proposed)), c = s.controller;
+  assert.equal(c.getSnapshot().view.fields[0].proposed, proposed);
+  assert.equal(c.getSnapshot().fields[0].value, proposed);
+  assert(c.editField('tags', '["generated interim"]'));
+  assert(c.editField('tags', proposed)); assert.equal(c.getSnapshot().fields[0].value, proposed);
+  assert.equal(c.getSnapshot().fields[0].edited, false, 'exact original spelling is retained');
+  const component = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  assert(component.includes("import { suggestionFieldTextLimit, type SuggestionReviewController }"));
+  assert(component.includes('maxLength={suggestionFieldTextLimit(view.kind, field.key)}'));
+  c.dispose();
+});
+test('inventory tags refuse one-over bound while other field and display caps remain unchanged', () => {
+  const exact = JSON.stringify(maximalEscapedTags()), over = exact + ' ';
+  assert.equal(over.length, 4146);
+  assert.throws(() => setup(tagsView(over)), /Invalid suggestion display text/);
+  const s = setup(tagsView(exact)), before = s.controller.getSnapshot();
+  assert.equal(s.controller.editField('tags', over), false);
+  assert.equal(s.controller.getSnapshot(), before);
+  assert.equal(s.controller.getSnapshot().fields[0].value, exact); s.controller.dispose();
+  for (const [kind, key] of [['inventory', 'category'], ['document', 'document-class']]) {
+    assert.equal(suggestionFieldTextLimit(kind, key), 4096);
+    const view = tagsView('x'.repeat(4096)); view.kind = kind; view.fields[0].key = key;
+    const s = setup(view); assert(s.controller.editField(key, 'y'.repeat(4096)));
+    assert.equal(s.controller.editField(key, 'z'.repeat(4097)), false);
+    assert.throws(() => setup({ ...view, fields: [{ ...view.fields[0], proposed: 'z'.repeat(4097) }] }));
+    s.controller.dispose();
+  }
+  assert.equal(suggestionFieldTextLimit('document', 'tags'), 4096, 'same key in another kind is not broadened');
+  assert.equal(suggestionFieldTextLimit('inventory', 'tags-other'), 4096);
+  for (const name of ['current', 'label', 'reason', 'uncertainty']) {
+    const view = tagsView('["generated"]'); view.fields[0][name] = 'x'.repeat(4097);
+    assert.throws(() => setup(view));
+  }
+});
+test('tag raw edit acceptance keeps exact text and non-authoritative once-only current-context intent', async () => {
+  // Local bounded raw editing does not parse/validate a native tag list.
+  const raw = '  not canonical JSON; source owner must validate  ', s = setup(tagsView('["generated"]')), c = s.controller;
+  assert(c.editField('tags', raw)); assert(c.selectField('tags', true));
+  s.ports.onIntent = async intent => { s.intents.push(intent); await c.decide('accept-for-review'); };
+  await Promise.all([c.decide('accept-for-review'), c.decide('accept-for-review')]); await c.decide('reject');
+  assert.equal(s.intents.length, 1); assert.equal(s.checks.length, 1); assert.equal(s.intents[0].authority, 'none');
+  assert.deepEqual(s.intents[0].fields, [{ key: 'tags', value: raw, edited: true }]);
+  assert.deepEqual(s.intents[0].candidateKeys, []); assert.equal(s.intents[0].context, s.view.context); c.dispose();
+  const pending = deferred(), retired = setup(tagsView(JSON.stringify(maximalEscapedTags())), { recheck: () => pending.promise });
+  retired.controller.selectField('tags', true); const sending = retired.controller.decide('accept-for-review');
+  retired.set({ ...retired.current(), sourceSetRevision: 'new-sources' }); pending.resolve('current'); await sending;
+  assert.equal(retired.intents.length, 0); assert.equal(retired.controller.getSnapshot().view, null); retired.controller.dispose();
 });

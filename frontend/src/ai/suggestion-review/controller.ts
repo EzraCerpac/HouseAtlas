@@ -71,6 +71,13 @@ function taskIntent(task: MaintenanceTaskDraft, original: MaintenanceTaskView) {
     interval, conditions: Object.freeze([...task.conditions]), urgency: task.urgency, editedFields: editedTask(task, original) });
 }
 
+/** Decoded compact JSON for <=16 tags of <=128 UTF-8 bytes:
+ * 16 * (2 * 128 + 2 quotes) + 15 commas + 2 brackets = 4145 UTF-16 units.
+ * Canonical controls except LF/TAB refuse; this is a display/edit cap, not validation. */
+export function suggestionFieldTextLimit(kind: SuggestionReviewView['kind'], fieldKey: string): number {
+  return kind === 'inventory' && fieldKey === 'tags' ? 4145 : 4096;
+}
+
 /** Only copies bounded local presentation data. Does not decode or validate AI wire input. */
 function copyView(view: SuggestionReviewView): SuggestionReviewView {
   const text = (v: string, cap = 4096) => { if (typeof v !== 'string' || v.length > cap) throw new TypeError('Invalid suggestion display text'); return v; };
@@ -98,7 +105,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
     return Object.freeze(result);
   };
   const fields = list(view.fields).map(f => Object.freeze({ key: key(f.key), label: text(f.label),
-    current: optional(f.current), proposed: text(f.proposed), reason: text(f.reason), uncertainty: text(f.uncertainty),
+    current: optional(f.current), proposed: text(f.proposed, suggestionFieldTextLimit(view.kind, f.key)), reason: text(f.reason), uncertainty: text(f.uncertainty),
     evidenceKeys: evidence(f.evidenceKeys) }));
   const candidates = list(view.candidates).map(c => {
     if (!['possible-duplicate', 'same-product', 'same-product-identity-unknown', 'proposed-association'].includes(c.relation)) throw new TypeError('Invalid candidate display');
@@ -250,7 +257,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
       state = Object.freeze({ ...state, fields: Object.freeze(state.fields.map(f => f.key === key ? Object.freeze({ ...f, selected }) : f)) }); emit(); return true;
     },
     editField(key: string, value: string) {
-      if (!editable() || typeof value !== 'string' || value.length > 4096 || !state.fields.some(f => f.key === key)) return false;
+      if (!editable() || typeof value !== 'string' || value.length > suggestionFieldTextLimit(view.kind, key) || !state.fields.some(f => f.key === key)) return false;
       state = Object.freeze({ ...state, fields: Object.freeze(state.fields.map(f => f.key === key ? Object.freeze({ ...f, value, edited: value !== view.fields.find(v => v.key === key)!.proposed }) : f)) }); emit(); return true;
     },
     selectCandidate(key: string, selected: boolean) {

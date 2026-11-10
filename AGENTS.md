@@ -10,6 +10,13 @@ NOT RUN. Shared preparation counts are 39 synthetic-contract /10 scorer /
 requires the matching reviewed frontend tag-specific capacity donor before
 publication; other field limits, whole-DTO bounds and all native/runtime gates
 remain unchanged. No truncation, normalization or new source/approval is added.
+The exact composed donor is `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c. All six owned review paths match that donor, including unchanged
+view-types/CSS. Its four authored controls bring the existing presentation
+selection to45 cases; shared session total is24. All seven new shared/donor
+controls are NOT RUN. Canonical disclosure keeps current:null and the donor
+preserves the generic current-value4096 limit and every other limit. Existing
+77 source /1 build /7 browser selections and workflows are unchanged.
 
 Inventory no-change/no-duplicate disclosure now retains evidence explicitly
 cited by validated extracted claims, so unknown/held results can show exact
@@ -18,9 +25,10 @@ Uncited evidence stays omitted; claim-free fallback and all other result paths
 are unchanged. No field/candidate/selection or authority is created. Existing
 currentness/withdrawal, original-owner inspection labels and display bounds
 remain enforced. Two Rust and one existing adapter control are authored/NOT RUN.
-Current counts are 37 synthetic-contract / 10 scorer / 28 retained / one counter
-Rust cases and 41 presentation/controller / 23 session cases. No new kind,
-frontend-owner source edit, runner/workflow or original corpus mapping is added.
+Current counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust cases and 45 presentation/controller / 24 session cases. That no-suggestion
+increment added no new kind, frontend-owner source edit, runner/workflow or
+original corpus mapping.
 inv-model-only stays unbridged: #564's selected inventory-photo/description
 outcome does not require a new document-subject comparison mode just to bridge
 that fixture. Its manual is not relabelled; ordinary InventoryItem admission,
@@ -54,8 +62,8 @@ the shared final byte fence; no subject metadata/capability is invented.
 Six new Rust and two session controls are authored/NOT RUN: shape/versions,
 escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
 record compatibility, terminal usage/refusals and consumer retirement. Current
-counts are 37 synthetic-contract / 10 scorer / 28 retained / one counter Rust
-cases, plus 41 presentation/controller and 23 session cases. The 5/21/6 corpus
+counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter Rust
+cases, plus 45 presentation/controller and 24 session cases. The 5/21/6 corpus
 ledger, originals, runner selections and host/root/runtime/authority owners stay
 unchanged. No inference, source write, effect, persistence or activation occurs.
 
@@ -67,14 +75,14 @@ once-consumed authority:none review intents remain unchanged. Source preparation
 must compose the exact reviewed #569 presentation donor before publication;
 the frontend writer retains its six review/controller files. Three new shared
 controls (canonical/disclosure, independent supplied scorer and session binding)
-are authored/unrun. Shared Rust counts are 37 synthetic-contract and 10 scorer
+are authored/unrun. Shared Rust counts are 39 synthetic-contract and 10 scorer
 tests; retained tests/ledger are 28 and 5 scorer subsets/21 structural/6 unbridged.
 Original inv-model-only stays unbridged: its Document subject cannot be silently
 relabelled as an InventoryItem. No inference, physical verification, approval,
 native resolution, runtime activation or new runner/workflow is introduced.
-The composed presentation donor is exactly
+For the earlier identity-unknown increment, the presentation donor was exactly
 `474fb67c6a963b9c0971a4cb564ab5004c47d98e`, descended from e5281bd9; its five
-changed owned paths are retained verbatim and CSS is unchanged. At that donor
+changed owned paths were retained verbatim and CSS was unchanged. At that donor
 increment, two authored presentation cases plus the shared session case brought
 frontend selections to 41 controller/source and 20 session cases, all NOT RUN. The
 77 source / 1 build / 7 browser selection inventory and workflows are unchanged.
@@ -587,8 +595,8 @@ rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-one
-controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-three adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-five
+controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-four adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.

@@ -185,8 +185,15 @@ existing4096 default and every other limit stay unchanged. These controls do
 not run a browser, provider, native effect or live owner. Shared preparation
 counts are39 synthetic-contract,10 scorer,28 retained,one counter Rust cases
 and24 session cases; original corpus/ledger and runner selections are unchanged.
-Exact donor/presentation counts and final manifest composition are reconciled
-before publication. No local tests/build/compiler/typecheck/formatter/Clippy or
+The exact composed donor is `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c, tree dff97dc71839afb012a4f4133efbe97668d8699d. It changes four
+owned paths; view-types/CSS remain unchanged and all six owned paths match it.
+Four authored donor controls bring presentation/controller cases to45, with24
+session cases; all seven new shared/donor cases are NOT RUN. The donor widens
+only proposed copying/editing/input capacity for Inventory tags. Its current
+field still uses4096; the canonical producer emits current:null. Other limits,
+original corpus, retained adapters,77/1/7 runner selections and workflows remain
+unchanged. No local tests/build/compiler/typecheck/formatter/Clippy or
 interactive/operational qualification is implied.
 
 Inventory proposals with no changes or duplicate suggestions now preserve
@@ -209,8 +216,8 @@ versions/source dates/retrieval dates and unknown identity/location. They do
 not detect semantic contradictions, qualify real original access or run a model.
 No renderer/controller or new display kind is added; existing ordinary edit,
 duplicate and deliberate rejection semantics remain unchanged. Current counts:
-37 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
-41 controller/source and 23 session cases. Corpus originals and ledger 5/21/6
+39 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
+45 controller/source and 24 session cases. Corpus originals and ledger 5/21/6
 stay unchanged. Existing 77 source / 1 build / 7 browser selections/workflows
 are unchanged. No tests/build/typecheck/compiler/formatter/Clippy/browser/device
 or pinned publication verifier was run locally for this increment.
@@ -281,8 +288,8 @@ Two authored/unrun functions join the existing adapter selection:
 
 These use generated requests, digests, current snapshots and fake consumer-owner
 generations, not genuine request-owner/cancellation/authority qualification.
-Current counts are 37 synthetic-contract / 10 scorer / 28 retained / one counter
-Rust tests, 41 presentation/controller and 23 session cases. No original corpus
+Current counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust tests, 45 presentation/controller and 24 session cases. No original corpus
 mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
 No workflow or selection changes: inventory remains 77 source / 1 build / 7
 browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
@@ -313,9 +320,9 @@ subject cannot satisfy the unchanged InventoryItem requirement. Shared Rust
 counts become 29 synthetic-contract and 10 scorer cases; 26 retained tests and
 the 5/20/7 original ledger remain unchanged. No model accuracy, calibration,
 physical verification or native duplicate-resolution acceptance follows.
-The exact composed presentation donor is
+For the earlier identity-unknown increment, the composed presentation donor was
 `474fb67c6a963b9c0971a4cb564ab5004c47d98e` (parent e5281bd9). Its five changed
-owned paths are preserved verbatim; CSS is unchanged. Its two additional
+owned paths were preserved verbatim; CSS was unchanged. Its two additional
 authored/unrun cases are `same-product identity-unknown has an explicit display
 and retains the original candidate-only intent` and `same-product
 identity-unknown retains stale context and unavailable-source refusal before
@@ -468,7 +475,7 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains the retained controller plus repair, answer, comparison and identity-unknown continuations (forty-one cases). The second has twenty-three cases
+The first file contains the retained controller plus repair, answer, comparison and identity-unknown and tag-capacity continuations (forty-five cases). The second has twenty-four cases
 covering inventory/document/maintenance/answer/comparison binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
@@ -620,7 +627,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-one controller and twenty-three disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-five controller and twenty-four disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

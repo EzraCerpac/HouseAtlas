@@ -233,7 +233,7 @@ Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Forty-one generated controller/source cases load the actual type-stripped controller:
+Forty-five generated controller/source cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -247,7 +247,7 @@ Nine maintenance cases add periodic/conditional/unknown intervals, exact target/
 evidence, explicit edits, incomplete-edit refusal, superseded manuals/context,
 offline states, rejected/uncertain once-only intent, and bounded source shapes.
 These are authored source cases, NOT executed results. The composition owner
-must update its existing registration documentation/count (39 to 41 for this continuation); no new
+must update its existing registration documentation/count (41 to 45 for this continuation); no new
 selection or CI lane is introduced here.
 
 The desktop executor is unavailable during preparation. These cases, semantic
@@ -324,3 +324,50 @@ a Document and Inventory still needs an InventoryItem subject. No original
 is relabelled, physical subject invented, corpus mapping/count changed or
 semantic/model-quality/native acceptance inferred. This continuation changes
 only the necessary five owned source/doc/test paths; CSS is unchanged.
+
+## Inventory tags JSON display compatibility
+
+Only kind inventory with exact field key tags has a 4145 UTF-16-code-unit
+proposed/edit/input cap, via exported suggestionFieldTextLimit in controller.ts.
+Initial proposed-value copying, editField and the React input maxLength all
+use that same helper. Every other kind/key and all current/label/reason/
+uncertainty/other text limits remain unchanged (the generic cap is 4096).
+Text is never truncated, parsed, normalized or reserialized by this repair.
+
+Canonical validate.rs admits 1..16 unique nonblank tag strings, each at most
+128 UTF-8 bytes, refusing Rust control characters except LF and TAB.
+disclosure.rs uses serde_json::to_string for their compact JSON list.
+The Cargo.lock-pinned serde_json 1.0.151 serializer writes valid non-ASCII
+UTF-8 directly; quotes, backslashes and the allowed LF/TAB use two-character
+escapes. Six-character ASCII-control escapes cannot occur in VALID canonical
+tags, because the corresponding controls are rejected. Rust strings cannot
+contain lone UTF-16 surrogates. All other valid Unicode contributes no more
+UTF-16 units than its UTF-8 bytes; supplementary scalars use 2 units/4 bytes.
+
+Thus each 128-byte tag contributes at most 256 JSON payload units plus its two
+quotes. With 16 entries, 15 commas and two brackets, the exact decoded list-text
+maximum is 16 * (2 * 128 + 2) + 15 + 2 = 4145 UTF-16 units. Distinct four-bit
+quote/backslash prefixes followed by 124 quotes give 16 distinct 128-byte
+printable tags attaining this bound. This is the DECODED proposed-value text
+cap, not a relaxation of the outer disclosure/wire-byte budget. A raw edit
+with extra JSON whitespace is still subject to this finite display cap.
+
+Source anchors for the derivation: backend/src/ai/suggestions/validate.rs
+(Inventory Tags plus text/strings/nonempty_unique), disclosure.rs (Tags compact
+serialization), Cargo.lock (serde_json 1.0.151), and the pinned serializer
+https://github.com/serde-rs/json/blob/v1.0.151/src/ser.rs
+(format_escaped_str_contents, ESCAPE and Formatter.write_char_escape).
+No native tag validation or Rust/JS serialization test was executed here.
+The local helper only accepts bounded raw edit TEXT; that does not establish
+valid JSON, canonical tags, source authority or a native mutation. Existing
+source/session/native owners remain responsible for semantic validation,
+current permissions and any consequential workflow. Selection/currentness,
+consume-before-callback and authority:none intent behavior are unchanged.
+
+Four new authored cases cover positive UTF-8/LF/TAB text, the exact escaped
+maximum, one-over refusal, unchanged other-field/copy caps, shared input-limit
+source wiring, exact raw edits/once-only intent and source retirement. The
+source wiring assertion is not a React mount or input/device test. All 45
+cases are NOT RUN. The sole #562 integrator owns corresponding backend/session
+controls, count docs/manifests and composition; those files are untouched here.
+No PR description/comment or issue/index write is part of this increment.
