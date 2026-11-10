@@ -36,6 +36,85 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+fn cited_inventory_abstention() -> (AdmittedSnapshot, Value) {
+    let mut admitted = input();
+    admitted.sources[0].source_date = Some("2030-01-01".into());
+    admitted.sources[0].retrieved_at = "2030-04-01T12:00:00Z".into();
+    admitted.sources[0].evidence[0].excerpt = "Generated record A reports room Blue; physical identity and current location are unknown.".into();
+    admitted.sources[1].version = "revision-2".into();
+    admitted.sources[1].source_date = Some("2029-01-01".into());
+    admitted.sources[1].retrieved_at = "2030-04-01T12:00:00Z".into();
+    admitted.sources[1].evidence[0].excerpt = "Generated record B reports room Amber; whether it describes the same item is unknown.".into();
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let mut proposal = output(&snapshot, json!({"kind":"inventory","changes":[],"duplicates":[]}));
+    proposal["claims"] = json!(snapshot.input().sources[..2].iter().enumerate().map(|(i,s)| json!({
+        "claimRef":format!("c{}",i+1),"sourceRef":s.input_ref,"evidenceRefs":[format!("e{}",i+1)],
+        "text":s.evidence[0].excerpt,"uncertainty":"unknown"})).collect::<Vec<_>>());
+    proposal["missingEvidence"] = json!(["Category, physical identity and current location remain unknown; inspect both records."]);
+    (snapshot, proposal)
+}
+
+#[test]
+fn inventory_abstention_keeps_cited_evidence_without_turning_it_into_a_selection() {
+    let (snapshot, supplied) = cited_inventory_abstention();
+    let review = validate(&supplied, &snapshot).unwrap();
+    let inspectable = std::collections::BTreeSet::from(["e1".into()]);
+    let disclosure = disclose_review(&review, &snapshot, &inspectable).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["view"]["kind"], "inventory");
+    assert_eq!(wire["view"]["fields"], json!([]));
+    assert_eq!(wire["view"]["candidates"], json!([]));
+    assert_eq!(wire["selections"], json!({}));
+    assert_eq!(wire["view"]["sources"].as_array().unwrap().len(), 2);
+    for (index, key, original) in [(0, "e1", "available"), (1, "e2", "unavailable")] {
+        let source = &snapshot.input().sources[index];
+        assert_eq!(wire["view"]["sources"][index]["key"], key);
+        assert_eq!(wire["view"]["sources"][index]["excerpt"], source.evidence[0].excerpt);
+        assert_eq!(wire["view"]["sources"][index]["recordVersion"], source.version);
+        assert_eq!(wire["view"]["sources"][index]["sourceDate"], serde_json::to_value(&source.source_date).unwrap());
+        assert_eq!(wire["view"]["sources"][index]["retrievedAt"], source.retrieved_at);
+        assert_eq!(wire["view"]["sources"][index]["original"], original);
+        assert_eq!(wire["inspections"][key]["inputRef"], source.input_ref);
+        assert_eq!(wire["inspections"][key]["version"], source.version);
+        assert_eq!(wire["inspections"][key]["evidenceRef"], key);
+    }
+    assert!(wire["inspections"].get("e3").is_none()); // Uncited inputs stay undisclosed.
+    assert_eq!(wire["view"]["uncertainty"][0], supplied["missingEvidence"][0]);
+    // Truly unsupported/no-claim input retains the original metadata fallback.
+    let mut no_claims = supplied; no_claims["claims"] = json!([]);
+    let review = validate(&no_claims, &snapshot).unwrap();
+    let fallback = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    assert_eq!(fallback.value()["view"]["sources"].as_array().unwrap().len(), 1);
+    assert_eq!(fallback.value()["view"]["sources"][0]["excerpt"], "");
+    assert_eq!(fallback.value()["inspections"]["subject:input1"]["evidenceRef"], Value::Null);
+}
+
+#[test]
+fn inventory_abstention_evidence_retains_currentness_and_display_bounds() {
+    let (snapshot, supplied) = cited_inventory_abstention();
+    let review = validate(&supplied, &snapshot).unwrap();
+    for withdrawn in [false, true] {
+        let mut input = snapshot.input().clone();
+        if withdrawn { input.sources[1].availability = Availability::Withdrawn; }
+        else { input.sources[1].version = "revision-3".into(); }
+        let current = AdmittedSnapshot::new(input).unwrap();
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(),
+            if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged });
+    }
+    let mut input = snapshot.input().clone();
+    let template = input.sources[0].evidence[0].clone();
+    input.sources[0].evidence = (0..17).map(|i| {
+        let mut e = template.clone(); e.evidence_ref = format!("cited-{i}"); e
+    }).collect();
+    let snapshot = AdmittedSnapshot::new(input).unwrap();
+    let mut over = output(&snapshot, json!({"kind":"inventory","changes":[],"duplicates":[]}));
+    over["claims"] = json!((0..17).map(|i| json!({"claimRef":format!("c{i}"),"sourceRef":"input1",
+        "evidenceRefs":[format!("cited-{i}")],"text":"Generated cited observation only","uncertainty":"unknown"})).collect::<Vec<_>>());
+    let review = validate(&over, &snapshot).unwrap();
+    assert_eq!(disclose_review(&review, &snapshot, &Default::default()).unwrap_err(), SuggestionError::LimitExceeded);
+    // Refuse over-bound display instead of choosing a subset or a winning room.
+}
+
 fn question_input() -> SnapshotInput {
     let mut value = input();
     value.feature = SuggestionFeature::Answer;

@@ -158,6 +158,32 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+Inventory proposals with no changes or duplicate suggestions now preserve
+already-validated claim-cited evidence in the ordinary display source list.
+This supports inspecting originals/records behind an unknown/no-suggestion
+result (#564) without synthesizing a proposal, candidate or selection. Only
+cited admitted evidence is projected; uncited data and the claim-free metadata
+fallback are unchanged. Currentness, withdrawal, inspection availability labels,
+source-card count and final serialized DTO limits still apply; over-bound data
+is refused without choosing a subset or a winning room.
+
+Three functions are authored, **NOT RUN**, in existing selections:
+
+- `ai::suggestions::synthetic_contracts::inventory_abstention_keeps_cited_evidence_without_turning_it_into_a_selection`
+- `ai::suggestions::synthetic_contracts::inventory_abstention_evidence_retains_currentness_and_display_bounds`
+- adapter: `inventory with no proposed changes keeps exact cited inspection without an accept intent`
+
+They use generated quoted records and fake inspection owners, preserving exact
+versions/source dates/retrieval dates and unknown identity/location. They do
+not detect semantic contradictions, qualify real original access or run a model.
+No renderer/controller or new display kind is added; existing ordinary edit,
+duplicate and deliberate rejection semantics remain unchanged. Current counts:
+37 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
+41 controller/source and 23 session cases. Corpus originals and ledger 5/21/6
+stay unchanged. Existing 77 source / 1 build / 7 browser selections/workflows
+are unchanged. No tests/build/typecheck/compiler/formatter/Clippy/browser/device
+or pinned publication verifier was run locally for this increment.
+
 The existing default-library retained module additionally discovers two
 authored, **NOT RUN** controls for original qa-missing:
 
@@ -224,8 +250,8 @@ Two authored/unrun functions join the existing adapter selection:
 
 These use generated requests, digests, current snapshots and fake consumer-owner
 generations, not genuine request-owner/cancellation/authority qualification.
-Current counts are 35 synthetic-contract / 10 scorer / 28 retained / one counter
-Rust tests, 41 presentation/controller and 22 session cases. No original corpus
+Current counts are 37 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust tests, 41 presentation/controller and 23 session cases. No original corpus
 mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
 No workflow or selection changes: inventory remains 77 source / 1 build / 7
 browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
@@ -411,7 +437,7 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains the retained controller plus repair, answer, comparison and identity-unknown continuations (forty-one cases). The second has twenty-two cases
+The first file contains the retained controller plus repair, answer, comparison and identity-unknown continuations (forty-one cases). The second has twenty-three cases
 covering inventory/document/maintenance/answer/comparison binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
@@ -563,7 +589,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-one controller and twenty-two disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-one controller and twenty-three disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

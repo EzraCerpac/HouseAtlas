@@ -37,6 +37,27 @@ function setup(wire = fixture(), options = {}) {
   const session = createSuggestionReviewSession(JSON.stringify(wire), context, owner);
   return { session, owner, context, inspected, intents, change(value) { current = value; for (const cb of [...listeners]) cb(); } };
 }
+test('inventory with no proposed changes keeps exact cited inspection without an accept intent', async () => {
+  const wire = fixture(); wire.view.fields = []; wire.view.candidates = []; wire.selections = {};
+  wire.view.sources[0].excerpt = 'Generated record A reports Blue; current physical location unknown.';
+  wire.view.sources.push({ ...wire.view.sources[0], key: 'e2', label: 'Generated record B', recordVersion: 'record-2',
+    sourceDate: '2029-01-01', retrievedAt: '2030-04-01T12:00:00Z',
+    excerpt: 'Generated record B reports Amber; same physical identity is unknown.' });
+  wire.inspections.e2 = { inputRef: 'record2', version: 'record-2', evidenceRef: 'e2', location: { kind: 'page', page: 2, pageCount: 3 } };
+  wire.view.uncertainty = ['No field or duplicate suggestion; inspect both records.'];
+  const s = setup(wire), c = s.session.controller;
+  assert.equal(c.getSnapshot().view.sources.length, 2);
+  assert.equal(c.getSnapshot().view.sources[1].excerpt, wire.view.sources[1].excerpt);
+  assert.deepEqual(c.getSnapshot().candidateKeys, []);
+  assert.deepEqual(c.getSnapshot().fields, []);
+  await c.inspectSource('e1'); await c.inspectSource('e2');
+  assert.deepEqual(s.inspected.map(x => [x.binding.inputRef, x.binding.version, x.binding.evidenceRef]),
+    [['doc1', 'record-1', 'e1'], ['record2', 'record-2', 'e2']]);
+  await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 0);
+  assert.equal(c.selectCandidate('invented-room', true), false);
+  s.session.dispose();
+});
 test('product match with unknown physical identity retains exact binding and one-use review intent', async () => {
   const wire = fixture();
   wire.view.candidates[0].relation = 'same-product-identity-unknown';

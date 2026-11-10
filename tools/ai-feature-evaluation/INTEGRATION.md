@@ -494,6 +494,21 @@ unbridged. Genuine request/digest custody and host/session integration stay open
 
 ## Product correspondence with unknown physical identity
 
+Acceptance assessment: #564's stated input is a selected inventory photo or
+description, with an InventoryItem subject. The current item-subject contract
+already represents product correspondence with unknown physical identity.
+Original inv-model-only instead selects a model manual as Document; adding a
+new document-backed Inventory product-comparison feature solely to bridge it is
+not required by that acceptance. It remains unbridged, without relabelling the
+manual, inventing a physical subject or changing it to Document links/Answer.
+
+The independent production increment instead preserves already-cited evidence
+when an ordinary Inventory proposal suggests no changes/duplicates, allowing
+inspection behind unknown/held results. Its two Rust and one adapter controls
+are separate generated data, not a new original mapping or semantic abstention/
+contradiction/model-quality result. Uncited evidence, claim-free fallback and
+all original corpus bytes/28 retained controls/5-21-6 ledger remain unchanged.
+
 Separate generated contract controls support canonical
 `same-product-identity-unknown` without changing any original corpus mapping or
 counts. It retains positive product correspondence while physical same/distinct

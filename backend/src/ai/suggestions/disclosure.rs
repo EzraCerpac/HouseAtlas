@@ -102,6 +102,12 @@ pub fn disclose_review(
                 candidates.push(json!({"key":key,"label":format!("Inventory candidate {}",source(&duplicate.candidate_ref)?.input_ref),"relation":relation,"reason":reason,"uncertainty":format!("{:?}",duplicate.supporting.uncertainty),"evidenceKeys":evidence}));
                 selections.insert(key, json!({"kind":"inventory-duplicate","inputRef":duplicate.candidate_ref}));
             }
+            if changes.is_empty() && duplicates.is_empty() {
+                // A held/no-suggestion result can still cite evidence explaining
+                // its gaps. Preserve those exact admitted excerpts for review;
+                // no candidate selection or field intent is created from them.
+                for claim in &p.claims { used.extend(claim.evidence_refs.iter().cloned()); }
+            }
             "inventory"
         }
         ProposalResult::Document { classification, links } => {

@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 57103,
-      "sha256": "c2fa73f4141c17e120ef2a7a9e904f20839f63f406a73415f7108bd1c79c5d65",
+      "bytes": 58204,
+      "sha256": "6f83e8a5d3c65d1bd0cc9c3302d1caad5bfb1619b818919c3259d4da257f5114",
       "owner": "core-integration"
     },
     {
@@ -1182,8 +1182,8 @@
     {
       "path": "backend/src/ai/suggestions/disclosure.rs",
       "mode": "100644",
-      "bytes": 15924,
-      "sha256": "802c3f49e1910f8fdb06f28cc771215a0b50ac78e3a84c1c53a650027ae977f2",
+      "bytes": 16334,
+      "sha256": "cdc2b50db834c5fd5e142006dcc1a99e07d2c580189d35b6b60861cbd73601c4",
       "owner": "ai"
     },
     {
@@ -1217,8 +1217,8 @@
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 55552,
-      "sha256": "81418ec40431354f32849867087f119d62601cfc445f2f3562252d162e39781b",
+      "bytes": 60732,
+      "sha256": "5a8f528d77f63b259705cef133b8a67c1b1e9f295b19a0afcaf1e4b86ce4a64a",
       "owner": "ai"
     },
     {
@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 274668,
-      "sha256": "f55e161042cbeffc445dc98ce7cc9571fac178212591874be6aff22fe2c98f50",
+      "bytes": 276443,
+      "sha256": "6d03b79d14d198b63ffff9dd4ff31a64fa550c71290b5e0a682ae4a9da11362f",
       "owner": "core-integration"
     },
     {
@@ -7930,8 +7930,8 @@
     {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
-      "bytes": 29821,
-      "sha256": "75cdc2be917635b7628a9de99a57884c64b745c88610e9fb5ed1c1c91611c732",
+      "bytes": 31331,
+      "sha256": "de824af38b7738474af1700e0c6f22986c4f45bfa8488729cab3ed0afd53861e",
       "owner": "web"
     },
     {
@@ -11955,8 +11955,8 @@
     {
       "path": "tools/ai-feature-evaluation/INTEGRATION.md",
       "mode": "100644",
-      "bytes": 38032,
-      "sha256": "48fe923a31bbc9a75cf5c0e646d729c8493fd63e0a366b061aebac495bf197b0",
+      "bytes": 39046,
+      "sha256": "db34663df79028a92e496ddbafc7c7bb20516003694cbf015d77b3467b522600",
       "owner": "ai"
     },
     {
@@ -12060,8 +12060,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 58308,
-      "sha256": "8f2fb94ba2f073cca6aab725dd827f59ae38d39fc5e3e2103abf4942f09af4e9",
+      "bytes": 58310,
+      "sha256": "3bbe3e52c3be3fbaf13b54b05de4fc623650a6e6bc14a150298fb46272acbbf9",
       "owner": "core-integration"
     },
     {
