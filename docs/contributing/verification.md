@@ -180,6 +180,31 @@ All five cases and Rust compilation/formatting/Clippy remain **NOT RUN** locally
 No runner/workflow is added; exact-head hosted execution is separate evidence.
 The existing 25 retained-corpus tests and 32-case coverage ledger are unchanged.
 
+Completion sizing additionally uses a private fail-fast counting Write sink
+with `serde_json::to_writer`, preserving the prior compact JSON encoding and
+1 MiB threshold without allocating the entire serialized envelope. The item
+and payload limits and all rejection/usage behavior remain unchanged. Generated
+Value inputs are still allocated; this bounds the extra serialization copy,
+without asserting a security breach or changing recursion policy.
+
+Three further functions are authored and **NOT RUN** in the same default-library
+selection (no explicit selection, workflow or visibility change):
+
+- `ai::suggestions::completion::tests::bounded_json_counter_counts_utf8_and_escaping_without_retaining_bytes`
+- `ai::suggestions::synthetic_contracts::completed_proposal_envelope_accepts_exact_limit_and_refuses_next_byte`
+- `ai::suggestions::synthetic_contracts::terminal_decoder_composes_review_usage_refusal_and_tool_withholding`
+
+The private counter test independently spells escaped UTF-8 bytes and refuses
+an oversized chunk without decrementing its budget. The envelope test supplies
+exactly 1 MiB and one extra byte, including escaped/multibyte metadata. Only
+test fixtures construct complete encodings for comparison. The terminal case
+uses the actual existing `responses::completed_event` decoder with generated
+events, not a provider or runtime: absent/null/known/partial usage stays exact,
+refusal/tools stay withheld and nonterminal/incomplete events are refused.
+These bring synthetic_contracts to 28 authored tests, plus one counter test;
+all eight completion-related tests remain unrun. Prior cases/corpus originals,
+scoring, frontend and runtime/authority boundaries remain unchanged.
+
 The existing default backend-library job discovers these ten generated functions
 under `ai::suggestions::synthetic_contracts`:
 

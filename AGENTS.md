@@ -14,6 +14,19 @@ states, usage, context/original inspection and malformed/bounded envelopes.
 Existing 25 retained-corpus tests, originals and coverage ledger are unchanged.
 No local compilation, tests, formatting or Clippy qualification was performed.
 
+Completion-envelope sizing uses `serde_json::to_writer` with a private counting
+Write sink: exact compact JSON bytes are limited to 1 MiB without allocating a
+complete serialized copy. An oversized write is refused before accounting it.
+The admitted Value and fixture data still exist; this is bounded intermediate
+serialization, not a claim of constant total memory or a security incident.
+Three additional authored/unrun controls cover exact/over envelope size,
+UTF-8/escaping and original completed_event-to-review composition with known/
+unknown usage and refusal/tool withholding. Two join synthetic_contracts; one
+is `ai::suggestions::completion::tests::bounded_json_counter_counts_utf8_and_escaping_without_retaining_bytes`.
+There are now 28 synthetic_contracts tests and this one private counter test;
+all eight completion-related tests remain NOT RUN. Existing retained corpus,
+frontend, runner/workflows and runtime/authority boundaries are unchanged.
+
 HouseAtlas owns physical identities, reviewed cross-system bindings, optional
 geometry, circuits, valves and provenance. HomeBox owns inventory, locations,
 attachments and maintenance; its fields are read-only projections here and

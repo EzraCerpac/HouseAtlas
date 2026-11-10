@@ -47,6 +47,70 @@ fn completed_proposal(snapshot: &AdmittedSnapshot) -> crate::ai::InferenceOutcom
 }
 
 #[test]
+fn completed_proposal_envelope_accepts_exact_limit_and_refuses_next_byte() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let mut outcome = completed_proposal(&snapshot);
+    if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+        items[0]["summary"] = json!(["é\n\"\\\u{0001}", ""]);
+        // A small fixture encoding determines only fixed overhead. No complete
+        // padded encoding is constructed by the production counting sink.
+        let overhead = serde_json::to_vec(items).unwrap().len();
+        items[0]["summary"][1] = json!("x".repeat(1_048_576 - overhead));
+        assert_eq!(serde_json::to_vec(items).unwrap().len(), 1_048_576);
+    }
+    let exact = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+    assert!(exact.review.is_ok());
+    assert_eq!(exact.usage, crate::ai::Usage::default());
+    if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+        let padded = items[0]["summary"][1].as_str().unwrap().to_owned() + "x";
+        items[0]["summary"][1] = json!(padded);
+        assert_eq!(serde_json::to_vec(items).unwrap().len(), 1_048_577);
+    }
+    let over = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+    assert_eq!(over.review.unwrap_err(), CompletionRejection::InvalidEnvelope);
+    assert_eq!(over.usage, crate::ai::Usage::default());
+}
+
+#[test]
+fn terminal_decoder_composes_review_usage_refusal_and_tool_withholding() {
+    use crate::ai::{InferenceOutcome, Usage, responses::completed_event};
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let InferenceOutcome::Completed { output: items, .. } = completed_proposal(&snapshot) else { panic!("fixture must be completed") };
+    for (wire_usage, expected) in [
+        (None, Usage::default()),
+        (Some(Value::Null), Usage::default()),
+        (Some(json!({"input_tokens":3,"output_tokens":4,"total_tokens":7})), Usage { input_tokens: Some(3), output_tokens: Some(4), total_tokens: Some(7) }),
+        (Some(json!({"input_tokens":3})), Usage { input_tokens: Some(3), output_tokens: None, total_tokens: None }),
+    ] {
+        let mut event = json!({"type":"response.completed","response":{"status":"completed","output":items}});
+        if let Some(wire_usage) = wire_usage { event["response"]["usage"] = wire_usage; }
+        let outcome = completed_event(&event).unwrap();
+        let review = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+        assert!(review.review.is_ok());
+        assert_eq!(review.usage, expected);
+        for refused in [true, false] {
+            let mut supplied = event.clone();
+            if refused {
+                // Valid JSON proposal bytes remain inert inside refusal text.
+                let text = supplied["response"]["output"][1]["content"][0]["text"].clone();
+                supplied["response"]["output"][1]["content"] = json!([{"type":"refusal","refusal":text}]);
+            } else {
+                supplied["response"]["output"].as_array_mut().unwrap().push(json!({"type":"function_call","name":"houseatlas.write","arguments":"{}"}));
+            }
+            let outcome = completed_event(&supplied).unwrap();
+            let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+            assert_eq!(result.usage, expected);
+            assert_eq!(result.review.unwrap_err(), if refused { CompletionRejection::Refused } else { CompletionRejection::InvalidEnvelope });
+        }
+        event["type"] = json!("response.output_text.delta");
+        assert!(completed_event(&event).is_err());
+        event["type"] = json!("response.completed");
+        event["response"]["status"] = json!("incomplete");
+        assert!(completed_event(&event).is_err());
+    }
+}
+
+#[test]
 fn completed_proposal_projects_exact_disclosure_and_preserves_observed_usage() {
     let snapshot = AdmittedSnapshot::new(input()).unwrap();
     let expected = disclose_review(&validate(&output(&snapshot, inventory()), &snapshot).unwrap(), &snapshot, &Default::default()).unwrap();
