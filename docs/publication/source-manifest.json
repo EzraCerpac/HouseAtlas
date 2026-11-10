@@ -2589,8 +2589,8 @@
     {
       "path": "backend/src/http/homebox_pinned_files.rs",
       "mode": "100644",
-      "bytes": 46552,
-      "sha256": "57125eb282d5a06d18ed49d444e5855078134b85dd270b921f7a69367b90cbb6",
+      "bytes": 47794,
+      "sha256": "52a30aae413261370c36015da992f4f36e0a3e6ba783de8c0754bcc8c25b469f",
       "owner": "core-integration"
     },
     {

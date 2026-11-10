@@ -1124,7 +1124,10 @@ mod mounted_offline_original_tests {
                 .with_pinned_homebox_files(vec![binding])?,
         );
         let acceptor = TlsAcceptor::from(Arc::new(tls));
-        let server = tokio::spawn(async move {
+        let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed_requests = Arc::clone(&requests);
+        let (stop, mut shutdown) = tokio::sync::oneshot::channel::<()>();
+        let mut server = tokio::spawn(async move {
             let detail = include_bytes!("../providers/homebox/wire/fixtures/item.detail.json");
             let expected = [
                 format!("/api/v1/entities/{}", id(2)),
@@ -1132,8 +1135,12 @@ mod mounted_offline_original_tests {
                 format!("/api/v1/entities/{}", id(2)),
                 format!("/api/v1/entities/{}", id(2)),
             ];
-            for (n, path) in expected.iter().enumerate() {
-                let (socket, peer) = listener.accept().await.unwrap();
+            loop {
+                let accepted = tokio::select! {
+                    _ = &mut shutdown => break,
+                    accepted = listener.accept() => accepted.unwrap(),
+                };
+                let (socket, peer) = accepted;
                 assert!(peer.ip().is_loopback());
                 let mut stream = acceptor.accept(socket).await.unwrap();
                 let mut raw = Vec::new();
@@ -1144,8 +1151,13 @@ mod mounted_offline_original_tests {
                     assert!(raw.len() < 16384);
                 }
                 let line = String::from_utf8(raw).unwrap();
-                assert_eq!(line.lines().next().unwrap(), format!("GET {path} HTTP/1.1"));
-                let body: &[u8] = if n == 1 {
+                let n = observed_requests.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if let Some(path) = expected.get(n) {
+                    assert_eq!(line.lines().next().unwrap(), format!("GET {path} HTTP/1.1"));
+                }
+                // Remain capable of answering a later request: an auth failure
+                // cannot be confused with a closed listener/transport failure.
+                let body: &[u8] = if line.lines().next().unwrap().contains("/attachments/") {
                     ORIGINAL
                 } else if n == 3 {
                     b"unavailable"
@@ -1172,10 +1184,11 @@ mod mounted_offline_original_tests {
             }
         });
         let first = path(700);
-        assert_ne!(
+        assert_eq!(
             app.clone().oneshot(request(&first, None)).await?.status(),
-            StatusCode::OK
+            StatusCode::UNAUTHORIZED
         );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 0);
         let response = app.clone().oneshot(request(&first, Some(&cookie))).await?;
         assert_eq!(response.status(), StatusCode::OK);
         let encoded = response.headers()["x-houseatlas-original"].to_str()?;
@@ -1197,12 +1210,12 @@ mod mounted_offline_original_tests {
             StatusCode::CONFLICT
         );
         let failed = path(701);
-        assert_ne!(
+        assert_eq!(
             app.clone()
                 .oneshot(request(&failed, Some(&cookie)))
                 .await?
                 .status(),
-            StatusCode::OK
+            StatusCode::SERVICE_UNAVAILABLE
         );
         assert_eq!(
             app.clone()
@@ -1211,7 +1224,7 @@ mod mounted_offline_original_tests {
                 .status(),
             StatusCode::CONFLICT
         );
-        server.await?;
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
         let scope = a::Scope {
             workspace_id: a::CanonicalId::parse(id(1))?,
             home_id: a::CanonicalId::parse(id(2))?,
@@ -1222,12 +1235,21 @@ mod mounted_offline_original_tests {
             a::Role::Viewer,
             false,
         )?;
-        assert_ne!(
+        assert_eq!(
             app.oneshot(request(&path(702), Some(&cookie)))
                 .await?
                 .status(),
-            StatusCode::OK
+            StatusCode::NOT_FOUND
         );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let _ = stop.send(());
+        match tokio::time::timeout(Duration::from_secs(2), &mut server).await {
+            Ok(result) => result?,
+            Err(_) => {
+                server.abort();
+                return Err("synthetic provider cleanup timed out".into());
+            }
+        }
         Ok(())
     }
 }
