@@ -14,8 +14,8 @@ import { compareRuns } from './adapter.mjs';
 import { context, fakeOriginApi, identity, zipFixture } from './test-fixtures.mjs';
 
 const policy = { id: 'example.cpu', label: 'Synthetic CPU duration', unit: 'ms', kind: 'timing', direction: 'lower' };
-test('trusted startup ceilings preserve exact measured limits through the normalized adapter', () => {
-  const maxima = [['frontend.startup_js.bytes', 1843578], ['frontend.startup_js.gzip_bytes', 303827]];
+test('trusted startup ceilings retain a bounded gzip margin and strict raw limit', () => {
+  const maxima = [['frontend.startup_js.bytes', 1843578], ['frontend.startup_js.gzip_bytes', 303859]];
   const policies = maxima.map(([id]) => Object.freeze({ id, label: id, unit: 'bytes', kind: 'deterministic', direction: 'lower' }));
   const extra = Object.freeze({ ...policies[0], id: 'example.other.bytes', maximum: 10 });
   const contract = { schemaSha256: SCHEMA_SHA256, policies: [...policies, extra],
@@ -31,6 +31,28 @@ test('trusted startup ceilings preserve exact measured limits through the normal
   assert.equal(boundary.failed, false);
   for (const [, limit] of maxima) assert(boundary.markdown.includes(`max ${limit} bytes`));
   assert(boundary.markdown.includes('max 10 bytes'));
+  // Exact supplied #574 pair: raw startup unchanged, embedded lazy hashes
+  // account for the reported +10 gzip bytes. Values are never normalized away.
+  const hashBase = view('base', [1843578, 303827]);
+  const hashHead = view('head', [1843578, 303837]);
+  const hashReport = compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun: hashBase, headRun: hashHead, contract });
+  assert.equal(hashReport.failed, false);
+  assert.equal(hashReport.comparisons[1].head.value, 303837);
+  assert.equal(hashReport.comparisons[1].deltaAbsolute, 10);
+  assert.equal(hashReport.comparisons[1].status, 'degraded');
+  assert(hashReport.markdown.includes('Regressed; budget passed'));
+  const rawGrowth = structuredClone(hashHead);
+  rawGrowth.metrics[0].samples = [1843579];
+  assert.equal(compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun: hashBase, headRun: rawGrowth, contract }).failed, true);
+  // Canonical stricter gzip limits cannot be relaxed by the reporter margin.
+  const strictContract = { ...contract, policies: [policies[0], { ...policies[1], maximum: 303827 }, extra] };
+  assert.equal(compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun: hashBase, headRun: hashHead, contract: strictContract }).failed, true);
+  const unsupportedBase = structuredClone(hashBase);
+  unsupportedBase.metrics[1] = { id: maxima[1][0], status: 'unsupported' };
+  const gzipGrowth = view('head', [1843578, 303860]);
+  const noBase = compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun: unsupportedBase, headRun: gzipGrowth, contract });
+  assert.equal(noBase.failed, true);
+  assert.equal(noBase.comparisons[1].deltaAbsolute, null);
   for (const [index, [id, limit]] of maxima.entries()) {
     const over = structuredClone(headRun);
     over.metrics[index].samples = [limit + 1];
