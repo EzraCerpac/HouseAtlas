@@ -4412,3 +4412,14 @@ fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
 is introduced. All13 current donor heads are ancestors of14ff0744; ancestry
 alone does not establish their remaining acceptance or missing coverage.
+
+
+Exact donor d270e238755d8a60ba375f5d7afe2aa9e1b16e54 is composed with
+its c0208153 ancestry intact. Its only source change uses a live isClosed()
+accessor after awaited review-owner handoff, resolving hosted TS2367 without
+removing the dismissal/currentness/one-use fences. Donor job130020166745
+passed Strict TypeScript and production React build; this does not qualify
+the newly composed candidate or subsequent checks. All six frontend-owned
+review files match that exact donor. Existing49/25 frontend case counts and
+77 source /1 build /7 browser selections remain unchanged. No local execution,
+tracker metadata write, readiness transition or merge-to-main is performed.

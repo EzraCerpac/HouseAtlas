@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 62830,
-      "sha256": "5cb8c3a0ff8cbb2b2f2ea85c3ba87f34817a154a8ff443da5bda58168c9f8498",
+      "bytes": 63507,
+      "sha256": "5d855cffdb3f8a82337792433813d0e137afa1ad9735518b4cf5fc628cbaa586",
       "owner": "core-integration"
     },
     {
@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 284663,
-      "sha256": "34e897ba560bb47f0807c48003410a1c3f9d9b2ec29619f33531097b4cfdd721",
+      "bytes": 285341,
+      "sha256": "2d141bc2e503712a7558895b88734949407d013d813cc7f5ecbbc782240d7efe",
       "owner": "core-integration"
     },
     {
@@ -9148,8 +9148,8 @@
     {
       "path": "frontend/src/ai/suggestion-review/controller.ts",
       "mode": "100644",
-      "bytes": 27139,
-      "sha256": "a388804e15f2c42a4945769203263f9200e98d758657dfef047b63dbe4130b09",
+      "bytes": 27268,
+      "sha256": "1e9e4ca74b3420fe9c4da7276259ecd9f75b4136259b296b9799989b02643060",
       "owner": "ai"
     },
     {

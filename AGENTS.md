@@ -1,5 +1,15 @@
 # HouseAtlas
 
+Exact donor d270e238755d8a60ba375f5d7afe2aa9e1b16e54 is composed with
+its c0208153 ancestry intact. Its only source change uses a live isClosed()
+accessor after awaited review-owner handoff, resolving hosted TS2367 without
+removing the dismissal/currentness/one-use fences. Donor job130020166745
+passed Strict TypeScript and production React build; this does not qualify
+the newly composed candidate or subsequent checks. All six frontend-owned
+review files match that exact donor. Existing49/25 frontend case counts and
+77 source /1 build /7 browser selections remain unchanged. No local execution,
+tracker metadata write, readiness transition or merge-to-main is performed.
+
 Hosted CI repair follow-up (10 November 2026): the exact14ff0744 default
 backend-library job130017469493 executed346 passed /0 failed /12 ignored /
 3 filtered, including42 suggestion synthetic-contract,10 supplied-scorer,
