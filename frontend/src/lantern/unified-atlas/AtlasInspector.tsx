@@ -11,6 +11,8 @@ import { AreaValue } from './plan-presentation';
 import { elevation, LINK_LABEL, OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, UNPLACED_LABEL } from './atlas-text';
 import { DocumentaryRecords } from './AtlasKeys';
 import type { ElectricalGroup } from './electrical-group';
+import type { ElectricalTraceSource } from './electrical-trace';
+import { ElectricalTraceDetail } from './ElectricalTraceDetail';
 
 /** Floors listed for the current scope, highest first. */
 export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
@@ -21,7 +23,7 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
@@ -29,6 +31,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openDocuments: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   readonly electricalGroup: ElectricalGroup | null; readonly canElectricalGroup: (key: string) => boolean; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
+  /** Reviewed breaker/panel data from the current frame owner; absent when none is supplied. */
+  readonly electricalData: ElectricalTraceSource | undefined;
 }) {
   const bodyId = useId();
   const occurrence = state.occurrenceId === null ? null : model.occurrencesById.get(state.occurrenceId)!;
@@ -137,6 +141,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
         <h3>Historic drawing group, unverified</h3><p>{electricalGroup.label}</p>
         <ul>{electricalGroup.members.map(({ record, rooms }) => <li key={record.key}>{record.label}{rooms.length === 0 ? ' — room unknown' : ` — ${rooms.map(id => model.roomsById.get(id)?.label ?? 'Room unavailable').join(', ')}`}</li>)}</ul>
         {electricalGroup.missing > 0 && <p>{electricalGroup.missing} group members unavailable.</p>}
+        {electricalData && <ElectricalTraceDetail group={electricalGroup} source={electricalData} model={model}
+          onRoom={roomId => { const id = model.roomsById.get(roomId)?.occurrenceIds.find(at => model.selectable.has(at)); if (id) choose(id); }} />}
         <button type="button" className="text-btn" onClick={clearElectricalGroup}>Clear drawing group</button>
       </section>}
       {runtime && kinds.map(kind => {

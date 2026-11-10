@@ -2840,7 +2840,18 @@ non-reciprocal membership never become a drawing group:
 node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs
 ```
 
-It does not mount the UI, establish a current circuit or exercise a native host.
+The same file runs the #554 breaker trace. The actual #557 projector over
+`contracts/electrical-data/generated.fixture.json` feeds `electrical-trace.ts`
+with actual #553 groups. It checks reviewed group and fixture associations
+through the current breaker and panel to a uniquely bound panel room, absent
+versus unknown details and test confirmation only where the projection reports
+it. It also checks per-member circuits, partial coverage, disputed candidates,
+missing reviews and stale circuits. Ledger, view, scene or membership mismatch
+and oversized input are refused, and unrecognized codes read as unavailable.
+`ElectricalTraceDetail` is rendered to static markup with react-dom/server.
+
+None of this mounts the Atlas, issues a current circuit or exercises a native
+host or supplier. The tested state is generated; no electrical test was performed.
 
 It retains original, reversed and parallel links, explicit endpoint ownership,
 within-room loops, complete property occurrences and separately counted shared

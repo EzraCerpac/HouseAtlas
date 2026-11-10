@@ -430,7 +430,12 @@ The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 browser, native host or source reads. The same list runs
 `unified-atlas-electrical-group-healthy.mjs`: generated documentary membership,
 room and unplaced projections, source separation and incomplete membership; no
-browser, provider, native authority or wiring assertion.
+browser, provider, native authority or wiring assertion. That file also runs the
+#554 breaker/panel trace over the actual #557 projector and generated fixture:
+reviewed group or fixture association, then current breaker, then panel, then
+supplied room binding. It covers refusals, withheld/unknown states and static
+detail markup. No live or saved host supplies electrical data yet; the optional
+`AtlasPresentationEnvironment.electricalData` input stays unset.
 
 The default backend-library set also executes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,
