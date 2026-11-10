@@ -158,6 +158,34 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+### Admitted multiline review text
+
+Exact reviewed donor `c020815382919e82244951c047ce8bf101b6934f`, parent
+f7188684, tree7c809be0049a5a4e37da9745429371b653fe5c72, replaces only
+maintenance-title and shared proposed-field text inputs with controlled
+soft-wrap textareas. Existing raw handlers, labels, disabled/selected/edited/
+invalid behavior, tag-specific4145 and other4096 limits are unchanged. All six
+frontend-owned paths match the donor; controller/CSS/view types are unchanged.
+Source/controller controls are not executed React/DOM/browser evidence and
+promise only admitted LF/TAB preservation, not arbitrary CR/CRLF draft bytes.
+
+Four authored donor cases bring that file to49 controls. Two shared functions
+are additionally authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::inventory_category_lf_tab_disclosure_keeps_exact_text_and_canonical_bounds`
+- adapter: `admitted category LF TAB survives disclosure session and exact once-only field binding`
+
+They retain canonical category LF/TAB through exact disclosure and original
+field/input binding, untouched/edited markers and once-consumed authority:none
+intent. Canonical CR/CRLF and oversized UTF-8 categories remain refused. The
+existing maintenance LF/TAB adapter case is unchanged and not duplicated.
+All six new shared/donor cases are unrun. Counts are42 synthetic-contract /
+10 scorer /28 retained /one counter plus one date-unit Rust case;49 controller/
+source and25 session cases. Date and tag repairs, all original corpus/retained
+adapters/5-21-6 ledger,77 source /1 build /7 browser selections/workflows and
+runtime/native owners remain unchanged. No local tests/build/typecheck/compiler/
+formatter/Clippy/browser/device or publication-verifier qualification occurred.
+
 ### Projected date-field compatibility
 
 Successful source cards now require retrievedAt and every non-null sourceDate
@@ -188,8 +216,8 @@ and exact fractional-offset strings are preserved, and uncited long dates are
 omitted without display refusal. Non-date multibyte strings test only the
 private length helper's units and are never admitted as dates.
 
-Counts are41 synthetic-contract /10 scorer /28 retained /one counter plus one
-date-unit Rust case. Frontend45 controller/source /24 session, original corpus,
+Counts are42 synthetic-contract /10 scorer /28 retained /one counter plus one
+date-unit Rust case. Frontend49 controller/source /25 session, original corpus,
 retained adapters/5-21-6 ledger, exact tag donor f7188684 and77/1/7 selections/
 workflows remain unchanged. No local tests/build/compiler/typecheck/formatter/
 Clippy/browser/device or pinned publication verifier ran for this increment.
@@ -221,9 +249,9 @@ existing4096 default and every other limit stay unchanged. These controls do
 not run a browser, provider, native effect or live owner. Shared preparation
 counts are39 synthetic-contract,10 scorer,28 retained,one counter Rust cases
 and24 session cases; original corpus/ledger and runner selections are unchanged.
-The exact composed donor is `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
-parent474fb67c, tree dff97dc71839afb012a4f4133efbe97668d8699d. It changes four
-owned paths; view-types/CSS remain unchanged and all six owned paths match it.
+For the earlier tag-capacity increment, the donor was `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c, tree dff97dc71839afb012a4f4133efbe97668d8699d. It changed four
+owned paths; view-types/CSS were unchanged and all six owned paths then matched it.
 Four authored donor controls bring presentation/controller cases to45, with24
 session cases; all seven new shared/donor cases are NOT RUN. The donor widens
 only proposed copying/editing/input capacity for Inventory tags. Its current
@@ -252,8 +280,8 @@ versions/source dates/retrieval dates and unknown identity/location. They do
 not detect semantic contradictions, qualify real original access or run a model.
 No renderer/controller or new display kind is added; existing ordinary edit,
 duplicate and deliberate rejection semantics remain unchanged. Current counts:
-41 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
-45 controller/source and 24 session cases. Corpus originals and ledger 5/21/6
+42 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
+49 controller/source and 25 session cases. Corpus originals and ledger 5/21/6
 stay unchanged. Existing 77 source / 1 build / 7 browser selections/workflows
 are unchanged. No tests/build/typecheck/compiler/formatter/Clippy/browser/device
 or pinned publication verifier was run locally for this increment.
@@ -324,8 +352,8 @@ Two authored/unrun functions join the existing adapter selection:
 
 These use generated requests, digests, current snapshots and fake consumer-owner
 generations, not genuine request-owner/cancellation/authority qualification.
-Current counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter
-Rust tests, 45 presentation/controller and 24 session cases. No original corpus
+Current counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust tests, 49 presentation/controller and 25 session cases. No original corpus
 mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
 No workflow or selection changes: inventory remains 77 source / 1 build / 7
 browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
@@ -511,7 +539,7 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains the retained controller plus repair, answer, comparison and identity-unknown and tag-capacity continuations (forty-five cases). The second has twenty-four cases
+The first file contains the retained controller plus repair, answer, comparison and identity-unknown and tag-capacity continuations (forty-nine cases). The second has twenty-five cases
 covering inventory/document/maintenance/answer/comparison binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
@@ -663,7 +691,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-five controller and twenty-four disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-nine controller and twenty-five disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

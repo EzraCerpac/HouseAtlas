@@ -1,5 +1,18 @@
 # HouseAtlas
 
+Exact donor c020815382919e82244951c047ce8bf101b6934f (parent f7188684)
+changes only the component, README and review/source controls. Proposed-field
+and maintenance-title controls use controlled soft-wrap textareas with existing
+raw handlers, labels, states and limits intact, including4145 only for Inventory
+tags. All six owned frontend files match this donor. Four donor cases plus one
+canonical category and one session control are authored/NOT RUN; existing
+maintenance LF/TAB adapter coverage is unchanged. Admitted LF/TAB preservation
+does not promise arbitrary CR/CRLF draft bytes or executed React/DOM behavior.
+Current counts are42 synthetic-contract /10 scorer /28 retained /one counter
+plus one date-unit Rust case, and49 controller/source /25 session cases. The
+77/1/7 selection inventory, corpus/ledger, date/tag/authority fences and runtime
+gates are unchanged. No local execution or tracker metadata write occurs.
+
 Projected review source-card retrievedAt and non-null sourceDate now have the
 consumer's existing4096 UTF-16-unit fence. Exact original strings, null and
 date-only values remain unchanged; over-bound projected dates return typed
@@ -8,8 +21,8 @@ The check covers cited evidence and subject-metadata fallback for all record
 features; uncited date text and source-free empty views remain unaffected.
 Three authored/NOT RUN controls cover4096/4097/4117 units, ordinary dates/null,
 uncited long inputs, all five features, a whole-DTO size counterfactual and
-UTF-16 versus UTF-8/scalar units. Counts are41 synthetic-contract /10 scorer /
-28 retained /one counter plus one date-unit Rust case; frontend45/24 and77/1/7
+UTF-16 versus UTF-8/scalar units. Counts are42 synthetic-contract /10 scorer /
+28 retained /one counter plus one date-unit Rust case; frontend49/25 and77/1/7
 selections remain unchanged. No frontend/tag repair, corpus/ledger, runtime,
 authority/currentness semantics or withheld-state redesign is changed.
 
@@ -18,13 +31,13 @@ Inventory tag JSON has a tight 4,145 UTF-16-unit compact-display bound:
 brackets. Only LF/tab control characters are admitted; six-character control
 escapes are unreachable. Unique 128-byte quote/backslash tags attain the bound.
 Two backend canonical/disclosure and one strict-session controls are authored,
-NOT RUN. Shared preparation counts are 41 synthetic-contract /10 scorer /
+NOT RUN. Shared preparation counts are 42 synthetic-contract /10 scorer /
 28 retained /one counter Rust cases and 24 session cases. The session control
 requires the matching reviewed frontend tag-specific capacity donor before
 publication; other field limits, whole-DTO bounds and all native/runtime gates
 remain unchanged. No truncation, normalization or new source/approval is added.
-The exact composed donor is `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
-parent474fb67c. All six owned review paths match that donor, including unchanged
+For the earlier tag-capacity increment, the donor was `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c. All six owned review paths then matched it, including unchanged
 view-types/CSS. Its four authored controls bring the existing presentation
 selection to45 cases; shared session total is24. All seven new shared/donor
 controls are NOT RUN. Canonical disclosure keeps current:null and the donor
@@ -38,8 +51,8 @@ Uncited evidence stays omitted; claim-free fallback and all other result paths
 are unchanged. No field/candidate/selection or authority is created. Existing
 currentness/withdrawal, original-owner inspection labels and display bounds
 remain enforced. Two Rust and one existing adapter control are authored/NOT RUN.
-Current counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter
-Rust cases and 45 presentation/controller / 24 session cases. That no-suggestion
+Current counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust cases and 49 presentation/controller / 25 session cases. That no-suggestion
 increment added no new kind, frontend-owner source edit, runner/workflow or
 original corpus mapping.
 inv-model-only stays unbridged: #564's selected inventory-photo/description
@@ -75,8 +88,8 @@ the shared final byte fence; no subject metadata/capability is invented.
 Six new Rust and two session controls are authored/NOT RUN: shape/versions,
 escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
 record compatibility, terminal usage/refusals and consumer retirement. Current
-counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter Rust
-cases, plus 45 presentation/controller and 24 session cases. The 5/21/6 corpus
+counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter Rust
+cases, plus 49 presentation/controller and 25 session cases. The 5/21/6 corpus
 ledger, originals, runner selections and host/root/runtime/authority owners stay
 unchanged. No inference, source write, effect, persistence or activation occurs.
 
@@ -88,7 +101,7 @@ once-consumed authority:none review intents remain unchanged. Source preparation
 must compose the exact reviewed #569 presentation donor before publication;
 the frontend writer retains its six review/controller files. Three new shared
 controls (canonical/disclosure, independent supplied scorer and session binding)
-are authored/unrun. Shared Rust counts are 41 synthetic-contract and 10 scorer
+are authored/unrun. Shared Rust counts are 42 synthetic-contract and 10 scorer
 tests; retained tests/ledger are 28 and 5 scorer subsets/21 structural/6 unbridged.
 Original inv-model-only stays unbridged: its Document subject cannot be silently
 relabelled as an InventoryItem. No inference, physical verification, approval,
@@ -608,8 +621,8 @@ rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-five
-controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-four adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-nine
+controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-five adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.

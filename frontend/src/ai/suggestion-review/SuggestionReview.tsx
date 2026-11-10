@@ -52,7 +52,7 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
             onChange={event => { controller.selectField(field.key, event.target.checked); }} />Select for review</label>
           <p>Current: {field.current ?? 'Unknown'}</p>
           <label htmlFor={id + '-field-' + index}>Proposed value</label>
-          <input id={id + '-field-' + index} value={draft.value} maxLength={suggestionFieldTextLimit(view.kind, field.key)}
+          <textarea id={id + '-field-' + index} value={draft.value} maxLength={suggestionFieldTextLimit(view.kind, field.key)} wrap="soft"
             onChange={event => { controller.editField(field.key, event.target.value); }} />
           <p>{field.reason}</p><p>Uncertainty: {field.uncertainty || 'Not supplied'}</p>
           <p>Evidence: {field.evidenceKeys.map(key => view.sources.find(s => s.key === key)!.label).join('; ')}</p>
@@ -163,7 +163,7 @@ function MaintenanceTaskEditor({ task, draft, controller, disabled, id, evidence
       onChange={event => { controller.selectMaintenanceTask(task.key, event.target.checked); }} />Select task for review</label>
     {draft.edited && <p>Edited for review</p>}
     <label htmlFor={id + '-title'}>Task title for review</label>
-    <input id={id + '-title'} value={draft.title} maxLength={4096}
+    <textarea id={id + '-title'} value={draft.title} maxLength={4096} wrap="soft"
       onChange={event => { controller.editMaintenanceTask(task.key, { title: event.target.value }); }} />
     <label htmlFor={id + '-kind'}>Interval for review</label>
     <select id={id + '-kind'} value={draft.interval.kind} onChange={event => {
