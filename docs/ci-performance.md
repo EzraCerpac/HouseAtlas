@@ -56,18 +56,40 @@ The trusted reporter overlays startup ceilings only after canonical validation:
 | Metric | Absolute maximum (bytes) |
 | --- | ---: |
 | Entry and HTML modulepreload JavaScript | 1,843,578 |
-| Offline gzip of startup JavaScript | 303,827 |
+| Offline gzip of startup JavaScript | 303,859 |
 
-These retain the achieved #522 candidate sizes, with no added headroom. The
-31 October 2026 hosted comparison measured main `0cbc21c294ee08abde254c57315da8973316d132`
+The raw cap retains the achieved #522 candidate size without headroom.
+The gzip cap includes a fixed 32-byte compression margin above 303,827 bytes
+(about 0.011%), rather than a percentage tolerance or a rolling baseline.
+The 31 October 2026 hosted comparison measured main `0cbc21c294ee08abde254c57315da8973316d132`
 at 1,887,021 raw / 313,065 gzip bytes and candidate
-`9dba30e7bec50b544049536f6086640e21b8e7c0` at the ceilings above, using the
+`9dba30e7bec50b544049536f6086640e21b8e7c0` at 1,843,578 raw / 303,827 gzip bytes, using the
 unchanged harness pin and node-zlib-default gzip profile. See the
 [successful same-head measurement](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41247246165)
 and [exact raw pair](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41246861787/artifacts/13059563548).
 The resulting main `26e7faafc3d2c3c462b886a35c83e744b1233dda` passed all eleven
 ordinary checks, including all three offline launch cases. These byte ceilings
 retain the measured reduction; they establish no device latency target.
+
+The supplied 10 November 2026 evidence in [#574](https://github.com/EzraCerpac/HouseAtlas/issues/574)
+and [#555](https://github.com/EzraCerpac/HouseAtlas/pull/555#issuecomment-6775701464)
+reports main `cc8ea458c17731935311cda1a76dcb54f4b68295` at 303,827 gzip bytes
+and #555 head `0a657eefed40ca70ffb13b33d753363850109337` at 303,837,
+both at exactly 1,843,578 raw bytes;
+the changed startup file embeds renamed lazy chunk hashes.
+The 32-byte allowance covers that observed 10-byte shift with 22 bytes to spare;
+it is a deliberately small policy choice, not a measured upper bound on hash churn.
+It never accumulates across PRs: 303,859 passes, 303,860 fails,
+and even one raw byte above 1,843,578 still fails.
+All measured bytes, deltas and deterministic regression classifications remain
+unchanged; an increase within the allowance still reports `Regressed; budget passed`.
+The margin cannot prove a change is hash-only:
+same-size content changes costing up to 32 gzip bytes can also fit.
+Larger hash-only shifts require evidence and another explicit policy decision.
+No emitted bytes or filenames are rewritten for measurement,
+so the pinned collector's actual gzip metric remains comparable.
+The existing healthy reporter case covers the supplied pair, both exact limits,
+one-byte overruns, a stricter canonical gzip maximum and an unavailable base.
 
 `reporting/adapter.mjs` adds only those maxima to the validated owner's policy
 rows, retaining any stricter owner maximum and every other field. Other metrics

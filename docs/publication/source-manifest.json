@@ -6383,8 +6383,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 14075,
-      "sha256": "1b8d9dd6771d3c838567854899fc8329178c2d2fd06a254af2aca6e2966be1b1",
+      "bytes": 15596,
+      "sha256": "22df3fd2edd277875463dc6d83fa3c153f7dfa056bb43847ef506e9d174f9e43",
       "owner": "core-integration"
     },
     {
@@ -12508,8 +12508,8 @@
     {
       "path": "tools/perf/reporting/adapter.mjs",
       "mode": "100644",
-      "bytes": 3982,
-      "sha256": "eacce7b532347b786b869a04447ddf39c62071a7e294d98bc256bfdc3b6ca3d3",
+      "bytes": 4148,
+      "sha256": "91b0ed5e9edfe340f03e6dbdba399ffa42802229a5517b4a0486c55efb060ed8",
       "owner": "core-integration"
     },
     {
@@ -12599,8 +12599,8 @@
     {
       "path": "tools/perf/reporting/healthy-reporting.test.mjs",
       "mode": "100644",
-      "bytes": 16296,
-      "sha256": "31d9bd439015c55e8843952e598bc41194d55a3da882fd78440e1e2ad920b351",
+      "bytes": 17987,
+      "sha256": "a9d14f8a13928ef18d815a1aa4243ee703603e6ac69982ae340e93f646c2ec52",
       "owner": "core-integration"
     },
     {
