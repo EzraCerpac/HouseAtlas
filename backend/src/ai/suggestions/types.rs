@@ -1,4 +1,7 @@
-use crate::{contracts::stock::{StockContext, StockTarget}, domain::RecordRef};
+use crate::{
+    contracts::stock::{StockContext, StockTarget},
+    domain::RecordRef,
+};
 use serde::{Deserialize, Serialize};
 
 pub const SCHEMA_VERSION: u8 = 1;
@@ -23,16 +26,30 @@ pub struct SourceInput {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum Availability { Available, Unavailable, Withdrawn }
+pub enum Availability {
+    Available,
+    Unavailable,
+    Withdrawn,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum InputRole { Subject, Candidate, Source }
+pub enum InputRole {
+    Subject,
+    Candidate,
+    Source,
+}
 
 /// Container deliberately includes arbitrary canonical container types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum CandidateKind { InventoryItem, Container, Document, MaintenanceTask, Other }
+pub enum CandidateKind {
+    InventoryItem,
+    Container,
+    Document,
+    MaintenanceTask,
+    Other,
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,16 +63,31 @@ pub struct AdmittedEvidence {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum EvidenceBasis { Content, RecordAssertion, MetadataOnly }
+pub enum EvidenceBasis {
+    Content,
+    RecordAssertion,
+    MetadataOnly,
+}
 
 /// Locations originate at retrieval. Models can cite IDs, never invent pages,
 /// excerpts, URLs or original-open handles. Text ranges count Unicode scalars.
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum EvidenceLocation {
     Record,
-    Page { page: u32, page_count: u32 },
-    TextRange { start: u32, end: u32, text_length: u32 },
+    Page {
+        page: u32,
+        page_count: u32,
+    },
+    TextRange {
+        start: u32,
+        end: u32,
+        text_length: u32,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -82,7 +114,13 @@ pub struct QuestionBinding {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum SuggestionFeature { Inventory, Document, Maintenance, Answer, Contradictions }
+pub enum SuggestionFeature {
+    Inventory,
+    Document,
+    Maintenance,
+    Answer,
+    Contradictions,
+}
 
 /// All generated JSON structs reject unknown fields; there are no tool names,
 /// approval tokens, arbitrary field paths or native mutation envelopes.
@@ -99,7 +137,9 @@ pub struct GeneratedProposal {
     pub result: ProposalResult,
 }
 
-fn required_subject_ref<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+fn required_subject_ref<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
     Option::<String>::deserialize(deserializer)
 }
 
@@ -116,7 +156,11 @@ pub struct ExtractedClaim {
 /// These are qualitative labels, never calibrated probabilities or authority.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum Uncertainty { Tentative, Ambiguous, Unknown }
+pub enum Uncertainty {
+    Tentative,
+    Ambiguous,
+    Unknown,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -127,16 +171,39 @@ pub struct Support {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", rename_all_fields = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum ProposalResult {
-    Inventory { changes: Vec<InventoryChange>, duplicates: Vec<DuplicateCandidate> },
-    Document { #[serde(deserialize_with = "required_classification")] classification: Option<DocumentClassification>, links: Vec<DocumentLink> },
-    Maintenance { tasks: Vec<MaintenanceSuggestion> },
-    Answer { route: QuestionRoute, ranked_refs: Vec<String>, coverage: AnswerCoverage, statements: Vec<SupportedText> },
-    Contradictions { findings: Vec<Contradiction> },
+    Inventory {
+        changes: Vec<InventoryChange>,
+        duplicates: Vec<DuplicateCandidate>,
+    },
+    Document {
+        #[serde(deserialize_with = "required_classification")]
+        classification: Option<DocumentClassification>,
+        links: Vec<DocumentLink>,
+    },
+    Maintenance {
+        tasks: Vec<MaintenanceSuggestion>,
+    },
+    Answer {
+        route: QuestionRoute,
+        ranked_refs: Vec<String>,
+        coverage: AnswerCoverage,
+        statements: Vec<SupportedText>,
+    },
+    Contradictions {
+        findings: Vec<Contradiction>,
+    },
 }
 
-fn required_classification<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<DocumentClassification>, D::Error> {
+fn required_classification<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<DocumentClassification>, D::Error> {
     Option::<DocumentClassification>::deserialize(deserializer)
 }
 
@@ -155,9 +222,19 @@ impl ProposalResult {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "field", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum InventoryChange {
-    Category { value: String, support: Support },
-    Tags { values: Vec<String>, support: Support },
-    Container { #[serde(rename = "candidateRef")] candidate_ref: String, support: Support },
+    Category {
+        value: String,
+        support: Support,
+    },
+    Tags {
+        values: Vec<String>,
+        support: Support,
+    },
+    Container {
+        #[serde(rename = "candidateRef")]
+        candidate_ref: String,
+        support: Support,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -182,15 +259,29 @@ pub enum DuplicateRelationship {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DocumentClassification { pub category: DocumentClass, pub support: Support }
+pub struct DocumentClassification {
+    pub category: DocumentClass,
+    pub support: Support,
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum DocumentClass { Manual, Warranty, Invoice, ElectricalDrawing, Mixed, Other, Unknown }
+pub enum DocumentClass {
+    Manual,
+    Warranty,
+    Invoice,
+    ElectricalDrawing,
+    Mixed,
+    Other,
+    Unknown,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DocumentLink { pub candidate_ref: String, pub support: Support }
+pub struct DocumentLink {
+    pub candidate_ref: String,
+    pub support: Support,
+}
 
 /// First increment intentionally represents intervals only. An invented dueDate
 /// or scheduling field is rejected; a native owner needs its own known baseline.
@@ -215,24 +306,48 @@ pub enum MaintenanceInterval {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum IntervalUnit { Days, Weeks, Months, Years, UsageHours }
+pub enum IntervalUnit {
+    Days,
+    Weeks,
+    Months,
+    Years,
+    UsageHours,
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum MaintenanceUrgency { Unknown, Routine, ReviewSoon }
+pub enum MaintenanceUrgency {
+    Unknown,
+    Routine,
+    ReviewSoon,
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum QuestionRoute { Inventory, Documents, Maintenance, Electrical, Network, Clarify, Unknown }
+pub enum QuestionRoute {
+    Inventory,
+    Documents,
+    Maintenance,
+    Electrical,
+    Network,
+    Clarify,
+    Unknown,
+}
 
 /// No exhaustive answer can be inferred from a bounded retrieval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum AnswerCoverage { Partial, NoAnswer }
+pub enum AnswerCoverage {
+    Partial,
+    NoAnswer,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SupportedText { pub text: String, pub support: Support }
+pub struct SupportedText {
+    pub text: String,
+    pub support: Support,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -245,4 +360,8 @@ pub struct Contradiction {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ContradictionPattern { IncompatibleLocation, ConflictingAssociation, PossibleSupersession }
+pub enum ContradictionPattern {
+    IncompatibleLocation,
+    ConflictingAssociation,
+    PossibleSupersession,
+}

@@ -1,8 +1,14 @@
 //! No inference is started here. Only the original transport owner may supply
 //! a terminal outcome; constructing this enum is not proof of provider execution.
-use super::{AdmittedSnapshot, MAX_OUTPUT_BYTES, ReviewDisclosure, SuggestionError, disclose_review, validate_generated};
+use super::{
+    AdmittedSnapshot, MAX_OUTPUT_BYTES, ReviewDisclosure, SuggestionError, disclose_review,
+    validate_generated,
+};
 use crate::ai::{InferenceOutcome, Usage};
-use std::{collections::BTreeSet, io::{self, Write}};
+use std::{
+    collections::BTreeSet,
+    io::{self, Write},
+};
 
 const MAX_ENVELOPE_BYTES: usize = 1_048_576;
 
@@ -15,12 +21,16 @@ struct BoundedJsonBytes {
 impl Write for BoundedJsonBytes {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         if bytes.len() > self.remaining {
-            return Err(io::Error::other("AI completion envelope exceeds byte limit"));
+            return Err(io::Error::other(
+                "AI completion envelope exceeds byte limit",
+            ));
         }
         self.remaining -= bytes.len();
         Ok(bytes.len())
     }
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,59 +64,92 @@ pub fn disclose_completed(
 ) -> SuggestionCompletion {
     let (output, usage) = match outcome {
         InferenceOutcome::Completed { output, usage } => (output, *usage),
-        InferenceOutcome::Cancelled { usage } => return withheld(*usage, CompletionRejection::Cancelled),
-        InferenceOutcome::Stopped { usage } => return withheld(*usage, CompletionRejection::Stopped),
-        InferenceOutcome::Unresolved { usage, .. } => return withheld(*usage, CompletionRejection::Unresolved),
-        InferenceOutcome::Failed { usage, .. } => return withheld(*usage, CompletionRejection::Failed),
+        InferenceOutcome::Cancelled { usage } => {
+            return withheld(*usage, CompletionRejection::Cancelled);
+        }
+        InferenceOutcome::Stopped { usage } => {
+            return withheld(*usage, CompletionRejection::Stopped);
+        }
+        InferenceOutcome::Unresolved { usage, .. } => {
+            return withheld(*usage, CompletionRejection::Unresolved);
+        }
+        InferenceOutcome::Failed { usage, .. } => {
+            return withheld(*usage, CompletionRejection::Failed);
+        }
     };
     let review = (|| {
         // Bound the complete envelope too, including ignored reasoning metadata.
-        if output.is_empty() || output.len() > 64
-            || serde_json::to_writer(&mut BoundedJsonBytes { remaining: MAX_ENVELOPE_BYTES }, output).is_err()
+        if output.is_empty()
+            || output.len() > 64
+            || serde_json::to_writer(
+                &mut BoundedJsonBytes {
+                    remaining: MAX_ENVELOPE_BYTES,
+                },
+                output,
+            )
+            .is_err()
         {
             return Err(CompletionRejection::InvalidEnvelope);
         }
         let mut text = None;
         for item in output {
             match item.get("type").and_then(serde_json::Value::as_str) {
-                Some("reasoning") => {},
+                Some("reasoning") => {}
                 Some("message") => {
-                    if text.is_some() || item.get("role").and_then(serde_json::Value::as_str) != Some("assistant")
-                        || item.get("status").and_then(serde_json::Value::as_str) != Some("completed")
+                    if text.is_some()
+                        || item.get("role").and_then(serde_json::Value::as_str) != Some("assistant")
+                        || item.get("status").and_then(serde_json::Value::as_str)
+                            != Some("completed")
                     {
                         return Err(CompletionRejection::InvalidEnvelope);
                     }
-                    let parts = item.get("content").and_then(serde_json::Value::as_array)
+                    let parts = item
+                        .get("content")
+                        .and_then(serde_json::Value::as_array)
                         .ok_or(CompletionRejection::InvalidEnvelope)?;
-                    if parts.iter().any(|p| p.get("type").and_then(serde_json::Value::as_str) == Some("refusal")) {
+                    if parts.iter().any(|p| {
+                        p.get("type").and_then(serde_json::Value::as_str) == Some("refusal")
+                    }) {
                         return Err(CompletionRejection::Refused);
                     }
                     // Do not concatenate fragments, choose among messages or
                     // extract JSON from prose/markdown. One exact payload only.
-                    if parts.len() != 1 || parts[0].get("type").and_then(serde_json::Value::as_str) != Some("output_text") {
+                    if parts.len() != 1
+                        || parts[0].get("type").and_then(serde_json::Value::as_str)
+                            != Some("output_text")
+                    {
                         return Err(CompletionRejection::InvalidEnvelope);
                     }
-                    let payload = parts[0].get("text").and_then(serde_json::Value::as_str)
+                    let payload = parts[0]
+                        .get("text")
+                        .and_then(serde_json::Value::as_str)
                         .ok_or(CompletionRejection::InvalidEnvelope)?;
                     if payload.is_empty() || payload.len() > MAX_OUTPUT_BYTES {
                         return Err(CompletionRejection::InvalidEnvelope);
                     }
                     text = Some(payload);
-                },
+                }
                 // Function calls, tool results and unknown output never reach
                 // the domain catalog or get silently discarded as harmless.
                 _ => return Err(CompletionRejection::InvalidEnvelope),
             }
         }
-        let review = validate_generated(text.ok_or(CompletionRejection::InvalidEnvelope)?.as_bytes(), admitted, current)
-            .map_err(CompletionRejection::Validation)?;
+        let review = validate_generated(
+            text.ok_or(CompletionRejection::InvalidEnvelope)?.as_bytes(),
+            admitted,
+            current,
+        )
+        .map_err(CompletionRejection::Validation)?;
         disclose_review(&review, current, inspectable).map_err(CompletionRejection::Validation)
     })();
     SuggestionCompletion { usage, review }
 }
 
 fn withheld(usage: Usage, rejection: CompletionRejection) -> SuggestionCompletion {
-    SuggestionCompletion { usage, review: Err(rejection) }
+    SuggestionCompletion {
+        usage,
+        review: Err(rejection),
+    }
 }
 
 #[cfg(test)]
@@ -119,10 +162,14 @@ mod tests {
         // Independently spelled compact JSON: UTF-8 é uses two bytes, LF/quote/
         // slash each use a two-byte escape, and U+0001 uses six bytes.
         let encoded = b"[\"\xc3\xa9\\n\\\"\\\\\\u0001\"]";
-        let mut exact = BoundedJsonBytes { remaining: encoded.len() };
+        let mut exact = BoundedJsonBytes {
+            remaining: encoded.len(),
+        };
         serde_json::to_writer(&mut exact, &value).unwrap();
         assert_eq!(exact.remaining, 0);
-        let mut short = BoundedJsonBytes { remaining: encoded.len() - 1 };
+        let mut short = BoundedJsonBytes {
+            remaining: encoded.len() - 1,
+        };
         assert!(serde_json::to_writer(&mut short, &value).is_err());
         let mut sink = BoundedJsonBytes { remaining: 2 };
         assert!(sink.write_all(b"abc").is_err());

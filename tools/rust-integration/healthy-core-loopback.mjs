@@ -45,7 +45,9 @@ class Pipe {
         else if (message.method === 'Network.responseReceived') {
           const response = message.params.response;
           responses.push({ url: response.url, status: response.status });
-          if (new URL(response.url).pathname.endsWith('/invoke') && nativeListResponses.length < 12)
+          // Earlier UI lifetimes must not exhaust observation before the two
+          // measured topology lifetimes below; retain every actual response.
+          if (new URL(response.url).pathname.endsWith('/invoke'))
             nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status,
               snapshot: Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null });
         }

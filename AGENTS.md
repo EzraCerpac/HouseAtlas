@@ -1,5 +1,25 @@
 # HouseAtlas
 
+Hosted CI repair follow-up (10 November 2026): the exact14ff0744 default
+backend-library job130017469493 executed346 passed /0 failed /12 ignored /
+3 filtered, including42 suggestion synthetic-contract,10 supplied-scorer,
+28 retained-corpus and two unit controls, plus continuity DATA and native-list
+continuation cases. Ordinary-core42809630330 attempt2, performance42809630294
+attempt2 and README-media42809630326 attempt2 passed. These hosted outcomes
+supersede historical NOT RUN notes only for their exact selections and pin;
+they do not qualify runtime, source custody, device or operational acceptance.
+
+The source repair applies the identical hosted Linux/macOS rustfmt diff across
+12 Rust files without local formatter execution. The core loopback recorder now
+retains all actual native responses instead of silently stopping at12; exact
+four-read-per-lifetime and matched-snapshot assertions remain. The media fixture
+awaits the viewer's actual topology readiness and four observed successful reads
+before session replacement; unexpected401 responses remain failures. These
+fixture repairs require new exact-head hosted execution. No local check, new
+runner/workflow, production access/lifecycle relaxation or runtime activation
+is introduced. All13 current donor heads are ancestors of14ff0744; ancestry
+alone does not establish their remaining acceptance or missing coverage.
+
 Exact donor c020815382919e82244951c047ce8bf101b6934f (parent f7188684)
 changes only the component, README and review/source controls. Proposed-field
 and maintenance-title controls use controlled soft-wrap textareas with existing

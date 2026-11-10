@@ -182,6 +182,15 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  // Let this viewer lifetime finish its real topology reads before navigating
+  // away and rotating its session. Abort on unmount alone does not settle a
+  // request already received by the server before the old session is retired.
+  await until(async () => await evaluate("document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Viewer topology ready before session replacement');
+  const viewerTopologyResponses = () => responses.filter(r => r.requestPhase === 'viewer-login'
+    && new URL(r.url).pathname.endsWith('/invoke'));
+  await until(() => viewerTopologyResponses().length >= 4, 'Viewer topology responses completed before session replacement');
+  assert.equal(viewerTopologyResponses().length, 4, 'Four completed viewer topology reads');
+  assert(viewerTopologyResponses().every(r => r.status === 200), 'Viewer topology reads succeed before session replacement');
   await openAtlasTools();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
