@@ -1,5 +1,27 @@
 # HouseAtlas
 
+## Native AI continuation release fence
+
+The existing default backend-library selection discovers these three cases in
+`backend/src/ai/host/continuation_healthy.rs`, under
+`ai::host::continuation::continuation_healthy::`:
+
+- `stop_during_original_checks_preserves_unclaimed_checkpoint`
+- `expiry_during_original_checks_preserves_unclaimed_checkpoint`
+- `original_checkpoint_is_claimed_once_without_replacing_usage`
+
+They use fake review/authority, an opaque prepared allocation and a disposable
+SQLite journal. The actual claim path rechecks cancellation and expiry after
+original review/authority checks, before recording or consuming the claim. A
+private clock drives exact expiry with no sleeps; production uses Instant::now.
+Refused claims preserve the original checkpoint, prior operation correlations
+and unknown usage without a claim observation. Explicit retirement and one-time
+successful claim are checked separately. These are source-authored cases until
+exact hosted logs show execution; no local compilation/test result is claimed.
+They establish no actual approval, native reviewed dispatch, credential/provider
+operation, mounted router, runtime activation or device qualification. No
+workflow, command or held runner selection is added.
+
 ## Continuing sprint source composition — 9 November 2026
 
 The continuation of #562 preserves its original candidate `2aa7c59f` and composes
@@ -2840,7 +2862,10 @@ node frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs
 ```
 
 The generated electrical drawing-group projection checks room-level membership,
-unplaced and missing members, source separation and malformed saved metadata:
+unplaced and missing members, source separation and malformed saved metadata.
+It also passes generated fixture data through the actual documentary projector:
+groups with a current circuit, verified or unknown wiring, duplicate, absent or
+non-reciprocal membership never become a drawing group:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs
@@ -4516,3 +4541,24 @@ All original native read/write/audit, exact measured-count and response checks
 remain intact. No production owner, runner/workflow, security configuration or
 acceptance gate changes. These source-reviewed fixture changes require new
 exact-head hosted execution; no local test/build/browser/compiler ran.
+
+
+Composition follow-up: main8a20f596 is merged with preserved continuation
+fence (#577), source inventory (#579) and accepted reporting policy (#575).
+Exact electrical projector donor0138f373 is composed as its three-path delta;
+its generated case passed in hosted job130052523185, while the sandbox cases
+remained failed separately. The new combined head is not qualified by either
+source's prior checks. No test/browser case or security requirement is removed.
+
+Four changed MCP inventory pins were reinspected: the full native close/reopen
+test addition, test-child registration, v4 introduction clarification, and all
+five source/two browser runner additions. The read-only inventory audit matches
+168 rows/67 pins after only those four hashes and provenance were updated.
+Every operation/profile/admission value, historical evidence identity and
+NOT RUN/OPEN/DEFERRED state remains unchanged. This audit executes no test,
+service or application. No local build/compiler/formatter/browser ran.
+
+Startup imports, HomeBox retained-original producer/consumer, model-cache/dialog,
+electrical trace details and suggestion-review source remain with their existing
+writers. This composition binds no account, runtime, host port, source write or
+approval and leaves operational/device acceptance and current-head CI open.
