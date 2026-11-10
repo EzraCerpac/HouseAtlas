@@ -30,7 +30,9 @@ function TraceRowDetail({ row, model, onRoom }: { readonly row: TraceRow; readon
   const target = row.coverage.kind === 'group' ? 'Whole group' : row.coverage.label ?? 'Unavailable member';
   const circuit = row.circuit, details = circuit?.details;
   const room = circuit?.panel?.room;
-  const atlasRoom = room?.kind === 'room' ? model.roomsById.get(room.roomId) : undefined;
+  // The scene's own room must name the same native place as the qualified binding.
+  const candidate = room?.kind === 'room' ? model.roomsById.get(room.roomId) : undefined;
+  const atlasRoom = room?.kind === 'room' && candidate?.nativePlaceId === room.nativePlaceId ? candidate : undefined;
   const occurrence = atlasRoom?.occurrenceIds.find(id => model.selectable.has(id));
   return <>
     <p>{target}</p>
@@ -43,7 +45,8 @@ function TraceRowDetail({ row, model, onRoom }: { readonly row: TraceRow; readon
         <div><dt>Panel</dt><dd>{circuit.panel ? circuit.panel.label ?? 'Unlabelled panel' : 'Not recorded'}</dd></div>
         {circuit.panel && <div><dt>Panel room</dt><dd>{atlasRoom && occurrence
           ? <button type="button" className="text-btn" onClick={() => onRoom(atlasRoom.roomId)}>{atlasRoom.label}</button>
-          : room?.kind === 'not-recorded' ? 'Not recorded' : room?.kind === 'unknown' ? 'Unknown' : 'Not placed in this Atlas'}</dd></div>}
+          : room?.kind === 'not-recorded' ? 'Not recorded' : room?.kind === 'unknown' ? 'Unknown'
+          : room?.kind === 'ambiguous' ? 'Several Atlas rooms match; not placed' : 'Not placed in this Atlas'}</dd></div>}
       </> : <div><dt>Circuit</dt><dd>Withheld: {row.reasons.join('; ')}</dd></div>}
       <div><dt>Basis</dt><dd>{known(BASIS, row.basis)}</dd></div>
       <div><dt>Confidence</dt><dd>{known(CONFIDENCE, row.confidence)}</dd></div>

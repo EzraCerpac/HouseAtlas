@@ -1,3 +1,4 @@
+import type { UnifiedAtlasOverlayRoomBinding } from '../../../integration/unified-atlas-overlay-source';
 import type { ElectricalGroup } from './electrical-group';
 
 /* Consumer of `houseatlas.electrical-data-projection.v1` (#554). It follows
@@ -43,12 +44,13 @@ export interface ElectricalTraceSource {
   readonly ledger: { readonly workspaceId: string; readonly homeId: string; readonly sceneEvidenceId: string;
     readonly sceneOriginalSha256: string; readonly viewKey: string; readonly sha256: string };
   readonly projection: ElectricalProjection;
-  readonly roomBindings: readonly { readonly roomId: string; readonly nativePlaceId: string }[];
+  readonly roomBindings: readonly Pick<UnifiedAtlasOverlayRoomBinding, 'roomId' | 'nativePlaceId' | 'qualification'>[];
 }
 
 export type TracePanelRoom =
-  | { readonly kind: 'room'; readonly roomId: string }
-  | { readonly kind: 'not-recorded' | 'unknown' | 'not-placed' };
+  /** The consumer must still check the Atlas room's own nativePlaceId. */
+  | { readonly kind: 'room'; readonly roomId: string; readonly nativePlaceId: string }
+  | { readonly kind: 'not-recorded' | 'unknown' | 'not-placed' | 'ambiguous' };
 export interface TraceCircuit {
   readonly circuitId: string; readonly label: string | null;
   /** Absent key: not supplied. Null: explicitly unknown. */
@@ -146,8 +148,8 @@ export function traceElectricalGroup(group: ElectricalGroup, source: ElectricalT
         if (own.reviewedRoomId === null) room = { kind: own.roomAssociation === undefined ? 'not-recorded' : 'unknown' };
         else {
           // Only the frame owner's qualified bindings place the room; no label or raw ID fallback.
-          const rooms = new Set(roomBindings.filter(b => b.nativePlaceId === own.reviewedRoomId).map(b => b.roomId));
-          room = rooms.size === 1 ? { kind: 'room', roomId: [...rooms][0]! } : { kind: 'not-placed' };
+          const rooms = new Set(roomBindings.filter(b => b.qualification === 'current-native-room-join' && b.nativePlaceId === own.reviewedRoomId).map(b => b.roomId));
+          room = rooms.size === 1 ? { kind: 'room', roomId: [...rooms][0]!, nativePlaceId: own.reviewedRoomId } : { kind: rooms.size ? 'ambiguous' : 'not-placed' };
         }
         panel = { label: own.label, room };
       }

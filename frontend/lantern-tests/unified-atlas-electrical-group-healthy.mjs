@@ -113,7 +113,8 @@ const groupsFor = ledger => electricalGroups(projectDocumentaryFacts({ rooms: []
 // Generated review authority: every row of `data` is independently current.
 const reviewsFor = data => [...data.panels.map(row => ['panel', row]), ...data.breakers.map(row => ['breaker', row]), ...data.mappings.map(row => ['mapping', row])]
   .map(([kind, row]) => ({ receipt: row.review.receipt, subject: electricalReviewSubject(data, kind, row) }));
-const sourceFor = ({ data = generated.data, context = generated.context, roomBindings = [{ roomId: ATLAS_ROOM, nativePlaceId: NATIVE_ROOM }], ledger = {} } = {}) => ({
+const bind = (roomId, nativePlaceId = NATIVE_ROOM, qualification = 'current-native-room-join') => ({ roomId, nativePlaceId, qualification });
+const sourceFor = ({ data = generated.data, context = generated.context, roomBindings = [bind(ATLAS_ROOM)], ledger = {} } = {}) => ({
   ledger: { workspaceId: scope.workspaceId, homeId: scope.homeId, sceneEvidenceId: scenePins.sceneEvidenceId,
     sceneOriginalSha256: scenePins.sceneOriginalSha256, viewKey: data.viewKey, sha256: data.fixtureLedgerSha256, ...ledger },
   projection: projectData(data, context), roomBindings });
@@ -129,7 +130,7 @@ const [owner, label, tested] = traces.map(trace => trace.rows[0]);
 assert.deepEqual(owner.coverage, { kind: 'group' });
 assert.deepEqual([owner.basis, owner.confidence, owner.circuit.label], ['owner-report', 'low', 'Generated circuit A']);
 assert.deepEqual(owner.circuit.details, { position: { label: 'A1', ways: ['A1'] }, ratingAmperes: 16, protection: null }, 'Explicit null stays unknown');
-assert.deepEqual(owner.circuit.panel, { label: 'Generated panel Δ', room: { kind: 'room', roomId: ATLAS_ROOM } });
+assert.deepEqual(owner.circuit.panel, { label: 'Generated panel Δ', room: { kind: 'room', roomId: ATLAS_ROOM, nativePlaceId: NATIVE_ROOM } });
 assert.deepEqual([label.basis, label.circuit.label, label.circuit.details], ['label-match', null, { position: null }], 'Absent rating/protection stay absent');
 assert.deepEqual(tested.coverage, { kind: 'fixture', fixtureId: 'generated-symbol-3', label: 'Generated symbol 3' });
 assert.deepEqual(tested.test, { observedAt: '2026-10-01T12:00:00Z', method: 'Generated test-result assertion; no real test performed' });
@@ -138,9 +139,10 @@ assert.equal(owner.test, null, 'A reviewed owner report is never a tested associ
 // Panel room: only the supplied qualified bindings place it; unique roomId or nothing.
 const roomOf = roomBindings => traceElectricalGroup(byId('generated-group-1'), sourceFor({ roomBindings })).rows[0].circuit.panel.room;
 assert.deepEqual(roomOf([]), { kind: 'not-placed' });
-assert.deepEqual(roomOf([{ roomId: 'r1', nativePlaceId: NATIVE_ROOM }, { roomId: 'r2', nativePlaceId: NATIVE_ROOM }]), { kind: 'not-placed' });
-assert.deepEqual(roomOf([{ roomId: 'r1', nativePlaceId: NATIVE_ROOM }, { roomId: 'r1', nativePlaceId: NATIVE_ROOM }]), { kind: 'room', roomId: 'r1' });
-assert.deepEqual(roomOf([{ roomId: ATLAS_ROOM, nativePlaceId: 'other-native-room' }]), { kind: 'not-placed' });
+assert.deepEqual(roomOf([bind('r1'), bind('r2')]), { kind: 'ambiguous' }, 'Never the first of several rooms');
+assert.deepEqual(roomOf([bind('r1'), bind('r1')]), { kind: 'room', roomId: 'r1', nativePlaceId: NATIVE_ROOM });
+assert.deepEqual(roomOf([bind(ATLAS_ROOM, 'other-native-room')]), { kind: 'not-placed' });
+assert.deepEqual(roomOf([bind(ATLAS_ROOM, NATIVE_ROOM, 'captured-room-identity-join')]), { kind: 'not-placed' }, 'Saved identity joins are not current bindings');
 
 // Refusal: the projection must describe exactly this group's ledger and source.
 const refused = (source, groupRow = byId('generated-group-1')) => traceElectricalGroup(groupRow, source);
@@ -208,8 +210,9 @@ assert.deepEqual(traceElectricalGroup(pair, pairData([])), { status: 'traced', r
 assert.equal(traceElectricalGroup(pair, happy).reason, 'source-mismatch', 'The original single-member ledger projection does not describe this pair');
 
 // Actual detail markup: readable facts, room navigation and no wiring claims.
-const model = { roomsById: new Map([[ATLAS_ROOM, { roomId: ATLAS_ROOM, label: 'Generated room', occurrenceIds: ['generated-occurrence'] }]]),
-  selectable: new Set(['generated-occurrence']) };
+const model = { roomsById: new Map([[ATLAS_ROOM, { roomId: ATLAS_ROOM, nativePlaceId: NATIVE_ROOM, label: 'Generated room', occurrenceIds: ['generated-occurrence'] }],
+  ['other-atlas-room', { roomId: 'other-atlas-room', nativePlaceId: 'other-native-room', label: 'Other room', occurrenceIds: ['other-occurrence'] }]]),
+  selectable: new Set(['generated-occurrence', 'other-occurrence']) };
 const markup = (groupRow, source) => renderToStaticMarkup(createElement(ElectricalTraceDetail, { group: groupRow, source, model, onRoom: () => {} }));
 const ownerHTML = markup(byId('generated-group-1'), happy);
 for (const text of ['Circuit and panel', 'Whole group', 'Generated circuit A', 'A1', '16 A', 'Generated panel Δ', 'Generated room</button>', 'Owner report', 'Low', 'Not confirmed by test'])
@@ -220,6 +223,9 @@ assert.match(markup(byId('generated-group-3'), happy), /Circuit association conf
 for (const html of [ownerHTML, markup(byId('generated-group-3'), happy)]) assert.doesNotMatch(html, /wiring verified|verified wiring|wire route|cable/i);
 assert.doesNotMatch(markup(byId('generated-group-1'), sourceFor({ roomBindings: [] })), /<button/);
 assert.match(markup(byId('generated-group-1'), sourceFor({ roomBindings: [] })), /Not placed in this Atlas/);
+const crossed = markup(byId('generated-group-1'), sourceFor({ roomBindings: [bind('other-atlas-room')] }));
+assert.doesNotMatch(crossed, /<button|Other room/, 'A binding whose Atlas room names another native place is not followed');
+assert.match(markup(byId('generated-group-1'), sourceFor({ roomBindings: [bind('r1'), bind('r2')] })), /Several Atlas rooms match; not placed/);
 const staleHTML = markup(byId('generated-group-1'), withoutReview);
 assert.match(staleHTML, /Withheld: No current review of this exact assertion/);
 assert.doesNotMatch(staleHTML, /Generated circuit A|Generated panel/);
