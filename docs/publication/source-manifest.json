@@ -8959,8 +8959,15 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/browser.mjs",
       "mode": "100644",
-      "bytes": 41696,
-      "sha256": "5d54c218ff84192f55e93912544ba22f03fb44e59a70d5352c6134fb9922992f",
+      "bytes": 46367,
+      "sha256": "ffa89cc8dfaece325634c1f2c308cc8a2ed0e7e8b1dad0574535851861e16039",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-regression/electrical-trace.html",
+      "mode": "100644",
+      "bytes": 371,
+      "sha256": "a1625fc35757ddf58c2a3e06566135ba8c5fba8055abe2ea60f90958225b57cb",
       "owner": "web"
     },
     {
@@ -8975,6 +8982,13 @@
       "mode": "100644",
       "bytes": 66788,
       "sha256": "d8a47bef080e8b77926272812f73efb182c8696b0cc949172a8259095f2b6100",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-regression/mounted-electrical-trace.tsx",
+      "mode": "100644",
+      "bytes": 7088,
+      "sha256": "310e686f2b4d4438323533cd6ee7f783ec7e8d104218b583beb7a7545da84855",
       "owner": "web"
     },
     {
