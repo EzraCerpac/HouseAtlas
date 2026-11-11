@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 97133,
-      "sha256": "2a0244dcc8603a2db61e2d7adadcb7b71a498d9fcb319927df43589b36bf7a1f",
+      "bytes": 98064,
+      "sha256": "b23f2e224b081fff13ee6c69c0139c55d962af9cef2c621b2fd91e9072072a6e",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 323498,
-      "sha256": "4cf9e9f5c6e6347c6e9a5af75fa02b261032a3e41bb044bd850f6fb9b25b7caa",
+      "bytes": 324841,
+      "sha256": "e7e9d2f0f9dd75c40597ef8f35bdb15bbf0fe8ba2e4ffef4e51ad8582bf3bf95",
       "owner": "core-integration"
     },
     {
@@ -7664,8 +7664,8 @@
     {
       "path": "frontend/example/app.tsx",
       "mode": "100644",
-      "bytes": 4809,
-      "sha256": "42411a53d9c9e836d411d406b623e229109e5f16bddf983d79de0b9488bb2dda",
+      "bytes": 4910,
+      "sha256": "5dc5e6d1fa7374faa9d2d6c1777449a47307c386505bc75bf2b000aecba865b1",
       "owner": "web"
     },
     {
@@ -7694,6 +7694,13 @@
       "mode": "100644",
       "bytes": 278,
       "sha256": "f875347f6f97879bdbd92e20b41c66038c6d68074caac263262a7bccb00292ea",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/synthetic-overlays.ts",
+      "mode": "100644",
+      "bytes": 7544,
+      "sha256": "b06dea360c9b9ab0b455a88d505d65847974b1f16eaa227d5832c6995693975d",
       "owner": "web"
     },
     {
@@ -8208,6 +8215,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/example-combined-overlays-healthy.mjs",
+      "mode": "100644",
+      "bytes": 6856,
+      "sha256": "5270336f2646cfa9b79c5a0a0138157357ae61c1280da7fae07316004799819b",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
       "bytes": 62255,
@@ -8644,8 +8658,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6920,
-      "sha256": "853298708da8cff765815a8faa2c256137c84ae400dec5c7e6e747224e032206",
+      "bytes": 6969,
+      "sha256": "9590f7c3fa7670641df24f8773c9e472ed101febcc347b0e9480d339a04a9e21",
       "owner": "web"
     },
     {
@@ -12305,8 +12319,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 65397,
-      "sha256": "dbd7ee336e531b17c42793cf55464ce4fc09ad645e069c91f1b71e01e27b8ebe",
+      "bytes": 65617,
+      "sha256": "525aa843615dd002447b70955c3f6141f0dde49e6465ce54c076819773b4a214",
       "owner": "core-integration"
     },
     {
