@@ -6,8 +6,8 @@
  * account are used. It never falls back to, or mixes with, a real Home.
  * Loaded only by ./main after ./isolation has run.
  *
- * `?building=<id>` opens the Atlas on one generated building
- * (`syn-building-house` or `syn-building-studio`); an unknown ID is ignored. */
+ * `building`, `floor`, `room` and `view` URL parameters name the Atlas
+ * starting view once per mount (./household exampleStart). */
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { LanternHost } from '../src/lantern/Host';
@@ -19,10 +19,9 @@ import { readUnifiedAtlas } from '../integration/unified-atlas-reader';
 import { createSyntheticDocumentServer } from '../lantern-tests/source-host-visual/synthetic-documents';
 import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/synthetic-site';
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
-import { EXAMPLE_SCOPE as scope, exampleHomeView } from './household';
+import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart } from './household';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
-const entry = new URLSearchParams(location.search).get('building');
 
 // One fixed local owner for the in-page document reader; not a session.
 const binding = { sessionIdentity: Object.freeze({}), expiresAt: EXPIRES, scope };
@@ -36,6 +35,8 @@ const sourceDocuments: SourceDocumentsPort = {
  * home name is the persistent label on every screen of the shell. */
 async function example() {
   const generated = await buildSyntheticAtlas(scope);
+  // Applied by the Atlas once, to its first view of this mount's publication.
+  const named = exampleStart(generated.companion, new URLSearchParams(location.search));
   const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, SYNTHETIC_ATLAS.revision);
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
     envelopeBytes: composed.envelopeBytes, href: composed.href, glb: generated.glb, sha256: composed.sha256,
@@ -46,11 +47,11 @@ async function example() {
   const models: SourceModelPort = {
     site: createSyntheticSitePort(),
     // The production reader, guards and admission against the in-page HTTPS fake.
-    atlas: { current, subscribe, entryBuildingId: () => entry,
+    atlas: { current, subscribe,
       async read(requested, signal) {
         const read = await readUnifiedAtlas({ selection: requested, signal,
           origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
-        return entry === null ? read : { ...read, entryBuildingId: entry };
+        return named.length === 0 ? read : { ...read, start: named };
       } },
   };
   return { view: exampleHomeView(generated.companion), models };
