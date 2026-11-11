@@ -493,6 +493,9 @@ async fn contextual_five_originals() -> Result<(), Failure> {
         .tempdir_in("/tmp")?;
     let directory = scratch.path().join("fixture");
     let core = lifecycle::prepare(&directory, ORIGIN)?;
+    let directory = fs::canonicalize(directory)?;
+    let home = core.home.clone();
+    let homes = core.homes.clone();
     assert_eq!(
         fs::metadata(&directory)?.permissions().mode() & 0o777,
         0o700
@@ -511,12 +514,18 @@ async fn contextual_five_originals() -> Result<(), Failure> {
     let receipt: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
     let login = receipt["editorLogin"].clone();
     drop(receipt);
-    let app = router(Host::new(
-        core,
-        ORIGIN.into(),
-        Arc::new(BTreeMap::new()),
-        vec![],
-    )?);
+    let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
+    let first_core = host.core.clone();
+    let core_released = Arc::downgrade(&first_core);
+    let (store_released, access_released, vault_released) = {
+        let core = first_core.lock().map_err(|_| "First Core poisoned")?;
+        (
+            Arc::downgrade(&core.store),
+            Arc::downgrade(&core.access),
+            Arc::downgrade(&core.vault),
+        )
+    };
+    let app = router(host);
     let response = app
         .clone()
         .oneshot(request(
@@ -580,6 +589,7 @@ async fn contextual_five_originals() -> Result<(), Failure> {
     let mut evidence_ids = vec![json!(seed_evidence)];
     let mut asset_ids = std::collections::BTreeSet::new();
     let mut upload_posts = 0_i64;
+    let mut committed = Vec::new();
     let originals: [(&str, &str, &str, &[u8]); 5] = [
         (
             "synthetic-photo.jpg",
@@ -835,12 +845,269 @@ async fn contextual_five_originals() -> Result<(), Failure> {
             capture_journal(&directory, &result, &validation)?,
             baseline_operations + upload_posts
         );
+        committed.push((result, content_type, original));
     }
     assert_eq!(upload_posts, 5);
     assert_eq!(asset_ids.len(), 5);
     assert_eq!(evidence_ids.len(), 6);
+    // These are observed data, never inputs to a reconstructed owner capability.
+    // Historical receipts retain identity revisions 2..6; current reads use 6.
+    let final_admission =
+        capture_json(&app, Method::GET, &place_path, vec![], None, &cookie, None).await?;
+    assert_eq!(final_admission["identity"]["revision"], 6);
+    assert_eq!(
+        final_admission["identity"]["payload"]["evidenceIds"],
+        json!(evidence_ids)
+    );
+    let mut final_records = BTreeMap::new();
+    for (result, _, _) in &committed {
+        for record in result["data"]["records"].as_array().unwrap() {
+            let path = format!(
+                "{prefix}/records/{}/{}",
+                record["target"]["recordType"].as_str().unwrap(),
+                record["target"]["recordId"].as_str().unwrap()
+            );
+            if final_records.contains_key(&path) {
+                continue;
+            }
+            let read = capture_json(&app, Method::GET, &path, vec![], None, &cookie, None).await?;
+            assert_eq!(read["status"], "read");
+            assert_eq!(read["resolvedScope"], context);
+            assert_eq!(read["data"]["sourceStatus"], "current");
+            assert_eq!(read["data"]["nextCursor"], Value::Null);
+            assert_eq!(read["data"]["records"].as_array().unwrap().len(), 1);
+            assert_eq!(read["data"]["records"][0]["target"], record["target"]);
+            final_records.insert(path, read["data"]["records"].clone());
+        }
+        assert_eq!(
+            capture_journal(&directory, result, &validation)?,
+            baseline_operations + upload_posts
+        );
+    }
+    assert_eq!(final_records.len(), 11);
     drop(session);
+    drop(cookie);
     drop(app);
+    // No request/body or router clone may keep an original owner alive.
+    let core = Arc::try_unwrap(first_core)
+        .map_err(|_| "First Core still retained")?
+        .into_inner()
+        .map_err(|_| "First Core poisoned")?;
+    let crate::app::Core {
+        access,
+        store,
+        atlas_list_pages,
+        media_policy_evidence,
+        vault,
+        home: _,
+        homes: _,
+    } = core;
+    drop(atlas_list_pages);
+    drop(media_policy_evidence);
+    Arc::try_unwrap(store)
+        .map_err(|_| "First Store still retained")?
+        .into_inner()
+        .map_err(|_| "First Store poisoned")?
+        .close()?;
+    drop(access);
+    drop(vault);
+    assert!(core_released.upgrade().is_none());
+    assert!(store_released.upgrade().is_none());
+    assert!(access_released.upgrade().is_none());
+    assert!(vault_released.upgrade().is_none());
+
+    // Exact existing files and schema only: no prepare, bootstrap or migration.
+    let access = Arc::new(std::sync::Mutex::new(
+        crate::access::AccessBoundary::open_existing(
+            directory.join("access.sqlite"),
+            crate::access::AccessConfig::new(vec![ORIGIN.into()])?,
+        )?,
+    ));
+    let vault = Arc::new(crate::media::AssetVault::open_existing(
+        &directory.join("media"),
+    )?);
+    let store = crate::app::Store::open_existing(
+        directory.join("atlas.sqlite"),
+        crate::http::contracts::NativeContracts,
+        crate::app::ReadAuthority(access.clone()),
+        crate::media::native::NativeMediaRuntime {
+            vault: vault.clone(),
+            server: crate::app::ServerRuntime,
+        },
+        crate::storage::StoreOptions::default(),
+    )?;
+    let core = crate::app::Core {
+        access,
+        store: Arc::new(std::sync::Mutex::new(store)),
+        atlas_list_pages: Default::default(),
+        media_policy_evidence: Default::default(),
+        vault,
+        home,
+        homes,
+    };
+    let reopened = router(Host::new(
+        core,
+        ORIGIN.into(),
+        Arc::new(BTreeMap::new()),
+        vec![],
+    )?);
+    for (result, _, _) in &committed {
+        assert_eq!(
+            capture_journal(&directory, result, &validation)?,
+            baseline_operations + upload_posts
+        );
+    }
+    // The existing generated account logs in ordinarily; no session is restored.
+    let login: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
+    let response = reopened
+        .clone()
+        .oneshot(request(
+            Method::POST,
+            "/api/atlas/auth/login",
+            serde_json::to_vec(&login["editorLogin"])?,
+            Some("application/json"),
+            None,
+            None,
+            None,
+        )?)
+        .await?;
+    drop(login);
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()?
+        .split(';')
+        .next()
+        .ok_or("Missing fresh cookie pair")?
+        .to_owned();
+    let session: Value = serde_json::from_slice(&to_bytes(response.into_body(), 4096).await?)?;
+    assert!(
+        !session["csrfToken"]
+            .as_str()
+            .ok_or("Missing fresh CSRF")?
+            .is_empty()
+    );
+    let admission = capture_json(
+        &reopened,
+        Method::GET,
+        &place_path,
+        vec![],
+        None,
+        &cookie,
+        None,
+    )
+    .await?;
+    for field in [
+        "admissionKind",
+        "scope",
+        "record",
+        "identity",
+        "guards",
+        "canAttachEvidence",
+        "attachmentPolicy",
+    ] {
+        assert_eq!(admission[field], final_admission[field]);
+    }
+    let mut reopened_records = BTreeMap::new();
+    for (path, expected) in &final_records {
+        let read = capture_json(&reopened, Method::GET, path, vec![], None, &cookie, None).await?;
+        assert_eq!(read["status"], "read");
+        assert_eq!(read["resolvedScope"], context);
+        assert_eq!(read["data"]["sourceStatus"], "current");
+        assert_eq!(read["data"]["nextCursor"], Value::Null);
+        assert_eq!(&read["data"]["records"], expected);
+        reopened_records.insert(path.clone(), read["data"]["records"].clone());
+    }
+    for (result, content_type, original) in &committed {
+        let observed = capture_json(
+            &reopened,
+            Method::GET,
+            &format!(
+                "{place_path}/evidence/requests/{}",
+                result["requestId"].as_str().unwrap()
+            ),
+            vec![],
+            None,
+            &cookie,
+            None,
+        )
+        .await?;
+        assert_eq!(observed["kind"], "native-evidence-reconciliation");
+        assert_eq!(observed["requestId"], result["requestId"]);
+        assert_eq!(observed["recordId"], place);
+        assert_eq!(observed["scope"], context);
+        assert_eq!(observed["outcome"], "committed");
+        assert_eq!(&observed["result"], result);
+        assert_eq!(
+            capture_journal(&directory, result, &validation)?,
+            baseline_operations + upload_posts
+        );
+        let asset_id = result["data"]["records"][0]["target"]["recordId"]
+            .as_str()
+            .unwrap();
+        let asset = &reopened_records[&format!("{prefix}/records/asset/{asset_id}")][0];
+        let descriptor = json!({"assetId":asset["target"]["recordId"],"kind":"atlas-asset"});
+        let digest = crate::contracts::semantics::canonical_digest(&descriptor)?;
+        let path = format!(
+            "/api/atlas/media/{}/{}/{digest}/download",
+            context["workspaceId"].as_str().unwrap(),
+            context["homeId"].as_str().unwrap()
+        );
+        for method in [Method::GET, Method::HEAD] {
+            let head = method == Method::HEAD;
+            let response = reopened
+                .clone()
+                .oneshot(request(
+                    method,
+                    &path,
+                    vec![],
+                    None,
+                    Some(&cookie),
+                    None,
+                    None,
+                )?)
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["content-type"], *content_type);
+            assert_eq!(
+                response.headers()["content-length"]
+                    .to_str()?
+                    .parse::<usize>()?,
+                original.len()
+            );
+            assert!(
+                response.headers()["content-disposition"]
+                    .to_str()?
+                    .starts_with("attachment;")
+            );
+            assert_eq!(response.headers()["cache-control"], "private, no-store");
+            assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+            assert_eq!(
+                response.headers()["content-security-policy"],
+                "default-src 'none'; sandbox"
+            );
+            let downloaded = to_bytes(response.into_body(), MAX_RESPONSE).await?;
+            if head {
+                assert!(downloaded.is_empty());
+            } else {
+                assert_eq!(downloaded.as_ref(), *original);
+                assert_eq!(
+                    asset["payload"]["sha256"],
+                    format!("{:x}", Sha256::digest(&downloaded))
+                );
+                assert_eq!(
+                    asset["payload"]["sha256"],
+                    format!("{:x}", Sha256::digest(original))
+                );
+            }
+            assert_eq!(
+                capture_journal(&directory, result, &validation)?,
+                baseline_operations + upload_posts
+            );
+        }
+    }
+    drop(session);
+    drop(cookie);
+    drop(reopened);
     scratch.close()?;
     Ok(())
 }

@@ -622,13 +622,30 @@ must retain MIME/size/attachment/no-store headers and return no body. The
 journal must contain exactly one additional operation per submitted intent
 and remain unchanged by readback/reconciliation.
 
-This remains one positive disposable native lifetime, not post-capture reopen,
-process restart, installed recovery, decoder peak-memory/interruptibility,
-load/concurrency, physical provenance or GUI/device acceptance. It opens no
-socket, TLS session or browser and contacts no provider. Existing storage and
-body/work bounds are unchanged. The already selected backend `--lib` lane
-executes it without a new workflow command; execution must be evidenced by
-the exact test name in the exact-head/resulting-main job log.
+The same case retains actual historical receipts and final current records as
+comparison data, consumes response bodies, releases routers and explicitly
+closes Store. Weak-reference witnesses must show no first Core, Store, Access
+or vault owner remains. It reopens the original canonical files using
+`AccessBoundary::open_existing`, `Store::open_existing` with default options and
+`AssetVault::open_existing`, without initialization, seed replay or migration.
+A fresh Core/Host starts with empty process-local caches and ordinary login
+for the existing generated Editor. Fresh target admission and exact current
+asset/evidence/final identity records must match; historical receipt identity
+revisions remain distinct from the final identity. Actual request reconciliation
+and all five original GET/HEAD bytes, hashes and delivery headers are checked
+again. Durable operation counts stay at baseline plus five before and after
+reopen, reconciliation and delivery. Observations are never owner capabilities.
+
+This qualifies clean owner close/reopen within one process on generated files
+only after the extended case executes. It does not prove process restart,
+crash/power-loss durability, installed startup/recovery, old-session invalidation,
+renderer/preview authority restoration, opaque-handle continuity, decoder
+peak-memory/interruptibility, load/concurrency, physical provenance or GUI/device
+acceptance. It opens no socket, TLS session or browser and contacts no provider.
+Existing storage and body/work bounds are unchanged. The already selected
+backend `--lib` lane executes it without a new workflow command; execution must
+be evidenced by the exact test name in the exact-source job log. An earlier
+one-lifetime pass does not establish the extension's result.
 
 The default-library lane additionally selects exactly
 `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen`.
