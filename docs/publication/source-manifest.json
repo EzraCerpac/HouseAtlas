@@ -8217,8 +8217,8 @@
     {
       "path": "frontend/lantern-tests/example-combined-overlays-healthy.mjs",
       "mode": "100644",
-      "bytes": 6856,
-      "sha256": "5270336f2646cfa9b79c5a0a0138157357ae61c1280da7fae07316004799819b",
+      "bytes": 7024,
+      "sha256": "70a2a97ec110bcb129530fccf0906dd8c4d2f4288040cdf066f82c696ac5047c",
       "owner": "web"
     },
     {
