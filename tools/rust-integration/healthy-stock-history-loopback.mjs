@@ -30,6 +30,25 @@ const observedUrls = [], responses = [], runtimeErrors = [];
 // query values, dynamic IDs, cookies, headers, bodies or raw error messages.
 const requests = new Map(), loadingFailures = [];
 const nativeReads = new Map();
+// Diagnostic only: bounded transfer metadata of generated fixture reads for failure messages.
+// No assertion or wait reads it. Byte counts are CDP's decoded/encoded transfer counts and
+// Content-Length is the wire header, so they need not be equal for an encoded response.
+let readEventSequence = 0;
+const observeRead = (read, event, params) => {
+  if (!read?.diagnostic) return;
+  try {
+    const d = read.diagnostic, sequence = ++readEventSequence;
+    if (event === 'response') {
+      const header = name => String(Object.entries(params.response?.headers ?? {}).find(([key]) => key.toLowerCase() === name)?.[1] ?? '').slice(0, 32) || null;
+      d.contentLength = header('content-length'); d.contentEncoding = header('content-encoding');
+    } else if (event === 'data') {
+      d.chunks = (d.chunks ?? 0) + 1; d.decodedBytes = (d.decodedBytes ?? 0) + Number(params.dataLength);
+      d.encodedBytes = (d.encodedBytes ?? 0) + Number(params.encodedDataLength);
+    } else if (event === 'finished') d.finishedEncodedBytes = Number(params.encodedDataLength);
+    else { d.errorText = String(params.errorText ?? '').slice(0, 80); d.canceledFlag = params.canceled ?? null; d.blockedReason = params.blockedReason ?? null; }
+    if ((event !== 'data' || d.chunks === 1) && d.order.length < 8) d.order.push(sequence + ':' + event);
+  } catch { /* diagnostics never affect the flow */ }
+};
 let phase = 'startup', requestSequence = 0;
 const observationStart = performance.now();
 const elapsedMs = () => Math.round((performance.now() - observationStart) * 1000) / 1000;
@@ -69,13 +88,16 @@ class Pipe {
           if (phase.startsWith('viewer-login') && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
             status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
+            diagnostic: { order: [++readEventSequence + ':request'] },
           });
         } else if (message.method === 'Network.responseReceived') {
           const read = nativeReads.get(message.params.requestId);
-          if (read) read.status = message.params.response.status;
-        } else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+          if (read) { read.status = message.params.response.status; observeRead(read, 'response', message.params); }
+        } else if (message.method === 'Network.dataReceived') observeRead(nativeReads.get(message.params.requestId), 'data', message.params);
+        else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
           const read = nativeReads.get(message.params.requestId);
           if (read) {
+            observeRead(read, message.method === 'Network.loadingFailed' ? 'failed' : 'finished', message.params);
             read.finished = true;
             if (message.method === 'Network.loadingFailed') {
               read.failed = true;
@@ -139,8 +161,8 @@ try {
   const settleViewerReads = async () => {
     const rows = () => [...nativeReads.values()].filter(read => read.phase.startsWith('viewer-login'));
     const describe = () => JSON.stringify({ total: rows().length, reads: rows().slice(0, 32)
-      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation }) =>
-        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation })) });
+      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation, diagnostic }) =>
+        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation, diagnostic })) });
     try {
       // A replacement-read gap is possible after cancellation; wait for a successful
       // read of each command. Rows span viewer-login, not the latest binding epoch.
