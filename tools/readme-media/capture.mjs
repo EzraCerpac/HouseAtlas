@@ -4,6 +4,7 @@ import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, readdir, stat, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
@@ -502,8 +503,13 @@ try {
   const appIndex = await readFile(files.get('/index.html'), 'utf8');
   const startup = [...appIndex.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^"]+\.js)"/g)].map(match => match[1]);
   assert(startup.length > 0 && startup.every(path => !path.startsWith('/example/')), 'The app startup loads nothing from the example');
-  const startupText = (await Promise.all(startup.map(path => readFile(files.get(path), 'utf8')))).join('\n');
-  assert(startupText.includes('/example/index.html'), 'The signed-out link to the example ships in the app startup');
+  // Per-file startup bytes and default node gzip, the startup budget's method;
+  // the startup file carrying the link is kept for size review.
+  const startupFiles = await Promise.all(startup.map(async path => ({ path, bytes: await readFile(files.get(path)) })));
+  const startupSizes = startupFiles.map(({ path, bytes }) => ({ path, bytes: bytes.length, gzip: gzipSync(bytes).length }));
+  const linkFiles = startupFiles.filter(({ bytes }) => bytes.includes('/example/index.html'));
+  assert.equal(linkFiles.length, 1, 'The signed-out link to the example ships in one app startup file');
+  await writeFile(resolve(output, 'example-link-startup-chunk.js'), linkFiles[0].bytes);
   assert(!(await readFile(files.get('/saved/service-worker.js'), 'utf8')).includes('/example/'), 'The offline shell precaches nothing from the example');
   const exampleFiles = [...files.keys()].filter(key => key.startsWith('/example/'));
   assert(exampleFiles.includes('/example/index.html') && exampleFiles.some(key => key.startsWith('/example/assets/')), 'The build emits the example page and its assets');
@@ -674,7 +680,7 @@ try {
       build: 'npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example',
       preIsolationUse: [],
       served: 'all of frontend/dist from an owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host',
-      files: files.size, exampleFiles: exampleFiles.length, startup, linkInStartup: true, exampleInOfflineShell: false,
+      files: files.size, exampleFiles: exampleFiles.length, startup: startupSizes, linkChunk: linkFiles[0].path, exampleInOfflineShell: false,
       typecheck: { config: 'frontend/example/tsconfig.json', failedOutsideLanternTests: 0, lanternTestsDiagnostics: fixtureDiagnostics },
       storage: { seeded: ['localStorage', 'sessionStorage', 'script-visible cookie', 'houseatlas-outbox-v1 row'], exampleRealm, unchangedAfterLeaving: true, unchangedAfterBack: true },
       back: { path: backPath, ...back },

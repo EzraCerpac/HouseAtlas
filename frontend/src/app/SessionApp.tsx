@@ -29,24 +29,6 @@ import {
 /** The attempt was neither aborted nor superseded by a later one. */
 const latest = (controller: AbortController, attempt: number, generation: { readonly current: number }) =>
   !controller.signal.aborted && attempt === generation.current;
-/** One configured-Home open; only the latest attempt may settle it. */
-async function openSession(
-  open: (signal: AbortSignal) => Promise<AtlasSessionInfo>,
-  controller: AbortController,
-  attempt: number,
-  generation: { readonly current: number },
-  setState: (state: SessionState) => void,
-) {
-  setState({ status: "opening" });
-  try {
-    const info = await open(controller.signal);
-    if (latest(controller, attempt, generation))
-      setState({ status: "authenticated", info });
-  } catch {
-    if (latest(controller, attempt, generation))
-      setState({ status: "unavailable", action: "local" });
-  }
-}
 type SessionState =
   | { status: "loading" }
   | { status: "opening" }
@@ -132,7 +114,15 @@ export function SessionApp({
         // Consume synchronously before the wrapped port dispatches. Aborted,
         // uncertain or remounted attempts never replenish the root's fence.
         if (initialHomeBootstrap.consume(sessions)) {
-          await openSession(open, controller, attempt, generation, setState);
+          setState({ status: "opening" });
+          try {
+            const info = await open(controller.signal);
+            if (latest(controller, attempt, generation))
+              setState({ status: "authenticated", info });
+          } catch {
+            if (latest(controller, attempt, generation))
+              setState({ status: "unavailable", action: "local" });
+          }
           return;
         }
       }
@@ -256,7 +246,15 @@ export function SessionApp({
       setState({ status: "unavailable", action: "mode" });
       return;
     }
-    await openSession(open, controller, attempt, generation, setState);
+    setState({ status: "opening" });
+    try {
+      const info = await open(controller.signal);
+      if (latest(controller, attempt, generation))
+        setState({ status: "authenticated", info });
+    } catch {
+      if (latest(controller, attempt, generation))
+        setState({ status: "unavailable", action: "local" });
+    }
   };
   const signOut = async () => {
     initialHomeBootstrap?.retire();
@@ -365,9 +363,9 @@ export function SessionApp({
         ) : (
           <SignInForm signIn={signIn} />
         )}
-        <p>
-          <a href="/example/index.html">Example house</a>
-        </p>
+        <a className="access-actions" href="/example/index.html">
+          Example house
+        </a>
       </SessionPanel>
     );
   }

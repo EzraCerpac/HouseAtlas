@@ -6558,8 +6558,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 12282,
-      "sha256": "1db9c2065e332aee07653f7d4ce2765d908ae0a92cd838927672152fd475e847",
+      "bytes": 12476,
+      "sha256": "e8359971dc037316c900d976612d96469c376c5196f073f14ff326a48ee0791f",
       "owner": "web"
     },
     {
@@ -9148,8 +9148,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 19525,
-      "sha256": "5ce742f5a3de579217d890dada78178b52b452542510c6c001702da656230d81",
+      "bytes": 19498,
+      "sha256": "a70675e77aae44abfc99c6a10181c887a4a4c56b9b557dec2f6f5365f25530d9",
       "owner": "web"
     },
     {
@@ -12837,8 +12837,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 59024,
-      "sha256": "2c9a91d80acd3fd5ad60fb6bbb587cf2098133cee8a46c265ea66e5a1cc7c4e0",
+      "bytes": 59537,
+      "sha256": "485b96fe5b22987246a74464a8ff3bb1f1f6d61455e33a5ea4ab1c6a9ad8fb9d",
       "owner": "web"
     },
     {

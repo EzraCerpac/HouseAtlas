@@ -96,6 +96,7 @@ receipt it writes:
 | --- | --- |
 | `example-house.png` | The example page at 1280 × 800, opened with `?building=syn-building-house`, after its first 3D draw. |
 | `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
+| `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
 
 Open the PR's **Checks** tab, choose the **Synthetic README media** run and
 download the `synthetic-readme-media-<head SHA>` artifact (kept seven days).
