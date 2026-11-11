@@ -89,6 +89,11 @@ They do not establish a building, floor or room placement.
 The media artifact includes the list and qualified-preview detail;
 the example uses an in-page synthetic reader, not a live document source.
 
+In Atlas, open the Network lens and show the Network layer. Open Devices and
+select Fictional access point to trace its recorded connection to Fictional
+network root. This fictional graph shows logical associations, not physical
+locations or cable routes; its source coverage is partial.
+
 ### Starting state
 
 Four optional URL parameters name the Atlas's starting view:
@@ -160,6 +165,7 @@ receipt it writes:
 | `example-inventory-detail.png` | The reading lamp's read-only detail and source hierarchy. |
 | `example-documents-list.png` | The fictional source Documents list in Library. |
 | `example-documents-detail.png` | The survey's qualified preview and source details. |
+| `example-network-trace.png` | A recorded logical route from the fictional access point to the fictional network root; it is not a cable route. |
 | `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
 | `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
 
@@ -214,7 +220,7 @@ loopback server applies its rules); real cross-tab or service-worker isolation (
 storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
-inventory editing, HomeBox or Network sources, native documents or sign-in.
+inventory editing, live HomeBox or Network sources, native documents or sign-in.
 The example supplies no topology client or geometry metadata source;
 the corresponding building-record and geometry-metadata warnings remain visible.
 The starting-state checks use fresh reads only: the example has no stored
