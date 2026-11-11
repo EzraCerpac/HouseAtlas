@@ -1,5 +1,18 @@
 # HouseAtlas
 
+The existing healthy SOURCE list additionally requires
+`unified-atlas-start-healthy.mjs`: 81 SOURCE / 1 BUILD / 9 BROWSER (91 total).
+All prior 80 source selections, the build selection and nine browser selections
+remain, with unchanged commands, assertions, sandbox setup and 180000 ms
+per-entry limit. The new entry transforms the actual types.ts ledger source for
+pure generated controls of stored-first commitment, same-owner refresh, new
+owner, reopening and abandoned/replayed initialization. It does not mount React
+or qualify cached-first mounted behavior. Fresh-read capture and its outstanding
+exact-head execution are separate. Registration and metadata audits are not
+execution evidence; no local tests/build/compiler/typecheck/syntax/formatter or
+browser ran. Existing hosted CI must execute the composed head before eligibility.
+Earlier 80-source counts describe prior candidates; no workflow is added.
+
 The generated `lamp-glass` case is a ninth required browser entry in the
 existing healthy runner: 80 SOURCE / 1 BUILD / 9 BROWSER (90 total). It uses
 GLB-loaded translucent/opaque emissive controls and the existing renderer to
