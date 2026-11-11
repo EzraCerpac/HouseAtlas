@@ -171,20 +171,23 @@ Before the screenshot the same run:
   example;
 - checks that no page script used a replaced global before isolation ran;
 - seeds synthetic `localStorage`, `sessionStorage`, cookie and outbox-database
-  sentinels on that origin, opens the example, checks that its script sees
-  none of them, leaves for another owned page, goes Back, waits for a fresh
-  3D draw, and checks the sentinels are unchanged;
+  sentinels on that origin, opens the example with a mismatched floor and room
+  and an unknown view, checks that its script sees none of them, leaves for
+  another owned page, goes Back, waits for a fresh 3D draw, and checks the
+  sentinels are unchanged;
+- checks that only the building applied in that state, then checks that Rooms
+  & places lists the publication's buildings, floors and rooms with a stale
+  HomeBox cache;
+- checks the fictional belongings list and opens the reading lamp detail,
+  including its stale source hierarchy, unreviewed placement and disabled edit;
 - opens the direct link above and checks its building, floor, room, room part
   and Plan; chooses 3D, opens Upkeep, returns to the Atlas and checks that 3D
-  and the room remain (the reopened read carries a new start array); opens a link with a mismatched floor and room and an unknown view
-  and checks only its building applied; then checks that Rooms & places lists
-  the publication's buildings, floors and rooms with a stale HomeBox cache.
-- checks the fictional belongings list and opens the reading lamp detail,
-  including its stale source hierarchy, unreviewed placement and disabled edit.
+  and the room remain (the reopened read carries a new start array).
 
 `capture.json` records the example entry, file hashes, the `lantern-tests`
-diagnostics, the storage results, the Back path Chromium took (back/forward-cache
-restore or reload; both pages are served `no-store`, like the Rust host, so a
+diagnostics, the storage results, the isolation and Back entry URL, the Back
+path Chromium took (back/forward-cache restore or reload; both pages are
+served `no-store`, like the Rust host, so a
 reload is likely) and informational durations. The example adds one phase after the existing
 capture, with its own 60-second bound; the existing 90-second bound is
 unchanged, so the script can take up to 150 seconds in all.
