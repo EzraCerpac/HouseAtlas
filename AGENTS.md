@@ -1,5 +1,19 @@
 # HouseAtlas
 
+Diagnostic donor a5f0c90 composes on 54dc0c44 after independent source review;
+main c67637c1 (#555) is retained by ancestry. Only the five existing loopback
+scripts add bounded generated-request transfer metadata and event order to failure
+diagnostics. Observers catch errors and do not change predicates, waits, timeouts,
+state ordering or cancellation acceptance. Missing data events/counts establish
+neither incomplete bodies nor successful reads; equal bytes grant no authority.
+No bodies or URLs are captured. Header/error strings and event history are bounded.
+
+The donor writer reported five node --check syntax checks; no functional tests.
+This integration ran only source/byte audits, no local test/compiler/formatter or
+browser. New exact-head hosted diagnostics remain necessary. Existing 80 SOURCE /
+1 BUILD /7 BROWSER selections, workflows, budgets and security settings remain
+unchanged. Sandbox launch and glass pixel qualification remain separate gates.
+
 Scoped repair donor #590 903ad712 is composed with electrical closure ac03072e.
 The source diff contains two formatting-only Rust edits, an exact fixture boundary
 correction and five wait-predicate changes. Retained Linux diagnostics named cargo
