@@ -296,11 +296,17 @@ const eligible = [...Array.from({ length: MAX_LAMPS }, (_, index) => at(`single-
   aimed('rank-a', 0, [0, 0, 1]), aimed('rank-b', .2, [0, 0, 1]), at('receiver', 100)];
 const eligibleKeys = new Set(eligible.slice(0, -1).map(row => row.meshKey));
 const eligibleTable = new Float32Array(eligible.length * STATE_FLOATS);
-const selection = changes => writeAppearance(eligible, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight,
-  emitterKeys: eligibleKeys, roomKeys: new Set(['receiver']), shelterKeys: new Set(['receiver']), ...changes }, eligibleTable);
-const initialSelection = selection({});
 const receiverIndex = eligible.length - 1, rankIndex = MAX_LAMPS;
 const receiverFlags = () => [eligibleTable[receiverIndex * STATE_FLOATS + 26], eligibleTable[receiverIndex * STATE_FLOATS + 28]];
+const selection = changes => {
+  eligibleTable[receiverIndex * STATE_FLOATS + 26] = -1;
+  eligibleTable[receiverIndex * STATE_FLOATS + 28] = -2;
+  const frame = writeAppearance(eligible, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight,
+    emitterKeys: eligibleKeys, roomKeys: new Set(['receiver']), shelterKeys: new Set(['receiver']), ...changes }, eligibleTable);
+  assert.deepEqual(receiverFlags(), [1, 1], 'daylight and the receiver keys rewrite room and shelter flags');
+  return frame;
+};
+const initialSelection = selection({});
 const baselineFlags = receiverFlags();
 const xPositions = frame => frame.lamps.map(lamp => Math.round(lamp.at[0] * 10) / 10);
 const singletonPositions = count => Array.from({ length: count }, (_, index) => (21 + index * 20) / 10);
