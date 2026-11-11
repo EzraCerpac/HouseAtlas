@@ -8959,8 +8959,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/browser.mjs",
       "mode": "100644",
-      "bytes": 47313,
-      "sha256": "5d4f4c6c99bc3c72684144b8348bad03d26b6d1eaf992316d176a5837bc6de0a",
+      "bytes": 48558,
+      "sha256": "eff76931404e377f802f501238c0b93161adf1da22676c277e258de79d2dce2d",
       "owner": "web"
     },
     {
