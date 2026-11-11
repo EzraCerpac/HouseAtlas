@@ -58,8 +58,18 @@ pub(super) fn expand(glb: &[u8], buffer_bytes: usize) -> Result<Option<Vec<u8>>,
         return Ok(None);
     }
     need(
-        gltf["extensionsUsed"] == json!([MESHOPT])
-            && gltf["extensionsRequired"] == json!([MESHOPT]),
+        gltf["extensionsUsed"].as_array().is_some_and(|used| {
+            used.len() <= 2
+                && used.iter().filter(|v| *v == MESHOPT).count() == 1
+                && used
+                    .iter()
+                    .filter(|v| *v == "KHR_materials_specular")
+                    .count()
+                    <= 1
+                && used
+                    .iter()
+                    .all(|v| v == MESHOPT || v == "KHR_materials_specular")
+        }) && gltf["extensionsRequired"] == json!([MESHOPT]),
     )?;
     let bin_at = 20 + json_len;
     need(word(bin_at + 4)? == 0x004e_4942 && bin_at + 8 + word(bin_at)? == glb.len())?;
@@ -170,7 +180,14 @@ pub(super) fn expand(glb: &[u8], buffer_bytes: usize) -> Result<Option<Vec<u8>>,
         row.insert("byteOffset".into(), json!(offset));
     }
     let row: &mut Map<String, Value> = gltf.as_object_mut().ok_or_else(invalid)?;
-    row.remove("extensionsUsed");
+    if row["extensionsUsed"]
+        .as_array()
+        .is_some_and(|v| v.iter().any(|v| v == "KHR_materials_specular"))
+    {
+        row.insert("extensionsUsed".into(), json!(["KHR_materials_specular"]));
+    } else {
+        row.remove("extensionsUsed");
+    }
     row.remove("extensionsRequired");
     row.insert("buffers".into(), json!([{"byteLength": out.len()}]));
     let mut text = serde_json::to_vec(&gltf).map_err(|_| invalid())?;
@@ -421,6 +438,21 @@ mod healthy {
     fn expansion_restores_every_view() {
         let plain = generated();
         let compressed = compress(&plain);
+        let scalar = edited(&compressed, |gltf| {
+            gltf["extensionsUsed"] = json!(["KHR_materials_specular", MESHOPT]);
+            gltf["materials"] =
+                json!([{ "extensions": { "KHR_materials_specular": { "specularFactor": 0.5 } } }]);
+        });
+        let scalar_expanded = expand(&scalar, 32 << 20).unwrap().unwrap();
+        let scalar_json = json_of(&scalar_expanded);
+        assert_eq!(
+            scalar_json["extensionsUsed"],
+            json!(["KHR_materials_specular"])
+        );
+        assert_eq!(
+            scalar_json["materials"][0]["extensions"]["KHR_materials_specular"]["specularFactor"],
+            json!(0.5)
+        );
         let expanded = expand(&compressed, 32 << 20).unwrap().unwrap();
         let (a, b) = (json_of(&plain), json_of(&expanded));
         assert!(b.get("extensionsUsed").is_none() && b["buffers"].as_array().unwrap().len() == 1);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useSourcePorts } from '../source-ports';
 import { Modal } from '../components/Modal';
 import { Empty } from '../components/ui';
 import { fmtDate, fmtDateTime } from '../data/time';
@@ -105,6 +106,7 @@ function SourceDocumentList({ reader }: { readonly reader: SourceDocumentReader 
               <span>{LICENCE[document.provenance.license.status]}</span>
               {document.availability.original !== 'available' && <span>Original: {AVAILABILITY[document.availability.original]}</span>}
               <span>Preview: {AVAILABILITY[document.availability.preview]}</span>
+              <HeldSourceStatus document={document} />
               {document.lifecycle === 'tombstoned' && <span>Withdrawn</span>}
             </span>
           </div>
@@ -138,6 +140,7 @@ type Shown = { readonly frame: SourceDocumentFrame; readonly url: string; readon
 function LeasedPayload({ reader, document, mode }: {
   readonly reader: SourceDocumentReader; readonly document: SourceDocument; readonly mode: 'preview' | 'original';
 }) {
+  const { documents } = useSourcePorts();
   const box = useRef<HTMLDivElement>(null);
   const withdrawRef = useRef<() => void>(() => undefined);
   const [shown, setShown] = useState<Shown | null>(null);
@@ -164,12 +167,13 @@ function LeasedPayload({ reader, document, mode }: {
       const stop = reader.subscribeInvalidation(frame, () => { ended = true; withdraw(CHANGED); });
       const blob = reader.getBlob(frame);
       if (ended || !blob) { stop(); reader.release(frame); setStatus(CHANGED); return; }
+      if (mode === 'original') void documents?.retainOpenedOriginal?.(reader, frame, document, controller.signal).catch(() => undefined);
       held = { frame, url: URL.createObjectURL(blob), stop, view: new AbortController() };
       box.current?.removeAttribute('hidden');
       setShown({ frame, url: held.url, blob, signal: held.view.signal }); setStatus(null);
     }, error => { if (!controller.signal.aborted) setStatus(readFailure(error)); });
     return () => { controller.abort(); withdraw(null); withdrawRef.current = () => undefined; };
-  }, [reader, document, mode, availability]);
+  }, [reader, document, mode, availability, documents]);
   const save = useCallback((frame: SourceDocumentFrame) => (event: { preventDefault(): void }) => {
     if (!reader.isCurrent(frame)) { event.preventDefault(); withdrawRef.current(); }
   }, [reader]);
@@ -222,4 +226,23 @@ function Provenance({ document }: { readonly document: SourceDocument }) {
       : 'No qualified preview'}</dd></div>
     <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated {fmtDateTime(document.updatedAt)}</dd></div>
   </dl>;
+}
+
+function HeldSourceStatus({ document }: { document: SourceDocument }) {
+  const { documents } = useSourcePorts();
+  const [status, setStatus] = useState<'held' | 'not-held' | 'failed-integrity' | 'unavailable' | null>(null);
+  useEffect(() => {
+    if (!documents?.heldStatus) return;
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      controller?.abort(); controller = new AbortController(); const signal = controller.signal;
+      void documents.heldStatus!(document, signal).then(value => { if (!signal.aborted) setStatus(value); }, () => {
+        if (!signal.aborted) setStatus('unavailable');
+      });
+    };
+    const stop = documents.subscribeHeld?.(refresh); refresh();
+    return () => { stop?.(); controller?.abort(); };
+  }, [documents, document]);
+  return documents?.heldStatus ? <span>{status === 'held' ? 'On this device' : status === 'failed-integrity'
+    ? 'Held file failed verification' : status === 'not-held' ? 'Not held on this device' : 'Device copy not verified'}</span> : null;
 }

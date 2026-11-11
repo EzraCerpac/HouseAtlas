@@ -234,10 +234,11 @@ async fn healthy_original_credentials_deliver_two_native_gets() {
             maintenance_capture.retrieved_at().as_str(),
             "2026-10-08T12:00:00.1200+02:00"
         );
-        let access = shared.lock().unwrap();
-        access.revalidate(&first).unwrap();
-        access.revalidate(&second).unwrap();
-        drop(access);
+        {
+            let access = shared.lock().unwrap();
+            access.revalidate(&first).unwrap();
+            access.revalidate(&second).unwrap();
+        }
         assert_eq!(server.await.unwrap().len(), 2);
     };
     tokio::time::timeout(std::time::Duration::from_secs(15), operation)

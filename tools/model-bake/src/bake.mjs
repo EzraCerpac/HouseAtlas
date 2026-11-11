@@ -208,7 +208,29 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
   if (companion && companion.original?.sha256 !== sha256(masterBytes))
     throw new Error('The companion does not pin this master GLB');
   const { json: source, bin } = readGlb(masterBytes);
-  for (const name of source.extensionsUsed ?? []) throw new Error(`The master uses glTF extension ${name}; the overview profile admits none`);
+  const specularName = 'KHR_materials_specular', used = source.extensionsUsed ?? [];
+  if (!Array.isArray(used) || used.length > 1 || used.some(name => name !== specularName)
+    || source.extensionsRequired !== undefined && (!Array.isArray(source.extensionsRequired) || source.extensionsRequired.length))
+    throw new Error('The master uses unsupported glTF extensions');
+  const materialOwners = new Set(source.materials ?? []); let foundSpecular = false;
+  const pending = [source];
+  while (pending.length) {
+    const value = pending.pop();
+    if (Array.isArray(value)) { pending.push(...value); continue; }
+    if (!value || typeof value !== 'object') continue;
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'extras') continue;
+      if (key !== 'extensions') { pending.push(item); continue; }
+      const spec = item?.[specularName];
+      if (!materialOwners.has(value) || !item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).length !== 1
+        || !spec || typeof spec !== 'object' || Array.isArray(spec) || Object.keys(spec).some(k => k !== 'specularFactor')
+        || spec.specularFactor !== undefined && (typeof spec.specularFactor !== 'number' || !Number.isFinite(spec.specularFactor) || spec.specularFactor < 0 || spec.specularFactor > 1))
+        throw new Error('The master uses unsupported material extensions');
+      foundSpecular = true;
+    }
+  }
+  if (foundSpecular !== used.includes(specularName)) throw new Error('The master specular declaration does not match material use');
+  if (foundSpecular && source.extensionsRequired !== undefined) throw new Error('Scalar specular must be optional');
   for (const accessor of source.accessors ?? []) if (accessor.sparse) throw new Error('Sparse accessors are not supported');
   const instances = meshInstances(source), { roles, onLevel } = primitiveRoles(source, companion, instances);
   await MeshoptSimplifier.ready;
@@ -220,7 +242,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     if (!meshMap.has(binding.meshIndex)) throw new Error(`Companion binds mesh ${binding.meshIndex}, which no node draws`);
 
   const candidates = [], report = [];
-  let fixedTriangles = 0, weldedAny = false;
+  let fixedTriangles = 0, weldedAny = false, scalarInstances = 0;
   for (const [meshIndex] of meshMap) source.meshes[meshIndex].primitives.forEach((primitive, primitiveIndex) => {
     const uses = instances.get(meshIndex), slot = key(meshIndex, primitiveIndex);
     const role = roles.get(slot) ?? (companion ? null : 'context');
@@ -236,7 +258,12 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     // Textured primitives are kept as authored: a flat surface can lose the
     // vertices that carry a non-affine UV mapping at zero position error, and
     // the texture drift that causes is not bounded by the error in metres.
-    if (LOCKED_ROLES.includes(role) || hasTextures || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
+    const hasSpecular = source.materials?.[primitive.material]?.extensions?.KHR_materials_specular !== undefined;
+    if (hasSpecular && !hasTextures) {
+      scalarInstances += uses.length;
+      if (scalarInstances > 256) throw new Error('Model has more than 256 scalar material instances');
+    }
+    if (LOCKED_ROLES.includes(role) || hasTextures || hasSpecular || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
     const scale = Math.max(...uses.map(use => maxScale(use.world)), 1e-9);
     // A part thinner than the weld distance can weld away entirely; it then stays unwelded.
     let welded = weld(positions, indices, options.weld / scale);

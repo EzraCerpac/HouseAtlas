@@ -228,6 +228,36 @@ test('reads roles from node extras when there is no companion', async () => {
     assert.deepEqual(positionsOf(result.glb, name), positionsOf(glb, name));
   }
   assert.equal(row(result, 'Wall').role, 'structure');
+  // A generated scalar survives both bake tiers and the meshopt round trip.
+  const master = readGlb(glb);
+  master.json.extensionsUsed = ['KHR_materials_specular'];
+  master.json.materials = [{ extensions: { KHR_materials_specular: { specularFactor: .5 } } }];
+  master.json.meshes[0].primitives[0].material = 0;
+  const scalarMaster = writeGlb(master.json, master.bin);
+  for (const baked of [await bakeOverview(scalarMaster, null, { triangles: 20_000 }), await bakeDetail(scalarMaster, null)]) {
+    const plain = readGlb(baked.glb).json;
+    assert.deepEqual(plain.extensionsUsed, ['KHR_materials_specular']);
+    assert.equal(plain.materials[0].extensions.KHR_materials_specular.specularFactor, .5);
+    await admitInViewer(baked.glb);
+    const compressed = await compressGlb(baked.glb);
+    const decoded = readGlb(await expandInViewer(compressed.glb)).json;
+    assert.deepEqual(decoded.extensionsUsed, ['KHR_materials_specular']);
+    assert.equal(decoded.materials[0].extensions.KHR_materials_specular.specularFactor, .5);
+    await admitInViewer(compressed.glb);
+  }
+  for (const extension of [{ specularFactor: -1 }, { specularFactor: 2 }, { specularFactor: 'x' }, { specularTexture: { index: 0 } }]) {
+    master.json.materials[0].extensions.KHR_materials_specular = extension;
+    await assert.rejects(bakeOverview(writeGlb(master.json, master.bin), null), /unsupported material extensions/);
+  }
+  master.json.materials[0].extensions.KHR_materials_specular = { specularFactor: .5 };
+  for (let i = 0; i < 255; i++) {
+    master.json.nodes[0].children.push(master.json.nodes.length);
+    master.json.nodes.push(structuredClone(master.json.nodes[1]));
+  }
+  await bakeOverview(writeGlb(master.json, master.bin), null, { triangles: Infinity });
+  master.json.nodes[0].children.push(master.json.nodes.length);
+  master.json.nodes.push(structuredClone(master.json.nodes[1]));
+  await assert.rejects(bakeOverview(writeGlb(master.json, master.bin), null), /more than 256 scalar material instances/);
   assert.equal(row(result, 'Terrain').site, true); assert.equal(row(result, 'Lamp').site, false);
   assert.ok(drawnTriangles(result.glb) <= 20_000);
 });

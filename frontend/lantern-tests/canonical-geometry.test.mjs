@@ -47,9 +47,27 @@ const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSourc
 const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPick, labelPoint, LABEL_WORK, pointInShape, relativePath,
   visibleFloorIds, occurrenceTops, sourceMeshColor } = await import(geometryURL);
 const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
-const { GlbFormatError } = await import(preflightURL);
+const { GlbFormatError, readGlbContainer, preflightGltf } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const { buildGlb, box, SAMPLE_HOUSE, SAMPLE_HOUSE_BOUNDS, SAMPLE_REFERENCE, SAMPLE_REFERENCE_BOUNDS } = await import(sampleURL);
+// Scalar specular is material-local and must agree with its declaration.
+const scalarGlb = patch => buildGlb({ ...SAMPLE_HOUSE, patch });
+for (const factor of [undefined, 0, .5, 1]) {
+  const bytes = scalarGlb(json => { json.extensionsUsed = ['KHR_materials_specular'];
+    json.materials = [{ extensions: { KHR_materials_specular: factor === undefined ? {} : { specularFactor: factor } } }]; });
+  assert.doesNotThrow(() => preflightGltf(readGlbContainer(bytes)));
+}
+for (const extension of [{ specularFactor: -1 }, { specularFactor: 1.1 }, { specularFactor: null }, { specularFactor: '0.5' },
+  { specularTexture: { index: 0 } }, { specularColorFactor: [1, 1, 1] }, { unknown: 1 }]) {
+  const bytes = scalarGlb(json => { json.extensionsUsed = ['KHR_materials_specular']; json.materials = [{ extensions: { KHR_materials_specular: extension } }]; });
+  assert.throws(() => preflightGltf(readGlbContainer(bytes)), GlbFormatError);
+}
+for (const patch of [
+  json => { json.extensionsUsed = ['KHR_materials_specular']; },
+  json => { json.materials = [{ extensions: { KHR_materials_specular: {} } }]; },
+  json => { json.extensionsUsed = ['KHR_materials_specular']; json.extensionsRequired = ['KHR_materials_specular']; },
+  json => { json.extensionsUsed = ['KHR_materials_specular']; json.nodes = structuredClone(json.nodes); json.nodes[0].extensions = { KHR_materials_specular: {} }; },
+]) assert.throws(() => preflightGltf(readGlbContainer(scalarGlb(patch))), GlbFormatError);
 const { publicationA, publicationB, generatedCoverage } = await import(fixturesURL);
 
 const A = admitPresentation(publicationA()), B = admitPresentation(publicationB()), C = admitPresentation(generatedCoverage());

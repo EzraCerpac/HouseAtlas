@@ -46,6 +46,15 @@ export interface PropertyRecords extends RuntimeRecords {
   readonly buildings: readonly BuildingCoverage[];
 }
 
+/** Retain only reciprocal documentary membership; this is not a circuit or placement. */
+function drawingGroup(data: Extract<UnifiedAtlasOverlayAvailableFrame['electricalFixtures'], { status: 'available' }>['data'], fixture: typeof data.fixtures[number]): string | null {
+  const group = data.groups.find(row => row.id === fixture.group.id);
+  if (!group || group.currentCircuitId !== null || group.verifiedWiring !== false || !group.fixtureIds.includes(fixture.id)
+    || new Set(group.fixtureIds).size !== group.fixtureIds.length
+    || !group.fixtureIds.every(id => data.fixtures.some(row => row.id === id && row.group.id === group.id))) return null;
+  return JSON.stringify({ id: group.id, label: group.label, fixtureIds: [...group.fixtureIds].sort() });
+}
+
 const combine = (values: readonly SourceAvailability[]): SourceAvailability =>
   values.length > 0 && values.every(value => value === 'available') ? 'available' : values.some(value => value !== 'unavailable') ? 'partial' : 'unavailable';
 export { combine as combineSourceAvailability };
@@ -219,6 +228,7 @@ export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFac
             connections: [], sourceFacts: [{ label: 'Interpretation date', value: data.interpretationDate },
               { label: 'Original photo SHA256', value: fixture.source.originalPhotoSha256 },
               { label: 'Source symbol', value: JSON.stringify(fixture.source) }, { label: 'Historical group', value: JSON.stringify(fixture.group) },
+              { label: 'Drawing group membership', value: drawingGroup(data, fixture) },
               { label: 'Glyph count', value: fixture.glyphCount === null ? null : String(fixture.glyphCount) },
               { label: 'Fixture count (documentary)', value: fixture.fixtureCount === null ? null : String(fixture.fixtureCount) },
               { label: 'Symbol interpretation', value: JSON.stringify(data.symbolLegend) }] });
@@ -269,7 +279,7 @@ export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFac
     unplacedElectrical.push({ key: `symbol:${fixture.id}`, id: fixture.id, label: fixture.label, category: 'Historical symbol',
       detail: fixture.source.placementDescription, qualification: 'No unambiguous reviewed room placement; historic and unverified',
       sourceDate: data.sheets.find(sheet => sheet.id === fixture.sheetId)?.sourceDate ?? null, retrievedAt: null, connections: [],
-      sourceFacts: [{ label: 'Source symbol', value: JSON.stringify(fixture) }, { label: 'Interpretation date', value: data.interpretationDate },
+      sourceFacts: [{ label: 'Source symbol', value: JSON.stringify(fixture) }, { label: 'Drawing group membership', value: drawingGroup(data, fixture) }, { label: 'Interpretation date', value: data.interpretationDate },
         { label: 'Symbol interpretation', value: JSON.stringify(data.symbolLegend) }] });
   }
   const electricity = facts.electricity.status === 'available', fixtures = facts.electricalFixtures.status === 'available';

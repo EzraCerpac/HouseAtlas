@@ -96,9 +96,9 @@
       "if": null,
       "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v"],
       "toolchain": ["python3"],
-      "files": ["tools/ci/select_pr_checks.py", "tools/ci/test_select_pr_checks.py", "tools/ci/check_lanes.py", "tools/ci/test_check_lanes.py"],
-      "scope": "Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 23},
+      "files": ["tools/ci/select_pr_checks.py", "tools/ci/test_select_pr_checks.py", "tools/ci/check_lanes.py", "tools/ci/test_check_lanes.py", "tools/ci/chrome_sandbox.py", "tools/ci/test_chrome_sandbox.py"],
+      "scope": "Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. Ten generated archive and metadata controls also cover pinned copy/extraction, corrupted/duplicate/symlink/bounded members, source substitution and cleanup marker/ownership validation; no root, SUID permission, installer, cleanup, helper, browser or network operation runs in these unit cases.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 33},
       "claims": [["docs/contributing/verification.md", "runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`"]]
     },
     {
@@ -661,8 +661,8 @@
       "run": ["node frontend/lantern-tests/run-healthy.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["frontend/lantern-tests/run-healthy.mjs"],
-      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output.",
-      "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 73, "BUILD": 1, "BROWSER": 5}},
+      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes.",
+      "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 80, "BUILD": 1, "BROWSER": 8}},
       "claims": [
         ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],
         ["AGENTS.md", "`frontend/lantern-tests/run-healthy.mjs` with\nits explicit list"]
@@ -680,6 +680,18 @@
       "files": ["tools/model-bake/package-lock.json", "tools/model-bake/test/bake.test.mjs"],
       "scope": "Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results.",
       "cases": {"counter": "node-test-toplevel", "files": ["tools/model-bake/test/bake.test.mjs"], "expected": 22}
+    },
+    {
+      "id": "rr.frontend.sandbox-cleanup",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "frontend",
+      "step": "Remove only this job's pinned sandbox helper",
+      "kind": "setup",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py cleanup --job \"$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB\""],
+      "toolchain": ["python3"],
+      "files": ["tools/ci/chrome_sandbox.py"],
+      "scope": "Always attempts cleanup even after setup/API/test failure. Validates the root-owned job/inode marker, strips SUID on the identified inode, removes only expected owned entries, and removes newly created empty parents; unexpected state fails rather than recursively deleting or repairing. Does not empty CHROME_DEVEL_SANDBOX. Pre-marker SIGKILL can leave private non-SUID residue for ephemeral VM disposal."
     },
     {
       "id": "rr.loopback.lane",
@@ -914,6 +926,18 @@
       "scope": "Summarizes Cargo timing diagnostics; continues on error."
     },
     {
+      "id": "rr.loopback.sandbox-cleanup",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Remove only this job's pinned sandbox helper",
+      "kind": "setup",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py cleanup --job \"$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB\""],
+      "toolchain": ["python3"],
+      "files": ["tools/ci/chrome_sandbox.py"],
+      "scope": "Always attempts cleanup even after setup/API/test failure. Validates the root-owned job/inode marker, strips SUID on the identified inode, removes only expected owned entries, and removes newly created empty parents; unexpected state fails rather than recursively deleting or repairing. Does not empty CHROME_DEVEL_SANDBOX. Pre-marker SIGKILL can leave private non-SUID residue for ephemeral VM disposal."
+    },
+    {
       "id": "rr.ci-ok.require",
       "workflow": "rust-react-ordinary.yml",
       "job": "ci-ok",
@@ -947,12 +971,12 @@
       "step": "Install exact Chrome for Testing",
       "kind": "setup",
       "if": "inputs.chrome == 'true'",
-      "run": ["dir=\"$RUNNER_TEMP/houseatlas-chrome\"", "mkdir -p \"$dir\"", "curl --fail --silent --show-error --location --retry 3 --output \"$dir/chrome-linux64.zip\" \"https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip\"", "printf '%s  %s\\n' \"$CHROME_SHA256\" \"$dir/chrome-linux64.zip\" | sha256sum --check --strict", "unzip -q \"$dir/chrome-linux64.zip\" -d \"$dir\"", "rm \"$dir/chrome-linux64.zip\"", "test \"$(\"$dir/chrome-linux64/chrome\" --version | sed 's/ *$//')\" = \"Google Chrome for Testing $CHROME_VERSION\"", "printf 'HOUSEATLAS_CHROMIUM=%s\\n' \"$dir/chrome-linux64/chrome\" >> \"$GITHUB_ENV\""],
+      "run": ["dir=\"$RUNNER_TEMP/houseatlas-chrome\"", "mkdir -p \"$dir\"", "curl --fail --silent --show-error --location --retry 3 --output \"$dir/chrome-linux64.zip\" \"https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip\"", "printf '%s  %s\\n' \"$CHROME_SHA256\" \"$dir/chrome-linux64.zip\" | sha256sum --check --strict", "unzip -q \"$dir/chrome-linux64.zip\" -d \"$dir\"", "test \"$(\"$dir/chrome-linux64/chrome\" --version | sed 's/ *$//')\" = \"Google Chrome for Testing $CHROME_VERSION\"", "test \"$(id -u)\" -ne 0", "test \"$(stat -c %u \"$dir/chrome-linux64/chrome\")\" = \"$(id -u)\"", "sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py install --archive \"$dir/chrome-linux64.zip\" --job \"$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB\"", "sandbox_helper=/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox", "sandbox_api=$(\"$sandbox_helper\" --get-api)", "printf 'Pinned sandbox helper API=%s\\n' \"$sandbox_api\"", "test \"$sandbox_api\" = 1", "printf 'CHROME_DEVEL_SANDBOX=%s\\n' \"$sandbox_helper\" >> \"$GITHUB_ENV\"", "rm \"$dir/chrome-linux64.zip\"", "printf 'HOUSEATLAS_CHROMIUM=%s\\n' \"$dir/chrome-linux64/chrome\" >> \"$GITHUB_ENV\"", "# Read-only metadata: no helper execution, selection, permission or policy changes.", "python3 - \"$dir/chrome-linux64\" <<'PY'", "import json, os, pathlib, stat, sys", "candidates = [pathlib.Path(sys.argv[1]) / name for name in ('chrome-sandbox', 'chrome_sandbox')]", "candidates += [pathlib.Path(name) for name in (", "    '/opt/google/chrome/chrome-sandbox',", "    '/usr/local/share/chromium/chrome-linux/chrome-sandbox',", "    '/usr/local/share/chromium/chrome-linux/chrome_sandbox',", "    '/opt/microsoft/msedge/msedge-sandbox',", "    '/opt/microsoft/msedge/msedge_sandbox',", "    '/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox')]", "def metadata(path):", "    info = path.lstat()", "    return {'path': str(path), 'uid': info.st_uid, 'gid': info.st_gid,", "            'mode': oct(stat.S_IMODE(info.st_mode)), 'regular': stat.S_ISREG(info.st_mode),", "            'symlink': stat.S_ISLNK(info.st_mode), 'setuid': bool(info.st_mode & stat.S_ISUID),", "            'groupOrOtherWritable': bool(info.st_mode & (stat.S_IWGRP | stat.S_IWOTH))}", "print('Selected pinned helper API checked before export; other candidates remain unverified. Actual sandboxed launches remain required.')", "print(json.dumps({'jobUid': os.getuid()}))", "for candidate in candidates:", "    try:", "        resolved = candidate.resolve(strict=True)", "        print(json.dumps({'candidate': metadata(candidate), 'resolved': metadata(resolved),", "                          'parents': [metadata(parent) for parent in list(resolved.parents)[:16]]}))", "    except (OSError, RuntimeError) as error:", "        print(json.dumps({'candidate': str(candidate), 'metadataUnavailable': type(error).__name__}))", "for name in ('unprivileged_userns_clone', 'apparmor_restrict_unprivileged_userns'):", "    try:", "        with open('/proc/sys/kernel/' + name, encoding='ascii') as source:", "            value = source.read(32).strip()", "        print(json.dumps({'kernelSetting': name, 'value': value}))", "    except (OSError, UnicodeError) as error:", "        print(json.dumps({'kernelSetting': name, 'metadataUnavailable': type(error).__name__}))", "PY", "# Package version is provenance only, not compatibility evidence for the pinned browser.", "dpkg-query --show google-chrome-stable microsoft-edge-stable 2>/dev/null || true"],
       "env": {"CHROME_VERSION": "156.0.8078.47", "CHROME_SHA256": "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50"},
       "options": {"shell": "bash"},
-      "toolchain": ["chromium"],
-      "files": [],
-      "scope": "Downloads Chrome for Testing 156.0.8078.47, checks its sha256 and reported version, and exports HOUSEATLAS_CHROMIUM for the frontend and loopback jobs.",
+      "toolchain": ["chromium", "python3"],
+      "files": ["tools/ci/chrome_sandbox.py"],
+      "scope": "Downloads the exact hash-pinned Chrome156 archive, checks its reported version and keeps the browser user-owned. On existing ephemeral Ubuntu24 GitHub jobs only, the root-isolated installer verifies a root-private archive copy, extracts the unique bounded helper and durably binds job/inode custody before SUID activation under checked root-owned ancestors. The normal user verifies installed API1; only the fixed nonempty helper path is exported. Existing helpers, packages, AppArmor/sysctls, credentials and sandbox flags stay unchanged. Read-only candidate/parent/kernel/package metadata remains bounded; actual sandboxed launches and cleanup must qualify in hosted CI.",
       "claims": [["docs/contributing/verification.md", "downloads Chrome for Testing 156.0.8078.47 for linux64"]]
     },
     {

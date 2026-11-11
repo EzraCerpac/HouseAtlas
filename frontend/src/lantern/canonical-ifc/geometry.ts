@@ -208,7 +208,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
       ...(mesh.sourceNight === 'emitter' && mesh.sourceGlow ? { sourceGlow: mesh.sourceGlow } : {}),
       ...(mesh.sourceNight === 'emitter' && mesh.sourceGlass ? { sourceGlass: true as const } : {}),
       ...(mesh.sourceRoughness !== undefined ? { sourceRoughness: mesh.sourceRoughness } : {}),
-      ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
+      ...(mesh.sourceMaterial ? { sourceMaterial: mesh.sourceMaterial } : {}), ...(materialVertices ? { materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });
 }

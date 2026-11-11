@@ -17,6 +17,7 @@ const MAX_IMAGES: usize = 64;
 pub(super) struct Material {
     pub textured: bool,
     pub normal_map: bool,
+    pub scalar_specular: bool,
 }
 #[derive(Default)]
 pub(super) struct Materials {
@@ -176,6 +177,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
         if !textured {
             color_material(material)?;
         } else {
+            super::atlas_scene_glb::scalar_specular(material)?;
             keys(
                 material,
                 &[
@@ -185,6 +187,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
                     "normalTexture",
                     "alphaMode",
                     "doubleSided",
+                    "extensions",
                 ],
             )?;
             need(
@@ -249,6 +252,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
         result.entries.push(Material {
             textured,
             normal_map: material.get("normalTexture").is_some(),
+            scalar_specular: material.get("extensions").is_some(),
         });
     }
     need(

@@ -40,7 +40,7 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
   const scope = Object.freeze({ workspaceId: U(1), homeId: U(2) }), buildingId = U(3), pdfEvidenceId = U(7), pdfAssetId = U(8);
   const session = Object.freeze({ schemaVersion: 1 as const, actorId: U(90), csrfToken: 'fictional-unused', expiresAt: '2099-01-01T00:00:00Z' });
   const view: ReadyView = { status: 'ready', scope, homeLabel: 'Fictional electrical home', now: '2026-01-02T12:00:00Z',
-    canEdit: false, homes: [{ ...scope, label: 'Fictional electrical home' }], entries: [] } as ReadyView;
+    canEdit: false, homes: [{ ...scope, label: 'Fictional electrical home' }], entries: [], caches: [] };
   const context: SceneAssociationContext = { sessionIdentity: session, session, view, admission: null };
   const pdf = syntheticElectricalPdf(), pdfSha = await hash(pdf);
   const sheets = [2, 9, 18].map((page, i) => ({ id: `fictional-sheet-${i + 1}`, title: ['Fictional kitchen', 'Fictional study', 'Fictional unassigned sheet'][i]!,
@@ -113,10 +113,11 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
       async open(evidenceId, signal) {
         signal.throwIfAborted(); need(!disposed && pins.has(evidenceId) && held === null);
         const pin = pins.get(evidenceId)!, original = bytes.get(evidenceId)!; counts.opens.push(evidenceId);
-        held = Object.freeze({ lease: {}, evidenceId, evidenceRevision: pin.evidenceRevision, mode: 'original-download', asset: {
+        const opened: NativeEvidenceDocumentFrame = { lease: {}, evidenceId, evidenceRevision: pin.evidenceRevision, mode: 'original-download', asset: {
           assetId: pin.assetId, revision: ExactDecimal.parse(String(pin.revision)), sha256: pin.sha256, byteSize: ExactDecimal.parse(String(original.length)),
-          contentType: evidenceId === pdfEvidenceId ? 'application/pdf' : 'text/plain', purpose: 'evidence-original', previewPolicy: 'download-only',
-          sourceLicense: { status: 'unknown', reference: null }, evidenceIds: [] } }); return held;
+          contentType: evidenceId === pdfEvidenceId ? 'application/pdf' as const : 'text/plain' as const, purpose: 'evidence-original', previewPolicy: 'download-only',
+          sourceLicense: { status: 'unknown', reference: null }, evidenceIds: [] } };
+        held = Object.freeze(opened); return opened;
       },
       isCurrent: frame => !disposed && held === frame,
       getBlob(frame) { return !disposed && held === frame ? new Blob([bytes.get(frame.evidenceId)!], { type: frame.asset.contentType }) : null; },

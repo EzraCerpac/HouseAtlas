@@ -55,4 +55,7 @@ export interface ElectricalLibraryReader {
  * is inferred from the presence of this port. */
 export interface ElectricalLibraryPort {
   createReader(): Promise<ElectricalLibraryReader>;
+  retainOpened?(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, evidenceId: string, signal: AbortSignal): Promise<void>;
+  heldStatus?(frame: ElectricalLibraryFrame, document: ElectricalLibraryDocument, signal: AbortSignal): Promise<'held' | 'not-held' | 'failed-integrity' | 'unavailable'>;
+  subscribeHeld?(changed: () => void): () => void;
 }

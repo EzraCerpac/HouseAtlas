@@ -4,8 +4,8 @@
   "sources": [
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
-      "bytes": 955535
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede",
+      "bytes": 947975
     },
     {
       "path": "packages/contracts/schemas/atlas.schema.json",
@@ -419,11 +419,13 @@
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_binding_review",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_binding_tombstone",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_create",
+      "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_list",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_replace",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_restore",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_tombstone",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_create",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_get",
+      "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_list",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_replace",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_restore",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_tombstone",
@@ -474,15 +476,15 @@
   ],
   "outputs": {
     "agent-ajv.schema.json": {
-      "sha256": "e815bf18fed215770154fe60a1cd5278a3c18114b80b22cf51c5cac23ea14bdb",
-      "bytes": 451798
+      "sha256": "61bcdf0bf65e35489f3d9f1c0b2d18b860a088a1dad4711cecc7908377c8900b",
+      "bytes": 444478
     },
     "agent-exact.schema.json": {
-      "sha256": "145733ef3c4047d903f66ac3388fffe3c56831d2e003a591b83f4149ebdb9dd6",
-      "bytes": 308960
+      "sha256": "413d209484ed2db045c1aaefc1aa0fdfdd3d6eafc41a9529d37579b7070d265f",
+      "bytes": 304966
     },
     "agent-exact-pin.json": {
-      "sha256": "e067bff4a28e82d6f45629ef8cf67c9956cf3cd034e88646ea1ef8112f36a622",
+      "sha256": "b851d518297cd457e6196be66dd9e3f050345a0bd113c8fd125df99e1c37e0ba",
       "bytes": 67
     },
     "operation-catalog.json": {

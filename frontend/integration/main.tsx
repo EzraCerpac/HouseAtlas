@@ -1,4 +1,6 @@
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import type { OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
+import { keepLibrary } from '../src/offline/library-preference';
+import { lazy, StrictMode, Suspense, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
@@ -42,6 +44,10 @@ import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 import { forgetSavedEntry } from "../src/offline/saved-entry";
 
+// Settings UI loads only when its live settings leaf mounts. Retained bootstrap
+// and actor retirement remain independent of this presentation chunk.
+const OfflineStorageSettings = lazy(() => import('../src/offline/OfflineStorageSettings').then(module => ({ default: module.OfflineStorageSettings })));
+
 // After each launch, keep the public Saved shell and the root offline entry on
 // this build, so a later launch without the server opens the Saved entry with
 // the last Atlas copy and the waiting outbox. Registered before anything else
@@ -82,6 +88,104 @@ let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
 let currentStockAdmission: StockAdmission | null = null;
 let currentReadyView: ReadyView | null = null;
+// Optional retained display data is separate from canonical application/session owners.
+let liveCopies: import("./live-copy-retention").LiveCopyRetention | null = null;
+let liveCopiesOpening: Promise<import("./live-copy-retention").LiveCopyRetention> | null = null;
+let liveCopyObservation: Promise<unknown> = Promise.resolve();
+/** Consumer uses the read/storage ports only; no stored value configures live clients. */
+export function getLiveCopyRetention(): Promise<import("./live-copy-retention").LiveCopyRetention> {
+  return liveCopiesOpening ??= import("./live-copy-retention").then(module => {
+    const storage = navigator.storage;
+    const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("houseatlas-live-readonly-copy-v1");
+    liveCopies = module.createLiveCopyRetention({
+      factory: typeof indexedDB === "undefined" ? undefined : indexedDB,
+      state: () => ({ session: currentSession, view: currentReadyView }),
+      events: window,
+      documents: () => sourceDocuments.current(),
+      async atlasReference(identity, signal) {
+        const [cache, store] = await Promise.all([import("./unified-atlas-cache"), getAtlasStore()]);
+        signal.throwIfAborted(); const last = await cache.readLastAtlas(store); signal.throwIfAborted();
+        const p = last?.pointer;
+        if (!p || p.actorId !== identity.actorId || p.workspaceId !== identity.scope.workspaceId || p.homeId !== identity.scope.homeId) return null;
+        return { version: 1, scope: { workspaceId: p.workspaceId, homeId: p.homeId }, publicationId: p.publicationId,
+          manifestSha256: p.manifestSha256, atlasActorRevision: p.actorRevision };
+      },
+      ...(storage && typeof storage.estimate === "function" && typeof storage.persisted === "function"
+        && typeof storage.persist === "function" ? { storage } : {}),
+      ...(channel ? { channel } : {}),
+    });
+    return liveCopies;
+  });
+}
+const retainedSourceDocuments: import('../src/lantern/source-documents/types').SourceDocumentsPort = {
+  createReader: () => sourceDocuments.current().createReader(),
+  async heldStatus(document, signal) {
+    const owner = await getLiveCopyRetention(), copy = await owner.read.readLast(signal);
+    if (copy.status !== 'ok' || copy.value.snapshot.data.scope.workspaceId !== document.scope.workspaceId
+      || copy.value.snapshot.data.scope.homeId !== document.scope.homeId) return 'unavailable';
+    const result = await owner.read.documentStatus(copy.value.handle, { documentId: document.documentId,
+      documentRevision: document.revision, assetId: document.original.assetId, assetRevision: document.original.revision,
+      sha256: document.original.sha256, bytes: document.original.bytes }, signal);
+    return result.status === 'ok' ? result.value.availability : 'unavailable';
+  },
+  subscribeHeld(changed) {
+    let stop: (() => void) | undefined, active = true;
+    void getLiveCopyRetention().then(owner => { if (active) { stop = owner.read.subscribe(changed); changed(); } });
+    return () => { active = false; stop?.(); };
+  },
+  async retainOpenedOriginal(reader, frame, document, signal) {
+    const owner = await getLiveCopyRetention();
+    if (signal.aborted || !reader.isCurrent(frame)) return;
+    await owner.retainDocumentFrame(reader, frame, document, signal);
+  },
+};
+async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
+  const session = currentSession, view = currentReadyView;
+  if (!session || !view) return 'Library files need a current live read.';
+  const current = () => currentSession === session && currentReadyView === view;
+  const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }, { fillOfflineHomeboxOriginals }] = await Promise.all([
+    import('./offline-electrical-policy'), import('./offline-library-policy'), import('./offline-homebox-policy'),
+  ]);
+  // Imports may finish after the owning read has retired; no stale catalog work.
+  if (!current() || signal.aborted) return 'The live view changed.';
+  // Measure both source lists before either automatic byte pass. Unknown source
+  // sizes do not justify evicting previously held files from another source.
+  const catalog = await owner.retainCatalog(signal);
+  if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted')
+    return `Library download stopped (${catalog.status}). Check held files before trying again.`;
+  if (!current() || signal.aborted) return 'The live view changed.';
+  if (catalog.status !== 'ok') return 'Document list is unavailable. Automatic downloads paused until file sizes can be checked.';
+  const measured = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled: () => false, signal });
+  const lists = `${catalog.status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
+  if (!current() || signal.aborted || !enabled()) return lists;
+  if (!measured.complete) return `${lists} Automatic downloads paused until file sizes can be checked.`;
+  let nativeStopped = false;
+  const native = catalog.status === 'ok' ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
+  if (nativeStopped || !current() || signal.aborted || !enabled()) return native;
+  const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
+  if (!electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
+  // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
+  const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
+  return `${native} ${electrical.message} ${homebox.message}`;
+}
+function LiveOfflineSettings() {
+  const [controls, setControls] = useState<OfflineStorageControls | null>(null);
+  useEffect(() => {
+    let active = true;
+    void getLiveCopyRetention().then(owner => { if (active) setControls({ read: owner.read, storage: owner.storage,
+      fillLibrary: signal => fillDeviceLibrary(owner, signal, () => true) }); });
+    return () => { active = false; };
+  }, []);
+  return controls ? <Suspense fallback={<p className="setting-static" role="status">Loading offline storage…</p>}>
+    <OfflineStorageSettings controls={controls} />
+  </Suspense> : null;
+}
+function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
+  if (value === null) liveCopies?.retire();
+  const observedGeneration = sessionGeneration;
+  const current = () => observedGeneration === sessionGeneration && currentSession === value;
+  liveCopyObservation = getLiveCopyRetention().then(owner => current() ? owner.observe(value, current) : undefined).catch(() => undefined);
+}
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
@@ -106,6 +210,7 @@ let atlasActor: Promise<AtlasCacheActor | null> = Promise.resolve(null);
  * copy may open offline. An unavailable session read keeps the prior witness;
  * pending reads, cached IDs and outbox rows never become live authority. */
 function observeAtlasActor(value: AtlasSessionInfo | null): void {
+  observeLiveCopyActor(value);
   const generation = sessionGeneration;
   const current = () => generation === sessionGeneration && currentSession === value;
   atlasCacheOwner = null;
@@ -182,6 +287,7 @@ const sessions: AtlasSessionClient = {
     currentReadyView = null;
     quantityChanged();
     // Device copies are deleted even when the sign-out request fails.
+    liveCopies?.retire();
     try { await nativeSignOut(signal); }
     finally {
       atlasCacheOwner = null;
@@ -190,6 +296,8 @@ const sessions: AtlasSessionClient = {
         getAtlasStore().then(store => store.clear()).catch(() => undefined),
         import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
+      const cleared = await getLiveCopyRetention().then(owner => owner.storage.clear());
+      if (cleared.status !== 'ok') throw new Error('Offline copies could not be removed; storage cleanup is incomplete');
     }
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
@@ -369,6 +477,23 @@ const makeSceneDocumentOwner = () => createNativeEvidenceDocumentClient({
 // Electrical Library discovery uses existing current read authority and separate
 // original-document leases. Neither geometry nor a Document v2 facet admits it.
 const sourceElectricalLibrary: ElectricalLibraryPort = {
+  async retainOpened(reader, frame, evidenceId, signal) {
+    const owner = await getLiveCopyRetention();
+    if (!signal.aborted) await owner.retainElectricalLibrary(reader, frame, signal, { includeBytes: true, evidenceId });
+  },
+  async heldStatus(frame, document, signal) {
+    const owner = await getLiveCopyRetention(), copy = await owner.read.readLast(signal);
+    if (copy.status !== 'ok' || copy.value.snapshot.data.scope.workspaceId !== frame.scope.workspaceId
+      || copy.value.snapshot.data.scope.homeId !== frame.scope.homeId) return 'unavailable';
+    const result = await owner.read.electricalStatus(copy.value.handle, {
+      source: 'electrical-evidence', buildingId: frame.buildingId, evidenceId: document.evidenceId,
+      evidenceRevision: document.evidenceRevision, assetId: document.assetId, assetRevision: document.assetRevision.token,
+      sha256: document.sha256, byteSize: document.byteSize.token, contentType: 'application/pdf',
+    }, signal);
+    return result.status === 'ok' ? result.value.availability : 'unavailable';
+  },
+  subscribeHeld: changed => retainedSourceDocuments.subscribeHeld?.(changed) ?? (() => undefined),
+
   async createReader() {
     const { createNativeElectricalLibraryReader } = await import("./native-electrical-library-reader");
     return createNativeElectricalLibraryReader({
@@ -665,6 +790,22 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       }
       if (!signal.aborted && attempt === generation && sameSession()) {
         currentReadyView = view.status === "ready" ? view : null; quantityChanged();
+        if (view.status === "ready") {
+          // Completion, actual session allocation and scope remain current after lazy storage opening.
+          const observation = liveCopyObservation;
+          void observation.then(() => getLiveCopyRetention()).then(owner => {
+            if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
+              return owner.capture(view, signal).then(async result => {
+                if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
+                await fillDeviceLibrary(owner, signal, keepLibrary);
+              });
+          }).catch(() => undefined);
+        } else if (view.status === "denied" || view.status === "expired" || view.status === "revoked") {
+          liveCopies?.retire();
+          void getLiveCopyRetention().then(owner => {
+            if (!signal.aborted && attempt === generation && sameSession()) return owner.storage.clear();
+          }).catch(() => undefined);
+        }
       }
       return view;
     };
@@ -675,6 +816,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

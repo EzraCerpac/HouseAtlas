@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -8,7 +8,7 @@ import { transformWithOxc } from 'vite';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const frontend = resolve(here, '..');
-const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromePath = process.env.HOUSEATLAS_CHROMIUM;
 const maxRunMs = 25_000;
 const cleanupBudgetMs = 750;
 const sourceRoutes = new Map([
@@ -16,6 +16,7 @@ const sourceRoutes = new Map([
   ['/src/capture-drafts/validation.ts', resolve(frontend, 'src/capture-drafts/validation.ts')],
   ['/src/capture-drafts/indexeddb.ts', resolve(frontend, 'src/capture-drafts/indexeddb.ts')],
   ['/src/capture-drafts/controller.ts', resolve(frontend, 'src/capture-drafts/controller.ts')],
+  ['/src/capture-drafts/receipt.ts', resolve(frontend, 'src/capture-drafts/receipt.ts')],
 ]);
 const cases = new Set([
   'retained-original-after-reopen',
@@ -23,6 +24,7 @@ const cases = new Set([
   'storage-deletion-denies-stale-resume',
   'concurrent-handoff-single-winner',
   'change-callback-abort-preserves-row',
+  'synthetic-save-reopen-remove',
 ]);
 
 function assert(condition, message) {
@@ -181,6 +183,9 @@ async function waitForDevTools(profile, child, deadline, spawnFailure) {
 }
 
 async function runBrowser(caseName) {
+  assert(chromePath, 'Set HOUSEATLAS_CHROMIUM to the inspected Chrome executable');
+  const version = spawnSync(chromePath, ['--version'], { encoding: 'utf8', timeout: 5000 });
+  assert(version.status === 0 && /\b156\.0\.8078\.47\b/.test(version.stdout), 'Expected inspected Chrome 156.0.8078.47');
   const workRunMs = maxRunMs - cleanupBudgetMs;
   const deadline = Date.now() + workRunMs;
   let server;
@@ -217,7 +222,9 @@ async function runBrowser(caseName) {
     ], {
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe'],
-      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', TMPDIR: profile },
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', TMPDIR: profile,
+        ...(process.env.CHROME_DEVEL_SANDBOX === '/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox'
+          ? { CHROME_DEVEL_SANDBOX: process.env.CHROME_DEVEL_SANDBOX } : {}) },
     });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', chunk => {
@@ -253,7 +260,7 @@ async function runBrowser(caseName) {
     const externalRequests = observedRequests.filter(url => !url.startsWith(permittedPrefix));
     assert(externalRequests.length === 0, `Browser attempted a request outside its loopback origin: ${externalRequests[0]}`);
     assert(requests.every(request => request.path === '/' || request.path === '/browser-cases.mjs' || sourceRoutes.has(request.path)),
-      'Loopback server observed a request outside the exact case and four TypeScript module routes');
+      'Loopback server observed a request outside the exact case and TypeScript module routes');
     return { case: caseName, status: 'passed', evidence: result.evidence, externalRequests: 0 };
   };
   try {

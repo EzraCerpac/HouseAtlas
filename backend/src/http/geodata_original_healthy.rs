@@ -184,56 +184,58 @@ async fn healthy_native_geodata_original_intake_read_reopen()
             "{records}"
         );
         // Select committed ID from native store, then exercise the existing private download route.
-        let core = host.core.lock().unwrap();
-        let mut access = core.access.lock().unwrap();
-        let native_scope = crate::access::Scope {
-            workspace_id: crate::access::CanonicalId::parse(id(2))?,
-            home_id: crate::access::CanonicalId::parse(id(3))?,
+        let digest = {
+            let core = host.core.lock().unwrap();
+            let mut access = core.access.lock().unwrap();
+            let native_scope = crate::access::Scope {
+                workspace_id: crate::access::CanonicalId::parse(id(2))?,
+                home_id: crate::access::CanonicalId::parse(id(3))?,
+            };
+            let principal = access.authorize(
+                &crate::access::RequestEvidence {
+                    method: crate::access::Method::Get,
+                    url: "https://127.0.0.1:48743/api/atlas/stock",
+                    origin: Some("https://127.0.0.1:48743"),
+                    sec_fetch_site: Some("same-origin"),
+                    referer: None,
+                    cookie: Some(&cookie),
+                    authorization: None,
+                    csrf: None,
+                },
+                &native_scope,
+                crate::access::Action::Read,
+            )?;
+            drop(access);
+            let p = crate::app::RequestPrincipal::new(principal);
+            let snapshot = core.store.lock().unwrap().read_snapshot(
+                &p,
+                &crate::storage::Scope {
+                    workspace_id: id(2),
+                    home_id: id(3),
+                },
+            )?;
+            let record = snapshot
+                .records
+                .iter()
+                .find(|r| r.payload["sha256"] == crate::media::types::sha256(&bytes))
+                .unwrap();
+            assert_eq!(record.revision, 1);
+            assert_eq!(record.payload["byteSize"], bytes.len());
+            assert_eq!(record.payload["contentType"], mime);
+            assert_eq!(record.payload["previewPolicy"], "download-only");
+            assert_eq!(record.payload["sourceLicense"], metadata["sourceLicense"]);
+            let digest = crate::contracts::semantics::canonical_digest(
+                &json!({"kind":"atlas-asset","assetId":record.record_id}),
+            )?;
+            retained.push((
+                record.record_id.clone(),
+                record.payload.clone(),
+                digest.clone(),
+                bytes.clone(),
+                mime,
+            ));
+            digest
         };
-        let principal = access.authorize(
-            &crate::access::RequestEvidence {
-                method: crate::access::Method::Get,
-                url: "https://127.0.0.1:48743/api/atlas/stock",
-                origin: Some("https://127.0.0.1:48743"),
-                sec_fetch_site: Some("same-origin"),
-                referer: None,
-                cookie: Some(&cookie),
-                authorization: None,
-                csrf: None,
-            },
-            &native_scope,
-            crate::access::Action::Read,
-        )?;
-        drop(access);
-        let p = crate::app::RequestPrincipal::new(principal);
-        let snapshot = core.store.lock().unwrap().read_snapshot(
-            &p,
-            &crate::storage::Scope {
-                workspace_id: id(2),
-                home_id: id(3),
-            },
-        )?;
-        let record = snapshot
-            .records
-            .iter()
-            .find(|r| r.payload["sha256"] == crate::media::types::sha256(&bytes))
-            .unwrap();
-        assert_eq!(record.revision, 1);
-        assert_eq!(record.payload["byteSize"], bytes.len());
-        assert_eq!(record.payload["contentType"], mime);
-        assert_eq!(record.payload["previewPolicy"], "download-only");
-        assert_eq!(record.payload["sourceLicense"], metadata["sourceLicense"]);
-        let digest = crate::contracts::semantics::canonical_digest(
-            &json!({"kind":"atlas-asset","assetId":record.record_id}),
-        )?;
-        retained.push((
-            record.record_id.clone(),
-            record.payload.clone(),
-            digest.clone(),
-            bytes.clone(),
-            mime,
-        ));
-        drop(core);
         let path = format!("/api/atlas/media/{}/{}/{digest}/download", id(2), id(3));
         let mut req = request("GET", &path, vec![], "application/json");
         req.headers_mut().insert("cookie", cookie.parse()?);

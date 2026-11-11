@@ -72,8 +72,8 @@
         },
         "collectionId": {
           "type": "string",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "resourceKind": {
           "enum": [
@@ -1465,8 +1465,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -1499,8 +1499,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -1533,8 +1533,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity-type"
@@ -1567,8 +1567,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -1607,8 +1607,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -1647,8 +1647,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -1687,8 +1687,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -1723,8 +1723,8 @@
         },
         "collectionId": {
           "type": "string",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "resourceKind": {
           "const": "entity"
@@ -1757,8 +1757,8 @@
         },
         "collectionId": {
           "type": "string",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "format": "uuid"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "resourceKind": {
           "const": "tag"
@@ -2974,8 +2974,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "entity"
@@ -3169,8 +3169,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "tag"
@@ -3261,8 +3261,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "entity-type"
@@ -3350,8 +3350,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "field"
@@ -3427,8 +3427,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "maintenance"
@@ -3533,8 +3533,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "attachment"
@@ -3664,8 +3664,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "template"
@@ -13725,8 +13725,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -13809,8 +13809,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -14059,8 +14059,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14142,8 +14142,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -14392,8 +14392,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14495,8 +14495,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14593,8 +14593,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14701,8 +14701,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14809,8 +14809,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -14917,8 +14917,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15025,8 +15025,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15129,8 +15129,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15233,8 +15233,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15337,8 +15337,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15421,8 +15421,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -15671,8 +15671,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -15754,8 +15754,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -16004,8 +16004,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16107,8 +16107,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16205,8 +16205,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16313,8 +16313,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16421,8 +16421,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16529,8 +16529,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16637,8 +16637,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16741,8 +16741,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16845,8 +16845,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -16976,8 +16976,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17080,8 +17080,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17282,8 +17282,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17386,8 +17386,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17588,8 +17588,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17730,8 +17730,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17834,8 +17834,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -17917,8 +17917,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -18167,8 +18167,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -18251,8 +18251,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -18501,8 +18501,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -18584,8 +18584,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "tag"
@@ -18731,8 +18731,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -18815,8 +18815,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "tag"
@@ -18962,8 +18962,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -19060,8 +19060,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -19164,8 +19164,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "tag"
@@ -19268,8 +19268,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -19352,8 +19352,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -19602,8 +19602,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -19706,8 +19706,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -19810,8 +19810,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -19914,8 +19914,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -20003,8 +20003,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "field"
@@ -20135,8 +20135,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -20225,8 +20225,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "field"
@@ -20357,8 +20357,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -20465,8 +20465,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -20579,8 +20579,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "field"
@@ -20693,8 +20693,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -20776,8 +20776,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -21026,8 +21026,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity"
@@ -21109,8 +21109,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity"
@@ -21359,8 +21359,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -21448,8 +21448,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "attachment"
@@ -21634,8 +21634,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -21724,8 +21724,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "attachment"
@@ -21910,8 +21910,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22014,8 +22014,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22124,8 +22124,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22209,8 +22209,8 @@
                 },
                 "collectionId": {
                   "type": "string",
-                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                  "format": "uuid"
+                  "minLength": 1,
+                  "maxLength": 4096
                 },
                 "resourceKind": {
                   "const": "attachment"
@@ -22313,8 +22313,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22423,8 +22423,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22533,8 +22533,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22643,8 +22643,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -22732,8 +22732,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "attachment"
@@ -22918,8 +22918,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -23008,8 +23008,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "attachment"
@@ -23194,8 +23194,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -23298,8 +23298,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -23408,8 +23408,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -23518,8 +23518,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "attachment"
@@ -23628,8 +23628,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -23717,8 +23717,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "maintenance"
@@ -23878,8 +23878,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -23968,8 +23968,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "maintenance"
@@ -24129,8 +24129,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24233,8 +24233,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24343,8 +24343,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24453,8 +24453,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24563,8 +24563,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24673,8 +24673,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24783,8 +24783,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -24893,8 +24893,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "maintenance"
@@ -25003,8 +25003,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity-type"
@@ -25086,8 +25086,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "entity-type"
@@ -25230,8 +25230,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity-type"
@@ -25328,8 +25328,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity-type"
@@ -25432,8 +25432,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "entity-type"
@@ -25536,8 +25536,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -25619,8 +25619,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "template"
@@ -25880,8 +25880,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -25964,8 +25964,8 @@
                       },
                       "collectionId": {
                         "type": "string",
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-                        "format": "uuid"
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "resourceKind": {
                         "const": "template"
@@ -26225,8 +26225,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -26323,8 +26323,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -26427,8 +26427,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -26531,8 +26531,8 @@
             },
             "collectionId": {
               "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 4096
             },
             "resourceKind": {
               "const": "template"
@@ -28088,8 +28088,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "actualProviderVersion": {
           "type": "string",
@@ -30797,8 +30797,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "resourceKind": {
           "const": "collection"
@@ -30853,8 +30853,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "stateDigest": {
           "type": "string",
@@ -30921,8 +30921,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "kind": {
           "enum": [
@@ -32674,8 +32674,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "configurationDigest": {
           "type": "string",
@@ -34064,8 +34064,8 @@
         },
         "collectionId": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 4096
         },
         "retrievedAt": {
           "type": "string",

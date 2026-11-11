@@ -68,7 +68,7 @@ assert.equal(geometryCalls, 1);
 // context; only this new response's two numeric tokens change.
 const topologyFixtureSource = readFileSync(new URL('./topology-read.mjs', import.meta.url), 'utf8');
 const fixtureStart = topologyFixtureSource.indexOf('const fixture = ') + 'const fixture = '.length;
-const fixtureEnd = topologyFixtureSource.indexOf(';\nconst ajv =', fixtureStart);
+const fixtureEnd = topologyFixtureSource.indexOf('\n};\n', fixtureStart) + 2;
 assert(fixtureStart > 'const fixture = '.length && fixtureEnd > fixtureStart);
 const topologyFixture = JSON.parse(topologyFixtureSource.slice(fixtureStart, fixtureEnd));
 const requestAjv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });

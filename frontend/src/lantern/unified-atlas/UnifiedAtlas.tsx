@@ -40,6 +40,8 @@ import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentat
 import { OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
 import { Inspector, listedLevels, RoomList } from './AtlasInspector';
+import { electricalGroups } from './electrical-group';
+import type { ElectricalTraceSource } from './electrical-trace';
 import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
@@ -113,6 +115,9 @@ export interface AtlasPresentationEnvironment {
   readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
   /** Absent in the saved viewer, which keeps its own graph panel. */
   readonly lens?: AtlasLensHost;
+  /** Reviewed breaker/panel projection from the current overlay-frame owner,
+   * replaced or withdrawn with that frame. No live or saved host supplies it yet. */
+  readonly electricalData?: ElectricalTraceSource;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
@@ -825,6 +830,17 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // The whole property's qualified room associations, independent of focus or
   // count-label collision suppression. These are logical summaries, not routes.
   // A device's route to the router, chosen in the network graph, also lights on the stage.
+  const [electricalGroupSelection, setElectricalGroupSelection] = useState<{ key: string; records: typeof runtime.records } | null>(null);
+  useEffect(() => { setElectricalGroupSelection(null); }, [runtime.records, electricalOn]);
+  useEffect(() => { if (state.occurrenceId === null) setElectricalGroupSelection(null); }, [state.occurrenceId]);
+  const groups = useMemo(() => electricalGroups(electricalOn ? runtime.records : null), [electricalOn, runtime.records]);
+  const electricalGroup = state.occurrenceId === null || electricalGroupSelection?.records !== runtime.records ? null
+    : groups.find(group => group.key === electricalGroupSelection.key) ?? null;
+  const groupRooms = new Set(electricalGroup?.members.flatMap(member => member.rooms) ?? []);
+  const onElectricalGroup = (key: string) => {
+    const group = groups.find(row => row.members.some(member => member.record.key === key));
+    setElectricalGroupSelection(group ? { key: group.key, records: runtime.records } : null);
+  };
   const [networkTrace, setNetworkTrace] = useState<StageTrace | null>(null);
   const onNetworkTrace = useCallback((graphKey: string, trace: StageTrace | null) =>
     setNetworkTrace(current => trace ?? (current?.graphKey === graphKey ? null : current)), []);
@@ -1520,7 +1536,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
-        {counts.map(row => <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}`} data-stage-key={`marker:${row.key}`}
+        {counts.map(row => <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(row.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
@@ -1607,6 +1623,8 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
 
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
+      electricalGroup={electricalGroup} canElectricalGroup={key => groups.some(group => group.members.some(member => member.record.key === key))} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupSelection(null)}
+      electricalData={electricalOn ? environment.electricalData : undefined}
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

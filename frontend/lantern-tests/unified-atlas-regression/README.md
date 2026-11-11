@@ -1,5 +1,48 @@
 # PR201 interaction acceptance
 
+## Electrical browser successor
+
+The explicitly selected `browser.mjs --electrical` check adds five mounted
+synthetic browser cases for #553 and #283. `?atlas-drawing-groups=generated`
+adds a fake documentary source owner to the existing source-host fixture. Its
+invented historical symbols pass through the actual overlay feed,
+`documentaryRoomRecords` / `projectDocumentaryFacts`, group projector and
+Unified Atlas. The checks cover exact Hall/Living room badge membership,
+an unplaced member retained as room unknown, the unverified inspector, clear
+group, exploration of another room, retirement on clear room, electrical off,
+source invalidation and publication owner replacement, plus reduced motion.
+They assert no symbol positions or wire routes are invented.
+
+`?electrical-library=generated` reuses the existing fictional electrical
+reader/parser fixture. Holding the actual lazy viewer chunk produces the
+pending dialog; `?electrical-library=unavailable` throws from the fake drawing
+client owner to produce the unavailable dialog. Both cases use trusted Tab,
+Shift-Tab and Escape input to check Close focus, containment and deliberate
+opener restoration. Neither opens a real source or PDF.
+
+```sh
+HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
+  node frontend/lantern-tests/unified-atlas-regression/browser.mjs --electrical
+```
+
+The fixture builds with the production Vite plugins under its own root, so the
+offline-shell plugin cannot replace its HTML entry. The runner declares a
+1600 × 1100 viewport, observes WebGL 1/2 draw calls without changing rendering,
+and reports CDP pipe errors and page text on failure. The existing healthy
+frontend runner selects this exact five-case command when the pinned browser
+is supplied. Synthetic DOM, software-renderer and generated-source
+results do not establish installed source authority, physical wiring, GPU
+hardware or device acceptance. The historical matrix below retains its original
+attribution.
+
+Local execution on 8 November 2026 passed all five named cases on Node
+`26.10.0` and Chrome for Testing `156.0.8078.47`, with the normal browser sandbox.
+The passive observer reported WebGL2 through ANGLE/SwiftShader, eight draw calls,
+no runtime exceptions, only loopback/data/blob application requests, and complete
+owned browser/listener/scratch cleanup. Strict typechecking of the fixture entry
+and the existing Electrical Library and drawing-group healthy checks also passed.
+The broader historical browser suite was not completed by this selected run.
+
 ## Wheel-input successor scope
 
 The later Atlas input successor adds five named CPU cases against the actual

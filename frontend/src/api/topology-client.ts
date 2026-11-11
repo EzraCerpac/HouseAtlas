@@ -1,7 +1,7 @@
-import type { BindingPayload, IdentityPayload, RelationPayload } from './generated/contracts';
+import type { BindingPayload, CircuitPayload, IdentityPayload, RelationPayload } from './generated/contracts';
 import { parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator } from '../numeric/schema-validator';
-import { decodeTopologyResult, type DecodedLocationSemanticsPayload } from '../numeric/stock-decoded';
+import { decodeTopologyResult, decodeElectricalListResult, type DecodedLocationSemanticsPayload, type ExactEvidencePayload } from '../numeric/stock-decoded';
 import type { Scope } from '../app/types';
 import type { AtlasSessionInfo } from '../app/session';
 import type { StockSchemaPort } from '../webmcp/stock';
@@ -11,6 +11,8 @@ export interface TopologyPayloads {
   binding: BindingPayload;
   'location-semantics': DecodedLocationSemanticsPayload;
   relation: RelationPayload;
+  circuit: CircuitPayload;
+  evidence: ExactEvidencePayload;
 }
 export type TopologyKind = keyof TopologyPayloads;
 export interface TopologyRecord<K extends TopologyKind> {
@@ -35,7 +37,7 @@ export interface TopologyClient {
 export const topologyPolicy = Object.freeze({ pageSize: 100, maxPages: 50, maxRecords: 5000,
   maxResponseBytes: 4 * 1024 * 1024, maxAggregateBytes: 16 * 1024 * 1024,
   pageTimeoutMs: 15000, sequenceTimeoutMs: 60000 });
-const commandKind = { identity: 'identity', binding: 'binding', 'location-semantics': 'location_semantics', relation: 'relation' } as const;
+const commandKind = { identity: 'identity', binding: 'binding', 'location-semantics': 'location_semantics', relation: 'relation', circuit: 'circuit_list', evidence: 'evidence_list' } as const;
 class ReadFailure extends Error {
   readonly status: TopologyFailure;
   constructor(status: TopologyFailure) { super(status); this.status = status; }
@@ -128,7 +130,7 @@ export function createTopologyClient(options: {
             target: { authority: 'atlas', recordType: kind },
             payload: { cursor, pageSize: topologyPolicy.pageSize, includeArchived: false,
               ...(buildingId === undefined ? {} : { buildingId }) } };
-          options.schemas.validate(`#/$defs/request_atlas_${commandKind[kind]}_list`, request);
+          options.schemas.validate(`#/$defs/request_atlas_${kind === 'location-semantics' ? 'location_semantics' : kind}_list`, request);
           const raw = JSON.stringify(request), query = `request=${encodeURIComponent(raw)}`;
           if (new TextEncoder().encode(raw).byteLength > 16384 || query.length > 32768) throw new ReadFailure('tooLarge');
           const { value, bytes, snapshotSha256: pageSnapshot } = await deadline(signal, topologyPolicy.pageTimeoutMs, async pageSignal => {
@@ -153,7 +155,8 @@ export function createTopologyClient(options: {
           totalBytes += bytes;
           if (totalBytes > topologyPolicy.maxAggregateBytes) throw new ReadFailure('tooLarge');
           if (!resultValidator.validate(commandKind[kind], value)) throw new ReadFailure('unavailable');
-          decodeTopologyResult(value);
+          if (kind === 'circuit' || kind === 'evidence') decodeElectricalListResult(value);
+          else decodeTopologyResult(value);
           // The cast follows the complete canonical result schema validation.
           const result = value as unknown as { requestId: string; commandId: string; status: string; resolvedScope: Scope;
             data: { records: TopologyRecord<K>[]; nextCursor: string | null; sourceStatus: AtlasReadStatus } };

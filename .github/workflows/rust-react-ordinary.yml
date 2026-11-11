@@ -263,6 +263,9 @@ jobs:
         run: |
           npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund
           node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
+      - name: Remove only this job's pinned sandbox helper
+        if: steps.lane.outputs.run == 'true' && (always())
+        run: sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py cleanup --job "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB"
   # The loopback flows drive the compiled binary through the built React app. Three
   # shards run in parallel; each builds the binary and the app once.
   loopback:
@@ -383,6 +386,10 @@ jobs:
         with:
           target-key: ${{ steps.setup.outputs.target-key }}
           target-hit: ${{ steps.setup.outputs.target-hit }}
+
+      - name: Remove only this job's pinned sandbox helper
+        if: steps.lane.outputs.run == 'true' && (always())
+        run: sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py cleanup --job "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB"
 
   ci-ok:
     needs: [changes, source, unit-tests, frontend, loopback]

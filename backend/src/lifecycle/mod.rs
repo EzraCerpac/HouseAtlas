@@ -2,6 +2,7 @@
 pub mod ai_account;
 pub mod ai_host;
 pub mod backup;
+pub mod continuity_plan;
 pub mod persistent;
 pub mod provider_dispatch;
 pub mod receipt_compatibility;

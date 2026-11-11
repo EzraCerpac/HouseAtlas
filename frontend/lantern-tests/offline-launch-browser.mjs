@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,6 +77,35 @@ async function liveLaunchSeed() {
   const byteStoreURL = await sourceURL('../integration/native-geometry-scan-cache.ts');
   const cacheURL = await sourceURL('../integration/unified-atlas-cache.ts', { './native-geometry-scan-cache': byteStoreURL });
   const outboxURL = await sourceURL('../src/outbox/store.ts');
+  const copyOwnerURL = await sourceURL('../src/offline/live-copy-owner.ts');
+  const copyBackendURL = await sourceURL('../src/offline/live-copy-indexeddb.ts');
+  const { syntheticPdf } = await import('./source-host-visual/synthetic-documents.ts');
+  const pdf = syntheticPdf();
+  const pin = { documentId: '00000000-0000-4000-8000-000000000850', documentRevision: 1,
+    assetId: '00000000-0000-4000-8000-000000000851', assetRevision: 1,
+    sha256: await sha256Hex(pdf), bytes: pdf.length, contentType: 'application/pdf' };
+  const view = { status: 'ready', scope, homeLabel: 'Synthetic offline home', now: '2026-01-03T10:00:00Z', canEdit: true,
+    homes: [{ ...scope, label: 'Synthetic offline home' }], caches: [], entries: [{
+      ...scope, key: 'generated-item', source: { sourceInstanceId: 'generated', collectionId: 'items', sourceKind: 'homebox-entity', externalId: 'one' },
+      entity: { id: 'one', name: 'Generated pump', description: '', entityType: null, parent: null, archived: false,
+        quantity: '1', manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
+      kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null,
+      retrievedAt: '2026-01-03T10:00:00Z', aliases: [], mobility: 'unknown', attachments: [], nativeLinks: [],
+      maintenance: [{ entryId: 'generated-upkeep', name: 'Inspect generated pump', description: 'Generated maintenance only',
+        scheduledDate: '2026-01-10', completedDate: null, cost: null }], networkBound: false, networkStates: [], networkRelations: [],
+    }] };
+  const catalog = { version: 1, capturedAt: '2026-01-03T10:05:00Z', completeness: 'captured-complete', documents: [{
+    ...pin, contentType: undefined, title: 'Generated held PDF', lifecycle: 'active', recordedAvailability: 'available',
+  }] };
+  // Same UUID-shaped evidence/asset values remain a different source identity.
+  const electricalPin = { source: 'electrical-evidence', buildingId: '00000000-0000-4000-8000-000000000852',
+    evidenceId: pin.documentId, evidenceRevision: 1, assetId: pin.assetId, assetRevision: '1.0', byteSize: String(pdf.length),
+    sha256: pin.sha256, contentType: 'application/pdf' };
+  const electricalBuilding = { buildingId: electricalPin.buildingId, capturedAt: '2026-01-03T10:10:00Z', provenance: null,
+    documents: [{ pin: electricalPin, pages: [{ sheetId: 'generated-electrical-sheet', title: 'Generated electrical sheet', pdfPage: 2,
+      sourceDate: '2020', correlationId: 'generated-correlation', correlationSha256: 'a'.repeat(64),
+      originalPhotoSha256: 'b'.repeat(64), renderedPhotoSha256: 'c'.repeat(64) }] }] };
+
   const owner = { actorId: 'synthetic-offline-launch-actor', ...scope };
   const requestId = 'synthetic-offline-launch-request';
   // Same persisted entry shape as the existing generated outbox examples. It
@@ -89,7 +118,7 @@ async function liveLaunchSeed() {
     body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
       idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
     createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
-  return { cacheURL, outboxURL, owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
@@ -143,11 +172,19 @@ try {
     assert(!exceptionDetails, exceptionDetails?.exception?.description ?? exceptionDetails?.text);
     return result.value;
   };
+  const screenshot = async name => {
+    const directory = process.env.HOUSEATLAS_OFFLINE_SCREENSHOTS;
+    if (!directory) return;
+    await evaluate(`Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => undefined)))`);
+    mkdirSync(directory, { recursive: true });
+    const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    writeFileSync(join(directory, name + '.png'), Buffer.from(data, 'base64'));
+  };
   const poll = async (expression, ms, label) => {
     const until = Date.now() + ms;
     for (;;) {
       if (await evaluate(expression).catch(() => false)) return Date.now();
-      if (Date.now() > until) throw new Error(label);
+      if (Date.now() > until) throw new Error(label + ': ' + await evaluate('document.body.innerText').catch(() => 'page unavailable'));
       await new Promise(done => setTimeout(done, 25));
     }
   };
@@ -172,7 +209,7 @@ try {
   const reopenWrites = [];
   if (selected === 'live-launch') {
     seeded = await liveLaunchSeed();
-    const { cacheURL, outboxURL, owner, entry, publicationId, manifestSha256, modelSha256,
+    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -189,6 +226,20 @@ try {
         cache.keepScene(${JSON.stringify(publicationId)}, ${JSON.stringify(manifestSha256)},
           new Uint8Array(${JSON.stringify(envelope)}), ${JSON.stringify(envelopeSha256)}, null);
       } finally { await store.close(); }
+      const { createLiveCopyOwner } = await import(${JSON.stringify(copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(copyBackendURL)});
+      const copies = createLiveCopyOwner(openLiveCopyBackend(indexedDB));
+      const check = result => { if (result.status !== 'ok') throw new Error('Generated retention failed: ' + result.status); return result.value; };
+      try {
+        const actor = check(await copies.observeActor(${JSON.stringify(owner.actorId)}, () => true));
+        const home = check(copies.bindHome(actor, ${JSON.stringify(view.scope)}, () => true));
+        const signal = new AbortController().signal;
+        check(await copies.keepView(home, ${JSON.stringify(view)}, signal));
+        check(await copies.keepCatalog(home, ${JSON.stringify(catalog)}, signal));
+        check(await copies.keepDocument(home, ${JSON.stringify(pin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
+        check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
+        check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
+      } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
       finally { outbox.close(); }
@@ -227,22 +278,69 @@ try {
     // Assert actual application output from the retained generated publication,
     // not just a shell, a cache record, or an injected waiting-count element.
     await poll(`(() => {
-      const atlas = document.querySelector('.saved-stage .ua-shell.is-stage');
+      const atlas = document.querySelector('.offline-atlas .ua-shell.is-stage');
       const buildings = atlas?.querySelector('[aria-label="Buildings"]')?.textContent ?? '';
       const status = atlas?.querySelector('.ua-stored-note')?.textContent ?? '';
-      const offline = document.querySelector('.saved-header .saved-live')?.textContent ?? '';
+      const offline = document.querySelector('.offline-pill')?.textContent ?? '';
       return buildings.includes('Synthetic house') && buildings.includes('Synthetic studio')
         && status.includes('Stored copy') && status.includes('not updated')
         && offline.includes('Offline') && offline.includes('1 change waiting');
     })()`, 15_000, 'Reopened app did not show the generated cached Atlas and its waiting outbox count');
-    // Above the Atlas only the one connection pill; the page itself is locked like the live app's.
-    assert.deepEqual(await evaluate(`(() => {
-      const root = getComputedStyle(document.documentElement), body = getComputedStyle(document.body);
-      return { header: [...document.querySelector('.saved-header').children].map(child => child.className),
-        chrome: [...document.querySelectorAll('.saved-header h1, .saved-header details, .saved-manager, .saved-message')].length,
-        overflow: [root.overflow, body.overflow], overscroll: [root.overscrollBehaviorY, body.overscrollBehaviorY] };
-    })()`), { header: ['saved-live'], chrome: 0, overflow: ['hidden', 'hidden'], overscroll: ['none', 'none'] },
-    'the offline reopen shows one pill above the Atlas and the page does not scroll');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.navrail button')].map(button => button.textContent)`), ['Atlas', 'Upkeep', 'Library', 'Changes']);
+    assert.equal(await evaluate(`document.querySelectorAll('.offline-pill').length`), 1);
+    assert.equal(await evaluate(`document.querySelectorAll('.saved-header, .saved-manager').length`), 0);
+    // Phone-width navigation and actual lazy PDF canvas use only the held public closure.
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    const tab = async label => {
+      await evaluate(`[...document.querySelectorAll('.navrail button')].find(button => button.textContent === ${JSON.stringify(label)}).click()`);
+      await poll(`document.querySelector('main h1')?.textContent === ${JSON.stringify(label)}`, 5_000, label + ' did not open');
+    };
+    await tab('Upkeep');
+    assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Inspect generated pump')`), true);
+    await tab('Changes');
+    assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Operation history is not held')`), true);
+    await tab('Library');
+    // Wait for the native row's own action: electrical rows can report "On this device" first.
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Generated held PDF')`, 5_000, 'PDF availability not shown');
+    await screenshot('phone-offline-library');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated held PDF').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 1"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
+    // Ordinary focus retires all borrowed data, then restores neutral reading
+    // intent only after fresh owner reads and a replacement React commit.
+    await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF second page did not draw');
+    await evaluate(`document.querySelector('button[aria-label="Zoom in PDF"]').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      return document.querySelector('.source-pdf-controls').textContent.includes('200%') && canvas && canvas.width > 0
+        && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF zoom did not draw');
+    const reading = await evaluate(`(() => { const frame = document.querySelector('.source-pdf-page');
+      frame.scrollTop = 100; frame.scrollLeft = 40; frame.dispatchEvent(new Event('scroll'));
+      return { top: frame.scrollTop, left: frame.scrollLeft }; })()`);
+    assert(reading.top > 0, 'Generated zoomed PDF must exercise a real vertical reading offset');
+    assert.equal(await evaluate(`(() => { window.dispatchEvent(new Event('focus'));
+      return document.querySelector('.offline-app-root').hidden; })()`), true, 'Focus must hide borrowed content synchronously');
+    await poll(`(() => { const root = document.querySelector('.offline-app-root');
+      const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      const frame = document.querySelector('.source-pdf-page');
+      return root && !root.hidden && document.querySelector('main h1')?.textContent === 'Library'
+        && document.querySelector('.source-pdf-controls')?.textContent.includes('200%')
+        && canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden' && frame
+        && Math.abs(frame.scrollTop - ${reading.top}) <= 1 && Math.abs(frame.scrollLeft - ${reading.left}) <= 1;
+    })()`, 15_000, 'Foreground revalidation lost Library or exact PDF page/zoom/reading offset');
+    assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held electrical PDF did not render its referenced page offline');
+    await screenshot('phone-offline-electrical-page');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
+    await poll(`document.body.textContent.includes('Documents:')`, 5_000, 'Offline storage settings did not read size');
     // Opened on purpose from the live app (its link marks the tab session), the
     // same page keeps the full Saved view with Saved scope and shell removal.
     await evaluate(`sessionStorage.setItem('houseatlas.saved-entry.v1', '1')`);
@@ -258,7 +356,35 @@ try {
       try { return await store.list(); } finally { store.close(); }
     })()`), [seeded.entry], 'closing and reopening offline retains the exact owner, intent, command bytes and waiting state');
     assert.deepEqual(reopenWrites, [], 'the read-only offline reopen does not dispatch the queued edit or another write');
-    console.log('PASS live-launch: generated cached Atlas and 1 waiting edit shown after actual tab close/reopen; exact queue bytes retained; reconnect sync not exercised');
+    // Retiring only the app copy must not expose its still-held legacy Atlas.
+    await evaluate(`sessionStorage.removeItem('houseatlas.saved-entry.v1')`);
+    await send('Page.reload', {});
+    await poll(`document.querySelector('.navrail') !== null`, 10_000, 'App shell did not reopen for withdrawal');
+    await tab('Library');
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical original unavailable before withdrawal');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Electrical PDF unavailable before withdrawal');
+    const second = await cdp.send('Target.createTarget', { url: origin + '/saved/index.html' });
+    const attached = await cdp.send('Target.attachToTarget', { targetId: second.targetId, flatten: true });
+    await cdp.send('Runtime.enable', {}, attached.sessionId);
+    const cleared = await cdp.send('Runtime.evaluate', { expression: `(async () => {
+      const { createLiveCopyOwner } = await import(${JSON.stringify(seeded.copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(seeded.copyBackendURL)});
+      const channel = new BroadcastChannel('houseatlas-live-readonly-copy-v1');
+      const owner = createLiveCopyOwner(openLiveCopyBackend(indexedDB), { changed: () => channel.postMessage('changed') });
+      try { return await owner.clear(); } finally { owner.close(); channel.close(); }
+    })()`, awaitPromise: true, returnByValue: true }, attached.sessionId);
+    assert.equal(cleared.exceptionDetails, undefined);
+    assert.equal(cleared.result.value.status, 'ok');
+    await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
+      && document.querySelector('.source-pdf-page canvas, .offline-atlas, .saved-stage') === null`, 10_000, 'Peer tombstone did not withdraw held drawing and Atlas');
+    assert.equal((await cdp.send('Target.closeTarget', { targetId: second.targetId })).success, true);
+    await send('Page.reload', {});
+    await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
+      && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
+
+    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, native and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {

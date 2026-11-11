@@ -3,7 +3,7 @@
   "selection": "geodata-wire-v2",
   "contractVersion": "2.0.0",
   "runtimeRegistration": false,
-  "predecessorFilesUnchanged": true,
+  "predecessorFilesUnchanged": false,
   "sources": [
     {
       "path": "packages/contracts/schemas/atlas.v2.schema.json",
@@ -55,7 +55,7 @@
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca"
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede"
     },
     {
       "path": "contracts/stock-wire3/agent/operation-catalog.json",
@@ -63,11 +63,27 @@
     },
     {
       "path": "contracts/stock-wire3/resource-map.json",
-      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4"
+      "sha256": "a61f21b3511a9f2a4b3e6025ca94bfe8792a1ed0c35df73b481f21f88cbd6762"
     },
     {
       "path": "contracts/stock-wire3/PROVIDER-AND-AI-POLICY.md",
       "sha256": "f0f5ee9b081a57fe186dc35f9b7b6b7de0f06321283db35cd21c5a34e53fbdd2"
     }
-  ]
+  ],
+  "postAdoptionLogicalCollectionAmendment": {
+    "scope": "Logical HomeBox collectionId only: original registration/access opaque 1–4096 Unicode-scalar bound. No geodata schema, wire version, operation or runtime registration change.",
+    "originalPredecessorFilesUnchanged": true,
+    "inputs": [
+      {
+        "path": "contracts/stock-wire3/agent/agent.schema.json",
+        "originalSha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
+        "amendedSha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede"
+      },
+      {
+        "path": "contracts/stock-wire3/resource-map.json",
+        "originalSha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4",
+        "amendedSha256": "a61f21b3511a9f2a4b3e6025ca94bfe8792a1ed0c35df73b481f21f88cbd6762"
+      }
+    ]
+  }
 }

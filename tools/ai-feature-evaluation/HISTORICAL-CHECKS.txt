@@ -1,0 +1,25 @@
+{"cases": 32, "per_feature": {"documents": 7, "inventory": 6, "maintenance": 6, "questions": 6, "review": 7}, "scope": "annotation integrity only; no model, runtime, authority or live API evaluated", "source_versions": 20}
+test_altered_quote (__main__.IntegrityTests.test_altered_quote) ... ok
+test_bounded_route (__main__.IntegrityTests.test_bounded_route) ... ok
+test_changed_version_application (__main__.IntegrityTests.test_changed_version_application) ... ok
+test_duplicate_case (__main__.IntegrityTests.test_duplicate_case) ... ok
+test_duplicate_json_keys (__main__.IntegrityTests.test_duplicate_json_keys) ... ok
+test_duplicate_source_version (__main__.IntegrityTests.test_duplicate_source_version) ... ok
+test_effect_authority (__main__.IntegrityTests.test_effect_authority) ... ok
+test_electrical_overclaim (__main__.IntegrityTests.test_electrical_overclaim) ... ok
+test_forbidden_candidate (__main__.IntegrityTests.test_forbidden_candidate) ... ok
+test_frozen_corpus (__main__.IntegrityTests.test_frozen_corpus) ... ok
+test_invented_section (__main__.IntegrityTests.test_invented_section) ... ok
+test_missing_baseline (__main__.IntegrityTests.test_missing_baseline) ... ok
+test_probability_claim (__main__.IntegrityTests.test_probability_claim) ... ok
+test_repeat_dismissal (__main__.IntegrityTests.test_repeat_dismissal) ... ok
+test_revoked_disclosure (__main__.IntegrityTests.test_revoked_disclosure) ... ok
+test_unknown_version (__main__.IntegrityTests.test_unknown_version) ... ok
+test_unreadable_citation (__main__.IntegrityTests.test_unreadable_citation) ... ok
+test_untrusted_instruction_boundary (__main__.IntegrityTests.test_untrusted_instruction_boundary) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.047s
+
+OK
+Python 3.12.14

@@ -64,6 +64,24 @@ export function checkClientSchemaSubset() {
     target: { authority: 'homebox', sourceInstanceId: uuid(4), collectionId: uuid(5),
       resourceKind: 'attachment', entityId: uuid(6), resourceId: uuid(7) }, payload: {} };
   const v4 = { ...request, schemaVersion: 4, target: { ...request.target, collectionId: 'synthetic/opaque+collection' } };
+  // Original HomeBox logical collection identity is opaque scalar-bounded text.
+  // These schema controls exercise no transport, provider or source authority.
+  const downloadRef = full.$id + '#/$defs/request_homebox_file_download';
+  const fullDownload = original.getSchema(downloadRef), generatedDownload = generated.getSchema(downloadRef);
+  assert(fullDownload && generatedDownload);
+  for (const collectionId of ['synthetic-collection-a', ' ', 'opaque:collection/é', '界'.repeat(4096), '😀'.repeat(4096), uuid(5)]) {
+    const selected = { ...request, target: { ...request.target, collectionId } };
+    assert.equal(fullDownload(selected), true, JSON.stringify(fullDownload.errors));
+    assert.equal(generatedDownload(selected), true, JSON.stringify(generatedDownload.errors));
+  }
+  for (const collectionId of ['', 'x'.repeat(4097), '😀'.repeat(4097)]) {
+    const selected = { ...request, target: { ...request.target, collectionId } };
+    assert.equal(fullDownload(selected), false); assert.equal(generatedDownload(selected), false);
+  }
+  for (const key of ['sourceInstanceId', 'entityId', 'resourceId']) {
+    const selected = { ...request, target: { ...request.target, collectionId: 'synthetic-collection-a', [key]: 'opaque-not-a-uuid' } };
+    assert.equal(fullDownload(selected), false, key); assert.equal(generatedDownload(selected), false, key);
+  }
   for (const [ref, value] of [
     [`${full.$id}#/$defs/contextSelection`, context],
     [`${full.$id}#/$defs/request_homebox_file_download`, request],

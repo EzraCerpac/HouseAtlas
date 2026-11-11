@@ -69,9 +69,53 @@ runs:
         curl --fail --silent --show-error --location --retry 3 --output "$dir/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip"
         printf '%s  %s\n' "$CHROME_SHA256" "$dir/chrome-linux64.zip" | sha256sum --check --strict
         unzip -q "$dir/chrome-linux64.zip" -d "$dir"
-        rm "$dir/chrome-linux64.zip"
         test "$("$dir/chrome-linux64/chrome" --version | sed 's/ *$//')" = "Google Chrome for Testing $CHROME_VERSION"
+        test "$(id -u)" -ne 0
+        test "$(stat -c %u "$dir/chrome-linux64/chrome")" = "$(id -u)"
+        sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 -I -B tools/ci/chrome_sandbox.py install --archive "$dir/chrome-linux64.zip" --job "$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT:$GITHUB_JOB"
+        sandbox_helper=/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox
+        sandbox_api=$("$sandbox_helper" --get-api)
+        printf 'Pinned sandbox helper API=%s\n' "$sandbox_api"
+        test "$sandbox_api" = 1
+        printf 'CHROME_DEVEL_SANDBOX=%s\n' "$sandbox_helper" >> "$GITHUB_ENV"
+        rm "$dir/chrome-linux64.zip"
         printf 'HOUSEATLAS_CHROMIUM=%s\n' "$dir/chrome-linux64/chrome" >> "$GITHUB_ENV"
+        # Read-only metadata: no helper execution, selection, permission or policy changes.
+        python3 - "$dir/chrome-linux64" <<'PY'
+        import json, os, pathlib, stat, sys
+        candidates = [pathlib.Path(sys.argv[1]) / name for name in ('chrome-sandbox', 'chrome_sandbox')]
+        candidates += [pathlib.Path(name) for name in (
+            '/opt/google/chrome/chrome-sandbox',
+            '/usr/local/share/chromium/chrome-linux/chrome-sandbox',
+            '/usr/local/share/chromium/chrome-linux/chrome_sandbox',
+            '/opt/microsoft/msedge/msedge-sandbox',
+            '/opt/microsoft/msedge/msedge_sandbox',
+            '/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox')]
+        def metadata(path):
+            info = path.lstat()
+            return {'path': str(path), 'uid': info.st_uid, 'gid': info.st_gid,
+                    'mode': oct(stat.S_IMODE(info.st_mode)), 'regular': stat.S_ISREG(info.st_mode),
+                    'symlink': stat.S_ISLNK(info.st_mode), 'setuid': bool(info.st_mode & stat.S_ISUID),
+                    'groupOrOtherWritable': bool(info.st_mode & (stat.S_IWGRP | stat.S_IWOTH))}
+        print('Selected pinned helper API checked before export; other candidates remain unverified. Actual sandboxed launches remain required.')
+        print(json.dumps({'jobUid': os.getuid()}))
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve(strict=True)
+                print(json.dumps({'candidate': metadata(candidate), 'resolved': metadata(resolved),
+                                  'parents': [metadata(parent) for parent in list(resolved.parents)[:16]]}))
+            except (OSError, RuntimeError) as error:
+                print(json.dumps({'candidate': str(candidate), 'metadataUnavailable': type(error).__name__}))
+        for name in ('unprivileged_userns_clone', 'apparmor_restrict_unprivileged_userns'):
+            try:
+                with open('/proc/sys/kernel/' + name, encoding='ascii') as source:
+                    value = source.read(32).strip()
+                print(json.dumps({'kernelSetting': name, 'value': value}))
+            except (OSError, UnicodeError) as error:
+                print(json.dumps({'kernelSetting': name, 'metadataUnavailable': type(error).__name__}))
+        PY
+        # Package version is provenance only, not compatibility evidence for the pinned browser.
+        dpkg-query --show google-chrome-stable microsoft-edge-stable 2>/dev/null || true
     # Cache public package content only, never node_modules, npm logs or credentials.
     # PRs only restore; only successful main pushes may publish caches.
     - name: Restore exact npm content cache

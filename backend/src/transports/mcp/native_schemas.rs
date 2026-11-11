@@ -14,7 +14,7 @@ use crate::contracts::stock as wire;
 use super::{JsonObject, PortError};
 
 pub const AGENT_SCHEMA_SHA256: &str =
-    "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca";
+    "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede";
 pub const ATLAS_SCHEMA_SHA256: &str =
     "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c";
 

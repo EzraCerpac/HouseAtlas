@@ -195,6 +195,7 @@ pub(super) struct Work {
     indices: usize,
     attribute_copies: usize,
     expanded_attributes: usize,
+    scalar_instances: usize,
     materials: super::atlas_scene_material::Materials,
 }
 impl Work {
@@ -208,8 +209,13 @@ impl Work {
             indices: 0,
             attribute_copies: 0,
             expanded_attributes: 0,
+            scalar_instances: 0,
             materials,
         }
+    }
+    fn scalar_instance(&mut self) -> Result<(), String> {
+        self.scalar_instances += 1;
+        need(self.scalar_instances <= 256)
     }
     fn primitive(
         &mut self,
@@ -517,8 +523,22 @@ fn scalar(value: Option<&Value>) -> Result<(), String> {
     }
     Ok(())
 }
+pub(super) fn scalar_specular(material: &Value) -> Result<(), String> {
+    if let Some(ext) = material.get("extensions") {
+        let ext = ext.as_object().ok_or_else(invalid)?;
+        need(ext.len() == 1)?;
+        let spec = ext
+            .get("KHR_materials_specular")
+            .and_then(Value::as_object)
+            .ok_or_else(invalid)?;
+        need(spec.keys().all(|key| key == "specularFactor"))?;
+        scalar(spec.get("specularFactor"))?;
+    }
+    Ok(())
+}
 // Preserve the existing untextured core material profile.
 pub(super) fn color_material(material: &Value) -> Result<(), String> {
+    scalar_specular(material)?;
     let object = material.as_object().ok_or_else(invalid)?;
     need(object.keys().all(|k| {
         [
@@ -529,6 +549,7 @@ pub(super) fn color_material(material: &Value) -> Result<(), String> {
             "alphaMode",
             "alphaCutoff",
             "doubleSided",
+            "extensions",
         ]
         .contains(&k.as_str())
     }))?;
@@ -612,6 +633,9 @@ pub(super) fn positions<'a>(
         )?;
     }
     let material = work.materials.primitive(primitive)?;
+    if material.scalar_specular && !material.textured {
+        work.scalar_instance()?;
+    }
     let attributes = primitive["attributes"].as_object().ok_or_else(invalid)?;
     need(attributes.keys().all(|key| {
         matches!(key.as_str(), "POSITION" | "NORMAL")
@@ -631,22 +655,32 @@ pub(super) fn positions<'a>(
         .map(|indices| accessor(gltf, glb, json_end, indices, 1, true, work))
         .transpose()?;
     let mut source_width = 0;
-    let expanded_width = if material.textured { 36 } else { 0 };
     let normal = attributes
         .get("NORMAL")
         .map(|value| accessor(gltf, glb, json_end, value, 3, false, work))
         .transpose()?;
+    let scalar_normal = material.scalar_specular && !material.textured && normal.is_some();
+    let expanded_width = if material.textured || scalar_normal {
+        36
+    } else {
+        0
+    };
     if let Some(normal) = &normal {
         need(normal.count == position.count)?;
         for i in 0..normal.count {
             let n = vector::<3>(normal, i)?;
-            if material.textured {
+            if material.textured || scalar_normal {
                 normal_basis(n, world)?;
             }
         }
         if material.textured {
             source_width += 12;
+        } else if scalar_normal {
+            source_width += 20; // copied normal plus allocated fallback UVs
         }
+    }
+    if scalar_normal {
+        need(determinant(world).is_finite() && determinant(world) != 0.)?;
     }
     if material.textured {
         need(normal.is_some() && determinant(world).is_finite() && determinant(world) != 0.)?;
@@ -750,6 +784,14 @@ mod material_healthy {
     };
     use serde_json::json;
     use std::{fs, os::unix::fs::PermissionsExt};
+    #[test]
+    fn scalar_instance_limit_is_bounded() {
+        let mut work = Work::new(Default::default(), OVERVIEW);
+        for _ in 0..256 {
+            assert!(work.scalar_instance().is_ok());
+        }
+        assert!(work.scalar_instance().is_err());
+    }
     fn geometry(glb: &[u8]) -> (Work, Vec<super::super::atlas_scene_footprint::Triangle>) {
         let size = u32::from_le_bytes(glb[12..16].try_into().unwrap()) as usize;
         let gltf: Value = serde_json::from_slice(&glb[20..20 + size]).unwrap();

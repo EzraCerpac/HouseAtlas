@@ -48,6 +48,7 @@ mod stock_downloads;
 mod stock_mutations;
 mod stock_network_reads;
 mod stock_reads;
+pub mod suggestion_inputs;
 mod upload;
 mod upload_asset;
 mod upload_batch;
@@ -355,6 +356,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}/evidence/requests/{request_id}", get(upload_outcomes::inspect).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-offline-original", get(homebox_pinned_files::offline_original).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture_v4).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}", get(homebox_pinned_files::redeem).head(homebox_pinned_files::redeem).fallback(auth::session_head))
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}/availability", get(homebox_pinned_files::availability).head(auth::session_head).fallback(auth::session_head))

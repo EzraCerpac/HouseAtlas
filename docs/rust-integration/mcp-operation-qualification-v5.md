@@ -126,6 +126,62 @@ operations are not used as publication prerequisites. Existing automatically
 triggered PR CI supplies its own separate execution outcome. The source auditor
 can subsequently report only its source/metadata audit, never operation success.
 
+## Composed-input reinspection
+
+The JSON retains its original main baseline above. Four pins were reinspected
+after composing main `8a20f596cae36bb8922b16f54d9bfd11a6b2ff56` and exact
+electrical projector donor `0138f373f167636f596c79163d74ef00724bd0dd`, at
+composition parent `5aad47050919fc653a922864c7158f4c646144b6`. The publication
+tree anchors the updated hashes; this is source review, not operation execution.
+
+- `asset_download_healthy.rs` adds #547's separate contextual five-original
+  teardown/reopen fixture: actual Core/Store/Access/Vault release, exact existing
+  store reopening, fresh ordinary authentication and canonical/original readback.
+  Retained home configuration is DATA. This is an in-process router fixture,
+  without installed startup, process restart, socket/TLS or device qualification.
+  M34 still indexes its unchanged same-Host mounted-MCP text case; M04 retains
+  its fake-history method. No historical test is relabelled as this newer case.
+- `native_list_pages.rs` adds only the existing private `cfg(test)` child
+  registration. It enables no configured capture or operation; #571 remains
+  separate from the injected/unmounted M36 evidence.
+- The v4 introduction clarifies the already-recorded synthetic unresolved-source
+  binding-create variant and blocked remap. No ledger row, source commit, CI
+  identity, disposition or remaining qualification is changed.
+- `run-healthy.mjs` adds five SOURCE selections (AI review, AI adapter, offline
+  electrical copy, network trace and electrical group) and two BROWSER selections
+  (electrical regression and capture save/reopen/remove). These are registrations,
+  not per-operation execution evidence; none is removed or disabled here.
+
+The other 63 input pins, every operation/profile/admission value, historical
+evidence entry and current execution/installed/browser state remain unchanged.
+
+The same runner pin was reinspected again at composition parent
+`3dba170d` before publishing the follow-up: one generated offline presentation
+SOURCE selection was added (78 SOURCE / 1 BUILD / 7 BROWSER). It extracts the
+actual root/reopen logic with synthetic hook/owner boundaries, not MCP execution.
+All prior selections and the two sandbox-blocked cases remain. Only this pin is
+refreshed; every operation, historical evidence and qualification state is kept.
+
+The following same-runner reinspection adds two generated inspection-owner and
+manual native-handoff SOURCE selections after `b19e7d91` (80 SOURCE / 1 BUILD /
+7 BROWSER). The backend selected-input module registration adds no operation or
+route. No historical evidence is promoted and every previous selection remains.
+
+Three inputs were then reinspected after `0183afd6`: the agent schema changes
+exactly 126 logical HomeBox collection constraints to the original opaque scalar
+bound; native_schemas updates only its exact schema digest; healthy_examples adds
+two authored default-library structural/descriptor controls. No native binding,
+capability, operation/profile or historical execution result is changed. These
+hash updates establish only the reviewed amended source, not current execution.
+
+Two further pins were reinspected after qualified main `f712288f` and helper
+source `0f0dd48c`: the workflow adds only selected Ubuntu-job pinned-helper
+always-cleanup; `healthy_examples.rs` changes only the existing collection-test
+import formatting from `903ad712`. The CI helper is isolated from native MCP
+operation/profile/admission and authority. All other 65 pins, historical evidence,
+operation rows and execution/browser/installed states are unchanged. This source
+reinspection qualifies no new runtime or operational boundary.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor

@@ -1,5 +1,19 @@
 # HouseAtlas
 
+## Mounted HomeBox offline original
+
+The existing default backend-library selection discovers
+`http::homebox_pinned_files::mounted_offline_original_tests::mounted_original_admission_disclosure_error_and_replay`.
+It invokes the registered router with disposable synthetic Access and an
+individually trusted generated loopback TLS peer. The case checks exact bytes
+and source association, anonymous refusal, a provider 503, spent-request
+replay refusal, and a subsequent withdrawn membership. The fixture uses no real
+provider, account or data; its test-only certificate trust is confined to that
+loopback peer. This case is authored, pending exact-head hosted execution. It
+does not establish remote freshness, live provider qualification, revocation
+during a pending download, device acceptance, or consumer-store behavior.
+No workflow command or runner selection is added.
+
 ## Native AI continuation release fence
 
 The existing default backend-library selection discovers these three cases in
@@ -22,6 +36,140 @@ They establish no actual approval, native reviewed dispatch, credential/provider
 operation, mounted router, runtime activation or device qualification. No
 workflow, command or held runner selection is added.
 
+## Continuing sprint source composition — 9 November 2026
+
+The continuation of #562 preserves its original candidate `2aa7c59f` and composes
+unchanged donor heads #571 `2620c4b3`, #572 `3875ab34` and #573 `3e6f1418`.
+The two existing AI source files are registered in the healthy list, with the
+matching 77 source / 1 build / 7 browser inventory. The inspected stdlib-only CI
+inventory generator rewrites documentation; it executes no listed command.
+Donor/source/manifest/whitespace audits are separate from executable qualification.
+No compilation, formatter, Clippy, test, browser or device execution is claimed
+for this combined head. Earlier #562 checks remain historical evidence at their
+original source pins. Authenticated AI source/inspection/review ports and app-root
+activation stay unbound; the continuity module remains DATA-only without native
+publication or startup-guard changes. Hosted failure before any job step is not
+a source-test result and releases no merge, rerun, billing or deployment action.
+
+## Supplied inventory/document proposal scoring
+
+`backend/src/ai/suggestions/evaluation.rs` adds a reusable generated-data-only
+`evaluate_supplied` function over the existing proposal/evidence contract and
+`validate_generated` boundary. It scores a deliberately supplied fictional output
+against caller-supplied fictional labels; it runs no model, prompt, inference,
+runtime, credential, provider, source workflow or native action. Its
+`model_executed: false` field describes this function, not an attestation about
+an arbitrary caller's bytes. Only explicitly fictional inputs are in scope.
+
+Label integrity checks pin the admitted context (including exact source versions,
+dates, retrieval time and availability), constrain classification/candidate labels
+and their evidence references, require cited rationales, and refuse contradictory
+required-prediction/required-abstention annotations. They do not prove semantic
+truth: fictional evidence and expected rationale still require source review.
+Inventory classification uses exact strings; document classes and all three
+duplicate relationships retain existing contract values. The scorer does not
+normalize taxonomy, infer probability or select a production threshold.
+
+Per-case reports retain admitted/current canonical source stamps, source/output/
+label hashes, and separate counts for allowed, unexpected, missing-required and
+forbidden proposals. Forbidden is a subset of unexpected, not an additional
+independent error to sum twice. Classification, duplicate relationships and
+document associations have separate reports. Same-product/distinct-item and
+ambiguous relationships are not collapsed into same-item duplicates. Unknown
+classification, per-domain no-candidate results and overall abstention are
+recorded separately. Expected-refused output passing the structural validator
+is an unsafe-acceptance counter relative to that annotation, never native approval
+or dispatch. A refused output has null/unscored quality/abstention fields, rather
+than invented zero-error accuracy. No aggregate accuracy or model result is emitted.
+
+The existing default backend-library selection discovers these nine authored
+functions under `ai::suggestions::evaluation::healthy`:
+
+- `same_product_different_item_is_not_a_duplicate_identity_error`
+- `classification_errors_and_duplicate_identity_errors_are_independent`
+- `document_class_is_separate_from_wrong_association_and_original_dates`
+- `ambiguous_unreadable_evidence_can_require_abstention_without_quality_invention`
+- `explicit_document_unknown_is_not_a_class_prediction_or_invalid_output`
+- `misleading_source_instructions_cannot_add_tools_and_refusal_is_not_abstention`
+- `stale_or_withdrawn_context_refuses_without_counting_quality_success`
+- `validation_confusion_is_not_collapsed_into_classification_or_unknown`
+- `annotations_must_pin_versions_and_ground_each_label_in_admitted_evidence`
+
+The small generated fixture bank in `evaluation_healthy.rs` controls scorer
+behavior with explicit serial/model differences, ambiguous unreadable material,
+document-versus-appliance correspondence and untrusted instruction text. It is
+not a replacement for the separately reported unpublished 32-scenario annotation
+corpus. Adapting that corpus requires its exact retained artifact; no import,
+execution or contract compatibility of that artifact is claimed here.
+
+All nine tests are **authored, NOT RUN**. No actual evaluation/metric artifact,
+model accuracy, fitted thresholds or calibration result was produced. Compiler,
+formatter, Clippy, test, browser/device and actual model execution remain unrun
+at this increment. Source/whitespace/manifest audits are separate; no workflow,
+lane, CI rerun, billing setting or activation changes. The existing 77 source /
+1 build / 7 browser frontend inventory is unchanged. Inventory tags/location,
+live OCR, genuine retrieval completeness, prompt-injection model behavior,
+human review, native writes and operational acceptance are outside this scorer.
+
+## Offline continuity plan data
+
+`backend/src/lifecycle/continuity_plan.rs` is a refusal-first evidence validator
+and in-memory journal DATA model, not a recovery command. It reuses the strict
+persistent State receipt type. The existing identity guard, receipt upgrader,
+Access behavior, backup and deployment paths are unchanged; no CLI/startup hook
+or publication executor is installed.
+
+The default backend-library set discovers thirteen generated functions under
+`lifecycle::continuity_plan::healthy`, authored in `continuity_plan_healthy.rs`:
+
+- `missing_baseline_cannot_be_replaced_by_a_current_copy_or_integrity_claim`
+- `exact_device_only_observations_produce_plan_data_without_authority`
+- `changed_database_or_sidecar_bytes_and_absence_are_holds`
+- `incomplete_inventory_cannot_omit_absent_sidecars`
+- `inode_configuration_coupled_receipt_and_unknown_operation_refuse`
+- `all_three_original_named_lock_observations_and_closed_writer_claims_are_required`
+- `same_device_requires_no_rebinding_and_unknown_receipt_fields_refuse`
+- `journal_data_requires_preservation_stage_and_observed_publication_order`
+- `bad_sync_data_and_changed_precut_observations_cannot_advance`
+- `interruption_at_every_recorded_phase_stays_held_despite_receipt_readback`
+- `rollback_data_refuses_later_writes_wrong_backup_or_different_original_lease`
+- `staged_receipt_data_must_pin_same_directory_private_identity_and_no_alias`
+- `contradictory_post_publication_data_permanently_poison_the_model`
+
+Fictional complete cuts include both databases, six explicit sidecar-presence/
+absence entries and the receipt. Structural comparison permits only device-number
+differences, requires original inode/configuration/schema/content continuity and
+unchanged historical lock identities, and refuses a missing/changed baseline,
+coupled/full-profile receipts or uncertain prior operation. Integrity alone is
+not continuity. Plans expose candidate hashes, never replacement receipt bytes,
+and explicitly grant no publication authority.
+
+The model requires a preservation-manifest hash bound to the complete selected
+cut, staged private-file/named/directory identity, prepublication recheck and
+postpublication receipt-identity/cut/readback records. A failed postpublication
+observation or explicit interruption permanently holds that model; matching
+hashes cannot resume it. Rollback data identifies only the exact preserved prior
+receipt when data/sidecars/lease remain unchanged. It never restores database
+bytes; restoring prior metadata would not make changed-device startup acceptable.
+
+All inputs and sync/lease records remain caller-supplied DATA. A future separately
+reviewed executor must authenticate historical provenance; retain actual original
+server/deploy/backup locks and exclude all writers; preserve databases, every
+sidecar and receipt in verified durable custody; bind no-follow descriptors and
+same-directory staging; perform and verify atomic rename/file/directory sync;
+persist interruption markers; and require explicit offline outcome reconciliation.
+This module has no persistence or ability to stop a process creating a new model.
+Read-only SQLite can affect WAL/SHM; actual validation should use preserved
+isolated copies under the original closed-state owner. None of those native
+effects or recovery/rollback safety is qualified by these structural cases.
+
+Source/delta and whitespace audits are the only checks claimed for this increment.
+Rust formatting, compilation, Clippy, all thirteen tests and the pinned publication
+verifier are **NOT RUN** in the source executor (Rust tools absent, Node outside
+the pin). No workflow/runner, billing/check setting, service, real input, recovery
+or deployment action is added or performed. Original-owner bindings and current
+continuity evidence remain independent acceptance requirements under #286/#289.
+
 ## Native AI stock read contract
 
 The existing default backend-library job discovers exactly
@@ -43,6 +191,409 @@ separate evidence. [The AI integration guide](../rust-integration/ai-host-integr
 reconciles already-executed finite synthetic tests and their boundaries. Real
 reviewed-write continuation/domain-held coverage remains blocked on the
 concrete original reviewed-stock and trusted human-review bridge.
+
+## Review-only AI suggestion contracts
+
+### Admitted multiline review text
+
+Exact reviewed donor `c020815382919e82244951c047ce8bf101b6934f`, parent
+f7188684, tree7c809be0049a5a4e37da9745429371b653fe5c72, replaces only
+maintenance-title and shared proposed-field text inputs with controlled
+soft-wrap textareas. Existing raw handlers, labels, disabled/selected/edited/
+invalid behavior, tag-specific4145 and other4096 limits are unchanged. All six
+frontend-owned paths match the donor; controller/CSS/view types are unchanged.
+Source/controller controls are not executed React/DOM/browser evidence and
+promise only admitted LF/TAB preservation, not arbitrary CR/CRLF draft bytes.
+
+Four authored donor cases bring that file to49 controls. Two shared functions
+are additionally authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::inventory_category_lf_tab_disclosure_keeps_exact_text_and_canonical_bounds`
+- adapter: `admitted category LF TAB survives disclosure session and exact once-only field binding`
+
+They retain canonical category LF/TAB through exact disclosure and original
+field/input binding, untouched/edited markers and once-consumed authority:none
+intent. Canonical CR/CRLF and oversized UTF-8 categories remain refused. The
+existing maintenance LF/TAB adapter case is unchanged and not duplicated.
+All six new shared/donor cases are unrun. Counts are42 synthetic-contract /
+10 scorer /28 retained /one counter plus one date-unit Rust case;49 controller/
+source and25 session cases. Date and tag repairs, all original corpus/retained
+adapters/5-21-6 ledger,77 source /1 build /7 browser selections/workflows and
+runtime/native owners remain unchanged. No local tests/build/typecheck/compiler/
+formatter/Clippy/browser/device or publication-verifier qualification occurred.
+
+### Projected date-field compatibility
+
+Successful source cards now require retrievedAt and every non-null sourceDate
+to fit4096 UTF-16 code units, matching the existing consumer optional-text bound.
+The backend uses encode_utf16 with a4097-unit counting stop, rather than UTF-8
+byte or Unicode-scalar length. This affects only dates actually projected after
+canonical validation: cited evidence cards and subject-metadata fallback share
+the fence across Inventory, Document, Maintenance, Answer and Contradictions.
+Uncited data is not published or newly rejected. Source-free empty answers are
+unaffected. Admission/pins retain original syntax-valid strings, null/date-only
+behavior, fractions, offsets and uncertainty; no normalization or truncation.
+Over-bound projected dates return SuggestionError::LimitExceeded before a
+successful disclosure; the independent65,536-byte whole-DTO fence still applies.
+
+Three generated functions are authored and **NOT RUN** in the default library:
+
+- `ai::suggestions::synthetic_contracts::projected_date_text_bounds_cited_and_fallback_cards_for_every_record_feature`
+- `ai::suggestions::synthetic_contracts::date_projection_preserves_null_date_only_offsets_and_ignores_uncited_dates`
+- `ai::suggestions::disclosure::tests::date_display_bound_uses_consumer_utf16_units_not_utf8_or_scalar_count`
+
+The matrix covers4096 exact,4097 one-over and the original4117-unit timestamp
+reproduction (4096 fractional zero digits), both date fields, cited/fallback
+projection and all five record-backed features. Pinned Chrono0.4.42 admission
+is asserted, not locally executed. A size-only mutation of a successful DTO
+template remains below the whole budget while its field exceeds the consumer
+bound; that mutation is never treated as a pinned result. Ordinary/null/date-only
+and exact fractional-offset strings are preserved, and uncited long dates are
+omitted without display refusal. Non-date multibyte strings test only the
+private length helper's units and are never admitted as dates.
+
+Counts are42 synthetic-contract /10 scorer /28 retained /one counter plus one
+date-unit Rust case. Frontend49 controller/source /25 session, original corpus,
+retained adapters/5-21-6 ledger, exact tag donor f7188684 and77/1/7 selections/
+workflows remain unchanged. No local tests/build/compiler/typecheck/formatter/
+Clippy/browser/device or pinned publication verifier ran for this increment.
+
+### Canonical Inventory tag JSON capacity
+
+Rust admits 1..16 unique nonblank tags of at most128 UTF-8 bytes each, rejecting
+controls except LF/tab. Compact JSON content therefore uses at most two UTF-16
+units per source UTF-8 byte (quote/backslash/LF/tab escapes are the worst case).
+Quotes, commas and brackets give the tight bound
+`16*128*2 +16*2 +15 +2 =4145`. Unicode scalar content cannot exceed this bound;
+Rust strings cannot contain unpaired surrogates. Six-unit control escapes do
+not occur for canonically permitted tags. This is the decoded field capacity,
+not the separately fenced serialized display DTO size of65,536 bytes.
+
+Three shared controls are authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::canonical_maximum_inventory_tags_survive_lossless_disclosure_with_derived_display_bound`
+- `ai::suggestions::synthetic_contracts::inventory_tag_utf8_control_and_uniqueness_rules_bound_json_escaping`
+- adapter: `canonical maximum JSON tags cross the actual session boundary losslessly with one review intent`
+
+Sixteen unique128-byte quote/backslash-heavy tags attain4145 exactly and must
+round-trip without normalization/truncation. Controls include LF/tab, multibyte
+UTF-8, forbidden controls, excessive bytes/count and duplicate tags, plus exact
+null current/proposed/edit field preservation, original binding and once-only
+authority:none handoff. The session control requires the exact reviewed
+frontend donor that aligns only Inventory tags' copy/edit/input capacity; the
+existing4096 default and every other limit stay unchanged. These controls do
+not run a browser, provider, native effect or live owner. Shared preparation
+counts are39 synthetic-contract,10 scorer,28 retained,one counter Rust cases
+and24 session cases; original corpus/ledger and runner selections are unchanged.
+For the earlier tag-capacity increment, the donor was `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c, tree dff97dc71839afb012a4f4133efbe97668d8699d. It changed four
+owned paths; view-types/CSS were unchanged and all six owned paths then matched it.
+Four authored donor controls bring presentation/controller cases to45, with24
+session cases; all seven new shared/donor cases are NOT RUN. The donor widens
+only proposed copying/editing/input capacity for Inventory tags. Its current
+field still uses4096; the canonical producer emits current:null. Other limits,
+original corpus, retained adapters,77/1/7 runner selections and workflows remain
+unchanged. No local tests/build/compiler/typecheck/formatter/Clippy or
+interactive/operational qualification is implied.
+
+Inventory proposals with no changes or duplicate suggestions now preserve
+already-validated claim-cited evidence in the ordinary display source list.
+This supports inspecting originals/records behind an unknown/no-suggestion
+result (#564) without synthesizing a proposal, candidate or selection. Only
+cited admitted evidence is projected; uncited data and the claim-free metadata
+fallback are unchanged. Currentness, withdrawal, inspection availability labels,
+source-card count and final serialized DTO limits still apply; over-bound data
+is refused without choosing a subset or a winning room.
+
+Three functions are authored, **NOT RUN**, in existing selections:
+
+- `ai::suggestions::synthetic_contracts::inventory_abstention_keeps_cited_evidence_without_turning_it_into_a_selection`
+- `ai::suggestions::synthetic_contracts::inventory_abstention_evidence_retains_currentness_and_display_bounds`
+- adapter: `inventory with no proposed changes keeps exact cited inspection without an accept intent`
+
+They use generated quoted records and fake inspection owners, preserving exact
+versions/source dates/retrieval dates and unknown identity/location. They do
+not detect semantic contradictions, qualify real original access or run a model.
+No renderer/controller or new display kind is added; existing ordinary edit,
+duplicate and deliberate rejection semantics remain unchanged. Current counts:
+42 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
+49 controller/source and 25 session cases. Corpus originals and ledger 5/21/6
+stay unchanged. Existing 77 source / 1 build / 7 browser selections/workflows
+are unchanged. No tests/build/typecheck/compiler/formatter/Clippy/browser/device
+or pinned publication verifier was run locally for this increment.
+
+The existing default-library retained module additionally discovers two
+authored, **NOT RUN** controls for original qa-missing:
+
+- `ai::suggestions::evaluation::retained_corpus::retained_qa_missing_keeps_original_empty_retrieval_and_explicit_clarify_gap`
+- `ai::suggestions::evaluation::retained_corpus::retained_qa_missing_refuses_fabrication_and_supplied_question_replacement`
+
+The original prompt, empty inputs/candidates/claims, clarify route, missing
+retrieval coverage, explanation and no-effects annotations are retained exactly.
+The supplied v2 proposal has explicit null subject; the existing v1 display has
+no source fallback, inspections, rankings or selections. Negative derivatives
+refuse fabricated output references/content/effects and replaced request/query/
+authority/cancellation pins. They are not extra original scenarios, routing or
+abstention quality scores, accepted corrections or complete-case acceptance.
+
+All scope/actor/request/registration/epoch values are generated DATA. The query
+digest is computed directly from retained fictional prompt bytes; no trusted
+accepted-query owner, journal admission, real cancellation/currentness, host
+publication or session binding is exercised. See INTEGRATION.md for each pin
+input and limit. Retained totals become 28 authored/unrun tests (26 earlier
+tests/adapters unchanged); original ledger is 5 scorer subsets / 21 structural /
+6 unbridged. All original corpus files and production/frontend code remain
+unchanged. Existing 77 source / 1 build / 7 browser selections and workflows
+are unchanged; no tests/build/compiler/typecheck/format/Clippy/browser/device or
+pinned publication verifier ran locally for this increment.
+
+### Explicit source-free Answer mode (source only)
+
+`AdmittedSnapshot::source_free_answer` admits only Answer with empty sources,
+using serialize-only QuestionBinding metadata plus existing scope/actor/authority
+epoch. The pin includes the request ID, digest of exact accepted prompt bytes,
+registration ID and cancellation epoch under a v2 domain tag. This validates
+shape and correlation only: no original request/cancellation capture, Access
+check, host publication, current-session producer or root/runtime activation is
+bound. A copied old snapshot or supplied hash proves no current request.
+
+Generated wire v1 still requires a string subject and retains all record-backed
+admission rules and exact pin bytes. Source-free wire v2 requires explicit
+`subjectRef:null`; omission and version/mode mismatches are refused. It permits
+only clarify/unknown, no-answer, empty claims/ranks/statements and nonempty
+bounded missing-evidence text. Extra findings, actions, tools and approval fields
+remain refused. Explanation text is untrusted; structure is not semantic truth.
+
+The independent display DTO stays schema v1 and emits empty sources, inspections,
+selections and rankings, with no fabricated subject fallback or original-open
+capability. Both record and source-free branches share the final 65,536-byte
+display fence, including escaped gap text duplicated in the display. Existing
+completion refusal/noncompleted/unknown-usage behavior is unchanged. The strict
+session permits only the bounded empty-source Answer shape and retains exact
+context/revision retirement. Actual owner integration remains separate.
+
+Six `ai::suggestions::synthetic_contracts` functions are authored, **NOT RUN**:
+
+- `source_free_answer_requires_null_and_discloses_no_fabricated_record_or_capability`
+- `source_free_answer_escaped_gaps_keep_the_final_disclosure_byte_fence`
+- `source_free_answer_rejects_nonempty_or_malformed_admission_and_generated_content`
+- `source_free_answer_replacement_pins_question_scope_registration_and_both_epochs`
+- `source_free_answer_leaves_record_admission_v1_pins_and_subject_rules_unchanged`
+- `source_free_answer_composes_terminal_completion_without_changing_usage_or_refusal_fences`
+
+Two authored/unrun functions join the existing adapter selection:
+
+- `source-free clarify and unknown keep empty bindings and cannot inspect or deliver intent`
+- `source-free strict decoder and supplied question replacement refuse late or factual disclosure`
+
+These use generated requests, digests, current snapshots and fake consumer-owner
+generations, not genuine request-owner/cancellation/authority qualification.
+Current counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust tests, 49 presentation/controller and 25 session cases. No original corpus
+mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
+No workflow or selection changes: inventory remains 77 source / 1 build / 7
+browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
+pinned publication verifier remain NOT RUN locally for this increment.
+
+Canonical `SameProductIdentityUnknown` has exact serialized/disclosure relation
+`same-product-identity-unknown`, retaining positive product correspondence and
+unknown physical same/distinct identity. Existing relationship mappings and
+acceptance remain unchanged. Strict source support, context and selection
+fences still apply; no classifier label grants native authority. The shared
+source must compose the exact reviewed #569 presentation contract before
+publication; existing frontend ownership and runner selections are preserved.
+
+Three shared controls are authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::product_match_unknown_identity_has_distinct_wire_and_disclosure_without_changing_old_relationships`
+- `ai::suggestions::evaluation::healthy::product_match_unknown_identity_scores_as_its_own_supplied_relationship_only`
+- frontend adapter: `product match with unknown physical identity retains exact binding and one-use review intent`
+
+They cover all four relationship wire/disclosure mappings, exact source/evidence/
+version/uncertainty retention, mandatory two-sided support, independent supplied
+scorer labels and strict session binding with empty initial selection and
+once-only authority:none intent. The adapter control requires the matching
+reviewed presentation donor; neither controller nor UI execution is implied.
+New scorer labels belong only to separate generated inputs, never the retained
+original corpus. Original inv-model-only remains unbridged because its Document
+subject cannot satisfy the unchanged InventoryItem requirement. Shared Rust
+counts become 29 synthetic-contract and 10 scorer cases; 26 retained tests and
+the 5/20/7 original ledger remain unchanged. No model accuracy, calibration,
+physical verification or native duplicate-resolution acceptance follows.
+For the earlier identity-unknown increment, the composed presentation donor was
+`474fb67c6a963b9c0971a4cb564ab5004c47d98e` (parent e5281bd9). Its five changed
+owned paths were preserved verbatim; CSS was unchanged. Its two additional
+authored/unrun cases are `same-product identity-unknown has an explicit display
+and retains the original candidate-only intent` and `same-product
+identity-unknown retains stale context and unavailable-source refusal before
+intent`. Existing frontend selections now contain 41 controller/source and 20
+session cases. All five new shared/donor controls are NOT RUN. No selection,
+workflow or lane is added; inventory remains 77 source / 1 build / 7 browser.
+
+The existing default-library retained bridge additionally discovers
+`ai::suggestions::evaluation::retained_corpus::retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.
+This one authored/NOT RUN test adapts only original maint-duplicate: exact
+task-a/item-a/manual v1 inputs/evidence/dates, manual subject, existing
+MaintenanceTask candidate and supporting item Source. It asserts task target
+retention and exact disclosure/selection task-a/index binding, with unknown
+completion/interval and null baseline. Generated native targets are correlation
+DATA, not provider/Access evidence. Derivatives refuse item-a as candidate and
+unsupported create/completion/baseline/due/schedule fields; no native action,
+duplicate suppression, completion inference or maintenance-quality score is
+exercised. The existing frontend key/inputRef/index checks were inspected only,
+not executed. Retained tests total 26 authored/unrun; all 25 previous cases and
+corpus originals remain unchanged. The 32-case ledger now has five scorer
+subsets, twenty structural controls and seven without bridges. No production,
+frontend, runner/workflow or local test/compile/format/Clippy change is included.
+
+The existing default-library selection additionally discovers five authored
+completion-adapter functions in `ai::suggestions::synthetic_contracts`:
+
+- `completed_proposal_projects_exact_disclosure_and_preserves_observed_usage`
+- `completed_proposal_never_promotes_refusal_text_or_dispatches_tools`
+- `completed_proposal_withholds_each_noncompleted_outcome_without_losing_usage`
+- `completed_proposal_reuses_context_and_original_inspection_fences`
+- `completed_proposal_refuses_ambiguous_malformed_and_oversized_payloads`
+
+These supply generated `InferenceOutcome` values to the production pure
+`disclose_completed` adapter. They check inventory/document disclosure parity,
+unknown/partial usage, refusal and tool withholding, distinct noncompleted
+states, stale/withdrawn/unavailable context, original-inspection membership,
+and malformed/ambiguous/oversized output. The adapter borrows the original
+outcome; original diagnostics, uncertainty and journal retention stay with the
+caller. A supplied completed enum is not provider execution evidence. No
+runtime, model, credential, network, dispatcher, approval, persistence or route
+is installed, and no structural result proves semantic truth or grounding.
+All five cases and Rust compilation/formatting/Clippy remain **NOT RUN** locally.
+No runner/workflow is added; exact-head hosted execution is separate evidence.
+The existing 25 retained-corpus tests and 32-case coverage ledger are unchanged.
+
+Completion sizing additionally uses a private fail-fast counting Write sink
+with `serde_json::to_writer`, preserving the prior compact JSON encoding and
+1 MiB threshold without allocating the entire serialized envelope. The item
+and payload limits and all rejection/usage behavior remain unchanged. Generated
+Value inputs are still allocated; this bounds the extra serialization copy,
+without asserting a security breach or changing recursion policy.
+
+Three further functions are authored and **NOT RUN** in the same default-library
+selection (no explicit selection, workflow or visibility change):
+
+- `ai::suggestions::completion::tests::bounded_json_counter_counts_utf8_and_escaping_without_retaining_bytes`
+- `ai::suggestions::synthetic_contracts::completed_proposal_envelope_accepts_exact_limit_and_refuses_next_byte`
+- `ai::suggestions::synthetic_contracts::terminal_decoder_composes_review_usage_refusal_and_tool_withholding`
+
+The private counter test independently spells escaped UTF-8 bytes and refuses
+an oversized chunk without decrementing its budget. The envelope test supplies
+exactly 1 MiB and one extra byte, including escaped/multibyte metadata. Only
+test fixtures construct complete encodings for comparison. The terminal case
+uses the actual existing `responses::completed_event` decoder with generated
+events, not a provider or runtime: absent/null/known/partial usage stays exact,
+refusal/tools stay withheld and nonterminal/incomplete events are refused.
+These bring synthetic_contracts to 28 authored tests, plus one counter test;
+all eight completion-related tests remain unrun. Prior cases/corpus originals,
+scoring, frontend and runtime/authority boundaries remain unchanged.
+
+The existing default backend-library job discovers these ten generated functions
+under `ai::suggestions::synthetic_contracts`:
+
+- `inventory_document_and_abstention_keep_exact_sources_and_unknowns`
+- `inventory_refuses_unadmitted_candidates_and_unsupported_changes`
+- `document_requires_selected_content_and_candidate_evidence`
+- `fresh_context_fences_scope_versions_availability_and_disclosure`
+- `snapshot_rejects_invalid_canonical_targets_dates_and_locators`
+- `homebox_child_collections_are_not_individual_candidates`
+- `maintenance_is_interval_only_and_never_an_execution_intent`
+- `answers_require_citations_and_cannot_claim_exhaustive_retrieval`
+- `contradiction_keys_retain_both_sides_and_change_only_with_relevant_evidence`
+- `strict_json_and_resource_bounds_refuse_extra_authority_and_malformed_output`
+
+The source is `backend/src/ai/suggestions/synthetic_contracts.rs`. These are pure
+generated structural checks over the review-only version-1 proposal envelope.
+The validator reuses canonical stock scope/target schemas and evidence record
+references. It bounds output, separates extracted claims from proposals, pins
+the selected feature and exact input versions, limits references to admitted
+inputs, and refuses stale/unavailable/withdrawn current context. It never
+authenticates a caller: the existing read/access owner must supply fresh inputs
+again at disclosure and before any separate native review/apply workflow.
+
+No provider/model, credential, native dispatcher, Access issuer, persistence,
+browser/device, network or consequential write runs. Schema/reference acceptance
+does not prove factual correctness, classification accuracy, true contradiction,
+tested wiring, original availability or human approval. Stable finding keys do
+not implement dismissal persistence. Manual workflows and existing runtime gates
+are unchanged; no workflow or runner command is added.
+
+Publication preparation on 8 November 2026 performed source review and whitespace
+checks only. Compilation, formatting, Clippy and these tests are **NOT RUN** in
+that environment because the pinned Rust tools are absent. Exact candidate
+execution remains separate; the existing hosted account-billing block is not
+bypassed or treated as a test result.
+
+## Validated suggestion disclosure adapter
+
+The composed suggestion source includes #569's retained six presentation files
+and #570's canonical validation lane. `disclose_review` rechecks the immutable
+review against fresh original-owner input before producing a closed display DTO
+for all five canonical suggestion result variants. Exact versions, independent dates, original
+excerpts, page/text locators, supporting and contradicting extracted claims and
+unknown current field values are retained. Original availability is labeled only
+from the caller's explicitly supplied original-owner evidence IDs; the label is
+not an inspect capability. Inspection and selections carry correlation data,
+never model URLs, approvals or native operation envelopes.
+
+Eleven additional default-library functions under
+`ai::suggestions::synthetic_contracts` are authored:
+
+- `review_disclosure_preserves_contradicting_claims_exact_sources_and_selection_bindings`
+- `review_disclosure_rechecks_current_sources_and_refuses_unadmitted_inspection`
+- `document_disclosure_separates_classification_from_links_and_abstention_keeps_unknowns`
+- `maintenance_disclosure_binds_canonical_tasks_and_keeps_baseline_unknown`
+- `maintenance_disclosure_refuses_changed_and_withdrawn_current_sources`
+- `answer_disclosure_preserves_rank_order_citations_and_read_only_bindings`
+- `answer_disclosure_preserves_clarify_unknown_and_no_answer_gaps`
+- `answer_disclosure_refuses_changed_or_withdrawn_current_context`
+- `comparison_disclosure_joins_canonical_finding_claims_and_exact_input_evidence`
+- `comparison_disclosure_empty_findings_retain_missing_evidence_without_a_decision`
+- `comparison_disclosure_refuses_changed_or_withdrawn_assertion_context`
+
+`frontend/src/ai/suggestion-adapter/session.ts` decodes only a backend/source-owner
+disclosure, then supplies the retained review controller with exact inspection
+and selection bindings. The original owner must authenticate and revalidate at
+every disclosure, inspection and review handoff. Pin equality does not establish
+authority. Selection starts empty; edited fields remain untrusted review text.
+The same session/controller survives navigation remounts, preserving consumed
+intent state. Explicit retirement releases mounted views even when an owner
+cleanup callback throws. `mount.tsx` mounts only into an explicitly supplied empty
+owned element; it changes no app root and starts no inference or native write.
+
+Nineteen generated adapter tests use the actual session and retained controller
+without a browser, service, source owner, credential or network. Registered scoped
+source selections with pinned Node 26.10.0 are:
+
+```sh
+node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
+node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
+```
+
+The first file contains the retained controller plus repair, answer, comparison and identity-unknown and tag-capacity continuations (forty-nine cases). The second has twenty-five cases
+covering inventory/document/maintenance/answer/comparison binding, context retirement, retained-controller
+non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
+disclosure rejection. The #562 source
+composition adds exactly these two files to `run-healthy.mjs` SOURCE, moving its
+inventory from 75 source / 1 build / 7 browser selections to 77 / 1 / 7. No
+workflow command or browser/held selection changes. Actual application-root
+mounting and genuine source/inspection/review ports remain unbound. This source
+registration does not establish test execution or activate inference.
+
+These cases are **authored, NOT RUN** in the source executor (Rust tools absent;
+Node 24.19.0 does not satisfy the pin). TypeScript compilation, Rust formatting,
+Clippy, rendering, mounted focus/visual checks and cross-language execution are
+also NOT RUN. Source/delta review and focused byte/manifest audits are separate
+from execution; no CI rerun or billing/check change is implied. This increment
+does not implement a default application mount, authenticated disclosure route,
+live inference, provider write, native approval or device acceptance. Existing
+read/access/inspection/workflow owners must supply those separately qualified
+ports; manual browsing remains independent.
 
 ## Approved scoped bridge read cases
 
@@ -148,7 +699,7 @@ hosted step logs remain the execution record.
 
 | Workflow / job | Step | Command | Runs when | Cases | Scope |
 | --- | --- | --- | --- | --- | --- |
-| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 23 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
+| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 33 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. Ten generated archive and metadata controls also cover pinned copy/extraction, corrupted/duplicate/symlink/bounded members, source substitution and cleanup marker/ownership validation; no root, SUID permission, installer, cleanup, helper, browser or network operation runs in these unit cases. |
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
@@ -176,7 +727,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 73 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 80 source, 1 build, 8 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -196,7 +747,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / loopback | Real aggregate stock operation events and read-only Changes view | `node tools/rust-integration/healthy-operation-events-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
 | rust-react-ordinary / ci-ok | Require successful or skipped jobs | `RESULTS=${{ join(needs.*.result, ' ') }}`<br>`for result in $RESULTS; do`<br>`  case "$result" in`<br>`    success\|skipped) ;;`<br>`    *) exit 1 ;;`<br>`  esac`<br>`done` | every run |  | Runs after the selector, source, unit-test, frontend and loopback jobs; fails unless each succeeded or was skipped by lane selection. |
 
-19 setup, plumbing and summary run steps (4 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
+21 setup, plumbing and summary run steps (4 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
 Triggers: `ordinary-core.yml` on push (branches [main]), pull_request; `rust-react-ordinary.yml` on pull_request, push (branches [main]).
 The backend lane runs on pushes, after failed change selection, and on PRs except frontend-presentation-only or docs-only changes. The frontend lane runs on pushes, after failed change selection, and on PRs except backend-only or docs-only changes. The loopback lane runs all three shards on pushes, after failed change selection, and on PRs except docs-only changes; frontend-presentation-only PRs run shard 1 only.
 Toolchains: `node` 26.10.0, `npm` 11.19.1, `rust` 1.99.0, `python3` (runner-provided, unpinned), `chromium` 156.0.8078.47.
@@ -433,6 +984,15 @@ All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
+Its generated presentation seam also compiles the actual `AtlasPresentation`
+and stage-key function with synthetic hooks, deferred reads and geometry binding.
+It checks stable stage type/key/model/selection during stored-copy failure,
+retry and identical fresh confirmation, held-copy refresh, denial retirement
+and obsolete selection completion.
+The seam does not mount `AtlasStage` or a dialog;
+it does not execute camera state, native focus, Escape/IME or browser layout.
+Those deferred checks remain in #292; the existing compact-layer dock case
+continues to cover its separate synthetic focus and event handlers.
 
 Offline browser teardown observes its owned child immediately after spawn.
 It allows up to 2 s for protocol-requested closure, then 2 s after TERM and
@@ -472,7 +1032,7 @@ admitted base-colour, normal and roughness maps have a visible effect when
 materials are enabled; two differently tinted, fully frosted glass primitives
 composite in the same order when their source array is reversed; and the
 foreground tint reverses when the camera views them from the opposite side.
-These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
+These glass cases stay inside the `webgl2`/`webgpu` selections. They cover
 separately authored primitives, not intersecting or disconnected panes inside
 one primitive; the rendering limitation is stated in the scene contract.
 
@@ -506,21 +1066,73 @@ shader, without additional browser infrastructure or per-lamp occlusion claims.
 The existing CPU daylight cases retain aiming, visibility, clipping, merging
 and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
 
-The same selections open the generated house with `?render-probe` (the
-on-device speed check, `render-probe.ts`) and check that its report lists all
+The required `webgl2-probe` and opt-in `webgpu` selections open the generated
+house with `?render-probe` (the on-device speed check, `render-probe.ts`) and
+check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
-triangles, contact shading) and that the view redraws afterwards. The timings
-come from the runner's software GPU and say nothing about any device; only the
-check run on the device itself does.
+triangles, contact shading) and that the view redraws afterwards.
+
+The report's startup diagnostics distinguish dynamic module import, adapter
+selection/renderer construction, renderer initialization, scene-graph setup,
+geometry/material assembly, effect-graph setup, direct/lighting/contact-target
+preparation and effect preparation. These are wall-clock boundaries, not CPU
+profiling. Phase wall times include all waits; explicit frame-slice waits are
+reported as a subset, while internal library/device waits remain unattributed.
+Compile-call wall sums may overlap and are not additive GPU costs; deferred
+node-graph building remains inside compile-call time. Guarded
+renderer-instance hooks count compile calls and backend pipeline-creation
+requests, not completed native pipelines or proven cache hits. Unsupported or
+replaced hooks are reported unavailable/incomplete, never as zero work. Each
+phase also needs complete coverage from its first segment: import, adapter and
+renderer-init counters remain unavailable because hooks start only after init.
+A later observed hook never converts those unknown values to numeric zeros.
+Wall timing remains available independently. Hooks
+preserve original this/arguments/results/promises/errors and are restored after
+the first successful render call or owned cleanup. Default non-probe rendering
+has no observation hooks. The build observation closes when the shell is ready;
+later stages report their own preparation and ready times. Unvisited build
+phases remain unavailable, and later compilation is not attributed to the shell.
+The staged order is shell, lit materials, glass, veils and contact shading.
+Replacement model sets remain behind the displayed set until every stage is
+ready; the existing no-blank-frame and prepared-effect witnesses remain.
+
+First-render-call CPU duration excludes GPU completion and witnessed paint.
+Approximate readiness derives from the existing delayed timer (or hidden
+readiness), not a physical visibility measurement. First-render observation and
+canvas promotion wait while effect preparation holds the renderer. These
+observations add no queue drain, warm draw, timing budget, probe selection or
+workflow.
+The existing pure geometry test file additionally checks the observation helper
+with fake clock/renderer owners; these assertions do not qualify real Three/GPU
+hook availability. A controlled scheduling case exercises the production
+frame-yield helper with fake RAF/message-task/visibility owners, including
+abort and hidden-tab cleanup; it does not run a browser or compile a shader.
+Software-GPU and stage timings are observations only: they
+neither attribute the reported phone delay nor establish device improvement.
+The report panel is bounded by the viewport height (dynamic viewport where
+supported). Its phase text scrolls in a shrinkable body, while Copy/Close stay
+in a separate nonshrinking action row. A generated source-contract check calls
+the actual report builder with fictional element objects and checks these CSS
+and parent/child contracts; it does not establish computed layout, focus,
+phone usability or device acceptance. The existing probe's five frame-workload
+comparisons remain unchanged.
+
+The optional [surroundings comparison](../../frontend/lantern-tests/surroundings-review/README.md)
+renders the same generated geometry, camera and lighting before and after the
+existing surroundings fade. Day/night and phone/desktop framing are review
+controls, not device emulation or performance evidence. It adds no ordinary
+runner selection and does not establish the owner's preferred live appearance.
 
 ```sh
-node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # required swaps/materials
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2-probe # required full probe + material successor
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
 node frontend/lantern-tests/mesh-layer-browser.mjs --case bench    # prints per-frame CPU time and calls
 ```
 
-`webgl2` offers no WebGPU adapter, so three.js uses its WebGL2 backend; it is in
-the healthy suite. `webgpu` enables WebGPU on SwiftShader Vulkan. Full Chrome's
+`webgl2` and `webgl2-probe` offer no WebGPU adapter, so three.js uses its WebGL2
+backend; both are required in the healthy suite. `webgpu` enables WebGPU on
+SwiftShader Vulkan. Full Chrome's
 `--headless=new` draws it but leaves it out of screenshots, so run it with
 Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
 CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
@@ -1480,6 +2092,16 @@ by source room, full ordered anchors, package key and UUID. A visible room
 action appears only while current topology membership confirms that ID in the
 selected building.
 
+The topology read case also exercises the frame-scoped partial electrical record
+owner with generated identity/location-semantics/circuit/evidence lists, all-four
+snapshot equality, selected revision and withdrawal/refusal/retirement checks.
+Numeric evidence sourceRevision 9007199254740993 passes as an exact raw JSON integer
+through the real lossless decoder. Disputed and superseded evidence also refuse.
+Full record/reference closure and independent electrical-review authority remain
+unavailable; no source equality is promoted to ongoing freshness. The owner stays
+unmounted and does not establish a verified live trace or electrical acceptance.
+These new controls are authored, not executed locally.
+
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,
 pagination, exact binding joins, recorded elevation datums and unknown access.
@@ -2226,6 +2848,29 @@ node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 This changes no assertion, fixture, loader or scope. Record which invocation
 actually emitted the forty names; do not attribute it to the file-only run.
 
+The explicitly selected electrical browser successor uses the existing generated
+host with an optional fake documentary source owner and the existing fictional
+Electrical Library parser fixture:
+
+```sh
+HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
+  node frontend/lantern-tests/unified-atlas-regression/browser.mjs --electrical
+```
+
+Exactly five cases exercise historic group membership through the actual overlay
+feed and documentary projector, badge highlights and unplaced/unverified facts,
+group retirement on clear room/layer/source/selection changes, reduced motion,
+and keyboard containment, Escape closure and opener restoration in the pending
+and unavailable drawing dialogs. The pending case holds the real lazy viewer
+chunk; the unavailable case uses a throwing fake drawing-client owner. All data,
+source frames and ownership events are generated. The 1600 × 1100 DOM check
+uses trusted CDP input in the pinned browser, an owned loopback listener and a
+fresh profile, with passive rendering observations and full cleanup. No real
+PDF, provider, native service, household evidence, installed authority or device
+acceptance is exercised. The existing healthy frontend runner includes this
+exact five-case command when the pinned browser is supplied. Its adjacent README
+preserves historical results separately.
+
 The separate property-network association positive is documented in
 [the architecture contract](../architecture/property-network-connections.md).
 After inspecting its pure projector, stage join and generated test body, run:
@@ -2242,6 +2887,31 @@ root ranking and the no-root and unreachable answers, with no DOM or source read
 ```sh
 node frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs
 ```
+
+The generated electrical drawing-group projection checks room-level membership,
+unplaced and missing members, source separation and malformed saved metadata.
+It also passes generated fixture data through the actual documentary projector:
+groups with a current circuit, verified or unknown wiring, duplicate, absent or
+non-reciprocal membership never become a drawing group:
+
+```sh
+node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs
+```
+
+The same file runs the #554 breaker trace. The actual #557 projector over
+`contracts/electrical-data/generated.fixture.json` feeds `electrical-trace.ts`
+with actual #553 groups. It checks reviewed group and fixture associations
+through the current breaker and panel to a uniquely bound panel room, absent
+versus unknown details and test confirmation only where the projection reports
+it. It also checks per-member circuits, partial coverage, disputed candidates,
+missing reviews and stale circuits. A projection that differs from the supplied
+ledger pin, scene or membership is refused, as is oversized input. Ambiguous
+or unqualified room links stay unplaced, and unrecognized codes read as
+unavailable.
+`ElectricalTraceDetail` is rendered to static markup with react-dom/server.
+
+None of this mounts the Atlas, issues a current circuit or exercises a native
+host or supplier. The tested state is generated; no electrical test was performed.
 
 It retains original, reversed and parallel links, explicit endpoint ownership,
 within-room loops, complete property occurrences and separately counted shared
@@ -2823,7 +3493,7 @@ offline/device/PWA or deployment acceptance and adds no workflow.
 Read [root offline entry](../offline/root-offline-entry.md), then inspect
 `frontend/build/root-offline-worker-source.js`, the existing saved worker,
 `offline-shell-plugin.mjs`, `frontend/src/offline/shell.ts` and this generated
-lifecycle script. With pinned Node26.10.0, from the repository root:
+lifecycle script. With pinned Node 26.10.0, from the repository root:
 
 ```sh
 node frontend/lantern-tests/offline-root-entry-healthy.mjs
@@ -3514,6 +4184,7 @@ installation or operational adoption. See the maintained
 [filesystem observation contract](../../tools/model-input-disposition/FILESYSTEM-OBSERVATION.md).
 
 
+
 The default backend-library selection additionally discovers
 `providers::homebox::read::native_list_pages::healthy::healthy_native_list_continuations_retain_capture_and_retire_terminal`.
 This generated in-process test uses five field or maintenance rows, one injected
@@ -3528,3 +4199,721 @@ command or runner is added. Source registration is not execution evidence; the
 new named case and Rust formatting/compilation remain NOT RUN until verified by
 an environment with the pinned toolchain. Existing #288 qualification rows stay
 unchanged.
+
+
+The retained generated AI corpus is now published unchanged in
+`tools/ai-feature-evaluation/`: 32 fictional cases and 20 exact source versions.
+Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact;
+the historical 18-test Python integrity success is not current-head execution.
+The Python mutation suite is not added to a default runner. See INTEGRATION.md
+for original hashes, exact mappings and exclusions.
+The existing default backend-library selection discovers twenty-five
+`ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
+limits; separate supplied inventory classification/identity counters;
+alternative document links with changed/withdrawn context refusal; and exact
+original inv-stale, inv-revoked and doc-revoked structural context-refusal cases.
+The latter split observed/current versions or project disclosure_revoked into
+current Withdrawn DATA; this is not real Access revocation. All semantic-quality,
+unknown and semantic-abstention scores must be null for these refused outputs.
+The bridge is cfg(test)-only and reuses evaluate_supplied/the existing canonical validator.
+Four cases have mapped allowed dimensions (inv-identity, doc-ambiguous,
+doc-electrical and doc-invoice); inv-sparse maps aggregate no-proposal only;
+three more cases map structural refusal only. The other 24 cases, positive recall,
+unique-winner selection, field-specific abstentions,
+unknown prose, unmapped negative annotations and native effects stay unscored.
+These twenty-five authored Rust cases and current-head formatting/compilation/Clippy
+are NOT RUN. No model/API, production corpus import, real authority or write,
+new workflow, runtime readiness or issue acceptance follows.
+
+
+The #569 maintenance continuation at 1aa24a45 is preserved as donor ancestry.
+Canonical disclosure now binds maintenance task keys to exact task index and
+admitted inputRef, retaining interval variants, conditions, urgency, supporting
+claims and exact evidence. Service baseline is explicitly unknown/null because
+no baseline input exists in the canonical proposal; no due date is computed.
+The session's closed decoder checks task/target/index bindings. Structured edits
+must satisfy canonical UTF-8 title/condition bounds, interval limits and complete
+editedFields value-change coverage before any original-owner callback. The original owner
+still needs fresh authority and semantic review. No runtime, original-open
+capability, scheduling, source write or app-root activation is installed.
+The donor README's UNAPPLIED bridge note is its standalone six-file status;
+this composition supplies that bridge, while real authenticated ports stay unbound.
+Two new backend cases and four new session cases are authored, NOT RUN.
+The existing two SOURCE selections now contain 25 controller and 11 adapter cases;
+77 source / 1 build / 7 browser selections remain unchanged. TypeScript/Rust
+compilation, formatting, Clippy, Node tests, React mounting, cross-language and
+device checks have not run at this composed head. Source review/manifest audits
+are separate from qualification, and existing zero-step CI failures grant no pass.
+
+Raw interval spelling/property-order edits may retain an interval editedFields
+marker even when normalized canonical values coincide; all actual value changes
+must still be declared, and other spurious markers refuse. Canonical UTF-8 limits
+and Rust-equivalent control-character refusal apply before owner delivery.
+
+
+### Maintenance edit validation before consumption
+
+The source repair shares one frontend validateMaintenanceValues function between
+controller display/draft validation and session defensive delivery checks. Rust
+remains the canonical authority. All editable fields are covered: title <=256
+UTF-8 bytes; conditions <=16, each <=512 bytes; conditional interval text <=1024
+bytes; periodic integer 1..100000 with canonical units; canonical urgency enum.
+Text refuses controls including CR and lone UTF-16 surrogates, while preserving
+valid LF/TAB. Invalid drafts have valid:false, remain reviewing/editable and do
+not start source checks or consume the once-only intent. Corrected proposals may
+deliver once. Actual/uncertain owner handoff failure still consumes permanently;
+there is no re-enable-after-callback-failure path. No UI design or authority change.
+
+Authored scoped regression cases (NOT RUN):
+
+- Controller: `maintenance canonical bounds and CR controls hold editable drafts before source checks`
+- Controller: `maintenance canonical UTF-8 and interval upper boundaries remain valid`
+- Session (corrected existing case): `maintenance canonical edit rejection remains editable before consumption and correction delivers once`
+- Session: `maintenance LF and TAB remain valid in titles conditions and conditional intervals`
+- Session: `maintenance actual owner handoff failure remains consumed after a correctable local rejection`
+
+Four cases are new and one existing case is corrected, bringing the existing
+selections to 25 controller / 11 adapter cases without a new runner or workflow.
+They use generated in-memory fixtures and the actual controller/session modules;
+TypeScript stripping is not semantic type checking. Tests, build/compilation,
+formatter/Clippy, React rendering, browser/device and exact-head hosted execution
+remain unqualified. Only source, whitespace and scoped byte/manifest audits are
+performed for publication. The historical corpus and standalone Python report
+remain unchanged; no model, grant, native operation, scheduling or activation runs.
+
+
+Three more original retained corpus cases have bounded mappings in the same
+cfg(test)-only bridge: inv-sparse aggregate no-proposal with only capture-blur v1
+admitted; doc-electrical class only; doc-invoice invoice/warranty alternatives
+and the original serial-backed item-a association. Mixed-purpose completeness,
+electrical truth, sparse field-specific unknowns/location, unadmitted negative
+candidates and native effects stay unscored. No annotation candidate list is an
+access grant, and no negative citation is fabricated. There are now eight
+partially mapped cases (four allowed-label, one aggregate, three refusal) and
+24 cases outside inventory/document scoring (three maintenance controls below),
+with eight having no bridge after the later controls below. The earlier three tests brought the bridge to nine authored
+cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation,
+original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
+The production scorer/validator, repaired frontend, original corpus files and
+77/1/7 frontend selection inventory are unchanged. No runner/workflow is added.
+
+
+### Read-only cited-answer composition
+
+The six #569 donor paths at eb217ae3 remain byte-identical in this composition.
+Its d1f6235c repair-copy parent matches the earlier integration maintenance repair
+exactly; README/fixture conflicts were reconciled to that reviewed donor after
+verifying all three copied repair files, without discarding repair behavior.
+
+The existing source-owner disclosure now projects canonical ProposalResult::Answer
+into the exact donor view. Statement text, support rationale/uncertainty and cited
+admitted evidence retain their original revisions, locators, dates and excerpts.
+Answer ranked_refs retain array order. A closed answer-only rankings map binds
+rank keys to exact admitted inputRef/version/index under the existing source pin;
+this metadata grants no original-open, selection or native authority. Finite DTO
+bounds refuse over-budget evidence rather than fabricate, truncate or rank more.
+Clarify/unknown and partial/no-answer/gaps are preserved without exhaustive claims.
+
+Answer fields/candidates/selections are empty. The controller refuses all intent
+APIs and the session additionally rejects answer delivery before owner.onIntent.
+Only source inspection through the existing owner and local dismissal are exposed.
+Disabled/offline/replaced-source fences remain. The donor README's UNAPPLIED
+source-bridge note records its standalone status; this composition supplies that
+bridge, while real authenticated ports and root/runtime activation remain unbound.
+
+Three authored backend cases check ordered rank/statement/evidence projection,
+clarify/unknown/no-answer gaps and changed/withdrawn-context refusal. Four authored
+session cases check rank/citation binding and no intent, no-answer gaps, malformed
+rank/citation/authority refusal, and offline/disabled/superseded withholding. These
+join the seven new donor cases in existing selections, now 32 controller/source
+and 15 session cases (77 source / 1 build / 7 browser selections unchanged).
+All tests, TypeScript/Rust compilation, formatting/Clippy, React rendering,
+cross-language/host/browser/device checks are NOT RUN for the composed head.
+Source/delta review, whitespace and scoped byte/manifest audits are separate from
+execution. No model/API, ranking quality, factual grounding, live account/runtime,
+credential, approval, write, deployment or acceptance qualification is claimed.
+
+
+### Read-only comparison composition
+
+The six e5281bd9 donor paths are preserved exactly, including the earlier answer
+and maintenance repairs. Canonical Contradictions findings project in original
+order with the corresponding existing ReviewProposal.finding_keys alias. Each
+assertion preserves its exact ExtractedClaim claim_ref/source_ref/text, canonical
+qualitative uncertainty and evidence_refs. The finding pattern/rationale and
+missing evidence remain original DATA. No side is selected as true or superior.
+
+A closed comparison-only metadata map joins each view finding key to its exact
+canonical key/index and each assertion to its inputRef/version/evidenceRefs.
+The session checks every cited inspection has the SAME admitted input and exact
+version; labels and distinct local strings do not establish canonical identity.
+Original target identity remains resolved through the existing immutable input
+snapshot/source pin and original owner, not a new native handle or write grant.
+
+factDate is always null in this adapter because canonical claims have no fact-time
+field and no independently qualified fact-time input exists. Source and retrieval
+dates remain separately labeled; neither is copied into a fact date. Finding-key
+reuse creates no persisted decision, review receipt or deduplication result.
+Answer/comparison selections stay empty; controller and session block review
+intent delivery. Only exact-owner source inspection and local dismissal remain.
+The donor README's UNAPPLIED note is its standalone increment; this composition
+supplies the source bridge while correction, persistence, root/runtime mounting,
+provider/native writes and real host ports remain unbound.
+
+Three authored backend cases cover canonical finding/claim/evidence joins and
+unknown fact dates, empty findings with gaps, and changed/withdrawn-context
+refusal. Four authored session cases cover same-input/version joins/no intent,
+malformed bindings and invented dates/winner refusal, empty findings without a
+decision, and offline/disabled/late-inspection cancellation. These and the seven
+new donor cases use the existing approved selections: 39 controller/source and
+19 session cases, with 77 source / 1 build / 7 browser selections unchanged.
+Tests, TypeScript/Rust compilation, formatting/Clippy, rendering, cross-language,
+browser/device and genuine original-owner qualification are NOT RUN here.
+Independent source review and scoped byte/manifest audits establish no conflict
+truth, correction authority, durable audit/dismissal, model behavior or acceptance.
+
+
+Three retained maintenance cases now have interval-only representational controls
+in the same cfg(test) bridge: maint-periodic (90 days), maint-no-baseline (120 days)
+and maint-condition-match (the full original conditional P9 notice). Only selected
+sources are admitted, preserving original versions/dates/target/citation joins.
+The due_2030_04_01 label remains explicitly unmapped: the canonical contract has
+no due date. Raw service text is retained but not converted to a service baseline;
+disclosure baselineDate stays null. Ordinary-use qualifiers remain, and unknown
+cleaning/indicator state never becomes a schedule or safety/condition decision.
+These controls call only the existing validator/disclosure, NOT evaluate_supplied;
+no maintenance Labels/CaseReport, quality counts or model metrics are constructed.
+Shared derivative negative controls refuse dueDate/schedule fields and stale/
+withdrawn DATA; they are not new original scenarios or real revocation evidence.
+Three new authored cases bring the bridge to twelve tests, all NOT RUN; the nine
+prior tests/eight inventory/document mappings remain unchanged. At that maintenance checkpoint eleven cases
+had some bounded representation; the answer controls below
+and comparison controls bring the eventual total to twenty-four with eight none. All maintenance quality is unscored.
+Exact names/limits are in tools/ai-feature-evaluation/INTEGRATION.md. Production
+contracts, frontend, corpus originals and 77/1/7 selections are unchanged.
+
+
+Three retained answer cases add validator/disclosure-only supplied controls:
+qa-location quotes spare v1/location with inventory route; qa-electrical quotes
+drawing v1/sheet1 with electrical route and separate 2020 source/2030 retrieval;
+qa-injection cites only injection v1/p2 while all malicious p1 text remains inert
+admitted source data. Original unknowns/abstentions remain explicit. Selected
+input identity/order supplies a bounded rank control, not measured relevance.
+Coverage is partial; exact statements/support/evidence and empty selections remain.
+Derivative controls refuse unadmitted refs, unknown/clarify with factual statements,
+action/tool fields, exhaustive coverage and stale/withdrawn DATA. They neither
+invent new original scenarios nor establish real source-access revocation.
+No evaluate_supplied/Labels/CaseReport or quality counts are used. A well-shaped
+supplied answer is not evidence of semantic truth or live-model injection safety.
+Three new cases bring the bridge to fifteen authored tests, all NOT RUN; twelve
+prior tests remain unchanged. At that checkpoint fourteen original cases had some bounded bridge;
+the comparison controls below bring the eventual total to twenty-four with eight none. qa-missing/qa-stale/qa-revoked remain outside this increment. Exact names,
+limits and original hashes are in tools/ai-feature-evaluation/INTEGRATION.md.
+Corpus, production contracts/scorer/validator/disclosure, frontend and runner
+inventory remain unchanged; no new lane, host/root binding or activation occurs.
+
+
+Three retained comparison cases add validator/disclosure-only controls:
+review-conflict preserves both original location citations without a winner;
+review-unknown-date retains tentative supplied interpretation, unknown dates/
+review status and null typed fact dates; review-revoked uses original withdrawal
+DATA to refuse any disclosure object, with the non-withdrawn side unchanged.
+There is no safe withdrawn-side summary or claimed real Access revocation.
+Canonical finding-key/index and exact claim/input/version/evidence joins are
+checked. Derivative one-sided/missing/duplicate/cross-input, winner/correction/
+action and changed/withdrawn controls remain separate from original scenarios.
+Reordered presentation retains the canonical correlation key; a fresh synthetic
+source-version mutation changes it. This establishes no persisted dismissal,
+audit, deduplication, non-resurrection, truth or semantic-certainty detection.
+review-corrected/simultaneous-version history remains outside this increment.
+Three new cases bring the bridge to eighteen authored tests, all NOT RUN;
+fifteen prior tests/code and original corpus bytes remain unchanged. Seventeen
+original cases had some bounded bridge at that checkpoint; the availability
+controls below and empty controls bring the eventual total to twenty-four with eight none. No contradiction
+scorer, Labels/CaseReport, quality count, model judgment or full-case success.
+Exact limits/names are in tools/ai-feature-evaluation/INTEGRATION.md. Production,
+frontend, runner/workflow, native authority and host/root bindings are unchanged.
+
+
+Three original availability cases add validator/disclosure-only controls:
+doc-unreadable admits only scan metadata with no content/page/candidate;
+doc-unavailable retains readable extraction but exposes no original inspection,
+without converting byte unavailability into record revocation; qa-revoked refuses
+even an empty clarify disclosure at the original Withdrawn DATA boundary.
+Original fixture IDs remain metadata, not capabilities; no URL or extra claim is
+invented. The no-proposal document DTO shows fallback metadata, while extraction
+stays retained in its input. Real original identity/opening and Access revocation
+are not qualified. Three new cases bring the bridge to twenty-one authored tests,
+all NOT RUN; eighteen prior tests and all original corpus bytes are unchanged.
+The complete 32-row INTEGRATION.md ledger records five scorer subsets, nineteen
+structural controls and eight cases without bridges, with explicit reasons and
+limits for identity, condition truth, simultaneous versions and durable history.
+This ledger is not semantic quality, full-case acceptance or a new report system.
+Production/frontend code, runner/workflow and native/root authority are unchanged.
+
+
+Four supplied-empty retained controls add maint-condition, review-history,
+review-retrieval and review-distinct. Exact selected inputs/evidence/versions/dates,
+original unknowns and no-effects boundaries remain; no pump/candidate is injected
+and no finding is fabricated. Empty tasks/findings are authored inputs, not model
+mismatch, semantic abstention, compatible history, temporal reasoning, native
+physical identity or durable decision results. Existing metadata-only disclosure
+of otherwise unused evidence remains a presentation limit, not a production gap
+filled by invented content. No evaluate_supplied/Labels/CaseReport or quality
+counts are used. Four new cases bring the bridge to twenty-five authored tests,
+all NOT RUN; 21 prior tests/code and corpus originals are unchanged. The complete
+32-case ledger now has five scorer subsets, nineteen structural controls and
+eight cases without bridges. Production/frontend code and runner/workflows stay
+unchanged. Exact scopes/names/remaining gaps are in INTEGRATION.md.
+
+
+Hosted CI repair follow-up (10 November 2026): the exact14ff0744 default
+backend-library job130017469493 executed346 passed /0 failed /12 ignored /
+3 filtered, including42 suggestion synthetic-contract,10 supplied-scorer,
+28 retained-corpus and two unit controls, plus continuity DATA and native-list
+continuation cases. Ordinary-core42809630330 attempt2, performance42809630294
+attempt2 and README-media42809630326 attempt2 passed. These hosted outcomes
+supersede historical NOT RUN notes only for their exact selections and pin;
+they do not qualify runtime, source custody, device or operational acceptance.
+
+The source repair applies the identical hosted Linux/macOS rustfmt diff across
+12 Rust files without local formatter execution. The core loopback recorder now
+retains all actual native responses instead of silently stopping at12; exact
+four-read-per-lifetime and matched-snapshot assertions remain. The media fixture
+awaits the viewer's actual topology readiness and four observed successful reads
+before session replacement; unexpected401 responses remain failures. These
+fixture repairs require new exact-head hosted execution. No local check, new
+runner/workflow, production access/lifecycle relaxation or runtime activation
+is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry
+alone does not establish their remaining acceptance or missing coverage.
+
+
+Exact donor d270e238755d8a60ba375f5d7afe2aa9e1b16e54 is composed with
+its c0208153 ancestry intact. Its only source change uses a live isClosed()
+accessor after awaited review-owner handoff, resolving hosted TS2367 without
+removing the dismissal/currentness/one-use fences. Donor job130020166745
+passed Strict TypeScript and production React build; this does not qualify
+the newly composed candidate or subsequent checks. All six frontend-owned
+review files match that exact donor. Existing49/25 frontend case counts and
+77 source /1 build /7 browser selections remain unchanged. No local execution,
+tracker metadata write, readiness transition or merge-to-main is performed.
+
+
+Hosted source follow-up on b97433ec: formatting passed on both source
+platforms; Ubuntu job130023404862 then denied four Clippy warnings. The
+scoped repair collapses three nested conditionals into equivalent let-chains
+and initializes the suggestion count from its existing exhaustive match.
+Validation branches, refusal values, continuity holds and warning policy are
+unchanged. No new tests or runner selections are added; the next exact head
+still requires hosted qualification. No local compiler, formatter or test ran.
+
+
+The same b97433ec loopback execution reached the retained all-response check
+in core, which found four401 responses after viewer login. Media observed8
+viewer /invoke responses against the newly added4-response assumption. That
+assumption is not relaxed or reported fixed: bounded failure diagnostics now
+record only generated command IDs/status/phase metadata to distinguish request
+owners/lifetimes in hosted execution. All response/count/snapshot assertions
+remain unchanged. These unresolved fixture/currentness findings still block
+qualification; source cleanup and prior-head unit success do not settle them.
+
+
+Exact b1e18e0e hosted source job130028019360 passed after the four Clippy
+repairs, and default-library job130028019422 passed. Its diagnostic media job
+130028019572 observed two successful responses for each topology command in
+the viewer-login phase; core job130028019526 tied all four401 responses to
+viewer-started topology requests arriving after editor session rotation.
+
+Both existing fixtures now correlate every native request by CDP request ID,
+including response status and loading-finished/failed events. After actual current provider readiness, barriers before unmount and again
+before session rotation require a complete balanced set of the four topology commands,
+and successful completion without cancellation for every observed request.
+This replaces the newly introduced one-cohort assumption, not the existing
+four-read measured Atlas/Places assertions or all-observed-response checks.
+Equal aggregate command totals do not establish individual request cohorts,
+and the barrier does not prove that no future viewer request can start. No
+production authentication, lifecycle, runner or workflow is changed. These
+fixture changes require new exact-head hosted execution; no local checks ran.
+The browser launch sandbox blocker is separate and no security override is
+introduced. Runtime, native authority and operational acceptance remain held.
+
+
+The16816c4d core auth flow passed, while media stopped at the new combined
+status/cancellation barrier. That assertion alone does not classify its failure.
+The refined barrier keeps a bounded command/status/terminal-state diagnostic.
+Only explicit body cancellation recorded after actual200 headers may count as
+settled traffic; it never counts as successful content. Missing/non200 headers,
+other network failures and nonterminal requests still refuse. Every topology
+command also requires a fully completed nonfailed200 read and the provider's
+current ready state. Existing exact measured counts and all-response checks
+stay intact. This is fixture synchronization, not an access or lifecycle change;
+new exact-head hosted execution must still establish the result. No local
+compiler, test, formatter, browser, security override or manual rerun occurred.
+
+
+Main cc8ea458 (the already-contained551 donor's exact source tree) is
+reconciled through an ancestry merge with zero source delta. The existing
+1933-row manifest was retained after verifying every incoming path remained
+present and all composed source bytes/hashes matched; no donor was reverted.
+
+The16816c4d shard-one auth fixture passed, then the later stock-write fixture
+failed its original all-response assertion at line521. Its identical raw
+viewer-to-editor setup now uses the same request-ID settlement barrier, plus
+bounded failure-only status/command/phase diagnostics. Its actual failure cause
+remains unclassified until hosted evidence supplies the statuses; no assertion
+or access check is removed. Observation is limited to viewer GET invokes, so
+later native POST commands are not misparsed as query-envelope reads. No
+production source, workflow, runner, security setting or qualification gate
+changes. Source review is not execution evidence; the new head must run in CI.
+
+
+At exact3f8dd36c, core auth, owned media and stock-write flows passed with
+the reviewed settlement barrier. Shard-one then reached stock-history, whose
+original diagnostics captured four viewer-started401 responses after editor
+replacement (job130037255180). Shard-two reached stock-read, which failed its
+original all-response check without response details (job130037255170).
+
+Those two matching fixture setups now wait for the actual current topology
+and use the same per-request settlement barrier before/after viewer navigation.
+Stock-history retains its existing detailed diagnostics and phase boundaries,
+including viewer-login-dialog; stock-read adds bounded failure diagnostics.
+All original native read/write/audit, exact measured-count and response checks
+remain intact. No production owner, runner/workflow, security configuration or
+acceptance gate changes. These source-reviewed fixture changes require new
+exact-head hosted execution; no local test/build/browser/compiler ran.
+
+
+Composition follow-up: main8a20f596 is merged with preserved continuation
+fence (#577), source inventory (#579) and accepted reporting policy (#575).
+Exact electrical projector donor0138f373 is composed as its three-path delta;
+its generated case passed in hosted job130052523185, while the sandbox cases
+remained failed separately. The new combined head is not qualified by either
+source's prior checks. No test/browser case or security requirement is removed.
+
+Four changed MCP inventory pins were reinspected: the full native close/reopen
+test addition, test-child registration, v4 introduction clarification, and all
+five source/two browser runner additions. The read-only inventory audit matches
+168 rows/67 pins after only those four hashes and provenance were updated.
+Every operation/profile/admission value, historical evidence identity and
+NOT RUN/OPEN/DEFERRED state remains unchanged. This audit executes no test,
+service or application. No local build/compiler/formatter/browser ran.
+
+Startup imports, HomeBox retained-original producer/consumer, model-cache/dialog,
+electrical trace details and suggestion-review source remain with their existing
+writers. This composition binds no account, runtime, host port, source write or
+approval and leaves operational/device acceptance and current-head CI open.
+
+
+The next composed source candidate preserves exact donors #555 `0a657eef`,
+#580 `2b28c406`, #582 `054c07c1`, #578 `3905725b`, #581 `70abbeed`
+and #583 `30081ada`. Startup remains lazy with unchanged budgets. HomeBox
+original retention is mounted only after complete, current, enabled native and
+electrical passes; unknown outcomes stop the sequence. The electrical trace
+consumer remains unmounted pending genuine data/review ownership.
+
+Confirmed `no-current-association` now retires only the selected building's
+local catalog eligibility; transient failure preserves it. Document retention
+borrows the already-open original reader/frame/blob, without a second original
+download or taking lease ownership. Foreground refresh still hides, aborts and
+revalidates data; only neutral section/exact-pin/page/zoom/scroll intent survives
+for the same actor revision and scope, with fresh allocation and byte checks.
+Effect preparation restores temporary renderer state before four safe yields;
+the scene permits direct-only redraw there, retaining the compilation guard and
+zero history until shading is ready. No renderer deadline or assertion changes.
+
+New authored controls remain NOT RUN: ten preparation controls (19 declarations
+total), six retention/retirement controls, three policy/root groups, four source
+presentation assertion groups, and a focus/PDF extension in the existing
+live-launch browser case. The default frontend runner now has 78 SOURCE,
+1 BUILD and 7 BROWSER selections. No new lane/workflow or removed case.
+Independent static review is not execution qualification. Producer donor
+`3905725b` separately passed its mounted admission/disclosure/error/replay case
+in hosted job130146474925 (354 passed, zero failed); that does not qualify this
+new composed head, in-flight withdrawal, device acceptance or runtime authority.
+Existing Chromium sandbox launch failures remain unresolved; no sandbox/security
+setting, credential, provider, activation or deployment change is made here.
+
+
+The follow-up composition preserves selected-input donor #586 `4cf41d52`,
+inspection donor #587 `8584ee97`, manual native-handoff donor #585 `0d18454b`
+and partial electrical reader #584 `9a8e32fc`. The backend module is now
+registered, discovering ten authored selected-input controls. The frontend
+runner adds the existing 22 inspection and 11 handoff controls: 80 SOURCE,
+1 BUILD and 7 BROWSER selections. Ten new controller controls bring its
+suite to 59, preserving displayed inspection cancellation after opening and
+terminal/replacement abort reentrancy fences. These new controls are NOT RUN.
+
+Automatic HomeBox-original reads now require the existing authenticated
+pinned-source discovery's exact scope/source/collection/entity selection and
+still-current binding. Cached attachment metadata alone cannot trigger an
+unconfigured original GET. Native catalog or incomplete native-pass failures
+stop source composition before HomeBox; all original assertions remain.
+Four discovery controls and a native/root stop group are authored, NOT RUN.
+
+These are reusable source functions, not an application/root suggestion mount.
+Authenticated selected inputs retain only assertions/metadata, not Content;
+positive document-content classification/linking remains unavailable. Opaque
+collection selectors retain their spelling, while downstream UUID-only wire
+and canonical target admission can still refuse them. Inspection original maps
+must come from a genuine owner; manual handoff navigates only via independently
+verified nativeLink, never applies or approves. Partial electrical inputs supply
+identity/location only, not circuit/evidence/electrical-review authority.
+
+The preceding b19e7d91 candidate passed hosted backend, both source platforms,
+ordinary-core, capture and performance jobs but failed frontend and all three
+loopbacks. Raw artifact/job downloads returned Forbidden and remain stopped;
+no log cause is inferred from exit-code annotations. This new source requires
+its own automatic hosted execution; no local build/test/compiler/formatter,
+security change, new lane, live inference/provider, activation or deployment.
+
+
+Logical HomeBox collection identity amendment: exactly 126 UUID-only
+`collectionId` schema leaves now use the original registration/access owner's
+1..4096 Unicode-scalar text bound, preserving exact spelling. Every other schema
+node, source/entity/resource/physical UUID, command, wire version and authority
+check is unchanged. Current stock3/stock4, browser and native MCP pins follow the
+amended source. Geodata's active predecessor closure records the amendment and
+retains both original hashes; historical inspected-boundary evidence is unchanged.
+
+Two new default-library controls cover actual StockValidation/AdmittedSnapshot
+opaque bounds and native HomeBox descriptor materialization. The existing browser
+schema-subset control adds full/derived parity and true-UUID refusals. These new
+controls remain NOT RUN. Pure checked-in browser source generation used existing
+pinned Node 26; no compiler, test, formatter or provider ran locally. Existing runner
+counts remain 80 SOURCE / 1 BUILD / 7 BROWSER. The existing #586 writer separately
+owns the original-fixture opaque cached-capture regression; selector/schema
+acceptance alone does not establish that path, runtime admission or source access.
+
+At preceding 0183afd6, hosted Ubuntu source, ordinary-core, capture, performance
+and all three loopbacks passed. Backend/frontend/macOS were still pending at
+this source handoff. Those checks do not qualify the amended source head.
+The denied log/artifact-download route and PR metadata writes remain stopped.
+
+
+The original-fixture cached-capture follow-up composes exact #588 `d6e2ce52`:
+only suggestion_inputs_healthy.rs changes, preserving the ten UUID-fixture
+controls and adding an eleventh test with unchanged `synthetic-collection-a`.
+It uses real Core/Access/SQLite, cached dispatcher and admitted snapshot, exact
+retained inspection evidence, then exact-partition withdrawal and refused
+recheck/inspection. Independent static review is clean; this new case is NOT RUN.
+No provider, model, original bytes, native write or runtime admission is qualified.
+At parent ce7d838b the hosted backend library set, all three loopbacks, ordinary
+core, capture and performance passed; frontend and both combined source gates
+failed. Their accessible annotations expose only exit codes. Log/artifact
+downloads remain stopped after Forbidden; no failure cause is invented and no
+assertion, sandbox, budget, workflow or permission is weakened.
+
+
+Prepared scalar specular source composition preserves exact #589 `9acac8c6`
+on the b19e7d91 donor base without dropping later integration. The optional,
+material-local finite scalar in [0,1] survives bake/compression, backend/frontend
+admission, copied materials and opaque/glass shaders; unsupported texture/color
+properties, required declarations and misplaced extensions remain refused.
+Scalar-bearing primitives retain geometry/normals during bake. Existing bounded
+compression snapping/reordering is unchanged, not byte-identical export.
+
+Independent backend/bake and frontend/shader source reviews found no actionable
+defect. This does not qualify pixels or private source fidelity. The existing
+writer retains the two pixel fixture/assertion files; its first metal comparison
+needs a visible-surface witness before equality can count as meaningful evidence.
+Pixel controls are not included in this exact source composition. Existing 80
+SOURCE / 1 BUILD / 7 BROWSER selections and 22 top-level bake tests remain unchanged;
+source controls extend their existing selections. No new lane, security setting,
+assertion removal, budget/deadline increase, private bake, release or deployment.
+Restored renderer yields and all later suggestion/collection changes are kept.
+The source/frontend/loopback1 failures at c1710cea remain unclassified because
+accessible annotations contain only exit codes and denied downloads stay stopped.
+
+
+The scalar pixel follow-up composes exact #589 `b7e0a7b2` after independent
+static review. It extends the existing WebGL2 case with five generated scenes:
+dielectric, mixed-metal, metal, glass and glass-metal at zero/half/one strength
+and the internal shader fallback. Every canvas first needs visible surface versus
+its own clear-background contrast; blank metal samples cannot qualify equality.
+The half-strength controls must remain strictly inside meaningful endpoints.
+This is actual shader-path source, not a private GLB/export or device result;
+admission/copy/bake are separately authored controls, not inferred pixel evidence.
+All new pixel controls are NOT RUN by this integration thread. Their added cost
+must pass the unchanged 180-second outer case and existing renderer assertions.
+No test selection, security flag, timeout, budget, release or activation changed.
+
+
+Current bounded electrical continuation composes exact d707481f after independent
+source review. Its exact browser subset adds only circuit/evidence list result
+roots; existing definitions and original source pins, including opaque HomeBox
+collection identity, are unchanged. Numeric evidence provenance remains an
+ExactDecimal; the supplied control sends 9007199254740993 as a raw JSON integer
+through the real parser/closed validator/client/owner. No selected review or
+native association is inferred. The existing topology selection is extended,
+not a new runner/lane/workflow: 80 SOURCE / 1 BUILD / 7 BROWSER. All new controls
+remain unrun locally and require exact-head hosted execution. No host/root
+mount, private input, provider/model operation, authority or deployment is added.
+
+
+Bounded Stock dependency closure composes exact ac03072e (three commits atop
+c6d71046). Only selected identity/semantics/circuit payload.evidenceIds and explicit
+root pins are followed, preserving exact numbers, revisions and unknowns. Missing,
+conflicting, duplicate or withheld records refuse and retire the partial owner.
+Pin length is checked before cloning/visiting; pool, root and reference work are
+bounded. Repeated references deduplicate without selecting a competing revision.
+
+The existing topology selection extends its generated controls for dependency and
+root-only withheld evidence, exact numeric provenance, bounds and retirement.
+All new controls are authored, NOT RUN locally; 80 SOURCE / 1 BUILD / 7 BROWSER
+selections and workflows are unchanged. This remains partial Stock DATA, without
+canonical record admission, projector compatibility, evidence-asset/supersession/
+external-source closure, independent review authority, ongoing observation or live
+mount. No runtime, provider, native effect or release is added.
+
+
+Scoped repair donor #590 903ad712 is composed with electrical closure ac03072e.
+The source diff contains two formatting-only Rust edits, an exact fixture boundary
+correction and five wait-predicate changes. Retained Linux diagnostics named cargo
+fmt and suggestion_inputs_healthy.rs; the MCP formatting edit was found by the
+repair writer's earlier formatter, not a separate hosted diagnostic. The numeric
+fixture now ends at its closing brace before generated electrical statements.
+
+The loopback poll now waits for the already-required successful completion of
+every topology command. Existing later assertions, timeouts and diagnostics stay
+intact. A possible replacement-read gap is an interpretation of canceled reads,
+not proof: recorded rows span viewer-login rather than the latest binding epoch.
+No browser cases are removed; 80 SOURCE / 1 BUILD / 7 BROWSER, workflows, budgets
+and security settings are unchanged. All source changes require new exact-head
+hosted qualification; no local compiler, formatter, test or browser ran.
+
+
+Diagnostic donor a5f0c90 composes on 54dc0c44 after independent source review;
+main c67637c1 (#555) is retained by ancestry. Only the five existing loopback
+scripts add bounded generated-request transfer metadata and event order to failure
+diagnostics. Observers catch errors and do not change predicates, waits, timeouts,
+state ordering or cancellation acceptance. Missing data events/counts establish
+neither incomplete bodies nor successful reads; equal bytes grant no authority.
+No bodies or URLs are captured. Header/error strings and event history are bounded.
+
+The donor writer reported five node --check syntax checks; no functional tests.
+This integration ran only source/byte audits, no local test/compiler/formatter or
+browser. New exact-head hosted diagnostics remain necessary. Existing 80 SOURCE /
+1 BUILD /7 BROWSER selections, workflows, budgets and security settings remain
+unchanged. Sandbox launch and glass pixel qualification remain separate gates.
+
+
+The existing Chrome setup command additionally reports bounded read-only metadata
+for five fixed sandbox-helper candidates: ownership/modes, resolved-parent
+permissions, two namespace kernel settings and installed Chrome package version.
+No helper is executed or selected; no permission, package, AppArmor/sysctl, sandbox
+flag, credential or runner configuration is changed. Metadata and package version
+alone do not prove helper API compatibility or an actual sandboxed launch.
+Existing seven browser cases remain required; no new step, lane or workflow.
+
+Scalar fixture donor 886d5b44 changes only the glass sample's light vector to
+[0.08, 0, 0.99679486] to discriminate the existing midpoint below the documented
+gain/clamp saturation. Non-glass light, shaders, scalar values, thresholds,
+assertions and budgets remain unchanged. The off-axis source rationale is not a
+pixel result. New fixture/metadata execution awaits exact-head hosted CI; no local
+test, syntax check, compiler, formatter, browser or helper was run by integration.
+
+
+The read-only sandbox metadata follow-up adds two fixed Microsoft Edge helper
+candidate spellings and its installed package version. The official Ubuntu24.04
+runner image lists Edge in addition to Chrome/Chromium; the original five-candidate
+report found no setuid helper, so the Edge candidates remain unqualified until
+hosted metadata is read. Pinned Chromium156 source requests helper API1 and exposes
+--get-api, but no helper/API query is executed or selected by this report. Seven
+metadata candidates are not seven browser cases: browser selections remain the
+unchanged80 SOURCE /1 BUILD /7 BROWSER. No permission, policy, package, security
+flag, workflow, runtime or authority is changed. No local functional checks ran.
+
+
+Page-side diagnostic donor d98ea7fc is composed after independent source review.
+It wraps fetch/body/default-reader observation in the generated browser fixture,
+returns original results and changes no assertion/wait/timeout/acceptance rule.
+This is not behavior-neutral: Promise observers add microtasks and affect
+otherwise-unhandled rejection observation; installation failures are swallowed.
+The best-effort log covers the current one-chunk viewer reads, not all Request
+signals, URL inputs, convenience/clone/BYOB consumers or transport behavior.
+Fourteen events per entry and forty-eight entries can omit terminal/later events;
+command-only repeated-read correlation is approximate. A failure report may add
+one bounded fifteen-second Runtime.evaluate after the unchanged settlement limit.
+No absence/equal-byte observation proves no cancellation or successful consumption.
+No body, URL or cookie is logged. Source/byte review is not execution: all new
+page-side observations await exact-head hosted CI, with no local syntax/tests,
+compiler, formatter or browser run. The seven browser selections remain unchanged.
+
+
+Scalar visibility fixture donor38ca67b5 is composed after independent source
+review. Only the generated glass sample's shared tint changes0.18 to0.02 and
+opacity0.12 to0.5; all scalar variants use those same settings and retain the
+prior light vector. Production shader/materials, thresholds, visibility/endpoint/
+midpoint assertions, scene/sample counts and budgets are unchanged. The source
+rationale addresses the hosted8c glass surface/background ambiguity; new hosted
+pixels must still pass. It is not private-material, device or product acceptance.
+No local test, syntax check, compiler, formatter or browser ran. Page-side donor
+d98ea7fc, mainc67637c, original corpus and seven browser cases remain preserved.
+
+
+Existing ephemeral Ubuntu24 CI Chrome jobs now prepare a temporary pinned SUID
+sandbox helper without repairing pre-existing helpers or OS policy. The installer
+uses no-follow held directory FDs, refuses mutable/non-root ancestors or an
+existing destination, verifies a root-private copy of the pinned156.0.8078.47 ZIP,
+extracts one bounded regular helper, verifies installed bytes/inodes, durably
+records job custody before activation, and publishes only after write FDs close.
+The browser stays user-owned; normal-user --get-api must return1 before exporting
+the fixed CHROME_DEVEL_SANDBOX path. Capture storage forwards only that exact
+path; browser flags/assertions and seven required browser cases stay unchanged.
+
+Frontend and loopback always-cleanup runs after setup/API/test failure too. It
+validates the job/inode marker, revokes SUID before refusing changed contents,
+removes only known owned files/empty created directories and never exports an
+empty helper variable. SIGKILL before the durable marker can leave only private,
+non-SUID residue which cleanup refuses; ephemeral VM disposal is the fallback.
+No existing permissions, AppArmor/sysctl, package, Mac/NAS/deployment or credential
+state is modified. Helper creation is confined to existing hosted Ubuntu jobs.
+
+The existing tools/ci stdlib selection gains ten generated data-only archive and
+metadata controls (33 methods total). They never install/clean a helper, invoke
+sudo/browser/API or set SUID. New controls and actual installer/API/sandbox/cleanup
+execution are NOT RUN locally and require exact-head hosted CI. Inventory and
+publication-byte regeneration are source maintenance, not runtime qualification.
+No new workflow/lane; frontend selections remain80 SOURCE /1 BUILD /7 BROWSER.
+
+
+Settlement oracle donor df277670 is composed after independent source review.
+Its first viewer gate joins page and network rows bijectively by original
+application requestId, requires page EOF/bytes and terminal authorized200 network
+accounting plus current ready UI, and refuses wrong document/phase, missing or
+duplicate records, overflow, aborted/partial/non-EOF or replaced current reads.
+Only correlated positive consumption can account for browser ERR_ABORTED; byte
+equality alone never does. Existing auth/write/count and budget assertions stay.
+The second settlement after Changes unmount is traffic quiescence, not fresh
+validation of every later response. Promise instrumentation adds microtasks and
+changes rejection observation; it is not behavior-neutral or a production port.
+Each of the existing five flows authors42 synthetic verdict controls in process.
+They do not exercise observer installation or real browser aborts. These controls
+and the actual browser sequence remain NOT RUN locally; exact hosted execution
+must qualify the combined helper, fixture and oracle. No new workflow/lane or
+removed browser case, sandbox flag, timeout or shader/material change.
+
+
+WebGL phase-marker donor20b4eed4 is composed unchanged: bounded elapsed-time
+markers identify existing build/draw/swap/worker/lighting/material/scalar/lamp
+phases. No sample, shader, assertion, wait, scene count, threshold or budget is
+changed. Markers are diagnostics, not benchmark or pixel results. Actual hosted
+execution must qualify the full candidate with helper custody and settlement
+oracle; no local test, compiler, syntax check, formatter, helper or browser ran.
+
+
+The full WebGL2 render probe is now a separate required `webgl2-probe`
+selection alongside `webgl2`: 80 SOURCE / 1 BUILD / 8 BROWSER (89 total).
+Each entry retains the existing 180000 ms limit. The probe keeps all five
+workloads and their four warm-up plus forty measured frames (220 renders),
+report/backend/dimension/output and resumed-drawing assertions, followed by
+all existing ordinary-material assertions in a fresh tab in the same browser.
+The ordinary WebGL2 entry retains every other swap, relighting, material,
+glass, scalar and lamp sample/assertion. Opt-in webgpu/bench remain unchanged.
+This changes accumulated process/GPU/cache history; the successor-material
+control witnesses teardown/reuse but does not establish identical history or a
+timing guarantee. No workflow/infrastructure, sampling override, assertion or
+budget reduction is introduced. Earlier seven-browser counts elsewhere describe
+prior candidates. Both required cases and all existing gates need hosted
+exact-head qualification; no local tests/build/compiler/syntax/formatter or
+browser ran. Held sampling-override donor6c75809b is excluded.
