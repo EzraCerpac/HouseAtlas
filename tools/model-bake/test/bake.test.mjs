@@ -249,6 +249,12 @@ test('reads roles from node extras when there is no companion', async () => {
     master.json.materials[0].extensions.KHR_materials_specular = extension;
     await assert.rejects(bakeOverview(writeGlb(master.json, master.bin), null), /unsupported material extensions/);
   }
+  master.json.materials[0].extensions.KHR_materials_specular = { specularFactor: .5 };
+  for (let i = 0; i < 256; i++) {
+    master.json.nodes[0].children.push(master.json.nodes.length);
+    master.json.nodes.push(structuredClone(master.json.nodes[1]));
+  }
+  await assert.rejects(bakeOverview(writeGlb(master.json, master.bin), null), /more than 256 scalar material instances/);
   assert.equal(row(result, 'Terrain').site, true); assert.equal(row(result, 'Lamp').site, false);
   assert.ok(drawnTriangles(result.glb) <= 20_000);
 });

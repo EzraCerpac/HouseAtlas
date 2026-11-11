@@ -1,7 +1,7 @@
 /** Closed admission for standard glTF 2.0 binaries (GLB), run before any
  * loader sees the bytes. It reads only the JSON chunk and admits a closed
- * subset: one embedded BIN chunk, no buffer or image URIs, no `extensions`
- * objects anywhere outside extras, no skins, morph targets or animations,
+ * subset: one embedded BIN chunk, no buffer or image URIs, only the bounded
+ * material scalar extension outside extras, no skins, morph targets or animations,
  * exactly one scene where every node is reached once, triangle primitives
  * whose accessors all read declared bufferView ranges, and a geometry budget
  * counted per drawn node instance (reused meshes count every time). Nothing is
@@ -23,12 +23,6 @@ export const STANDARD_GLB_LIMITS: GlbLimits = Object.freeze({ bytes: 32 * MiB, j
  * devices opt into. The backend admits it under the same numbers. */
 export const DETAIL_GLB_LIMITS: GlbLimits = Object.freeze({ ...STANDARD_GLB_LIMITS, bytes: 256 * MiB,
   triangles: 4_000_000, vertices: 12_000_000, outputBytes: 640 * MiB, gpuBytes: 384 * MiB });
-/** Extensions accepted anywhere. Geometry-changing extensions (compression,
- * quantization, instancing) and material extensions are deliberately absent:
- * a meshopt-compressed publication is expanded to this plain profile before
- * the preflight sees it (glb-meshopt.ts), so every limit counts decoded bytes. */
-export const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set();
-
 export type GlbStage = 'container' | 'preflight' | 'load';
 export class GlbFormatError extends Error {
   constructor(readonly stage: GlbStage, reason: string) { super(reason); }
@@ -128,7 +122,7 @@ const COMPONENT_BYTES: Readonly<Record<number, number>> = { 5120: 1, 5121: 1, 51
 const COMPONENTS: Readonly<Record<string, number>> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 const INDEX_TYPES = new Set([5121, 5123, 5125]);
 
-/** Refuses any `extensions` object outside extras, wherever a plugin might read it. */
+/** Admits only the scalar material extension outside extras. */
 function refuseExtensions(json: Row) {
   const materials = rows(json.materials, 'Materials');
   const owners = new Set(materials);

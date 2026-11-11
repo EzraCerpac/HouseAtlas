@@ -242,7 +242,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     if (!meshMap.has(binding.meshIndex)) throw new Error(`Companion binds mesh ${binding.meshIndex}, which no node draws`);
 
   const candidates = [], report = [];
-  let fixedTriangles = 0, weldedAny = false;
+  let fixedTriangles = 0, weldedAny = false, scalarInstances = 0;
   for (const [meshIndex] of meshMap) source.meshes[meshIndex].primitives.forEach((primitive, primitiveIndex) => {
     const uses = instances.get(meshIndex), slot = key(meshIndex, primitiveIndex);
     const role = roles.get(slot) ?? (companion ? null : 'context');
@@ -259,6 +259,10 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     // vertices that carry a non-affine UV mapping at zero position error, and
     // the texture drift that causes is not bounded by the error in metres.
     const hasSpecular = source.materials?.[primitive.material]?.extensions?.KHR_materials_specular !== undefined;
+    if (hasSpecular && !hasTextures) {
+      scalarInstances += uses.length;
+      if (scalarInstances > 256) throw new Error('Model has more than 256 scalar material instances');
+    }
     if (LOCKED_ROLES.includes(role) || hasTextures || hasSpecular || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
     const scale = Math.max(...uses.map(use => maxScale(use.world)), 1e-9);
     // A part thinner than the weld distance can weld away entirely; it then stays unwelded.

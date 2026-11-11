@@ -483,7 +483,10 @@ At most 256 drawn untextured scalar-material instances are admitted,
 because each has a separate material draw.
 These surfaces use source PBR factors and supplied normals when enabled,
 so even the default factor can differ from the legacy palette presentation.
+Their one-sided materials also omit back faces when source materials are enabled.
 The bake preserves scalar-bearing primitives and their normals without simplification.
+That preservation can cause an overview to exceed its triangle budget,
+in which case the bake refuses it rather than discarding authored shading.
 
 The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk.
 Image URIs remain forbidden. Each image is at most 1,024 by 1,024 pixels,

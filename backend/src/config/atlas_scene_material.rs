@@ -167,7 +167,6 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
     let mut texture_refs = BTreeSet::new();
     let mut resources = BTreeSet::new();
     for material in materials {
-        super::atlas_scene_glb::scalar_specular(material)?;
         let pbr = material.get("pbrMetallicRoughness");
         let slots = [
             pbr.and_then(|p| p.get("baseColorTexture")),
@@ -178,6 +177,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
         if !textured {
             color_material(material)?;
         } else {
+            super::atlas_scene_glb::scalar_specular(material)?;
             keys(
                 material,
                 &[
