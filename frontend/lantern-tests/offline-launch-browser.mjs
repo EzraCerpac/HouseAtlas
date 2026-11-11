@@ -363,6 +363,12 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
     await poll(`document.body.textContent.includes('Documents:')`, 5_000, 'Offline storage settings did not read size');
+    assert.equal(await evaluate(`(() => {
+      const paragraph = [...document.querySelectorAll('[role="dialog"] .setting-static')].find(node =>
+        node.textContent.includes('HomeBox PDFs marked “On this device” in Library can open offline. Downloading missing files requires a connection.'));
+      return !!paragraph && paragraph.getClientRects().length > 0 && getComputedStyle(paragraph).visibility !== 'hidden'
+        && !document.querySelector('[role="dialog"]').textContent.includes('HomeBox attachments require a connection.');
+    })()`), true, 'Visible Settings copy must distinguish held HomeBox PDFs from missing-file downloads');
     // Opened on purpose from the live app (its link marks the tab session), the
     // same page keeps the full Saved view with Saved scope and shell removal.
     await evaluate(`sessionStorage.setItem('houseatlas.saved-entry.v1', '1')`);
