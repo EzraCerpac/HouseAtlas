@@ -34,8 +34,8 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 6087,
-      "sha256": "94c55a166bb4493a5e916ed57f1ed91e306ec71d2bc33a45d66b8a2da9e93e2c",
+      "bytes": 8349,
+      "sha256": "905234a55170c0ca78699bbf4ddb35a576ae77c69a8a7cb4c9ff22ccef1bd932",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 85172,
-      "sha256": "d418bc4e29fb632cf545d3d6703d0ba10882fd97a4cbb4c989fc6b0943a8329f",
+      "bytes": 86211,
+      "sha256": "95bee9ac692b6c901e6571a4d2b686e3b26f720fa9762af3ca9405731ac348c4",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 309362,
-      "sha256": "c775eb97c50fe7a20352c73a58a6c23138bd07c69cc46ecb83d340b9d5d0c3d4",
+      "bytes": 310402,
+      "sha256": "9bcaa8f9605f89bf7fa02892609f7680c9689ea38983793c2d836d0195738696",
       "owner": "core-integration"
     },
     {
@@ -8147,8 +8147,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-visual/main.tsx",
       "mode": "100644",
-      "bytes": 10058,
-      "sha256": "854599d0fcfc4b5a1efe33c93052df512a69f8ca035ff3ed3cf967856c7a15c7",
+      "bytes": 10361,
+      "sha256": "7b7f30df8650769995e15498728d52cc2fea7fb201c382af8e1080936e306eac",
       "owner": "web"
     },
     {
@@ -12200,8 +12200,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 58370,
-      "sha256": "4d1ca491d9fe2a3f114f64623bdbf7abd2a9fe06cc9129fc6e85086929139dde",
+      "bytes": 60775,
+      "sha256": "23920354a33f67ab901c45fd604d0be88fca7d43b875bed2ea4e9709dee5b0e5",
       "owner": "core-integration"
     },
     {

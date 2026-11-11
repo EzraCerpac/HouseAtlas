@@ -4792,3 +4792,19 @@ This integration ran only source/byte audits, no local test/compiler/formatter o
 browser. New exact-head hosted diagnostics remain necessary. Existing 80 SOURCE /
 1 BUILD /7 BROWSER selections, workflows, budgets and security settings remain
 unchanged. Sandbox launch and glass pixel qualification remain separate gates.
+
+
+The existing Chrome setup command additionally reports bounded read-only metadata
+for five fixed sandbox-helper candidates: ownership/modes, resolved-parent
+permissions, two namespace kernel settings and installed Chrome package version.
+No helper is executed or selected; no permission, package, AppArmor/sysctl, sandbox
+flag, credential or runner configuration is changed. Metadata and package version
+alone do not prove helper API compatibility or an actual sandboxed launch.
+Existing seven browser cases remain required; no new step, lane or workflow.
+
+Scalar fixture donor 886d5b44 changes only the glass sample's light vector to
+[0.08, 0, 0.99679486] to discriminate the existing midpoint below the documented
+gain/clamp saturation. Non-glass light, shaders, scalar values, thresholds,
+assertions and budgets remain unchanged. The off-axis source rationale is not a
+pixel result. New fixture/metadata execution awaits exact-head hosted CI; no local
+test, syntax check, compiler, formatter, browser or helper was run by integration.

@@ -95,9 +95,13 @@ function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; met
   }, [factor, metallic, glass, legacy]);
   const projection = useMemo(() => makeProjection({ yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 },
     { min: [-.1, -.1, -.1], max: [1.1, 1.1, .1] }, { width: 320, height: 300 }, 0), []);
+  // The glass shader raises the reflected-light alignment to power 600 and
+  // multiplies it by 3. A small offset reduces clipping that can compress the
+  // encoded midpoint and endpoint into nearly the same pixel value.
+  const light: [number, number, number] = glass ? [.08, 0, .99679486] : [0, 0, 1];
   return <section><h2>{legacy ? 'Shader fallback' : `Specular ${factor}`}</h2><MeshLayer meshes={meshes} projection={projection}
     rules={{ visibleFloors: 'all', clipY: null }} currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]}
-    tints={new Map()} hidden={false} sourceColors sourceMaterials ambient={.2} twoSided light={[0, 0, 1]}
+    tints={new Map()} hidden={false} sourceColors sourceMaterials ambient={.2} twoSided light={light}
     glazingKeys={glass ? new Set(['scalar']) : new Set()}
     daylight={{ direct: 1, night: false, lamp: 0, tint: [1, 1, 1], sunTint: [1, 1, 1], lampTint: [1, 1, 1] }}
     onUnavailable={setFailure} /><output>{failure}</output></section>;
