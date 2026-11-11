@@ -290,6 +290,54 @@ assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], nul
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);
+// Selected descriptors are recomputed from currently eligible meshes; they do
+// not expose contributor identities, persistent GPU slots or room readiness.
+const eligible = [...Array.from({ length: MAX_LAMPS }, (_, index) => at(`single-${index}`, 2 + index * 2)),
+  aimed('rank-a', 0, [0, 0, 1]), aimed('rank-b', .2, [0, 0, 1]), at('receiver', 100)];
+const eligibleKeys = new Set(eligible.slice(0, -1).map(row => row.meshKey));
+const eligibleTable = new Float32Array(eligible.length * STATE_FLOATS);
+const receiverIndex = eligible.length - 1, rankIndex = MAX_LAMPS;
+const receiverFlags = () => [eligibleTable[receiverIndex * STATE_FLOATS + 26], eligibleTable[receiverIndex * STATE_FLOATS + 28]];
+const selection = changes => {
+  eligibleTable[receiverIndex * STATE_FLOATS + 26] = -1;
+  eligibleTable[receiverIndex * STATE_FLOATS + 28] = -2;
+  const frame = writeAppearance(eligible, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight,
+    emitterKeys: eligibleKeys, roomKeys: new Set(['receiver']), shelterKeys: new Set(['receiver']), ...changes }, eligibleTable);
+  assert.deepEqual(receiverFlags(), [1, 1], 'daylight and the receiver keys rewrite room and shelter flags');
+  return frame;
+};
+const initialSelection = selection({});
+const baselineFlags = receiverFlags();
+const xPositions = frame => frame.lamps.map(lamp => Math.round(lamp.at[0] * 10) / 10);
+const singletonPositions = count => Array.from({ length: count }, (_, index) => (21 + index * 20) / 10);
+assert.deepEqual(xPositions(initialSelection), [.2, ...singletonPositions(MAX_LAMPS - 1)]);
+assert.deepEqual(initialSelection.lamps[0].aim, [0, 0, 1]);
+assert.ok(initialSelection.lamps.slice(1).every(lamp => lamp.aim === null));
+assert.equal(eligibleTable[(MAX_LAMPS - 1) * STATE_FLOATS + 31], 1, 'an emitter excluded by the cap retains its self-emission mark');
+const hiddenSelection = selection({ hiddenKeys: new Set(['rank-a', 'rank-b']) });
+assert.equal(eligibleTable[rankIndex * STATE_FLOATS + 20], MeshPass.None, 'hidden emitter has no draw pass');
+assert.equal(eligibleTable[rankIndex * STATE_FLOATS + 31], 1, 'hidden emitter retains its self-emission mark');
+assert.deepEqual(xPositions(hiddenSelection), singletonPositions(MAX_LAMPS));
+assert.ok(hiddenSelection.lamps.every(lamp => lamp.aim === null));
+const clippedSelection = selection({ clips: new Map([['rank-a', -1], ['rank-b', -1]]) });
+assert.deepEqual(clippedSelection.lamps, hiddenSelection.lamps, 'whole-mesh clipping recomputes the same eligible descriptors as hiding');
+assert.notEqual(eligibleTable[rankIndex * STATE_FLOATS + 20], MeshPass.None, 'whole clipping does not remove the draw pass');
+const boundarySelection = selection({ rules: { ...base.rules, clipY: -1 },
+  clips: new Map(eligible.map(row => [row.meshKey, 0])), lifts: new Map([['rank-a', 3], ['rank-b', 3]]) });
+assert.equal(boundarySelection.lamps.length, MAX_LAMPS, 'per-mesh clip overrides the global clip');
+vec(boundarySelection.lamps[0].at, [.2, 3.1, .1], 'source bounds at the clip remain eligible before display lift');
+const partialSelection = selection({ clips: new Map([['rank-a', .1], ['rank-b', .1]]) });
+assert.deepEqual(partialSelection.lamps, initialSelection.lamps, 'a cut through the bounds remains eligible');
+const restoredSelection = selection({});
+assert.deepEqual(restoredSelection.lamps, initialSelection.lamps, 'restoring eligibility recomputes the original selection');
+assert.notEqual(eligibleTable[rankIndex * STATE_FLOATS + 20], MeshPass.None, 'restoration rewrites the draw pass');
+const noEmitters = selection({ emitterKeys: new Set() });
+const oneEmitter = selection({ emitterKeys: new Set(['rank-a']) });
+assert.equal(noEmitters.lamps.length, 0); assert.equal(oneEmitter.lamps.length, 1);
+const globals = frame => ({ lamp: frame.lamp, lampTint: frame.lampTint, tint: frame.tint, night: frame.night, rooms: frame.rooms });
+for (const frame of [noEmitters, oneEmitter, hiddenSelection, clippedSelection, restoredSelection])
+  assert.deepEqual(globals(frame), globals(initialSelection), 'emitter selection does not change the fixed global lighting inputs');
+assert.deepEqual(receiverFlags(), baselineFlags, 'receiver room and shelter flags are rewritten independently of emitter selection');
 // Room volumes are flagged only with daylight, and the frame says whether any exist.
 const roomed = writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, roomKeys: new Set(['glass']) }, nightTable);
 assert.equal(roomed.rooms, true); assert.deepEqual(lit7.map((_, index) => nightTable[index * STATE_FLOATS + 26]), [1, 0, 0, 0, 0]);

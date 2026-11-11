@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 98064,
-      "sha256": "b23f2e224b081fff13ee6c69c0139c55d962af9cef2c621b2fd91e9072072a6e",
+      "bytes": 98984,
+      "sha256": "8248f1ea936bc47ef26610e9264bece8a8fb9ed0c83ef200685bea060fa16ceb",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 324841,
-      "sha256": "e7e9d2f0f9dd75c40597ef8f35bdb15bbf0fe8ba2e4ffef4e51ad8582bf3bf95",
+      "bytes": 325659,
+      "sha256": "06715ac1707432a9b3eb8baea795f3c3da9f9d39091442b5b3e906fdfa66a950",
       "owner": "core-integration"
     },
     {
@@ -8882,8 +8882,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 29665,
-      "sha256": "ed3416eb728983afc9d24b07f83a1d3bc11f89e8477f8bb7957d228595691326",
+      "bytes": 33904,
+      "sha256": "df1a61c87db97c0176cca847cd3cc1d9e03c6fab5ac67c0ce165d19f7bf98e03",
       "owner": "web"
     },
     {
