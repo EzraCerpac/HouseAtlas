@@ -20,8 +20,14 @@ try {
     `export { readUnifiedAtlas } from ${JSON.stringify(join(root, 'frontend/integration/unified-atlas-reader.ts'))};`,
     `export { documentaryRoomRecords, matchesOverlayScene } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/runtime-overlays.ts'))};`,
     `export { traceToRoot } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};`,
+    `export { buildGraph } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx'))};`,
   ].join('\n'));
-  const result = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent',
+  // Expose the actual non-exported builder only in this test bundle.
+  const graphPath = join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx');
+  const exposeGraph = { name: 'test-only-network-builder', enforce: 'pre', transform(code, id) {
+    if (id === graphPath) return `${code}\nexport { buildGraph };\n`;
+  } };
+  const result = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', plugins: [exposeGraph],
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
   const path = join(scratch, 'fixture.mjs');
   writeFileSync(path, (Array.isArray(result) ? result[0] : result).output.find(row => row.type === 'chunk' && row.isEntry).code);
@@ -47,9 +53,14 @@ const records = api.documentaryRoomRecords(scene, frame, new Set(scene.coverage.
 assert.deepEqual(['syn-room-hall', 'syn-room-living'].map(id => records.rooms.get(id).electrical.length), [3, 1]);
 assert.equal(records.rooms.get('syn-room-stairs').network.length, 1);
 assert.equal(records.rooms.get('syn-room-stairs').network[0].id, 'example-access-point');
-const data = frame.network.data, nodes = data.devices.map(device => ({ id: device.id, device }));
-const edge = { key: data.links[0].id, a: data.links[0].fromEndpointId, b: data.links[0].toEndpointId, link: data.links[0] };
-assert.deepEqual(api.traceToRoot(nodes, [edge], 'example-access-point').nodes, ['example-access-point', 'example-root']);
+const graph = api.buildGraph(frame.network.data);
+const trace = api.traceToRoot(graph.nodes.values(), graph.edges, 'd:example-access-point');
+assert.equal(trace.status, 'traced');
+assert.deepEqual(trace.nodes, ['d:example-access-point', 'd:example-root']);
+assert.equal(trace.root, 'd:example-root');
+assert.deepEqual(trace.edges.map(edge => edge.link.id), ['example-link']);
+assert.deepEqual(trace.certain, [true]);
+assert.equal(trace.uncertain, false);
 const mismatch = { ...frame, sourceSelection: { ...frame.sourceSelection, acceptedRoomReceiptSha256: 'f'.repeat(64) } };
 const refused = api.documentaryRoomRecords(scene, mismatch, new Set(scene.coverage.selectableOccurrences));
 assert.equal(refused.rooms.get('syn-room-stairs').network.length, 0);
@@ -62,6 +73,20 @@ assert.equal(handle.source.isCurrent(frame), false);
 handle.source.release(frame); handle.source.dispose();
 assert.equal(invalidations, 1);
 await assert.rejects(handle.source.open(handle.request, new AbortController().signal));
+{
+  const factory = new AbortController(), opening = new AbortController();
+  const fresh = await api.createExampleOverlays(selection, scene, house, factory.signal);
+  await assert.rejects(fresh.source.open({ ...fresh.request }, opening.signal));
+  const owned = await fresh.source.open(fresh.request, opening.signal);
+  assert.equal(fresh.source.isCurrent({ ...owned }), false);
+  let notices = 0;
+  fresh.source.subscribeInvalidation(owned, () => { notices++; });
+  opening.abort();
+  assert.equal(factory.signal.aborted, false);
+  assert.equal(fresh.source.isCurrent(owned), false);
+  factory.abort(); fresh.source.release(owned); fresh.source.dispose();
+  assert.equal(notices, 1, 'opening abort retires once and detaches the factory signal');
+}
 for (const action of ['release', 'dispose']) {
   const fresh = await api.createExampleOverlays(selection, scene, house, new AbortController().signal);
   const owned = await fresh.source.open(fresh.request, new AbortController().signal);

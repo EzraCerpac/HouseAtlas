@@ -60,12 +60,16 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
     network: { status: 'available', data: network }, electricity: { status: 'unavailable', reason: 'not-retained' },
     electricalFixtures: { status: 'available', data: electricalFixtures } };
   let current = true, opened = false;
+  let openingSignal: AbortSignal | null = null;
   const listeners = new Set<() => void>();
-  const retire = () => { if (!current) return; current = false; signal.removeEventListener('abort', retire); for (const changed of [...listeners]) changed(); listeners.clear(); };
+  const retire = () => { if (!current) return; current = false; signal.removeEventListener('abort', retire);
+    openingSignal?.removeEventListener('abort', retire); openingSignal = null;
+    for (const changed of [...listeners]) changed(); listeners.clear(); };
   signal.addEventListener('abort', retire, { once: true });
   const request = { sceneSelection, nativeBuildingId: building.nativePlaceId, publicationRooms: rooms.map(room => room!) };
   return { request, source: {
-    async open(input, opening) { opening.throwIfAborted(); if (!current || opened || input !== request) throw new Error('Example overlay owner is retired'); opened = true; return frame; },
+    async open(input, opening) { opening.throwIfAborted(); if (!current || opened || input !== request) throw new Error('Example overlay owner is retired');
+      opened = true; openingSignal = opening; opening.addEventListener('abort', retire, { once: true }); return frame; },
     isCurrent: owned => current && opened && owned === frame,
     subscribeInvalidation(owned, changed) { if (current && opened && owned === frame) listeners.add(changed); return () => { listeners.delete(changed); }; },
     release(owned) { if (owned === frame) retire(); }, dispose() { retire(); },
