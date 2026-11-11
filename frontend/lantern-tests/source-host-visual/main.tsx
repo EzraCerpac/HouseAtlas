@@ -92,6 +92,10 @@ async function atlasInput(): Promise<{ readonly companionBytes: Uint8Array<Array
 async function sourceModels(): Promise<SourceModelPort> {
   // One fictional site publication through an in-page fake port.
   const base: SourceModelPort = { site: createSyntheticSitePort() };
+  const params = new URLSearchParams(location.search);
+  const storedPending = params.get('atlas-cache') === 'stored-pending';
+  if (storedPending && (params.get('atlas') !== 'generated' || ['atlas-scene', 'atlas-model', 'atlas-documentary'].some(key => params.has(key))))
+    throw new Error('The stored/pending control takes generated Atlas input only.');
   const input = await atlasInput();
   if (!input) return base;
   const documentaryPath = new URLSearchParams(location.search).get('atlas-documentary');
@@ -113,18 +117,43 @@ async function sourceModels(): Promise<SourceModelPort> {
   if (drawingGroups) window.addEventListener('synthetic-atlas-selection-replace', () => {
     selection = { ...selection, owner: {} }; for (const changed of [...listeners]) changed();
   });
+  const readGenerated = async (requested: ModelOverviewSelection, signal: AbortSignal, denied = false) => {
+    const read = await readUnifiedAtlas({ selection: requested, signal,
+      origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection,
+      transport: denied ? async () => new Response(null, { status: 403 }) : transport });
+    // This explicit local-fixture preference is presentation only; the
+    // generated transport has no authenticated native entry configuration.
+    return entry === null ? read : { ...read, entryBuildingId: entry };
+  };
+  // Test-only source-port scheduling. The actual host and Atlas decide what
+  // stays mounted; this gate never calls React, focus or a stage initializer.
+  const freshRelease = (signal: AbortSignal) => new Promise<'identical' | 'denied'>((resolve, reject) => {
+    signal.throwIfAborted();
+    const cleanup = () => {
+      window.removeEventListener('synthetic-atlas-refresh-release', release);
+      signal.removeEventListener('abort', abort);
+    };
+    const abort = () => { cleanup(); reject(signal.reason); };
+    const release = (event: Event) => {
+      if (!(event instanceof CustomEvent) || (event.detail !== 'identical' && event.detail !== 'denied')) return;
+      cleanup(); document.documentElement.dataset.syntheticAtlasRefresh = event.detail; resolve(event.detail);
+    };
+    window.addEventListener('synthetic-atlas-refresh-release', release);
+    signal.addEventListener('abort', abort, { once: true });
+    document.documentElement.dataset.syntheticAtlasRefresh = 'pending';
+  });
   return {
     ...base,
     // The production reader, guards and admission against the in-page HTTPS fake.
     atlas: { current, subscribe, entryBuildingId: () => entry,
       ...(drawingGroups ? { createOverlays: createSyntheticDrawingGroups } : {}),
       ...(saved ? { savedDocumentary: saved } : {}),
+      ...(storedPending ? { async stored(requested: ModelOverviewSelection, signal: AbortSignal) {
+        return { ...await readGenerated(requested, signal), storedAt: '2026-01-01T00:00:00Z' };
+      } } : {}),
       async read(requested, signal) {
-        const read = await readUnifiedAtlas({ selection: requested, signal,
-          origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
-        // This explicit local-fixture preference is presentation only; the
-        // generated transport has no authenticated native entry configuration.
-        return entry === null ? read : { ...read, entryBuildingId: entry };
+        const release = storedPending ? await freshRelease(signal) : 'identical';
+        return readGenerated(requested, signal, release === 'denied');
       } },
   };
 }

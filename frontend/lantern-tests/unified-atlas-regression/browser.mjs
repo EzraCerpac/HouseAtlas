@@ -11,9 +11,10 @@ import { frontend } from './api.mjs';
 
 assert.equal(process.version, 'v26.10.0', 'Use the pinned runtime');
 const args = process.argv.slice(2);
-assert(args.length === 0 || (args.length === 1 && ['--build-only', '--electrical'].includes(args[0])));
+assert(args.length === 0 || (args.length === 1 && ['--build-only', '--electrical', '--stored-dialog-currentness'].includes(args[0])));
 const buildOnly = args.includes('--build-only');
 const electricalOnly = args.includes('--electrical');
+const storedDialogOnly = args.includes('--stored-dialog-currentness');
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-interaction-browser-'));
 const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: frontend, encoding: 'utf8' }).trim(),
   node: process.version, status: 'running', fixture: 'generated host; publication overlays and optional generated documentary owner',
@@ -55,7 +56,7 @@ class CDP {
   }
 }
 
-const budget = setTimeout(() => { browser?.kill('SIGTERM'); server?.close(); }, electricalOnly ? 180_000 : 360_000);
+const budget = setTimeout(() => { browser?.kill('SIGTERM'); server?.close(); }, electricalOnly || storedDialogOnly ? 180_000 : 360_000);
 try {
   // The real frontend plugins require their cwd to be the frontend root.
   const previous = process.cwd();
@@ -130,7 +131,9 @@ try {
         const original=type.prototype[method];if(!original)continue;
         type.prototype[method]=function(...args){window.__atlasFrames.draws++;return original.apply(this,args);};}` });
     phase = 'interactions';
-    await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated` });
+    if (storedDialogOnly) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    const storedQuery = storedDialogOnly ? '&atlas-cache=stored-pending' : '';
+    await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated${storedQuery}` });
     await until('Boolean(document.querySelector(".ua-room-btn"))', 'actual host and Atlas ready');
     const button = (selector, text) => `Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(b=>b.textContent.trim()===${JSON.stringify(text)})`;
     // Floor Stack rows carry a visual mark beside their name; match the name alone.
@@ -165,7 +168,7 @@ try {
     };
     const check = async (name, run) => { phase = name; await run(); report.checks.push(name); };
 
-    if (!electricalOnly) {
+    if (!electricalOnly && !storedDialogOnly) {
     await check('one Atlas in the production host', async () => {
       assert.equal(await evaluate('document.querySelectorAll(".ua-shell").length'), 1);
       assert.equal(await evaluate('document.querySelectorAll("[aria-label=\'Atlas source\']").length'), 0);
@@ -242,6 +245,128 @@ try {
       assert.equal(await selectedRoom(), null);
     });
     }
+    if (storedDialogOnly) {
+      await check('stored-dialog-currentness: identical refresh retains mounted modal and uninterrupted focus; denial retires it', async () => {
+        const pendingCopy = 'document.documentElement.dataset.syntheticAtlasRefresh==="pending"&&document.querySelector(".ua-stored-note")?.getAttribute("aria-busy")==="true"';
+        const openPendingDialog = async () => {
+          await until('Boolean(document.querySelector(".ua-room-btn"))', 'generated stored Atlas ready');
+          await until(pendingCopy, 'verified stored copy mounted while fresh port read is pending');
+          assert.match(await evaluate('document.querySelector(".ua-stored-note").textContent'), /Stored copy.*updating/s);
+          await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
+          await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Hall'));
+          await sheet(false); await click(button('.layer-bar button', 'Electrical'));
+          await click(button('[aria-label="Atlas view"] button', 'Plan'));
+          await until('document.querySelectorAll(".ua-plan path").length>0', 'stored Plan drawn');
+          // Compact follows the measured stage width (<=720), not viewport
+          // height. 844px leaves a tablet host whose stage can exceed that
+          // boundary; use a phone-width landscape viewport and verify both.
+          await send('Emulation.setDeviceMetricsOverride', { width: 700, height: 390, deviceScaleFactor: 1, mobile: false });
+          await until(`(()=>{const width=document.querySelector('.ua-viewport')?.getBoundingClientRect().width;
+            return matchMedia('(max-height: 480px)').matches&&matchMedia('(orientation: landscape)').matches
+              &&width>0&&width<=720&&document.querySelector('.ua-shell')?.classList.contains('is-compact');})()`, 'short landscape compact stage');
+          report.storedDialogViewport = await evaluate(`(()=>({width:innerWidth,height:innerHeight,
+            short:matchMedia('(max-height: 480px)').matches,landscape:matchMedia('(orientation: landscape)').matches,
+            stageWidth:document.querySelector('.ua-viewport').getBoundingClientRect().width,
+            compact:document.querySelector('.ua-shell').classList.contains('is-compact')}))()`);
+          // The short-layout fold lives in a clipped horizontal rail. A
+          // positive bounding box alone does not prove its centre receives a
+          // pointer event. Reach the actual control with native Tab instead;
+          // never focus/click it through DOM APIs or bypass a hidden control.
+          const foldFocused = 'document.activeElement===document.querySelector(".ua-fold-layers")';
+          for (const due = Date.now() + 10_000; !await evaluate(foldFocused) && Date.now() < due;)
+            await key('Tab', 'Tab', 9);
+          assert.equal(await evaluate(foldFocused), true, 'Native Tab reaches the Layer details opener');
+          const opener = await evaluate(`(()=>{const b=document.querySelector('.ua-fold-layers'),r=b.getBoundingClientRect(),s=getComputedStyle(b);
+            return {connected:b.isConnected,enabled:!b.disabled,visible:r.width>0&&r.height>0&&s.visibility==='visible'&&s.display!=='none',
+              inert:!!b.closest('[inert],[hidden],[aria-hidden="true"]'),popup:b.getAttribute('aria-haspopup'),expanded:b.getAttribute('aria-expanded')};})()`);
+          assert.deepEqual(opener, { connected: true, enabled: true, visible: true, inert: false, popup: 'dialog', expanded: 'false' });
+          await key('Enter', 'Enter', 13);
+          await until('document.querySelector(".ua-layer-dialog")?.matches(":modal")', 'actual Layer details native modal');
+          assert.equal(await evaluate('document.querySelector(".ua-fold-layers").getAttribute("aria-expanded")'), 'true');
+          await key('Tab', 'Tab', 9);
+          assert.equal(await evaluate('document.activeElement===document.querySelector(".ua-layer-dialog .ua-key-head")'), true,
+            'Native Tab focuses the existing layer control inside the modal');
+        };
+        await openPendingDialog();
+        // Reduced motion snaps the camera; layout can still adjust its fit.
+        // Require the existing Plan matrix to settle before comparing it.
+        const settledPlan = async () => {
+          let last = null, still = 0;
+          for (const due = Date.now() + 10_000; Date.now() < due; await wait(100)) {
+            // Read every SVG transform in order, including the source-origin
+            // translate after planMatrix. multiply returns a new matrix;
+            // never consolidate or otherwise mutate React's transform list.
+            const matrix = await evaluate(`(()=>{
+              const transforms=document.querySelector('.ua-plan')?.transform.baseVal;
+              if(!transforms?.numberOfItems)return null;
+              let composed=new DOMMatrix();
+              for(let i=0;i<transforms.numberOfItems;i++){
+                const m=transforms.getItem(i).matrix;
+                composed=composed.multiply(new DOMMatrix([m.a,m.b,m.c,m.d,m.e,m.f]));
+              }
+              return [composed.a,composed.b,composed.c,composed.d,composed.e,composed.f];
+            })()`);
+            if (!matrix || matrix.length !== 6 || !matrix.every(Number.isFinite)) { last = null; still = 0; continue; }
+            still = last && matrix.every((n, i) => Math.abs(n - last[i]) < (i < 4 ? 1e-3 : .05)) ? still + 1 : 0;
+            if (still >= 4) return matrix;
+            last = matrix;
+          }
+          throw new Error('Stored-copy Plan transform did not settle');
+        };
+        const beforePlan = await settledPlan();
+        assert.equal(await selectedRoom(), 'Hall');
+        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor, Synthetic house');
+        assert.equal(await evaluate(pendingCopy), true, 'Fresh read remains held through room, Plan and modal setup');
+        // Retain actual nodes, not selectors which could silently find replacements.
+        // Observe removals and all focus transitions, including loss followed by
+        // restoration between the final assertions. No focus setter runs here.
+        await evaluate(`(()=>{
+          const shell=document.querySelector('.ua-shell'), stage=document.querySelector('.ua-stage'), viewport=document.querySelector('.ua-viewport');
+          const dialog=document.querySelector('.ua-layer-dialog'), control=document.activeElement;
+          const heading=document.querySelector('.ua-inspector.is-room h2'), note=document.querySelector('.ua-stored-note');
+          const nodes={shell,stage,viewport,dialog,control,heading}, removed=[], focus=[], losses=[];
+          const focusChange=event=>focus.push({type:event.type,onControl:event.target===control});
+          for(const type of ['blur','focusout','focusin']) document.addEventListener(type,focusChange,true);
+          const closed=()=>losses.push('dialog-close'); dialog.addEventListener('close',closed);
+          const observe=records=>{for(const record of records)for(const node of record.removedNodes)
+            for(const [name,held] of Object.entries(nodes))if(node===held||node.contains(held))removed.push(name);};
+          const observer=new MutationObserver(observe);observer.observe(document.body,{childList:true,subtree:true});
+          let frame;const sample=()=>{if(document.activeElement!==control||!dialog.matches(':modal')||Object.values(nodes).some(node=>!node.isConnected))losses.push('frame-lifetime-or-focus');frame=requestAnimationFrame(sample);};
+          frame=requestAnimationFrame(sample);
+          window.__storedDialogCurrentness={nodes,note,removed,focus,losses,stop(){observe(observer.takeRecords());observer.disconnect();cancelAnimationFrame(frame);
+            for(const type of ['blur','focusout','focusin'])document.removeEventListener(type,focusChange,true);dialog.removeEventListener('close',closed);}};
+        })()`);
+        await evaluate('window.dispatchEvent(new CustomEvent("synthetic-atlas-refresh-release",{detail:"identical"}))');
+        await until('document.documentElement.dataset.syntheticAtlasRefresh==="identical"&&!document.querySelector(".ua-stored-note")', 'identical fresh read settles stored/pending indicator');
+        const afterPlan = await settledPlan();
+        assert(beforePlan.every((n, i) => Math.abs(n - afterPlan[i]) < (i < 4 ? 1e-3 : .05)),
+          `Settled Plan transform retained: ${JSON.stringify({ beforePlan, afterPlan })}`);
+        const lifetime = await evaluate(`(()=>{const held=window.__storedDialogCurrentness;held.stop();const n=held.nodes;
+          return {sameShell:document.querySelector('.ua-shell')===n.shell,sameStage:document.querySelector('.ua-stage')===n.stage,
+            sameViewport:document.querySelector('.ua-viewport')===n.viewport,sameDialog:document.querySelector('.ua-layer-dialog')===n.dialog,
+            sameHeading:document.querySelector('.ua-inspector.is-room h2')===n.heading,connected:Object.values(n).every(node=>node.isConnected),
+            modal:n.dialog.matches(':modal'),focused:document.activeElement===n.control,storedIndicatorRemoved:!held.note.isConnected,
+            removed:held.removed,focus:held.focus,losses:held.losses};})()`);
+        assert.deepEqual(lifetime, { sameShell: true, sameStage: true, sameViewport: true, sameDialog: true, sameHeading: true,
+          connected: true, modal: true, focused: true, storedIndicatorRemoved: true, removed: [], focus: [], losses: [] });
+        assert.equal(await selectedRoom(), 'Hall');
+        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor, Synthetic house');
+        // The stable-stage assertion must never preserve content after denial.
+        // A separate generated page sends 403 through the production reader.
+        await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false });
+        await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated&atlas-cache=stored-pending` });
+        await openPendingDialog();
+        assert.equal(await evaluate(pendingCopy), true, 'Denied read remains held until its stored modal is open');
+        await evaluate('window.__deniedStoredStage=document.querySelector(".ua-stage");window.__deniedStoredDialog=document.querySelector(".ua-layer-dialog");window.dispatchEvent(new CustomEvent("synthetic-atlas-refresh-release",{detail:"denied"}))');
+        await until('Boolean(document.querySelector(".ua-shell [role=alert]"))&&!document.querySelector(".ua-stage")', 'denied read retires the stored stage');
+        assert.equal(await evaluate('window.__deniedStoredStage.isConnected'), false);
+        assert.equal(await evaluate('window.__deniedStoredDialog.isConnected'), false);
+        assert.equal(await evaluate('document.querySelectorAll(".ua-room-btn,.ua-layer-dialog,.ua-stored-note").length'), 0,
+          'Denied content and its layer dialog are removed, never stabilized');
+        report.storedDialogCurrentness = { lifetime, beforePlan, afterPlan, deniedStageRetired: true };
+        report.webgl = { available: false, diagnostic: 'Named DOM currentness case; GPU rendering not measured' };
+      });
+    } else {
     await check('historic drawing group uses projected room badges and retains unknown placement', async () => {
       await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated&atlas-drawing-groups=generated` });
       await until('Boolean(document.querySelector(".ua-room-btn"))', 'generated documentary host ready');
@@ -356,6 +481,7 @@ try {
     await check('unavailable electrical drawing traps Tab and Shift-Tab, closes with Escape and restores opener', async () => {
       await openLibrary('unavailable'); await checkPendingKeyboard('The drawing source is unavailable.');
     });
+    }
     assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
     assert(cdp.requests.every(url => url.startsWith(`${origin}/`) || url.startsWith('data:') || url.startsWith('blob:')),
       'Application requests remain on owned loopback or generated memory URLs');
