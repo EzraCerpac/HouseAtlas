@@ -575,5 +575,9 @@ try {
   report.cleanup.scratchRemoved = !existsSync(scratch);
   if (!Object.values(report.cleanup).every(Boolean)) exitCode = 1;
   console.log(JSON.stringify(report, null, 2));
+  // Fixed generated labels/enums, DOM count, booleans and <=10 coverage values
+  // fit within 1024 ASCII bytes, intact (no slicing). The runner tails stdout +
+  // stderr, so emit last on stderr to preserve every existing snapshot field.
+  if (report.drawingGroupFailure) console.error(JSON.stringify({ drawingGroupFailure: report.drawingGroupFailure }));
 }
 process.exitCode = exitCode;
