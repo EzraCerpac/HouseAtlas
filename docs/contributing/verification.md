@@ -3495,3 +3495,19 @@ filesystem pins, explicit observation permits, scoped journal/readback, bounds
 and uncertainty. They contact no NAS or private source and exercise no mutation,
 installation or operational adoption. See the maintained
 [filesystem observation contract](../../tools/model-input-disposition/FILESYSTEM-OBSERVATION.md).
+
+
+The default backend-library selection additionally discovers
+`providers::homebox::read::native_list_pages::healthy::healthy_native_list_continuations_retain_capture_and_retire_terminal`.
+This generated in-process test uses five field or maintenance rows, one injected
+GET per list, actual in-memory Access and the existing NativeListPages owner to
+check 2/2/1 pages, retained capture/bytes/timestamp identity, fresh captured grants
+per continuation and terminal cursor retirement. A private test-only snapshot is
+assembled from the actual native decoder; its baseline is correlation data, not a
+Store read. Configured capture, credential custody, byte accounting, domain
+bind/dispatch/disclosure, mounted HTTP/MCP, live providers, browser/device acceptance
+and broader continuation variants are not qualified. No production API, workflow
+command or runner is added. Source registration is not execution evidence; the
+new named case and Rust formatting/compilation remain NOT RUN until verified by
+an environment with the pinned toolchain. Existing #288 qualification rows stay
+unchanged.

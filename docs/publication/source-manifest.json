@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 31195,
-      "sha256": "b26b8e749e9cec1eea2274204958a35683c62a80e5dfcfc278791b6a57c01399",
+      "bytes": 32285,
+      "sha256": "cf73541613d89cade166858e4da3247905a7bc8fede5753d26f8e2d18f3c80bc",
       "owner": "core-integration"
     },
     {
@@ -3716,8 +3716,15 @@
     {
       "path": "backend/src/providers/homebox/read/native_list_pages.rs",
       "mode": "100644",
-      "bytes": 27448,
-      "sha256": "faf9a65679d9d50774d78e6c9fa0b16838444aa89c428321969576bba5e17932",
+      "bytes": 27516,
+      "sha256": "a7bce5cd844b0b34f32d66163b26c8acba6803389ee83612c7a0558eaab56f75",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/native_list_pages_healthy.rs",
+      "mode": "100644",
+      "bytes": 12827,
+      "sha256": "d79b25bb7362bf85067ab2a6932356c441353ce4a8205b12803bfb2429054706",
       "owner": "homebox"
     },
     {
@@ -6516,8 +6523,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 222710,
-      "sha256": "de5cffe53f58407f91a85417179a614e4274a452601088832bc99c9ec5af7805",
+      "bytes": 223800,
+      "sha256": "2aa241ef52b49591adcab42c83778dbc95764073c9703a5763f47f31ac247ee8",
       "owner": "core-integration"
     },
     {
