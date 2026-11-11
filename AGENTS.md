@@ -29,6 +29,15 @@ Inspect script bodies before running them. README.md and its linked
 [complete verification guide](docs/contributing/verification.md) list the
 ordinary verification commands. Healthy mutations are scoped synthetic examples.
 
+The existing default backend-library set discovers exactly three private
+`ai::host::continuation::continuation_healthy` cases: stop during original
+review/authority checks, exact expiry during those checks using a private clock,
+and unchanged one-time checkpoint claim. Disposable SQLite journal readback and
+opaque fake prepared handles establish only local continuation fences and
+unknown usage preservation. No actual approval, native domain, provider,
+credential, mounted route or runtime activation is exercised. No workflow or
+runner command is added; hosted case logs establish execution.
+
 Rules for every test, locally or in CI: isolated disposable synthetic
 environments, fake or local-only transports, and no real credentials, live
 providers, user data, populated production restore or deployment. Running a
@@ -164,6 +173,9 @@ loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
+(#552): the pure network route search over generated topologies, with no DOM,
+browser, native host or source reads.
 
 The default backend-library set also executes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,

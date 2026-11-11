@@ -2908,7 +2908,24 @@
 }
 
 /* Reduced motion: views and panels change in place. */
+/* A traced network route draws itself between rooms, one step after another,
+   from the chosen device toward the router. */
+.lantern-host .ua-net-tracing path { transition: opacity 0.2s ease; }
+.lantern-host .ua-net-trace {
+  stroke-dasharray: 1 0;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85));
+  animation: ua-net-trace-draw 0.42s ease-out both;
+  animation-delay: calc(var(--hop, 0) * 140ms);
+}
+
+@keyframes ua-net-trace-draw {
+  from { stroke-dasharray: 0 1; }
+  to { stroke-dasharray: 1 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .lantern-host .ua-net-trace { animation: none; }
   .lantern-host .ua-spinner { animation: none; border-top-color: var(--hair-2); }
   .lantern-host .ua-plan,
   .lantern-host .ua-key,

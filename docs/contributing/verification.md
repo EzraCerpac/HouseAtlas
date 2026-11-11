@@ -1,5 +1,27 @@
 # HouseAtlas
 
+## Native AI continuation release fence
+
+The existing default backend-library selection discovers these three cases in
+`backend/src/ai/host/continuation_healthy.rs`, under
+`ai::host::continuation::continuation_healthy::`:
+
+- `stop_during_original_checks_preserves_unclaimed_checkpoint`
+- `expiry_during_original_checks_preserves_unclaimed_checkpoint`
+- `original_checkpoint_is_claimed_once_without_replacing_usage`
+
+They use fake review/authority, an opaque prepared allocation and a disposable
+SQLite journal. The actual claim path rechecks cancellation and expiry after
+original review/authority checks, before recording or consuming the claim. A
+private clock drives exact expiry with no sleeps; production uses Instant::now.
+Refused claims preserve the original checkpoint, prior operation correlations
+and unknown usage without a claim observation. Explicit retirement and one-time
+successful claim are checked separately. These are source-authored cases until
+exact hosted logs show execution; no local compilation/test result is claimed.
+They establish no actual approval, native reviewed dispatch, credential/provider
+operation, mounted router, runtime activation or device qualification. No
+workflow, command or held runner selection is added.
+
 ## Native AI stock read contract
 
 The existing default backend-library job discovers exactly
@@ -154,7 +176,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 72 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 73 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -2193,6 +2215,15 @@ After inspecting its pure projector, stage join and generated test body, run:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-network-connections-healthy.mjs
+```
+
+The tap-to-trace route search (#552) has its own generated positive in the same
+healthy list. It checks route order from device to root, fewest hops before
+evidence, hypothesis and uncertainty flags, traversal through shared segments,
+root ranking and the no-root and unreachable answers, with no DOM or source reads:
+
+```sh
+node frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs
 ```
 
 It retains original, reversed and parallel links, explicit endpoint ownership,
