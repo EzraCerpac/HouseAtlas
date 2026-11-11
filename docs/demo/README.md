@@ -77,6 +77,18 @@ signed-out screen links to it as **Example house**. The Rust host serves
 browsers too; `/example/` alone is not mapped. The Vite dev server serves the
 same page at the same path.
 
+### Documents in the example
+
+Open **Library**, then find **Source documents**.
+Open **Synthetic parcel survey** to inspect its recorded source information
+and qualified PNG preview; choose **Original** for its generated two-page PDF.
+The list also includes **Synthetic outline export**;
+**Load more** shows the out-of-date **Synthetic elevation tile**.
+These documents, their dates, licences and source details are fictional.
+They do not establish a building, floor or room placement.
+The existing media artifact does not capture this Library view;
+the example uses an in-page synthetic reader, not a live document source.
+
 ### Starting state
 
 Four optional URL parameters name the Atlas's starting view:
@@ -188,9 +200,10 @@ Before the screenshot the same run:
 diagnostics, the storage results, the isolation and Back entry URL, the Back
 path Chromium took (back/forward-cache restore or reload; both pages are
 served `no-store`, like the Rust host, so a
-reload is likely) and informational durations. The example adds one phase after the existing
-capture, with its own 60-second bound; the existing 90-second bound is
-unchanged, so the script can take up to 150 seconds in all.
+reload is likely) and informational durations. The example adds two phases after
+the existing capture: build and tour, then production-state checks, each with a
+60-second bound. The existing 90-second bound is unchanged, so the phase
+allowances total 210 seconds; the workflow's job limit also applies.
 
 These checks do not establish: the Rust host itself serving the page (the
 loopback server applies its rules); real cross-tab or service-worker isolation (the sentinels sample
