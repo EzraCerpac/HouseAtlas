@@ -36,16 +36,17 @@ try {
     for (const type of ['mousePressed', 'mouseReleased']) await command('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, ...point });
   };
   const click = text => press(`[...document.querySelectorAll('button')].find(x => x.textContent.trim() === ${JSON.stringify(text)})`);
-  const client = `[...document.querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Client')`;
+  const devices = `[...document.querySelectorAll('details.ung-list')].find(x=>x.querySelector(':scope > summary')?.textContent.startsWith('Devices ('))`;
+  const client = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Client')`;
   const selectClient = async () => {
-    if (!await evaluate(`!!document.querySelector('.ung-list[open] .ung-item-name')`)) await press(`document.querySelector('.ung-list summary')`);
+    if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`);
     await press(client);
   };
   await command('Runtime.enable', {}); await command('Page.enable', {}); await command('Network.enable', {});
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await command('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` });
   await until(`Boolean([...document.querySelectorAll('button')].find(x=>x.textContent.includes('Client')))`);
-  await press(`document.querySelector('.ung-list summary')`);
+  await press(`(${devices})?.querySelector(':scope > summary')`);
   // Fixture-only witness: inspect the first animation callback following native
   // input and count browser requests during that interval, not elapsed latency.
   const beforeTap = requests.length;
