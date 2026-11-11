@@ -8959,15 +8959,15 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/browser.mjs",
       "mode": "100644",
-      "bytes": 46367,
-      "sha256": "ffa89cc8dfaece325634c1f2c308cc8a2ed0e7e8b1dad0574535851861e16039",
+      "bytes": 46955,
+      "sha256": "1d1d7b65f4cfbb7fc2f587d118426fae1a98080abc98685d057f983dc5028318",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/electrical-trace.html",
       "mode": "100644",
-      "bytes": 371,
-      "sha256": "a1625fc35757ddf58c2a3e06566135ba8c5fba8055abe2ea60f90958225b57cb",
+      "bytes": 380,
+      "sha256": "5db180578fa224da23ecf26338d39de5144c8c7e897f266345b9849a785f4947",
       "owner": "web"
     },
     {
