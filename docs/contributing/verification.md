@@ -4819,3 +4819,19 @@ hosted metadata is read. Pinned Chromium156 source requests helper API1 and expo
 metadata candidates are not seven browser cases: browser selections remain the
 unchanged80 SOURCE /1 BUILD /7 BROWSER. No permission, policy, package, security
 flag, workflow, runtime or authority is changed. No local functional checks ran.
+
+
+Page-side diagnostic donor d98ea7fc is composed after independent source review.
+It wraps fetch/body/default-reader observation in the generated browser fixture,
+returns original results and changes no assertion/wait/timeout/acceptance rule.
+This is not behavior-neutral: Promise observers add microtasks and affect
+otherwise-unhandled rejection observation; installation failures are swallowed.
+The best-effort log covers the current one-chunk viewer reads, not all Request
+signals, URL inputs, convenience/clone/BYOB consumers or transport behavior.
+Fourteen events per entry and forty-eight entries can omit terminal/later events;
+command-only repeated-read correlation is approximate. A failure report may add
+one bounded fifteen-second Runtime.evaluate after the unchanged settlement limit.
+No absence/equal-byte observation proves no cancellation or successful consumption.
+No body, URL or cookie is logged. Source/byte review is not execution: all new
+page-side observations await exact-head hosted CI, with no local syntax/tests,
+compiler, formatter or browser run. The seven browser selections remain unchanged.

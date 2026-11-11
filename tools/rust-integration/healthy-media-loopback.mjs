@@ -38,6 +38,45 @@ const nativeReads = new Map();
 // Diagnostic only: bounded transfer metadata of generated fixture reads for failure messages.
 // No assertion or wait reads it. Byte counts are CDP's decoded/encoded transfer counts and
 // Content-Length is the wire header, so they need not be equal for an encoded response.
+// Diagnostic only: a passive page-side record of what the page itself did with each generated
+// /invoke GET (headers seen, body read to done, page-issued cancel or abort). Wrappers return the
+// original values and hold entries weakly by Response/stream/reader; no assertion or wait reads it.
+// It observes this test browser only and establishes nothing about production behavior.
+const pageReadObserver = `(() => { try {
+  const log = globalThis.__houseatlasReadLog = [], responses = new WeakMap(), streams = new WeakMap(), readers = new WeakMap();
+  let sequence = 0;
+  const note = (entry, name) => { try { if (entry && entry.events.length < 14) entry.events.push(++sequence + ':' + name + '@' + Math.round(performance.now())); } catch {} };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (...args) {
+    const result = originalFetch.apply(this, args);
+    try {
+      const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href);
+      const method = String(args[1]?.method ?? (typeof args[0] === 'string' ? 'GET' : args[0].method)).toUpperCase();
+      if (method === 'GET' && url.pathname.endsWith('/invoke') && log.length < 48) {
+        let commandId = null; try { commandId = String(JSON.parse(url.searchParams.get('request')).commandId).slice(0, 64); } catch {}
+        const entry = { commandId, events: [] }; log.push(entry); note(entry, 'fetch');
+        const signal = args[1]?.signal;
+        if (signal) signal.addEventListener('abort', () => note(entry, 'signal-abort:' + String(signal.reason?.status ?? signal.reason?.name ?? 'unknown').slice(0, 24)), { once: true });
+        result.then(response => { responses.set(response, entry); note(entry, 'headers:' + response.status); }, error => note(entry, 'fetch-reject:' + String(error?.name).slice(0, 24)));
+      }
+    } catch {}
+    return result;
+  };
+  const body = Object.getOwnPropertyDescriptor(Response.prototype, 'body');
+  Object.defineProperty(Response.prototype, 'body', { ...body, get() { const stream = body.get.call(this); try { const entry = responses.get(this); if (entry && stream) streams.set(stream, entry); } catch {} return stream; } });
+  const getReader = ReadableStream.prototype.getReader;
+  ReadableStream.prototype.getReader = function (...args) { const reader = getReader.apply(this, args); try { const entry = streams.get(this); if (entry) { readers.set(reader, entry); note(entry, 'reader'); } } catch {} return reader; };
+  const streamCancel = ReadableStream.prototype.cancel;
+  ReadableStream.prototype.cancel = function (...args) { try { note(streams.get(this), 'stream-cancel'); } catch {} return streamCancel.apply(this, args); };
+  const read = ReadableStreamDefaultReader.prototype.read;
+  ReadableStreamDefaultReader.prototype.read = function (...args) {
+    const result = read.apply(this, args);
+    try { const entry = readers.get(this); if (entry) result.then(part => note(entry, part.done ? 'read-done' : 'read-bytes:' + part.value?.byteLength), error => note(entry, 'read-reject:' + String(error?.name).slice(0, 24))); } catch {}
+    return result;
+  };
+  const readerCancel = ReadableStreamDefaultReader.prototype.cancel;
+  ReadableStreamDefaultReader.prototype.cancel = function (...args) { try { note(readers.get(this), 'reader-cancel'); } catch {} return readerCancel.apply(this, args); };
+} catch {} })()`;
 let readEventSequence = 0;
 const observeRead = (read, event, params) => {
   if (!read?.diagnostic) return;
@@ -129,6 +168,8 @@ try {
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
   await send('Network.enable'); await send('Page.enable'); await send('Runtime.enable');
+  // Diagnostic only; a refused installation leaves the flow unchanged.
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: pageReadObserver }).catch(() => undefined);
   const split = cookie.indexOf('=');
   const installed = await send('Network.setCookie', { name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin, path: '/', secure: true, httpOnly: true, sameSite: 'Strict' });
   assert.equal(installed.success, true, 'Browser receives the actual issued Secure cookie');
@@ -238,7 +279,12 @@ try {
       await until(() => rows().length >= 4 && rows().every(read => read.finished)
         && ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list'].every(completed),
         'Every viewer native read settled before session replacement');
-    } catch (error) { throw new Error(error.message + ': ' + describe()); }
+    } catch (error) {
+      // Diagnostic only: append the page's own bounded record to the unchanged timeout failure.
+      let page = 'unavailable';
+      try { page = String(await evaluate('JSON.stringify(globalThis.__houseatlasReadLog ?? null)')).slice(0, 6000); } catch { /* keep the original failure */ }
+      throw new Error(error.message + ': ' + describe() + ' page=' + page);
+    }
     // An old body may be canceled only AFTER its actual authorized200 headers.
     // That settles traffic; it does not count as successfully read content.
     assert(rows().every(read => read.status === 200 && (!read.failed
