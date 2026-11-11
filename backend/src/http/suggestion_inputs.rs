@@ -115,8 +115,14 @@ impl SelectionRequest {
                     collection_id,
                     entity_id,
                 } => {
-                    for id in [source_instance_id, collection_id, entity_id] {
+                    for id in [source_instance_id, entity_id] {
                         canonical_id(id)?;
+                    }
+                    // Match the original HomeBox registration/access owners:
+                    // collection identity is opaque bounded text, not a UUID.
+                    // Preserve exact spelling, including whitespace and Unicode.
+                    if !(1..=4096).contains(&collection_id.chars().count()) {
+                        return Err(InputError::InvalidSelection);
                     }
                     // Entity and location aliases cannot select the same record twice.
                     format!("homebox:{source_instance_id}:{collection_id}:{entity_id}")
