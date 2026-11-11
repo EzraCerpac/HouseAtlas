@@ -81,6 +81,33 @@ function LampFixture() {
     <main>{[1, 6, 10, 12].map(height => <LampSample key={height} height={height} metal={height === 1} enabled={enabled} />)}</main></>;
 }
 
+// Four otherwise identical fictional surfaces isolate the scalar in the
+// production shader. The final surface exercises the shader's default fallback.
+function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; metallic: number; glass: boolean; legacy: boolean }) {
+  const [failure, setFailure] = useState('');
+  const meshes = useMemo(() => {
+    const color = [glass ? .18 : .06, glass ? .18 : .06, glass ? .18 : .06, glass ? .12 : 1] as const;
+    return prepareMeshes([{ meshKey: 'scalar', floorId: null, occurrenceId: null, sourceBaseColor: color,
+      ...(glass ? { sourceNight: 'glazing' as const } : {}),
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]), indices: new Uint32Array([0, 1, 2, 1, 3, 2]),
+      sourceMaterial: { baseColor: color, metallic, roughness: .35, doubleSided: true, scalarOnly: true,
+        ...(legacy ? {} : { specular: factor, hasSpecular: true }) } }]);
+  }, [factor, metallic, glass, legacy]);
+  const projection = useMemo(() => makeProjection({ yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 },
+    { min: [-.1, -.1, -.1], max: [1.1, 1.1, .1] }, { width: 320, height: 300 }, 0), []);
+  return <section><h2>{legacy ? 'Shader fallback' : `Specular ${factor}`}</h2><MeshLayer meshes={meshes} projection={projection}
+    rules={{ visibleFloors: 'all', clipY: null }} currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]}
+    tints={new Map()} hidden={false} sourceColors sourceMaterials ambient={.2} twoSided light={[0, 0, 1]}
+    glazingKeys={glass ? new Set(['scalar']) : new Set()}
+    daylight={{ direct: 1, night: false, lamp: 0, tint: [1, 1, 1], sunTint: [1, 1, 1], lampTint: [1, 1, 1] }}
+    onUnavailable={setFailure} /><output>{failure}</output></section>;
+}
+function ScalarFixture({ mode }: { mode: string }) {
+  const glass = mode === 'glass' || mode === 'glass-metal', metallic = mode === 'metal' || mode === 'glass-metal' ? 1 : mode === 'mixed' ? .5 : 0;
+  return <main>{[0, .5, 1, 1].map((factor, index) => <ScalarSample key={index} factor={factor} metallic={metallic}
+    glass={glass} legacy={index === 3} />)}</main>;
+}
+
 function Fixture() {
   const [mesh, setMesh] = useState<PreparedMesh | null>(null), [failure, setFailure] = useState('');
   useEffect(() => { const controller = new AbortController(); void (async () => {
@@ -91,4 +118,5 @@ function Fixture() {
   return <><output>{failure}</output>{mesh ? new URLSearchParams(location.search).has('glass') ? <GlassFixture mesh={mesh} /> : <main><Sample title="Base colour, normal and metallic/roughness" mesh={mesh} />
     <Sample title="Selected" mesh={mesh} selected /><Sample title="Dimmed" mesh={mesh} dim={.65} /><Sample title="Ghost" mesh={mesh} ghost /></main> : <p>Preparing generated samples…</p>}</>;
 }
-createRoot(document.getElementById('root')!).render(new URLSearchParams(location.search).has('lamps') ? <LampFixture /> : <Fixture />);
+const query = new URLSearchParams(location.search), scalar = query.get('scalar');
+createRoot(document.getElementById('root')!).render(scalar ? <ScalarFixture mode={scalar} /> : query.has('lamps') ? <LampFixture /> : <Fixture />);

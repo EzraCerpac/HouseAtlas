@@ -4715,3 +4715,16 @@ assertion removal, budget/deadline increase, private bake, release or deployment
 Restored renderer yields and all later suggestion/collection changes are kept.
 The source/frontend/loopback1 failures at c1710cea remain unclassified because
 accessible annotations contain only exit codes and denied downloads stay stopped.
+
+
+The scalar pixel follow-up composes exact #589 `b7e0a7b2` after independent
+static review. It extends the existing WebGL2 case with five generated scenes:
+dielectric, mixed-metal, metal, glass and glass-metal at zero/half/one strength
+and the internal shader fallback. Every canvas first needs visible surface versus
+its own clear-background contrast; blank metal samples cannot qualify equality.
+The half-strength controls must remain strictly inside meaningful endpoints.
+This is actual shader-path source, not a private GLB/export or device result;
+admission/copy/bake are separately authored controls, not inferred pixel evidence.
+All new pixel controls are NOT RUN by this integration thread. Their added cost
+must pass the unchanged 180-second outer case and existing renderer assertions.
+No test selection, security flag, timeout, budget, release or activation changed.
