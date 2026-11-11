@@ -29,13 +29,16 @@ const observedUrls = [], responses = [], runtimeErrors = [], nativeListResponses
 let phase = 'initial-view';
 const requestPhases = new Map();
 const nativeReads = new Map();
-// Diagnostic only: bounded transfer metadata of generated fixture reads for failure messages.
-// No assertion or wait reads it. Byte counts are CDP's decoded/encoded transfer counts and
+// The `diagnostic` field is bounded transfer metadata of generated fixture reads for failure
+// messages only; the settlement oracle reads the separate requestId, bodyBytes, header and
+// errorText row fields instead. Byte counts are CDP's decoded/encoded transfer counts and
 // Content-Length is the wire header, so they need not be equal for an encoded response.
-// Diagnostic only: a passive page-side record of what the page itself did with each generated
-// /invoke GET (headers seen, body read to done, page-issued cancel or abort). Wrappers return the
-// original values and hold entries weakly by Response/stream/reader; no assertion or wait reads it.
-// It observes this test browser only and establishes nothing about production behavior.
+// Page-side record of what the page itself did with each generated /invoke GET (headers seen,
+// body read to done, page-issued cancel or abort). It participates in acceptance: the settlement
+// oracle requires its positive EOF, so installation is mandatory. Wrappers return the original
+// values and hold entries weakly by Response/stream/reader, but they are not behavior-neutral:
+// their promise observers mark the wrapped promises handled and add microtasks. It observes this
+// test browser only and establishes nothing about production behavior.
 const pageReadObserver = `(() => { try {
   // Settlement evidence, not only diagnostics: terminal flags are uncapped; the event list stays bounded.
   const state = { document: String(performance.timeOrigin) + ':' + Math.random().toString(36).slice(2), phase: null, overflow: false, unsupported: 0, entries: [] };
@@ -226,6 +229,16 @@ const verifyViewerReadOracle = () => {
     aborted(newRows[1]); newRows[1].bodyBytes = 40; Object.assign(newEntries[1], { bytes: 40, done: false, cancel: true });
     rows.push(...newRows); entries.push(...newEntries);
   }, [true, false, 'settled'], false);
+  check('duplicate network requestId', rows => { rows[1].requestId = rows[0].requestId; }, [false, true, 'duplicate application requestId']);
+  check('missing network requestId', rows => { rows[1].requestId = null; }, [false, true, 'missing application requestId']);
+  check('page abort flag beside EOF', (rows, entries) => { entries[1].abort = true; }, unconsumed);
+  check('page cancel flag beside EOF', (rows, entries) => { entries[1].cancel = true; }, unconsumed);
+  check('page reject flag beside EOF', (rows, entries) => { entries[1].reject = true; }, unconsumed);
+  check('non-integer byte counts', (rows, entries) => { rows[1].bodyBytes = 100.5; entries[1].bytes = 100.5; }, unconsumed);
+  check('non-numeric byte counts', (rows, entries) => { rows[1].bodyBytes = '101'; entries[1].bytes = '101'; }, unconsumed);
+  check('encoded response compares decoded bytes, not the wire Content-Length', rows => { rows[1].contentEncoding = 'gzip'; rows[1].contentLength = '60'; }, [true, false, 'settled']);
+  check('encoded response with short page bytes', (rows, entries) => { rows[1].contentEncoding = 'gzip'; rows[1].contentLength = '60'; entries[1].bytes -= 1; }, unconsumed);
+  check('ready status is not required for later traffic quiescence', (rows, entries, snap) => { snap.ready = false; }, [true, false, 'settled'], false);
 };
 verifyViewerReadOracle();
 let readEventSequence = 0;
@@ -330,7 +343,7 @@ try {
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
   await send('Network.enable'); await send('Page.enable'); await send('Runtime.enable');
-  // Diagnostic only; a refused installation leaves the flow unchanged.
+  // Mandatory: the settlement oracle depends on this record, so a refused installation fails the flow.
   await send('Page.addScriptToEvaluateOnNewDocument', { source: pageReadObserver });
   const split = cookie.indexOf('=');
   const installed = await send('Network.setCookie', { name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin, path: '/', secure: true, httpOnly: true, sameSite: 'Strict' });
