@@ -33,10 +33,7 @@ struct FixedGet {
 }
 impl r::Transport for FixedGet {
     type Body = Body;
-    async fn get(
-        &mut self,
-        request: r::GetRequest,
-    ) -> Result<r::GetResponse<Body>, r::ReadError> {
+    async fn get(&mut self, request: r::GetRequest) -> Result<r::GetResponse<Body>, r::ReadError> {
         assert_eq!(request.method(), "GET");
         assert_eq!(request.path(), self.path);
         assert_eq!(request.tenant(), id(4));
@@ -300,14 +297,12 @@ async fn healthy_native_list_continuations_retain_capture_and_retire_terminal() 
                 .continue_original(
                     &contracts,
                     &shared,
-                    NativeListReadRequest::select(&configured, &fresh, &request, &baseline).unwrap(),
+                    NativeListReadRequest::select(&configured, &fresh, &request, &baseline)
+                        .unwrap(),
                 )
                 .unwrap();
             let expected_observation = DecodedReadObservation::from_native_list_page(
-                &contracts,
-                &request,
-                &snapshot,
-                expected,
+                &contracts, &request, &snapshot, expected,
             )
             .unwrap();
             assert_eq!(

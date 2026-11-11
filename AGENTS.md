@@ -29,6 +29,15 @@ Inspect script bodies before running them. README.md and its linked
 [complete verification guide](docs/contributing/verification.md) list the
 ordinary verification commands. Healthy mutations are scoped synthetic examples.
 
+The existing default backend-library set discovers exactly three private
+`ai::host::continuation::continuation_healthy` cases: stop during original
+review/authority checks, exact expiry during those checks using a private clock,
+and unchanged one-time checkpoint claim. Disposable SQLite journal readback and
+opaque fake prepared handles establish only local continuation fences and
+unknown usage preservation. No actual approval, native domain, provider,
+credential, mounted route or runtime activation is exercised. No workflow or
+runner command is added; hosted case logs establish execution.
+
 Rules for every test, locally or in CI: isolated disposable synthetic
 environments, fake or local-only transports, and no real credentials, live
 providers, user data, populated production restore or deployment. Running a
@@ -57,6 +66,15 @@ a fake iCloud helper; no launchd, network or real data) with the runner's
 known/approximate affine fits, property-wide inventory, documentary-only intake,
 reviewed withdrawal, revision reconciliation, stale current identities and
 source-uncertainty hull coverage (including malformed explicit row tolerances).
+The existing documentary-only top-level case also contains exactly four
+generated electrical-data subtests for #554: canonical panel/circuit/evidence
+joins and report/label/test distinction; unknown/stale/ambiguous/conflicting
+withholding; same-circuit contradictory tests across group/fixture overlap in
+both row orders; and exact scope/review/test coverage. They use the read schema,
+pure projector and generated fixture in `contracts/electrical-data/README.md`,
+with already pinned contracts Ajv. Original registration assertions and the
+eight-case command remain; no workflow, provider, native write or UI is added.
+The tested-state fixture is invented, never installed wiring evidence.
 These pure in-memory cases create no receipt, native authority or physical
 placement.
 The ordinary-core job also runs the sixteen explicit cases in
@@ -155,6 +173,9 @@ loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
+(#552): the pure network route search over generated topologies, with no DOM,
+browser, native host or source reads.
 
 The default backend-library set also executes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,
