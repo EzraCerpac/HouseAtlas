@@ -16,7 +16,7 @@ export async function electricalRecordOwnerCases(client, binding, identity, sema
   assert.equal(result.records.identities[0].target.recordId, identity.target.recordId);
   assert.equal(result.records.semantics[0].target.recordId, semantics.target.recordId);
   assert.equal(result.records.circuits[0].target.recordId, circuit.target.recordId);
-  assert.equal(result.records.evidence[0].payload.provenance.sourceRevision.token, '123');
+  assert.equal(result.records.evidence[0].payload.provenance.sourceRevision.token, '9007199254740993');
   assert.deepEqual(result.records.evidence[0].payload.provenance.uncertainty, evidence.payload.provenance.uncertainty);
   let notices = 0; owner.subscribe(() => { notices++; });
   withdrawn(); assert.equal(notices, 1); assert.equal((await owner.read()).status, 'retired');
@@ -39,16 +39,18 @@ export async function electricalRecordOwnerCases(client, binding, identity, sema
   assert.equal((await changed.read()).status, 'partial');
   assert.equal((await changed.read()).status, 'unavailable');
   assert.equal((await changed.read()).status, 'retired');
-  const withdrawnClient = { ...client, async listAll(...args) {
-    const value = await client.listAll(...args);
-    if (args[1] !== 'evidence' || value.status !== 'ready') return value;
-    return { ...value, records: value.records.map(row => row.target.recordId !== evidence.target.recordId ? row :
-      { ...row, payload: { ...row.payload, provenance: { ...row.payload.provenance,
-        uncertainty: { status: 'withdrawn', explanation: null } } } }) };
-  } };
-  const withdrawal = make({ client: withdrawnClient });
-  assert.equal((await withdrawal.read()).status, 'unavailable');
-  assert.equal((await withdrawal.read()).status, 'retired');
+  for (const status of ['withdrawn', 'disputed', 'superseded']) {
+    const withheldClient = { ...client, async listAll(...args) {
+      const value = await client.listAll(...args);
+      if (args[1] !== 'evidence' || value.status !== 'ready') return value;
+      return { ...value, records: value.records.map(row => row.target.recordId !== evidence.target.recordId ? row :
+        { ...row, payload: { ...row.payload, provenance: { ...row.payload.provenance,
+          uncertainty: { status, explanation: null } } } }) };
+    } };
+    const withheld = make({ client: withheldClient });
+    assert.equal((await withheld.read()).status, 'unavailable');
+    assert.equal((await withheld.read()).status, 'retired');
+  }
   const mismatchClient = { ...client, async listAll(...args) {
     const value = await client.listAll(...args);
     return args[1] === 'identity' && value.status === 'ready' ? { ...value, snapshotSha256: 'b'.repeat(64) } : value;

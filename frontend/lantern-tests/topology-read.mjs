@@ -1910,7 +1910,8 @@ for (const kind of ['circuit', 'evidence']) {
     revision: row.revision, lifecycle: row.lifecycle, payload: structuredClone(row.payload),
   }));
 }
-fixture.records.evidence[0].payload.provenance.sourceRevision = 123;
+// Keep the JSON integer token exact before the real lossless response decoder sees it.
+fixture.records.evidence[0].payload.provenance.sourceRevision = JSON.rawJSON('9007199254740993');
 const ajv = new Ajv2020({ strict:true, allErrors:true, allowUnionTypes:true });
 addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent);
 const schemas = { validate(ref, value) { const check=ajv.getSchema(agent.$id+ref); assert(check); assert(check(value), JSON.stringify(check.errors)); } };
