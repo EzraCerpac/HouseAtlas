@@ -454,7 +454,10 @@ try {
   // cache-header rules. One bounded phase after the receipt above is complete,
   // so the existing capture keeps its unchanged 90 seconds.
   clearTimeout(deadline);
-  exampleDeadline = setTimeout(stopAll, 60_000);
+  exampleDeadline = setTimeout(() => {
+    console.error('Example capture exceeded its 60-second phase deadline');
+    stopAll();
+  }, 60_000);
   const exampleStarted = Date.now(), frontend = resolve(root, 'frontend');
   // The dev server is not used from here on and must not watch the build.
   if (server.exitCode === null) {
@@ -742,6 +745,9 @@ try {
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
   console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
+} catch (error) {
+  if (errors.length) console.error('Captured page errors or external requests:', errors);
+  throw error;
 } finally {
   clearTimeout(deadline);
   clearTimeout(exampleDeadline);

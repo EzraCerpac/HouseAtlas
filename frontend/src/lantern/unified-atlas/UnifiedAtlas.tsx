@@ -79,16 +79,19 @@ const memory = new Map<string, AtlasViewState>();
 const MEMORY_ENTRIES = 8;
 const overviewOwners = new WeakMap<object, number>();
 let nextOverviewOwner = 0;
-const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
-  const identity = overview.kind === 'live' ? overview.overview : overview.owner;
+const ownerKey = (identity: object) => {
   let owner = overviewOwners.get(identity);
   if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(identity, owner); }
+  return owner;
+};
+const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
+  const owner = ownerKey(overview.kind === 'live' ? overview.overview : overview.owner);
   const { scope, publication, selection } = model.scene;
   // Display policy only groups existing identities; changing it must not
   // remount this same admitted source and discard the selected room/floor.
   return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
-// Scenes whose first view has committed in this tab; an explicit start applies only to that view.
+// Source owners whose first view has committed; an explicit start applies only to that view.
 const startLedger = createStartLedger();
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
@@ -320,7 +323,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
   const stageDetail: StageDetail | null = full?.light === outcome.model ? { model: full.model, failed: full.failed } : null;
   // Same scene, so the same view-state key: the Full model takes over the Light stage in place.
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId} start={outcome.start}
+  return <AtlasStage key={`${ownerKey(suppliedPort)}/${memoryKey(outcome.model, selection)}`} model={outcome.model} port={port} sourceOwner={suppliedPort} selection={selection} entryBuildingId={outcome.entryBuildingId} start={outcome.start}
     otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})}
     {...(stageDetail ? { detail: stageDetail, keepLight } : {})} />;
 }
@@ -489,7 +492,7 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model: lighter, port, selection, entryBuildingId, start, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildingId, start, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort; readonly sourceOwner: object;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
   readonly start?: UnifiedAtlasRead['start'] | undefined; readonly stored?: StoredCopy; readonly retry?: () => void;
   /** The Full tier for this Light model; a 3D failure while it applies goes back to Light through `keepLight`. */
@@ -508,10 +511,10 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, start, o
   const [state, setState] = useState<AtlasViewState>(() => {
     const base = memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
       entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
-    // An explicit start wins, only on this scene's first committed view.
-    return startLedger.pending(key, start)?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
+    // An explicit start wins, only on the first view committed through this source owner.
+    return startLedger.pending(sourceOwner, start)?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
   });
-  useEffect(() => { startLedger.committed(key); }, [key]);
+  useEffect(() => { startLedger.committed(sourceOwner); }, [sourceOwner]);
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);

@@ -35,7 +35,7 @@ const codecURL = await sourceURL('../src/lantern/unified-atlas/stored-overlays.t
 const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../src/lantern/unified-atlas/types': typesURL,
   '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
-const { AtlasReadError } = await import(typesURL);
+const { AtlasReadError, createStartLedger } = await import(typesURL);
 const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
@@ -630,7 +630,7 @@ console.log('Unified Atlas cache healthy checks passed.');
     admitAtlasDisplayForRead: read => read.displayConfig,
     bindAtlasModel: (scene, _glb, displayConfig) => ({ scene, displayConfig }),
     loadStandardGlb: async () => { parses++; return {}; },
-    AtlasReadError, GlbFormatError: class extends Error {},
+    AtlasReadError, createStartLedger, GlbFormatError: class extends Error {},
     RENDER_LIMITS: { uploadBytes: 1024 }, PREPARED_BYTES_PER_TRIANGLE: 1,
     AtlasStage: function AtlasStage() {}, LensStatus: function LensStatus() {},
     FAILURE: { denied: { text: 'Denied' }, stale: { text: 'Stale' } },

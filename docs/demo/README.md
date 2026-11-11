@@ -114,11 +114,11 @@ always opens as named, and from then on the remembered view wins.
 Production sources supply no starting state, so the app opens as before. The
 example passes these values to the Atlas as ordinary Atlas actions on each
 read (`UnifiedAtlasRead.start`), refused one by one where the scene does not
-allow them. The Atlas applies a start only to a scene's first committed view
-(`createStartLedger`): the stage's first render reads it, and only a mounted
-stage records the scene as begun. A stored copy shown first is that view, so
-a start on the later fresh read of the same scene is dropped, never applied
-on reopen. Which array carries it does not matter.
+allow them. The Atlas applies a start only to the first committed view of the host-supplied
+source owner (`createStartLedger`). The stage's first render reads it, and only
+a mounted stage records the owner as begun. A stored copy shown first is that
+view, so later reads, refreshed publications and reopening do not reapply the
+start. A new source owner begins a new lifetime; the array identity does not matter.
 
 The page shares the app's origin and is not a browser sandbox. Its entry
 module first runs `isolation.ts` and only then loads the app, so before any
