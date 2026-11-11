@@ -4872,3 +4872,20 @@ sudo/browser/API or set SUID. New controls and actual installer/API/sandbox/clea
 execution are NOT RUN locally and require exact-head hosted CI. Inventory and
 publication-byte regeneration are source maintenance, not runtime qualification.
 No new workflow/lane; frontend selections remain80 SOURCE /1 BUILD /7 BROWSER.
+
+
+Settlement oracle donor df277670 is composed after independent source review.
+Its first viewer gate joins page and network rows bijectively by original
+application requestId, requires page EOF/bytes and terminal authorized200 network
+accounting plus current ready UI, and refuses wrong document/phase, missing or
+duplicate records, overflow, aborted/partial/non-EOF or replaced current reads.
+Only correlated positive consumption can account for browser ERR_ABORTED; byte
+equality alone never does. Existing auth/write/count and budget assertions stay.
+The second settlement after Changes unmount is traffic quiescence, not fresh
+validation of every later response. Promise instrumentation adds microtasks and
+changes rejection observation; it is not behavior-neutral or a production port.
+Each of the existing five flows authors42 synthetic verdict controls in process.
+They do not exercise observer installation or real browser aborts. These controls
+and the actual browser sequence remain NOT RUN locally; exact hosted execution
+must qualify the combined helper, fixture and oracle. No new workflow/lane or
+removed browser case, sandbox flag, timeout or shader/material change.
