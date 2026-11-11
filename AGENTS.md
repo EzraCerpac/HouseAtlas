@@ -9,6 +9,11 @@ retains its existing minimum row. The two CPU state arrays are not two GPU
 textures, and material admission must not charge the state texture twice.
 Geometry remains 72 bytes per triangle with separate prepared-geometry reporting.
 The existing 64/384 MiB limits, all 95 selections and their deadlines remain.
+State-accounting exports live in the already mapped `glb-preflight.ts`;
+there is no separate runtime state-table import. All 20 trusted harness/contract
+files retain the pinned `8f41c7d7` bytes. No workflow, pin, metric or trust-policy
+change is part of this source-only compatibility repair. Its final head still
+requires hosted qualification; earlier queued runs are not execution evidence.
 Authored existing controls cover row boundaries, repeated nodes, material/plain
 admission, combined-set release and generated artifacts straddling configured
 caps. They are unrun until exact-head hosted qualification. No private/installed

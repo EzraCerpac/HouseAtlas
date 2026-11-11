@@ -3795,6 +3795,13 @@ and reserved counts/bytes across that row boundary. The existing site-publicatio
 check rounds the combined set once and checks that refused releases preserve
 the reservation and a valid final release returns prepared/GPU ledgers to zero.
 These are ledger controls, not evidence of GPU deallocation or transition peaks.
+The shared state-accounting exports are defined in `glb-preflight.ts`, which
+the unchanged immutable performance harness already maps. The separate helper
+leaf is removed; all 20 trusted harness/contract files match the existing pin.
+Standalone provenance checks hash the current preflight and retain guarded
+optional-helper support for historical sources. This repairs import compatibility
+without changing measurements, policies or selections; actual final-head hosted
+results remain required. No queued run is counted as a pass.
 
 Generated zero-texture material artifacts in `accounting-1024` straddle the
 unchanged configured caps. These are authored admission totals, not measured

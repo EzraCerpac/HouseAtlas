@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 100192,
-      "sha256": "5edbccdc79d817e621fda0177c0a90774437ef51589aec044eb963951fc09fb4",
+      "bytes": 100585,
+      "sha256": "3f249460aaa7710b8653ca3c6eddd9a67965c6bd2222f889d29d6ae3caf35af0",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 327521,
-      "sha256": "3420f0d032c2d9b2d00560b44f8ee6565d3bdb5955f348f5bf1948c2fa501658",
+      "bytes": 328053,
+      "sha256": "cc91f036ccdb5c94a04b36fe233597ce942b49dc8027b422594fe96165268d0e",
       "owner": "core-integration"
     },
     {
@@ -8077,8 +8077,8 @@
     {
       "path": "frontend/lantern-tests/canonical-geometry.test.mjs",
       "mode": "100644",
-      "bytes": 25163,
-      "sha256": "b59ca8525c0147a55b308f903d8bc0b8693710162d8b9d57523d628c722a36c4",
+      "bytes": 25058,
+      "sha256": "8330ac6e99eeebdf5dfe34a899e332526eaf7518aa9a4d55b9c9e61661a76496",
       "owner": "web"
     },
     {
@@ -8182,8 +8182,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-healthy.mjs",
       "mode": "100644",
-      "bytes": 16113,
-      "sha256": "4bf193ed0591883b3cc0acf9cb7d2f89bd2983f75467f9d8e0c1e5f1bfbae2ef",
+      "bytes": 16088,
+      "sha256": "0258253cf3394107ef1edecd01c01768a1eb6d32f5cf036fef3048df6ca22e6a",
       "owner": "web"
     },
     {
@@ -8735,8 +8735,8 @@
     {
       "path": "frontend/lantern-tests/site-publication-logic.test.mjs",
       "mode": "100644",
-      "bytes": 7941,
-      "sha256": "996743bb3f1ff740d13b150e7a0fc095a8065f7709dbc41cc7f1152eba914f32",
+      "bytes": 7943,
+      "sha256": "3f90b2463e56f65c75730ca54cb679a888c302ba41791c52c1a0f033ac3bba83",
       "owner": "web"
     },
     {
@@ -8882,8 +8882,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 34022,
-      "sha256": "ed8120a2a3d13f562e73a7a933963306830107a7f158d628480fd344bddf4025",
+      "bytes": 34024,
+      "sha256": "2dbfd3f8f9a98e484553b7bb3367fa68ca874cd01f62d3e6e8a4a961aa05ab5c",
       "owner": "web"
     },
     {
@@ -8896,8 +8896,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 142354,
-      "sha256": "73e3a6631dda06d6edc1a04d2b21bf9f49b7b403c612d230f126d5835603f7ab",
+      "bytes": 142232,
+      "sha256": "aa06c49b0717608b9fd75ad5810004b6d2b527bde504941e01553256a1002f4c",
       "owner": "web"
     },
     {
@@ -9848,8 +9848,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/embedded-png-material.ts",
       "mode": "100644",
-      "bytes": 22217,
-      "sha256": "2bdfc33e5df5dfc6d33d4b8ca93a0112c88f082a571d7d693140991d15e447d9",
+      "bytes": 22180,
+      "sha256": "9ea2a835e539ac9bd0600a3c407db810c4a404455d8324eec50211b87f7962d9",
       "owner": "web"
     },
     {
@@ -9869,36 +9869,29 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/glb-preflight.ts",
       "mode": "100644",
-      "bytes": 19288,
-      "sha256": "91d944763eae104e63cf44d6dc27056c64ceeabd473ce0fad07a43aa8bd55997",
+      "bytes": 20390,
+      "sha256": "49c99e5c2264e0c0c774a0c3efbb194234ec02c51ff3a4970a550a5609989fe1",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/gpu-budget.ts",
       "mode": "100644",
-      "bytes": 2520,
-      "sha256": "4148434b58f327162956ac58554e92ec5f599dc87d7927bf5786cf83562143fd",
+      "bytes": 2517,
+      "sha256": "dd4aef7ca2542adf42c16e7edd86005016e865f4813903288aa7c806186eda23",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 22504,
-      "sha256": "da7a84a46146503f2dfd78f1e9b0b9fb3eaf004c733129ff2752925049e0440c",
+      "bytes": 22498,
+      "sha256": "daacf9e818508c512d8212fdc4b583a8513b7bc9f948277e6156fb69f9dce30a",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 67406,
-      "sha256": "b7bc2b6ce3354d5c916bf75c2c3dedf80f95c3fba5b2bc33fc85ccd55df39a9d",
-      "owner": "web"
-    },
-    {
-      "path": "frontend/src/lantern/canonical-ifc/mesh-state-table.ts",
-      "mode": "100644",
-      "bytes": 1169,
-      "sha256": "237a8b694eaebe4358c343ca92d5b7998ac10977a0f52d2ea5ced047e09db5f2",
+      "bytes": 67403,
+      "sha256": "83a78b5c789ade95a9ac962b1f145f99473fbd18409145d9a84664537aeba642",
       "owner": "web"
     },
     {
@@ -10464,8 +10457,8 @@
     {
       "path": "frontend/src/lantern/site-artifacts/site-budget.ts",
       "mode": "100644",
-      "bytes": 5872,
-      "sha256": "b348197e0c53fa08adfb6362b3c202cfc65f581ca56f5088717e9fa7cafd5fb5",
+      "bytes": 5869,
+      "sha256": "67ca35b6cab86cf43c96f455e08b41a21452af94d3d39594c19d83dfff029922",
       "owner": "web"
     },
     {
@@ -12802,8 +12795,8 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 6888,
-      "sha256": "0521814192cf1db184061b36c3ea9716e2352da3da627ed96cc5a463c2f37f0f",
+      "bytes": 6738,
+      "sha256": "a16b03a7e421e42b8c1be9a85e0fb45e9ac18c96b29609c40ad2288faadffe37",
       "owner": "media"
     },
     {
@@ -12991,8 +12984,8 @@
     {
       "path": "tools/perf/harness/cpu-worker.mjs",
       "mode": "100644",
-      "bytes": 7690,
-      "sha256": "00f50e44b254aedaffe3f5803d60e7d69d63740932cda3c5d90a2c8d8a8e2cb3",
+      "bytes": 7512,
+      "sha256": "93287af29195780c4d6e6659d5d9c0b4612075ffa1254bb302ed4efa11cd5638",
       "owner": "core-integration"
     },
     {
@@ -13138,8 +13131,8 @@
     {
       "path": "tools/perf/model-interaction/README.md",
       "mode": "100644",
-      "bytes": 7644,
-      "sha256": "9d643f41e48b646fb40382d142e176a2adc52e74edb821bc043702bf261af2e2",
+      "bytes": 7788,
+      "sha256": "c86f4ecfe476eedba9e411c5453019749d77c1269c8f71d40435e513835364c0",
       "owner": "core-integration"
     },
     {
@@ -13152,8 +13145,8 @@
     {
       "path": "tools/perf/model-interaction/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 5335,
-      "sha256": "b67e24a186c17ca089b5c8a1305697d7f9ac14d810aee7c7bd0bb0b573fd6fbb",
+      "bytes": 5554,
+      "sha256": "ecace0ac60dd6a0cfd212f740aea61615b88aa5c682c66f94d732a716ef1f298",
       "owner": "core-integration"
     },
     {
