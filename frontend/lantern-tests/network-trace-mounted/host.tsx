@@ -20,13 +20,17 @@ const records: PropertyRecords = { rooms: new Map([['syn-room-hall', { network: 
   networkGraphs: [{ key: 'host-graph', data, qualification: 'Generated host graph', sourceOriginalSha256: hash, deviceRecordKeys: new Map(data.devices.map(d => [d.id, d.id])) }] };
 
 async function port(): Promise<UnifiedAtlasPort> {
+  // Fixture-only counts include in-memory owner and transport reads.
+  const reads = { port: 0, transport: 0, documentary: 0 };
+  Object.assign(window, { __hostTraceReads: reads });
   const input = await buildSyntheticAtlas(scope);
   const composed = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
   const selection = { owner: {}, scope, expiresAt: '2099-01-01T00:00:00Z', publicationId: composed.publicationId, manifestSha256: composed.manifestSha256 };
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: composed.envelopeBytes,
-    href: composed.href, glb: input.glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision });
-  return { current: () => selection, subscribe: () => () => {}, savedDocumentary: { observedAt: '2026-01-01T00:00:00Z', records: () => records },
-    read: (requested, signal) => readUnifiedAtlas({ selection: requested, signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport }) };
+    href: composed.href, glb: input.glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision,
+    onRequest: () => { reads.transport += 1; } });
+  return { current: () => selection, subscribe: () => () => {}, savedDocumentary: { observedAt: '2026-01-01T00:00:00Z', records: () => { reads.documentary += 1; return records; } },
+    read: (requested, signal) => { reads.port += 1; return readUnifiedAtlas({ selection: requested, signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport }); } };
 }
 
 function Host({ atlas }: { readonly atlas: UnifiedAtlasPort }) {
