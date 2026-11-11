@@ -1,5 +1,16 @@
 # HouseAtlas
 
+The required browser list additionally selects only
+`unified-atlas-regression/browser.mjs --stored-dialog-currentness`:
+82 SOURCE / 1 BUILD / 11 BROWSER (94 total). All previous selections,
+including `--electrical`, keep their commands and 180000 ms per-entry limits;
+the broad default regression suite is not registered. The generated case mounts
+the actual stored Atlas and native compact layer dialog, checking an identical
+fresh-read settlement without modal/focus/stage replacement and retirement on
+denial. It is authored and unrun locally, not execution or #292 acceptance.
+No production code, workflow, sandbox setting or other budget changes.
+Earlier counts below describe their respective source checkpoints.
+
 The #552 shared registration adds required SOURCE
 `unified-atlas-network-source-root-healthy.mjs` and required BROWSER
 `network-trace-mounted/browser.mjs`: 82 SOURCE / 1 BUILD / 10 BROWSER
