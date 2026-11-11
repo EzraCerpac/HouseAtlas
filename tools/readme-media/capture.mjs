@@ -782,6 +782,27 @@ try {
   const reopened = await stateFacts(production);
   assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
   examplePhase('reopen checked');
+  // The shipped example's existing synthetic source Documents in Library.
+  await section('Library');
+  const sourceDocuments = production.getByRole('region', { name: 'Source documents' });
+  const survey = sourceDocuments.getByRole('button', { name: 'Synthetic parcel survey', exact: true });
+  await survey.waitFor();
+  await sourceDocuments.getByRole('button', { name: 'Synthetic outline export', exact: true }).waitFor();
+  await sourceDocuments.scrollIntoViewIfNeeded();
+  await production.screenshot({ path: resolve(output, 'example-documents-list.png'), animations: 'disabled' });
+  await survey.click();
+  const documentDialog = production.getByRole('dialog', { name: 'Synthetic parcel survey' });
+  await documentDialog.waitFor();
+  assert.equal(await documentDialog.getByRole('button', { name: 'Qualified preview', exact: true }).getAttribute('aria-pressed'), 'true');
+  await documentDialog.getByRole('img', { name: 'Qualified preview of Synthetic parcel survey' }).waitFor();
+  await production.waitForFunction(() => {
+    const image = document.querySelector('img[alt="Qualified preview of Synthetic parcel survey"]');
+    return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0;
+  });
+  assert.match(await documentDialog.innerText(), /Synthetic Survey Office/);
+  assert.match(await documentDialog.innerText(), /Licence permits use: Synthetic open licence 1\.0/);
+  await production.screenshot({ path: resolve(output, 'example-documents-detail.png'), animations: 'disabled' });
+  await documentDialog.getByRole('button', { name: 'Close', exact: true }).click();
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
   await exampleBrowser.close();
@@ -807,7 +828,7 @@ try {
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
