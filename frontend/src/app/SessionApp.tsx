@@ -29,8 +29,24 @@ import {
 /** The attempt was neither aborted nor superseded by a later one. */
 const latest = (controller: AbortController, attempt: number, generation: { readonly current: number }) =>
   !controller.signal.aborted && attempt === generation.current;
-/** The shipped synthetic example page; it never opens or reads a real Home. */
-const exampleLink = <p><a href="/example/index.html">Example house</a></p>;
+/** One configured-Home open; only the latest attempt may settle it. */
+async function openSession(
+  open: (signal: AbortSignal) => Promise<AtlasSessionInfo>,
+  controller: AbortController,
+  attempt: number,
+  generation: { readonly current: number },
+  setState: (state: SessionState) => void,
+) {
+  setState({ status: "opening" });
+  try {
+    const info = await open(controller.signal);
+    if (latest(controller, attempt, generation))
+      setState({ status: "authenticated", info });
+  } catch {
+    if (latest(controller, attempt, generation))
+      setState({ status: "unavailable", action: "local" });
+  }
+}
 type SessionState =
   | { status: "loading" }
   | { status: "opening" }
@@ -116,15 +132,7 @@ export function SessionApp({
         // Consume synchronously before the wrapped port dispatches. Aborted,
         // uncertain or remounted attempts never replenish the root's fence.
         if (initialHomeBootstrap.consume(sessions)) {
-          setState({ status: "opening" });
-          try {
-            const info = await open(controller.signal);
-            if (latest(controller, attempt, generation))
-              setState({ status: "authenticated", info });
-          } catch {
-            if (latest(controller, attempt, generation))
-              setState({ status: "unavailable", action: "local" });
-          }
+          await openSession(open, controller, attempt, generation, setState);
           return;
         }
       }
@@ -248,15 +256,7 @@ export function SessionApp({
       setState({ status: "unavailable", action: "mode" });
       return;
     }
-    setState({ status: "opening" });
-    try {
-      const info = await open(controller.signal);
-      if (latest(controller, attempt, generation))
-        setState({ status: "authenticated", info });
-    } catch {
-      if (latest(controller, attempt, generation))
-        setState({ status: "unavailable", action: "local" });
-    }
+    await openSession(open, controller, attempt, generation, setState);
   };
   const signOut = async () => {
     initialHomeBootstrap?.retire();
@@ -358,10 +358,17 @@ export function SessionApp({
   }
   if (state.status === "signed-out") {
     const mode = state.mode;
-    return mode === "loopback-local" || mode === "trusted-proxy" ? (
-      <OpenHomePanel openHome={() => void openHome(mode)} />
-    ) : (
-      <SignInForm signIn={signIn} />
+    return (
+      <SessionPanel title="Sign in">
+        {mode === "loopback-local" || mode === "trusted-proxy" ? (
+          <OpenHomePanel openHome={() => void openHome(mode)} />
+        ) : (
+          <SignInForm signIn={signIn} />
+        )}
+        <p>
+          <a href="/example/index.html">Example house</a>
+        </p>
+      </SessionPanel>
     );
   }
   return (
@@ -452,14 +459,11 @@ function OpenHomePanel({ openHome }: { openHome: () => void }) {
     button.current?.focus();
   }, []);
   return (
-    <SessionPanel title="Sign in">
-      <div className="access-actions">
-        <button ref={button} type="button" onClick={openHome}>
-          Open Home
-        </button>
-      </div>
-      {exampleLink}
-    </SessionPanel>
+    <div className="access-actions">
+      <button ref={button} type="button" onClick={openHome}>
+        Open Home
+      </button>
+    </div>
   );
 }
 function SignInForm({
@@ -505,8 +509,7 @@ function SignInForm({
     }
   };
   return (
-    <SessionPanel title="Sign in">
-      <form
+    <form
         className="session-form"
         aria-busy={busy}
         onSubmit={(event) => void submit(event)}
@@ -540,8 +543,6 @@ function SignInForm({
         <p className="session-error" role="alert">
           {error}
         </p>
-      </form>
-      {exampleLink}
-    </SessionPanel>
+    </form>
   );
 }
