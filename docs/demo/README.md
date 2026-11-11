@@ -60,15 +60,14 @@ unified Atlas images above, plus the synthetic Documents, site and core-read
 fixtures. Every label, identifier, coordinate and date is invented. The home
 name, shown on every screen, is *Synthetic example house*.
 
-It has its own production pass, `vite build --config example/vite.config.ts`,
-which writes only `dist/example/` after the app's build. The app's inputs,
-chunks, startup files and offline shell stay unchanged, and nothing from the
-example enters the app's precache or service worker. Until the frontend
-`build` script runs that pass, the app build does not contain the page; the
-Vite dev server serves it at `/example/index.html`. The signed-out screen
-links there as **Example house**. The Rust host serves a built
-`dist/example/index.html` at exactly `/example/index.html` without a session;
-`/example/` alone is not mapped.
+`npm --prefix frontend run build` ships it: after the app's own build, a
+second pass, `vite build --config example/vite.config.ts`, writes only
+`dist/example/`. The app's inputs, chunks and startup files stay as they were,
+and nothing from the example enters the app's precache or service worker. The
+signed-out screen links to it as **Example house**. The Rust host serves
+`dist/example/index.html` at exactly `/example/index.html` to signed-out
+browsers too; `/example/` alone is not mapped. The Vite dev server serves the
+same page at the same path.
 
 `?building=syn-building-house` or `?building=syn-building-studio` opens the
 Atlas on that generated building; an unknown ID is ignored. View, floor and
@@ -104,16 +103,20 @@ Attach or drag the PNG or WebM into the PR description to show a change; do
 not commit them. To show a different state, extend the tour in
 `tools/readme-media/capture.mjs`.
 
-The same run then:
+Before the screenshot the same run:
 
 - type-checks `frontend/example/` (including its Vite config) with
   `frontend/example/tsconfig.json` and the pinned compiler. The example
   sources and the app modules they import must type-check under this config;
   diagnostics in the imported `lantern-tests` fixtures are logged and recorded,
   not failed, so those fixtures are not established type-safe;
-- runs the example's own production pass into a temporary folder and serves
-  it from an owned loopback server applying the Rust host's path, file-type,
-  size and cache-header rules;
+- runs `npm --prefix frontend run build` (the app and the example pass) and
+  serves all of `frontend/dist` from an owned loopback server applying the
+  Rust host's path, file-type, size and cache-header rules; the screenshot,
+  tour and checks below use that built page;
+- checks that the app's startup files load nothing from `dist/example/`, that
+  the link ships in them, and that the offline shell lists nothing from the
+  example;
 - checks that no page script used a replaced global before isolation ran;
 - seeds synthetic `localStorage`, `sessionStorage`, cookie and outbox-database
   sentinels on that origin, opens the example, checks that its script sees
@@ -123,13 +126,12 @@ The same run then:
 `capture.json` records the example entry, file hashes, the `lantern-tests`
 diagnostics, the storage results, the Back path Chromium took (back/forward-cache
 restore or reload; both pages are served `no-store`, like the Rust host, so a
-reload is likely) and informational durations. The example adds two bounded
-phases after the existing capture, whose 90-second bound is unchanged: the
-tour (40 seconds) and the production checks (60 seconds), so the script can
-take up to 190 seconds in all.
+reload is likely) and informational durations. The example adds one phase after the existing
+capture, with its own 60-second bound; the existing 90-second bound is
+unchanged, so the script can take up to 150 seconds in all.
 
-These checks do not establish: the app's own build or the Rust host serving
-the page; real cross-tab or service-worker isolation (the sentinels sample
+These checks do not establish: the Rust host itself serving the page (the
+loopback server applies its rules); real cross-tab or service-worker isolation (the sentinels sample
 storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
