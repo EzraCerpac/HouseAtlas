@@ -39,7 +39,7 @@ export async function electricalRecordOwnerCases(client, binding, identity, sema
   let notices = 0; owner.subscribe(() => { notices++; });
   withdrawn(); assert.equal(notices, 1); assert.equal((await owner.read()).status, 'retired');
   let visited = 0, reads = 0;
-  const tooMany = new Proxy(Array(10001), { get(target, key, receiver) {
+  const tooMany = new Proxy(Array(10001).fill(pins[0]), { get(target, key, receiver) {
     if (typeof key === 'string' && /^(0|[1-9][0-9]*)$/.test(key)) { visited++; throw new Error('oversized pin visited'); }
     return Reflect.get(target, key, receiver);
   } });
