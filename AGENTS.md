@@ -1,5 +1,33 @@
 # HouseAtlas
 
+The existing healthy SOURCE list additionally requires
+`unified-atlas-start-healthy.mjs`: 81 SOURCE / 1 BUILD / 9 BROWSER (91 total).
+All prior 80 source selections, the build selection and nine browser selections
+remain, with unchanged commands, assertions, sandbox setup and 180000 ms
+per-entry limit. The new entry transforms the actual types.ts ledger source for
+pure generated controls of stored-first commitment, same-owner refresh, new
+owner, reopening and abandoned/replayed initialization. It does not mount React
+or qualify cached-first mounted behavior. Fresh-read capture and its outstanding
+exact-head execution are separate. Registration and metadata audits are not
+execution evidence; no local tests/build/compiler/typecheck/syntax/formatter or
+browser ran. Existing hosted CI must execute the composed head before eligibility.
+Earlier 80-source counts describe prior candidates; no workflow is added.
+
+The generated `lamp-glass` case is a ninth required browser entry in the
+existing healthy runner: 80 SOURCE / 1 BUILD / 9 BROWSER (90 total). It uses
+GLB-loaded translucent/opaque emissive controls and the existing renderer to
+check daytime rear-marker visibility, nighttime fill/glow and front/rear beam
+response. Existing webgl2, full webgl2-probe, webgpu/bench, sample counts,
+assertions, deadlines, sandbox setup and workflows remain unchanged; every
+required entry retains its 180000 ms limit. Test-build-only per-canvas witnesses require the requested appearance after
+scene.render returns at shading=1; they do not prove exhausted temporal
+refinement. Thresholds are authored starting assumptions and runtime is
+unmeasured, not evidence or a sub-minute guarantee.
+No local test/build/compiler/typecheck/syntax/formatter/browser ran. Hosted
+exact-head execution is required. This prepares #548; its existing live-owner
+review remains deferred and the issue stays open. Earlier eight-browser counts
+below describe the prior candidate, not the new inventory.
+
 The full WebGL2 render probe is now a separate required `webgl2-probe`
 selection alongside `webgl2`: 80 SOURCE / 1 BUILD / 8 BROWSER (89 total).
 Each entry retains the existing 180000 ms limit. The probe keeps all five

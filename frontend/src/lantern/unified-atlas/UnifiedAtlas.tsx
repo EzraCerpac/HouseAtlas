@@ -20,7 +20,7 @@ import {
   levelLift, occurrenceLiftLevel, partLifts, partSectionTargets, partSectionCuts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
-import { AtlasReadError, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
+import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
@@ -54,7 +54,8 @@ import './unified-atlas.css';
 
 /** A stored copy on screen while its fresh read is still running or has failed in transport. */
 export interface StoredCopy { readonly storedAt: string; readonly refresh: 'pending' | 'failed' | 'held' }
-type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy }
+type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy;
+    readonly start?: UnifiedAtlasRead['start'] | undefined }
   | { readonly status: 'failed'; readonly reason: AtlasReadFailure }
   /** Downloads wait for the user and nothing is stored on this device yet. */
   | { readonly status: 'held' };
@@ -78,15 +79,20 @@ const memory = new Map<string, AtlasViewState>();
 const MEMORY_ENTRIES = 8;
 const overviewOwners = new WeakMap<object, number>();
 let nextOverviewOwner = 0;
-const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
-  const identity = overview.kind === 'live' ? overview.overview : overview.owner;
+const ownerKey = (identity: object) => {
   let owner = overviewOwners.get(identity);
   if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(identity, owner); }
+  return owner;
+};
+const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
+  const owner = ownerKey(overview.kind === 'live' ? overview.overview : overview.owner);
   const { scope, publication, selection } = model.scene;
   // Display policy only groups existing identities; changing it must not
   // remount this same admitted source and discard the selected room/floor.
   return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
+// Source owners whose first view has committed; an explicit start applies only to that view.
+const startLedger = createStartLedger();
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
   while (memory.size > MEMORY_ENTRIES) memory.delete(memory.keys().next().value!);
@@ -203,7 +209,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored || refused.current === selection) return null;
       if (storedCopy.current?.selection === selection) {
         const kept = storedCopy.current;
-        if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId,
+        if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId, start: kept.read.start,
           stored: { storedAt: kept.read.storedAt, refresh: 'held' } } });
         return kept;
       }
@@ -214,7 +220,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const model = await bind(read);
         if (settled || signal.aborted) return null;
         storedCopy.current = { selection, read, model };
-        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId,
+        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start,
           stored: { storedAt: read.storedAt, refresh: fetchNow ? 'pending' : 'held' } } });
         return { read, model };
       } catch { return null; }
@@ -234,7 +240,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
           && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
-        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
+        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId, start: read.start };
         storedCopy.current = null;
         refused.current = null;
       } catch (error) {
@@ -244,7 +250,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         if (reason === 'denied') { refused.current = selection; storedCopy.current = null; }
         // Only a transport failure keeps a verified stored copy on screen, marked as not updated.
         const shown = reason === 'unavailable' ? await stored : null;
-        outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }
+        outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, start: shown.read.start, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }
           : { status: 'failed', reason };
       }
       settled = true;
@@ -317,7 +323,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
   const stageDetail: StageDetail | null = full?.light === outcome.model ? { model: full.model, failed: full.failed } : null;
   // Same scene, so the same view-state key: the Full model takes over the Light stage in place.
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
+  return <AtlasStage key={`${ownerKey(suppliedPort)}/${memoryKey(outcome.model, selection)}`} model={outcome.model} port={port} sourceOwner={suppliedPort} selection={selection} entryBuildingId={outcome.entryBuildingId} start={outcome.start}
     otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})}
     {...(stageDetail ? { detail: stageDetail, keepLight } : {})} />;
 }
@@ -486,9 +492,9 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildingId, start, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort; readonly sourceOwner: object;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
-  readonly stored?: StoredCopy; readonly retry?: () => void;
+  readonly start?: UnifiedAtlasRead['start'] | undefined; readonly stored?: StoredCopy; readonly retry?: () => void;
   /** The Full tier for this Light model; a 3D failure while it applies goes back to Light through `keepLight`. */
   readonly detail?: StageDetail; readonly keepLight?: () => void }) {
   // The model on screen owns the stage; see stageTier.
@@ -502,8 +508,13 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const archive = environment.archive;
   const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
-  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
-    entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId)));
+  const [state, setState] = useState<AtlasViewState>(() => {
+    const base = memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
+      entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
+    // An explicit start wins, only on the first view committed through this source owner.
+    return startLedger.pending(sourceOwner, start)?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
+  });
+  useEffect(() => { startLedger.committed(sourceOwner); }, [sourceOwner]);
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);

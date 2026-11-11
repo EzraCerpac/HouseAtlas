@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type PreparedMesh } from '../../src/lantern/canonical-ifc/geometry';
-import { box } from '../canonical-ifc-visual/standard-glb-sample';
+import { box, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
 import { generatedMaterialGlb } from '../embedded-png-material-fixture';
 import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 
@@ -81,6 +81,55 @@ function LampFixture() {
     <main>{[1, 6, 10, 12].map(height => <LampSample key={height} height={height} metal={height === 1} enabled={enabled} />)}</main></>;
 }
 
+// The materials below are serialized into a generated GLB, so emitter/glass
+// classification follows the same loader path as a selected model.
+async function lampGlassMeshes(glass: boolean, signal: AbortSignal): Promise<readonly PreparedMesh[]> {
+  const shade = { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0], indices: [0, 1, 2, 1, 3, 2] };
+  const bytes = buildGlb({ nodes: [{ mesh: 0 }, { mesh: 1 }, { mesh: 2 }, { mesh: 3 }, { mesh: 4 }], roots: [0, 1, 2, 3, 4],
+    meshes: [shade, box([.2, .2, -.2], [.8, .8, -.19]), box([1.1, .2, 1.5], [1.6, .8, 1.51]), box([-.7, .2, -1.51], [-.2, .8, -1.5]), box([0, 0, -.45], [1, 1, -.44])],
+    patch(json) {
+      json.materials = [
+        { emissiveFactor: [1, .35, .1], alphaMode: glass ? 'BLEND' : 'OPAQUE', pbrMetallicRoughness: { baseColorFactor: [.12, .12, .12, glass ? .2 : 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.01, .01, 1, 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.5, .5, .5, 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.5, .5, .5, 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.005, .005, .005, 1] } },
+      ];
+      (json.meshes as { primitives: { material?: number }[] }[]).forEach((mesh, index) => { mesh.primitives[0]!.material = index; });
+    } });
+  const loaded = await loadStandardGlb(bytes, glass ? 'glass-lamp' : 'opaque-lamp', signal);
+  const shadeMesh = loaded.meshes[0];
+  if (!shadeMesh || shadeMesh.sourceNight !== 'emitter' || (shadeMesh.sourceGlass === true) !== glass || !shadeMesh.aim)
+    throw new Error('Generated lamp material classification or beam direction was not retained');
+  return loaded.meshes;
+}
+function GlassLampSample({ meshes, label, night, marker, emitting }: { meshes: readonly PreparedMesh[]; label: string; night: boolean; marker: boolean; emitting: boolean }) {
+  const [failure, setFailure] = useState('');
+  const projection = useMemo(() => makeProjection({ yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 },
+    { min: [-.8, -.1, -1.6], max: [1.7, 1.1, 1.6] }, { width: 320, height: 300 }, 0), []);
+  const shade = meshes[0]!, markerMesh = meshes[1]!;
+  const point = (x: number, z: number) => projection.project(x, .5, z).slice(0, 2).join(',');
+  return <section data-glass-lamp={label} data-marker-key={markerMesh.meshKey} data-shade-key={shade.meshKey} data-marker={point(.5, -.2)} data-front={point(1.35, 1.5)} data-back={point(-.45, -1.5)}><h2>{label}</h2><MeshLayer meshes={meshes} projection={projection}
+    rules={{ visibleFloors: 'all', clipY: null }} currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]}
+    tints={new Map()} hidden={false} sourceColors ambient={.4} twoSided light={[0, 0, 1]}
+    hiddenKeys={marker ? new Set() : new Set([markerMesh.meshKey])}
+    glazingKeys={shade.sourceGlass ? new Set([shade.meshKey]) : new Set()}
+    emitterKeys={emitting ? new Set([shade.meshKey]) : new Set()}
+    daylight={{ direct: night ? 0 : 1, night, lamp: night ? 1 : 0, tint: night ? [.5, .5, .5] : [1, 1, 1], sunTint: [1, 1, 1], lampTint: [1, 1, 1] }}
+    onUnavailable={setFailure} /><output>{failure}</output></section>;
+}
+function GlassLampFixture() {
+  const [glass, setGlass] = useState<readonly PreparedMesh[] | null>(null), [opaque, setOpaque] = useState<readonly PreparedMesh[] | null>(null);
+  const [failure, setFailure] = useState(''), [marker, setMarker] = useState(true), [emitting, setEmitting] = useState(true);
+  useEffect(() => { const controller = new AbortController();
+    void Promise.all([lampGlassMeshes(true, controller.signal), lampGlassMeshes(false, controller.signal)]).then(([a, b]) => { setGlass(a); setOpaque(b); }).catch(error => { if (!controller.signal.aborted) setFailure(String(error)); });
+    return () => controller.abort(); }, []);
+  return <><output>{failure}</output><button id="lamp-marker" aria-pressed={marker} onClick={() => setMarker(value => !value)}>Toggle marker</button>
+    <button id="lamp-emission" aria-pressed={emitting} onClick={() => setEmitting(value => !value)}>Toggle emission</button>
+    {glass && opaque && <main>{[[glass, 'glass-day', false], [opaque, 'opaque-day', false], [glass, 'glass-night', true], [opaque, 'opaque-night', true]].map(([meshes, label, night]) =>
+      <GlassLampSample key={label as string} meshes={meshes as readonly PreparedMesh[]} label={label as string} night={night as boolean} marker={marker} emitting={emitting} />)}</main>}</>;
+}
+
 // Four otherwise identical fictional surfaces isolate the scalar in the
 // production shader. The final surface exercises the shader's default fallback.
 function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; metallic: number; glass: boolean; legacy: boolean }) {
@@ -125,4 +174,14 @@ function Fixture() {
     <Sample title="Selected" mesh={mesh} selected /><Sample title="Dimmed" mesh={mesh} dim={.65} /><Sample title="Ghost" mesh={mesh} ghost /></main> : <p>Preparing generated samples…</p>}</>;
 }
 const query = new URLSearchParams(location.search), scalar = query.get('scalar');
-createRoot(document.getElementById('root')!).render(scalar ? <ScalarFixture mode={scalar} /> : query.has('lamps') ? <LampFixture /> : <Fixture />);
+if (query.has('lamp-glass')) {
+  // The browser test injects this callback after scene.render returns. Record
+  // the state actually submitted to each canvas, then its settled shading draw.
+  (globalThis as unknown as { __lampRender: (canvas: HTMLCanvasElement, shading: number, applied: { hiddenKeys?: ReadonlySet<string>; emitterKeys?: ReadonlySet<string> } | null) => void }).__lampRender = (canvas, shading, applied) => {
+    const section = canvas.closest<HTMLElement>('[data-glass-lamp]');
+    if (!section) return;
+    if (applied) canvas.dataset.lampApplied = `${!applied.hiddenKeys?.has(section.dataset.markerKey!)}:${!!applied.emitterKeys?.has(section.dataset.shadeKey!)}`;
+    if (shading === 1 && canvas.dataset.stage === 'shading' && canvas.dataset.lampApplied) canvas.dataset.lampRendered = canvas.dataset.lampApplied;
+  };
+}
+createRoot(document.getElementById('root')!).render(query.has('lamp-glass') ? <GlassLampFixture /> : scalar ? <ScalarFixture mode={scalar} /> : query.has('lamps') ? <LampFixture /> : <Fixture />);

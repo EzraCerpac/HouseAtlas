@@ -727,7 +727,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 80 source, 1 build, 8 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 81 source, 1 build, 9 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1019,6 +1019,21 @@ acceptance.
 
 ## Real-browser 3D drawing
 
+The generated `lamp-glass` case is a ninth required browser entry in the
+existing healthy runner: 80 SOURCE / 1 BUILD / 9 BROWSER (90 total). It uses
+GLB-loaded translucent/opaque emissive controls and the existing renderer to
+check daytime rear-marker visibility, nighttime fill/glow and front/rear beam
+response. Existing webgl2, full webgl2-probe, webgpu/bench, sample counts,
+assertions, deadlines, sandbox setup and workflows remain unchanged; every
+required entry retains its 180000 ms limit. Test-build-only per-canvas witnesses require the requested appearance after
+scene.render returns at shading=1; they do not prove exhausted temporal
+refinement. Thresholds are authored starting assumptions and runtime is
+unmeasured, not evidence or a sub-minute guarantee.
+No local test/build/compiler/typecheck/syntax/formatter/browser ran. Hosted
+exact-head execution is required. This prepares #548; its existing live-owner
+review remains deferred and the issue stays open. Earlier eight-browser counts
+below describe the prior candidate, not the new inventory.
+
 `frontend/lantern-tests/mesh-layer-browser.mjs` builds two generated pages (a
 house of boxes and the embedded-material samples), serves them on an owned
 loopback listener and draws them through MeshLayer, which renders with
@@ -1126,6 +1141,7 @@ runner selection and does not establish the owner's preferred live appearance.
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # required swaps/materials
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2-probe # required full probe + material successor
+node frontend/lantern-tests/mesh-layer-browser.mjs --case lamp-glass # required generated lamp glass controls
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
 node frontend/lantern-tests/mesh-layer-browser.mjs --case bench    # prints per-frame CPU time and calls
 ```
@@ -4917,3 +4933,16 @@ budget reduction is introduced. Earlier seven-browser counts elsewhere describe
 prior candidates. Both required cases and all existing gates need hosted
 exact-head qualification; no local tests/build/compiler/syntax/formatter or
 browser ran. Held sampling-override donor6c75809b is excluded.
+
+The existing healthy SOURCE list additionally requires
+`unified-atlas-start-healthy.mjs`: 81 SOURCE / 1 BUILD / 9 BROWSER (91 total).
+All prior 80 source selections, the build selection and nine browser selections
+remain, with unchanged commands, assertions, sandbox setup and 180000 ms
+per-entry limit. The new entry transforms the actual types.ts ledger source for
+pure generated controls of stored-first commitment, same-owner refresh, new
+owner, reopening and abandoned/replayed initialization. It does not mount React
+or qualify cached-first mounted behavior. Fresh-read capture and its outstanding
+exact-head execution are separate. Registration and metadata audits are not
+execution evidence; no local tests/build/compiler/typecheck/syntax/formatter or
+browser ran. Existing hosted CI must execute the composed head before eligibility.
+Earlier 80-source counts describe prior candidates; no workflow is added.

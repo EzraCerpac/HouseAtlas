@@ -448,14 +448,23 @@ try {
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
+  // The earlier capture is complete. Release its pages and renderer before
+  // starting a second browser for the example; retain the version for the receipt.
+  const browserVersion = browser.version();
+  await browser.close();
+  browser = undefined;
   // Example house: the real `npm --prefix frontend run build` output (the app
   // build, then the example's own pass into dist/example), served by an owned
   // loopback server with the Rust host's path, file-type, size and
   // cache-header rules. One bounded phase after the receipt above is complete,
   // so the existing capture keeps its unchanged 90 seconds.
   clearTimeout(deadline);
-  exampleDeadline = setTimeout(stopAll, 60_000);
+  exampleDeadline = setTimeout(() => {
+    console.error('Example capture exceeded its 60-second phase deadline');
+    stopAll();
+  }, 60_000);
   const exampleStarted = Date.now(), frontend = resolve(root, 'frontend');
+  const examplePhase = phase => console.log(`Example capture ${phase}: ${Date.now() - exampleStarted} ms`);
   // The dev server is not used from here on and must not watch the build.
   if (server.exitCode === null) {
     const devStopped = new Promise(done => server.once('exit', done));
@@ -528,6 +537,7 @@ try {
   await new Promise(done => staticServer.listen(0, '127.0.0.1', done));
   const exampleOrigin = `http://127.0.0.1:${staticServer.address().port}`;
   const buildMs = Date.now() - exampleStarted;
+  examplePhase('build complete');
   // A separate browser without Playwright's default back/forward-cache switch,
   // so the capture records which Back path Chromium actually takes.
   exampleBrowser = await chromium.launch({ ignoreDefaultArgs: ['--disable-back-forward-cache'] });
@@ -591,6 +601,7 @@ try {
   await tourContext.close();
   await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
   const tourMs = Date.now() - exampleStarted - buildMs;
+  examplePhase('tour complete');
   // Isolation order, storage sentinels and Back navigation on the built page.
   const navigationStarted = Date.now();
   const productionContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
@@ -667,6 +678,57 @@ try {
   if (backPath === 'back navigation reload') assert.deepEqual([back.pageshows, back.navigationType], [[false], 'back_forward']);
   await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
   assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
+  // Named starting states from the URL, each on a fresh load (no remembered view).
+  const stateFacts = page => page.evaluate(() => {
+    const names = selector => [...document.querySelectorAll(selector)].map(node => node.textContent.trim());
+    return { building: names('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name'), floor: names('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name'),
+      view: names('.ua-tools .seg button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
+      room: document.querySelector('.ua-inspector.is-room h2')?.textContent.trim() ?? null,
+      roomFloor: document.querySelector('.ua-room-floor')?.textContent.trim() ?? null };
+  });
+  const stateEntry = '/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan';
+  await production.goto(`${exampleOrigin}${stateEntry}`, { waitUntil: 'load' });
+  assert.equal(await production.title(), exampleTitle);
+  await production.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const direct = await stateFacts(production);
+  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
+    'A direct link opens its named building, floor, room and view');
+  await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
+  // A later choice survives closing and reopening the Atlas: the reopened
+  // stage's fresh read carries a new start array for the same scene.
+  const section = name => production.locator('nav.navrail').getByRole('button', { name, exact: true }).click();
+  await production.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await production.waitForFunction(() => !document.querySelector('.ua-shell.is-plan'));
+  await section('Upkeep');
+  await production.waitForFunction(() => !document.querySelector('section.ua-shell'));
+  await section('Atlas');
+  await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const reopened = await stateFacts(production);
+  assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
+  // A mismatched floor and room and an unknown view are each ignored; the building applies.
+  const ignoredEntry = '/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways';
+  await production.goto(`${exampleOrigin}${ignoredEntry}`, { waitUntil: 'load' });
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  const ignored = await stateFacts(production);
+  assert.deepEqual(ignored, { building: ['Synthetic house'], floor: ['All floors'], view: ['3D'], plan: false, room: null, roomFloor: null },
+    'Unknown and mismatched values leave the view as it opens');
+  // Home records derived from the same publication, from a stale HomeBox copy.
+  await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: /^Rooms & places/ }).click();
+  const placesLens = production.locator('section.atlas-lens.is-places');
+  examplePhase('places lens requested');
+  console.log('Example places lens at request:', await production.evaluate(() => {
+    const lens = document.querySelector('section.atlas-lens.is-places');
+    return { present: !!lens, rows: lens?.querySelectorAll('.ledger-name').length ?? 0,
+      status: [...(lens?.querySelectorAll('[role="status"]') ?? [])].map(node => node.textContent?.trim()).slice(0, 5) };
+  }));
+  await placesLens.locator('.ledger-name').first().waitFor();
+  const home = await placesLens.evaluate(node => ({ places: [...node.querySelectorAll('.ledger-name')].map(row => row.textContent.trim()),
+    flags: [...new Set([...node.querySelectorAll('.ledger-flag')].map(row => row.textContent.trim()))] }));
+  for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Studio', 'Gallery'])
+    assert(home.places.includes(name), `Home lists ${name} from the Atlas publication`);
+  assert(home.flags.includes('Source: present; cache: stale'), 'Home shows its HomeBox copy as stale');
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
   await exampleBrowser.close();
@@ -676,6 +738,10 @@ try {
     entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
+    states: { direct: { entry: stateEntry, screenshot: 'example-house-state.png', ...direct },
+      reopened: { after: ['3D chosen', 'Upkeep', 'Atlas'], ...reopened }, ignored: { entry: ignoredEntry, ...ignored }, home,
+      rememberedOverride: 'not reachable by a link: the remembered view is per document, so every link load starts without one',
+      storedFirst: 'not exercised: the example has no stored-copy route' },
     production: {
       build: 'npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example',
       preIsolationUse: [],
@@ -688,11 +754,14 @@ try {
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-tour.webm'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation and storage sentinels; no provider/native acceptance');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
+  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
+} catch (error) {
+  if (errors.length) console.error('Captured page errors or external requests:', errors);
+  throw error;
 } finally {
   clearTimeout(deadline);
   clearTimeout(exampleDeadline);

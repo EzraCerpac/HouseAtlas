@@ -169,6 +169,10 @@ export interface UnifiedAtlasRead {
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */
   readonly entryBuildingId?: string | null;
+  /** Optional explicit starting view: Atlas actions applied in order over the
+   * remembered or entry view, only to the first view that commits through this
+   * source owner (see createStartLedger). An action the scene refuses changes nothing. */
+  readonly start?: readonly import('./scene').AtlasAction[];
   /** SHA-256 of the exact scene envelope, when the reader has it; equal
    * digests and model bytes let a fresh read confirm a stored copy in place. */
   readonly envelopeSha256?: string;
@@ -176,6 +180,19 @@ export interface UnifiedAtlasRead {
 /** A verified copy from this device's own store, shown while the fresh read runs. */
 export interface StoredAtlasRead extends UnifiedAtlasRead { readonly storedAt: string }
 export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large' | 'denied';
+/** Source owners (the Atlas port a host supplies) whose first view has
+ * committed. A start applies only to that first view, whichever read, stored
+ * or fresh, and whichever scene mounted it. Every later start through the same
+ * owner is dropped: a new revision, manifest or overview, a reopen or another
+ * array. Only a new owner begins a new lifetime. Render only reads the ledger;
+ * a committed mount records it. Owners are held weakly. */
+export function createStartLedger() {
+  const begun = new WeakSet<object>();
+  return {
+    pending: <T>(owner: object, start: T | undefined): T | undefined => begun.has(owner) ? undefined : start,
+    committed: (owner: object) => { begun.add(owner); },
+  };
+}
 export class AtlasReadError extends Error {
   constructor(readonly reason: AtlasReadFailure, message: string = reason) { super(message); }
 }

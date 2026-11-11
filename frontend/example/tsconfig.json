@@ -1,4 +1,4 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["../src/app/assets.d.ts", "./main.tsx", "./app.tsx", "./isolation.ts", "./vite.config.ts"]
+  "include": ["../src/app/assets.d.ts", "./main.tsx", "./app.tsx", "./household.ts", "./isolation.ts", "./vite.config.ts"]
 }
