@@ -1,5 +1,20 @@
 # HouseAtlas
 
+The generated `lamp-glass` case is a ninth required browser entry in the
+existing healthy runner: 80 SOURCE / 1 BUILD / 9 BROWSER (90 total). It uses
+GLB-loaded translucent/opaque emissive controls and the existing renderer to
+check daytime rear-marker visibility, nighttime fill/glow and front/rear beam
+response. Existing webgl2, full webgl2-probe, webgpu/bench, sample counts,
+assertions, deadlines, sandbox setup and workflows remain unchanged; every
+required entry retains its 180000 ms limit. Test-build-only per-canvas witnesses require the requested appearance after
+scene.render returns at shading=1; they do not prove exhausted temporal
+refinement. Thresholds are authored starting assumptions and runtime is
+unmeasured, not evidence or a sub-minute guarantee.
+No local test/build/compiler/typecheck/syntax/formatter/browser ran. Hosted
+exact-head execution is required. This prepares #548; its existing live-owner
+review remains deferred and the issue stays open. Earlier eight-browser counts
+below describe the prior candidate, not the new inventory.
+
 The full WebGL2 render probe is now a separate required `webgl2-probe`
 selection alongside `webgl2`: 80 SOURCE / 1 BUILD / 8 BROWSER (89 total).
 Each entry retains the existing 180000 ms limit. The probe keeps all five
