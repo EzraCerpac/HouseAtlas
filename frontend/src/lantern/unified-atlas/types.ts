@@ -169,9 +169,9 @@ export interface UnifiedAtlasRead {
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */
   readonly entryBuildingId?: string | null;
-  /** Optional explicit starting view: Atlas actions applied in order, over the
-   * remembered or entry view, when this read's stage first mounts. Each array
-   * applies at most once per tab; an action the scene refuses changes nothing. */
+  /** Optional explicit starting view: Atlas actions applied in order over the
+   * remembered or entry view, only to the first committed view of this scene
+   * in this tab (see createStartLedger). An action the scene refuses changes nothing. */
   readonly start?: readonly import('./scene').AtlasAction[];
   /** SHA-256 of the exact scene envelope, when the reader has it; equal
    * digests and model bytes let a fresh read confirm a stored copy in place. */
@@ -180,6 +180,17 @@ export interface UnifiedAtlasRead {
 /** A verified copy from this device's own store, shown while the fresh read runs. */
 export interface StoredAtlasRead extends UnifiedAtlasRead { readonly storedAt: string }
 export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large' | 'denied';
+/** The scenes (view-state keys) whose first view has committed in this tab.
+ * A start applies only to a scene's first committed view, whichever read,
+ * stored or fresh, mounted it; one arriving later, on any array, is dropped.
+ * Render only reads the ledger; a committed mount records it. */
+export function createStartLedger() {
+  const begun = new Set<string>();
+  return {
+    pending: <T>(scene: string, start: T | undefined): T | undefined => begun.has(scene) ? undefined : start,
+    committed: (scene: string) => { begun.add(scene); },
+  };
+}
 export class AtlasReadError extends Error {
   constructor(readonly reason: AtlasReadFailure, message: string = reason) { super(message); }
 }

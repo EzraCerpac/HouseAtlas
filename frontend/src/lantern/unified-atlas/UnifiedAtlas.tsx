@@ -20,7 +20,7 @@ import {
   levelLift, occurrenceLiftLevel, partLifts, partSectionTargets, partSectionCuts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
-import { AtlasReadError, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
+import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
@@ -88,8 +88,8 @@ const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
   // remount this same admitted source and discard the selected room/floor.
   return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
-// Explicit starting views already applied in this tab; each applies once.
-const started = new WeakSet<object>();
+// Scenes whose first view has committed in this tab; an explicit start applies only to that view.
+const startLedger = createStartLedger();
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
   while (memory.size > MEMORY_ENTRIES) memory.delete(memory.keys().next().value!);
@@ -206,7 +206,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored || refused.current === selection) return null;
       if (storedCopy.current?.selection === selection) {
         const kept = storedCopy.current;
-        if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId,
+        if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId, start: kept.read.start,
           stored: { storedAt: kept.read.storedAt, refresh: 'held' } } });
         return kept;
       }
@@ -217,7 +217,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const model = await bind(read);
         if (settled || signal.aborted) return null;
         storedCopy.current = { selection, read, model };
-        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId,
+        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start,
           stored: { storedAt: read.storedAt, refresh: fetchNow ? 'pending' : 'held' } } });
         return { read, model };
       } catch { return null; }
@@ -247,7 +247,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         if (reason === 'denied') { refused.current = selection; storedCopy.current = null; }
         // Only a transport failure keeps a verified stored copy on screen, marked as not updated.
         const shown = reason === 'unavailable' ? await stored : null;
-        outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }
+        outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, start: shown.read.start, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }
           : { status: 'failed', reason };
       }
       settled = true;
@@ -508,11 +508,10 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, start, o
   const [state, setState] = useState<AtlasViewState>(() => {
     const base = memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
       entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
-    // An explicit start wins over the remembered view, once.
-    if (!start || started.has(start)) return base;
-    started.add(start);
-    return start.reduce((value, action) => atlasReducer(model, value, action), base);
+    // An explicit start wins, only on this scene's first committed view.
+    return startLedger.pending(key, start)?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
   });
+  useEffect(() => { startLedger.committed(key); }, [key]);
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);
