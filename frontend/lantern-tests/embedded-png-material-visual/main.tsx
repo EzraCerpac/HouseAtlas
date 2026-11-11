@@ -86,7 +86,9 @@ function LampFixture() {
 function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; metallic: number; glass: boolean; legacy: boolean }) {
   const [failure, setFailure] = useState('');
   const meshes = useMemo(() => {
-    const color = [glass ? .18 : .06, glass ? .18 : .06, glass ? .18 : .06, glass ? .12 : 1] as const;
+    // Give the translucent pane enough dark body to remain distinct from the
+    // clear background at every scalar, without hiding its reflection response.
+    const color = [glass ? .02 : .06, glass ? .02 : .06, glass ? .02 : .06, glass ? .5 : 1] as const;
     return prepareMeshes([{ meshKey: 'scalar', floorId: null, occurrenceId: null, sourceBaseColor: color,
       ...(glass ? { sourceNight: 'glazing' as const } : {}),
       positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]), indices: new Uint32Array([0, 1, 2, 1, 3, 2]),

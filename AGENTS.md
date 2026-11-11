@@ -1,5 +1,15 @@
 # HouseAtlas
 
+Scalar visibility fixture donor38ca67b5 is composed after independent source
+review. Only the generated glass sample's shared tint changes0.18 to0.02 and
+opacity0.12 to0.5; all scalar variants use those same settings and retain the
+prior light vector. Production shader/materials, thresholds, visibility/endpoint/
+midpoint assertions, scene/sample counts and budgets are unchanged. The source
+rationale addresses the hosted8c glass surface/background ambiguity; new hosted
+pixels must still pass. It is not private-material, device or product acceptance.
+No local test, syntax check, compiler, formatter or browser ran. Page-side donor
+d98ea7fc, mainc67637c, original corpus and seven browser cases remain preserved.
+
 Page-side diagnostic donor d98ea7fc is composed after independent source review.
 It wraps fetch/body/default-reader observation in the generated browser fixture,
 returns original results and changes no assertion/wait/timeout/acceptance rule.

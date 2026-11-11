@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 88061,
-      "sha256": "45a4bb7ce0c979f2a1a13fb1f0ae7848085d6ab64dfc64aea385587a90bd5299",
+      "bytes": 88779,
+      "sha256": "69b6bb3b9bd95861d2c597dd07f35fb3c9bc7eb14d512bcdda39c7beffdf9bfd",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 312254,
-      "sha256": "4096adca4a248df47db04d6b1b8b55e48b68ead302e95cfc1fdb3481fea97de1",
+      "bytes": 312973,
+      "sha256": "ff71c067b9f9132cc665f77938be6b2a95a920247c22f7ebc79d2902efece43b",
       "owner": "core-integration"
     },
     {
@@ -8147,8 +8147,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-visual/main.tsx",
       "mode": "100644",
-      "bytes": 10361,
-      "sha256": "7b7f30df8650769995e15498728d52cc2fea7fb201c382af8e1080936e306eac",
+      "bytes": 10519,
+      "sha256": "fcc31106323f68343dd5034aaf8aded497d0d1baf28d121efd14c581a0c06f6e",
       "owner": "web"
     },
     {
