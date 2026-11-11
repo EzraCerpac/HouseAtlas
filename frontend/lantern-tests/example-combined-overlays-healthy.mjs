@@ -49,7 +49,11 @@ const frame = await handle.source.open(handle.request, controller.signal);
 assert.equal(frame.status, 'available');
 assert.equal(handle.source.isCurrent(frame), true);
 assert.equal(api.matchesOverlayScene(frame, scene, house.buildingId), true);
-const records = api.documentaryRoomRecords(scene, frame, new Set(scene.coverage.selectableOccurrences));
+// The admitted scene exposes selectable IDs under `selectable`, not the
+// publication envelope's `selectableOccurrences` field.
+assert.ok(Array.isArray(scene.coverage.selectable));
+const selectable = new Set(scene.coverage.selectable);
+const records = api.documentaryRoomRecords(scene, frame, selectable);
 assert.deepEqual(['syn-room-hall', 'syn-room-living'].map(id => records.rooms.get(id).electrical.length), [3, 1]);
 assert.equal(records.rooms.get('syn-room-stairs').network.length, 1);
 assert.equal(records.rooms.get('syn-room-stairs').network[0].id, 'example-access-point');
@@ -62,7 +66,7 @@ assert.deepEqual(trace.edges.map(edge => edge.link.id), ['example-link']);
 assert.deepEqual(trace.certain, [true]);
 assert.equal(trace.uncertain, false);
 const mismatch = { ...frame, sourceSelection: { ...frame.sourceSelection, acceptedRoomReceiptSha256: 'f'.repeat(64) } };
-const refused = api.documentaryRoomRecords(scene, mismatch, new Set(scene.coverage.selectableOccurrences));
+const refused = api.documentaryRoomRecords(scene, mismatch, selectable);
 assert.equal(refused.rooms.get('syn-room-stairs').network.length, 0);
 assert.equal(refused.rooms.get('syn-room-hall').electrical.length, 0);
 let invalidations = 0;
