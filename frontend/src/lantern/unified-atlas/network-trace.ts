@@ -26,11 +26,16 @@ export interface NetworkTrace {
   readonly reachable: ReadonlySet<string>;
 }
 
-/** Device kinds that act as the root, best first. */
-const ROOT_KINDS: readonly RegExp[] = [/router/i, /gateway/i, /modem/i];
+/** A root is a device the source marks as root (`sourceRoot: true`), or one
+ * whose kind names a router or gateway. Best first: the source's own mark, then
+ * router, then gateway; -1 is not a root. Nothing else (a modem, a label, notes
+ * or how many links a device has) makes a root. */
+const ROOT_KINDS: readonly RegExp[] = [/router/i, /gateway/i];
 export const rootRank = (device: NetworkOverlayDevice | null): number => {
   if (!device) return -1;
-  return ROOT_KINDS.findIndex(pattern => pattern.test(device.kind));
+  if (device.sourceRoot === true) return 0;
+  const kind = ROOT_KINDS.findIndex(pattern => pattern.test(device.kind));
+  return kind < 0 ? -1 : kind + 1;
 };
 
 const HYPOTHESIS = /hypothes/i;
@@ -55,7 +60,7 @@ const compare = (p: Cost, q: Cost): number =>
   p.hops - q.hops || (Math.abs(p.penalty - q.penalty) <= EPSILON ? 0 : p.penalty - q.penalty);
 
 /** Cheapest route from `from` to the best reachable root. Deterministic: ties go
- * to the better root kind, then the lower node ID, then the earlier source link. */
+ * to the better root rank, then the lower node ID, then the earlier source link. */
 export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdge[], from: string): NetworkTrace {
   const byId = new Map<string, TraceNode>();
   for (const node of nodes) byId.set(node.id, node);
@@ -105,3 +110,17 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
   const certain = hops.map(edge => traceEdgeCertain(edge) && !unresolved(edge));
   return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: certain.includes(false), certain, reachable };
 }
+
+/** Where a graph's published route goes: a route replaces the current one; a
+ * graph withdrawing its own route (null) clears only a route from that graph, so
+ * a late cleanup from a departing graph never clears a newer graph's route. */
+export const publishStageTrace = <T extends { readonly graphKey: string }>(current: T | null, graphKey: string, trace: T | null): T | null =>
+  trace ?? (current?.graphKey === graphKey ? null : current);
+
+/** The published route only while its own graph is still shown with the exact
+ * data it was traced from. Checked during render, so a replaced, removed, hidden
+ * or closed graph's route never reaches the stage, even before that graph's own
+ * cleanup runs. */
+export const currentStageTrace = <T extends { readonly graphKey: string; readonly data: object }>(trace: T | null,
+  graphs: readonly { readonly key: string; readonly data: object }[], shown: boolean): T | null =>
+  trace && shown && graphs.some(graph => graph.key === trace.graphKey && graph.data === trace.data) ? trace : null;

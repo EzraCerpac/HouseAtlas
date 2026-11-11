@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint, NetworkOverlayLink } from '../overlays/network/types';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 import { isHypothesisLink, traceToRoot, type NetworkTrace } from './network-trace';
@@ -246,6 +246,8 @@ function LineSample({ tone }: { readonly tone: EdgeTone }) {
 /** What the stage needs to light the same route between rooms. */
 export interface StageTrace {
   readonly graphKey: string;
+  /** The exact graph data this route was traced from; the stage drops it once the graph's data changes. */
+  readonly data: NetworkOverlayData;
   /** Source link IDs in order from the chosen device to the root. */
   readonly linkIds: readonly string[];
   /** Links the route crosses from their recorded `to` end toward their `from` end. */
@@ -289,13 +291,15 @@ export function NetworkGraph({ graph, onTrace }: {
   const stageTrace = useMemo((): StageTrace | null => {
     if (trace?.status !== 'traced') return null;
     const sources = trace.nodes.map(id => built.nodes.get(id));
-    return { graphKey: graph.key, linkIds: trace.edges.map(edge => edge.link.id),
+    return { graphKey: graph.key, data, linkIds: trace.edges.map(edge => edge.link.id),
       reversedLinkIds: new Set(trace.edges.flatMap((edge, at) => edge.a === trace.nodes[at] ? [] : [edge.link.id])),
       deviceOrder: new Map(sources.flatMap((node, at) => node?.kind === 'device' ? [[node.sourceId, at] as const] : [])),
       segmentIds: new Set(sources.flatMap(node => node?.endpoint?.kind === 'segment' ? [node.sourceId] : [])) };
-  }, [trace, built, graph.key]);
-  useEffect(() => { onTrace?.(graph.key, stageTrace); }, [onTrace, graph.key, stageTrace]);
-  useEffect(() => () => onTrace?.(graph.key, null), [onTrace, graph.key]);
+  }, [trace, built, graph.key, data]);
+  // Published and withdrawn before paint, so a replaced or closed graph's route
+  // is never drawn on a frame after it has gone.
+  useLayoutEffect(() => { onTrace?.(graph.key, stageTrace); }, [onTrace, graph.key, stageTrace]);
+  useLayoutEffect(() => () => onTrace?.(graph.key, null), [onTrace, graph.key]);
 
   // A graph wider than its panel says so, and its frame fades at the side
   // that still has branches, until the reader scrolls there.
@@ -448,8 +452,8 @@ export function NetworkGraph({ graph, onTrace }: {
 
 const TRACE_NOTE: Record<Exclude<NetworkTrace['status'], 'traced'>, string> = {
   'is-root': 'This is where the recorded network starts.',
-  'no-root': 'The source records no router or gateway, so there is nothing to trace back to.',
-  unreachable: 'No recorded connection leads from here to the router.',
+  'no-root': 'The source records no router, gateway or marked root, so there is nothing to trace back to.',
+  unreachable: 'No recorded connection leads from here to a router, gateway or marked root.',
 };
 
 /** The route as a chain of steps, each one tappable, from this device to the root. */
@@ -483,6 +487,7 @@ function NodeDetail({ node, edges, label, chooseLink }: {
       <div><dt>Record</dt><dd>{NODE_LABEL[node.kind]}{device ? `, ${device.kind}` : endpoint ? `, ${endpoint.kind}` : ''}</dd></div>
       {device && <div><dt>Mobility</dt><dd>{device.mobility}</dd></div>}
       {device && <div><dt>Confidence</dt><dd>{device.confidence}</dd></div>}
+      {device?.sourceRoot !== undefined && <div><dt>Root in source</dt><dd>{device.sourceRoot ? 'Marked as the network root' : 'Not marked'}</dd></div>}
       {device && <div><dt>Room in source</dt><dd>{place ? `${place.roomLabel}, ${MAPPING[place.mappingStatus]}; no position in the model` : 'None recorded'}</dd></div>}
       {place?.basis && <div><dt>Room basis</dt><dd>{place.basis}</dd></div>}
       {place?.detail && <div><dt>Room detail</dt><dd>{place.detail}</dd></div>}

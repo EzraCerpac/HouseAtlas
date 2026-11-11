@@ -26,9 +26,10 @@ export class NativeSceneSourceError extends Error {
   constructor() { super('Current native scene source is unavailable'); this.name = 'NativeSceneSourceError'; }
 }
 function need(value: unknown): asserts value { if (!value) throw new NativeSceneSourceError(); }
-function row(value: LosslessJson | undefined, keys: readonly string[]): Row {
+function row(value: LosslessJson | undefined, keys: readonly string[], optionalKeys: readonly string[] = []): Row {
   need(value !== null && typeof value === 'object' && !Array.isArray(value) && !isExactDecimal(value));
-  need(Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key)));
+  const present = Object.keys(value);
+  need(keys.every(key => present.includes(key)) && present.every(key => keys.includes(key) || optionalKeys.includes(key)));
   return value;
 }
 function list(value: LosslessJson | undefined, maximum: number): LosslessJson[] {
@@ -317,7 +318,9 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
   need(meta.acceptedAt === null);
   const deviceIds = new Set<string>(), endpointIds = new Set<string>(), linkIds = new Set<string>();
   const devices: NetworkOverlayDevice[] = list(source.devices, 512).map(item => {
-    const d = row(item, ['id','label','kind','mobility','confidence','notes','place']);
+    // `sourceRoot` is the only optional device key: absent keeps today's bytes valid.
+    const d = row(item, ['id','label','kind','mobility','confidence','notes','place'], ['sourceRoot']);
+    need(!('sourceRoot' in d) || typeof d.sourceRoot === 'boolean');
     const id = str(d.id); need(!deviceIds.has(id)); deviceIds.add(id);
     let place: NetworkPlaceAssociation | null = null;
     if (d.place !== null) {
@@ -354,7 +357,7 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
     return freeze({ id, label: str(d.label, 512), kind: str(d.kind),
       mobility: choice(d.mobility, ['fixed','mobile','nonspatial','unknown']),
       confidence: choice(d.confidence, ['accepted','recorded','tentative','unknown','conflicting']),
-      notes: plain(d.notes), place });
+      notes: plain(d.notes), place, ...(typeof d.sourceRoot === 'boolean' ? { sourceRoot: d.sourceRoot } : {}) });
   });
   const endpoints: NetworkOverlayEndpoint[] = list(source.endpoints, 1024).map(item => {
     const e = row(item, ['id','label','kind','ownerDeviceId','notes']); const id = str(e.id);

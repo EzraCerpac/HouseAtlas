@@ -42,8 +42,9 @@ const edge = (a, b, confidence = 'accepted', kind = 'connection') => {
 };
 const ids = trace => trace.edges.map(row => row.link.id);
 
-// Root ranking: router before gateway before modem; other kinds are never roots.
-assert.deepEqual(['router', 'Edge gateway', 'cable-modem', 'switch'].map(kind => rootRank(device('x', kind).device)), [0, 1, 2, -1]);
+// Root ranking by kind: router before gateway (rank 0 is the source's own root mark);
+// an unmarked modem or switch is never a root (#552: router/gateway or source-marked).
+assert.deepEqual(['router', 'Edge gateway', 'cable-modem', 'switch'].map(kind => rootRank(device('x', kind).device)), [1, 2, -1, -1]);
 assert.equal(rootRank(null), -1);
 
 { // Chain: laptop → switch → access point → router, listed in order from the device.

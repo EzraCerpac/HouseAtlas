@@ -62,6 +62,11 @@ export interface NetworkOverlayDevice {
   readonly confidence: NetworkConfidence;
   readonly notes: string;
   readonly place: NetworkPlaceAssociation | null;
+  /** The source's own root marker, kept exactly as recorded: `true` marks this
+   * device as the network root; `false` or absence leaves it unmarked. Absent
+   * when the source does not carry the field. Never derived from kind, label,
+   * notes or graph position. */
+  readonly sourceRoot?: boolean;
 }
 export interface NetworkOverlayLink {
   readonly id: string;
