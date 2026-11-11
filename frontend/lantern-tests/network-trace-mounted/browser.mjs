@@ -43,7 +43,30 @@ try {
   await click('Toggle plan'); await until(`document.querySelectorAll('.ua-net-trace').length === 2`);
   await click('Clear graph selection'); await until(`!document.querySelector('.ua-net-tracing')`);
   await evaluate(`[...document.querySelectorAll('.ung-item')].find(x=>x.textContent.includes('Client')).click()`); await until(`!!document.querySelector('.ua-net-tracing')`);
-  await click('Replace data'); await until(`!!document.querySelector('.ua-net-tracing')`);
+  // Capture the actual A graph withdrawal, then deliver it after same-key B has published.
+  await click('Delay withdrawal'); await click('Replace data');
+  await until(`document.querySelector('output').dataset.queued === '1' && document.querySelector('output').dataset.traceOwner === 'b' && document.querySelectorAll('.ua-net-trace').length === 2`);
+  await click('Deliver withdrawal');
+  await until(`document.querySelector('output').dataset.queued === '0'`);
+  assert.equal(await evaluate(`document.querySelector('output').dataset.traceOwner`), 'b');
+  assert.equal(await evaluate(`document.querySelectorAll('.ua-net-trace').length`), 2);
+  // A different-key owner must also survive the departing B graph's delayed cleanup.
+  await click('Delay withdrawal'); await click('Replace key');
+  await until(`document.querySelector('output').dataset.queued === '1' && !!document.querySelector('.ung-item')`);
+  await evaluate(`[...document.querySelectorAll('.ung-item')].find(x=>x.textContent.includes('Client')).click()`);
+  await until(`document.querySelector('output').dataset.traceOwner === 'c' && document.querySelectorAll('.ua-net-trace').length === 2`);
+  await click('Deliver withdrawal'); await until(`document.querySelector('output').dataset.queued === '0'`);
+  assert.equal(await evaluate(`document.querySelector('output').dataset.traceOwner`), 'c');
+  assert.equal(await evaluate(`document.querySelectorAll('.ua-net-trace').length`), 2);
+  // Remove the source while holding its actual cleanup: render validation must
+  // hide the retained trace before the queued withdrawal is delivered.
+  await click('Delay withdrawal'); await click('Remove source');
+  await until(`document.querySelector('output').dataset.queued === '1' && !document.querySelector('.ung')`);
+  assert.equal(await evaluate(`document.querySelector('output').dataset.traceOwner`), 'c');
+  assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
+  await click('Deliver withdrawal'); await until(`document.querySelector('output').dataset.traceOwner === 'none'`);
+  await click('Select A'); await until(`!!document.querySelector('.ung-item')`);
+  await evaluate(`[...document.querySelectorAll('.ung-item')].find(x=>x.textContent.includes('Client')).click()`); await until(`!!document.querySelector('.ua-net-tracing')`);
   await click('Toggle layer'); await until(`!document.querySelector('.ua-net-tracing')`);
   await click('Toggle layer'); await until(`!!document.querySelector('.ung')`);
   await click('Close or reopen'); await until(`!document.querySelector('.ung')`);
