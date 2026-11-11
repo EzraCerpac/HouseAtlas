@@ -565,3 +565,128 @@ fn healthy_history_fixtures_preserve_bare_array_and_order() {
         );
     }
 }
+
+#[test]
+fn healthy_logical_collection_contract_preserves_opaque_scalar_bounds_and_uuid_ids() {
+    use crate::ai::suggestions as ai;
+    use crate::contracts::stock::{HomeboxResourceKind, StockContext, StockTarget, StockValidation};
+
+    let validation = StockValidation::new().unwrap();
+    let id = |n: u32| format!("00000000-0000-4000-8000-{n:012}");
+    let request = |collection: &str| {
+        json!({"schemaVersion":3,"commandId":"homebox.entity.get","requestId":id(3),
+            "context":{"workspaceId":id(1),"homeId":id(2)},
+            "target":{"authority":"homebox","sourceInstanceId":id(4),"collectionId":collection,
+                "resourceKind":"entity","resourceId":id(5)},"payload":{}})
+    };
+    for collection in [
+        "synthetic-collection-a".into(),
+        " ".into(),
+        "opaque:collection/é".into(),
+        "😀".repeat(4096),
+        id(6),
+    ] {
+        let selected = request(&collection);
+        validation
+            .decode_request(&serde_json::to_vec(&selected).unwrap())
+            .unwrap();
+        let admitted = ai::AdmittedSnapshot::new(ai::SnapshotInput {
+            feature: ai::SuggestionFeature::Inventory,
+            scope: StockContext {
+                workspace_id: id(1),
+                home_id: id(2),
+            },
+            actor_id: id(7),
+            authority_epoch: "synthetic-owner-data-only".into(),
+            sources: vec![ai::SourceInput {
+                input_ref: "subject".into(),
+                target: StockTarget::Homebox {
+                    source_instance_id: id(4),
+                    collection_id: collection.clone(),
+                    resource_kind: HomeboxResourceKind::Entity,
+                    entity_id: Some(id(5)),
+                    resource_id: None,
+                },
+                version: "synthetic-retained-v1".into(),
+                source_date: None,
+                retrieved_at: "2026-01-02T12:00:00Z".into(),
+                availability: ai::Availability::Available,
+                role: ai::InputRole::Subject,
+                kind: ai::CandidateKind::InventoryItem,
+                evidence: vec![],
+            }],
+        })
+        .unwrap();
+        assert_eq!(
+            admitted.input().sources[0].target,
+            serde_json::from_value::<StockTarget>(
+                json!({"authority":"homebox","sourceInstanceId":id(4),"collectionId":collection,
+                    "resourceKind":"entity","entityId":id(5)})
+            )
+            .unwrap()
+        );
+    }
+    for collection in [String::new(), "x".repeat(4097), "😀".repeat(4097)] {
+        assert!(
+            validation
+                .decode_request(&serde_json::to_vec(&request(&collection)).unwrap())
+                .is_err()
+        );
+    }
+    for key in ["sourceInstanceId", "resourceId"] {
+        let mut selected = request("synthetic-collection-a");
+        selected["target"][key] = json!("opaque-not-a-uuid");
+        assert!(
+            validation
+                .decode_request(&serde_json::to_vec(&selected).unwrap())
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn healthy_native_homebox_descriptors_retain_logical_collection_bounds() {
+    fn count_bounds(value: &Value) -> usize {
+        match value {
+            Value::Object(map) => {
+                let own = if let Some(properties) = map.get("properties")
+                    && properties["authority"]["const"] == "homebox"
+                    && properties.get("collectionId").is_some()
+                {
+                    assert_eq!(
+                        properties["collectionId"],
+                        json!({"type":"string","minLength":1,"maxLength":4096})
+                    );
+                    1
+                } else {
+                    0
+                };
+                own + map.values().map(count_bounds).sum::<usize>()
+            }
+            Value::Array(values) => values.iter().map(count_bounds).sum(),
+            _ => 0,
+        }
+    }
+    let schemas = NativeSchemas::from_bytes(
+        include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
+        SCHEMA.as_bytes(),
+    )
+    .unwrap();
+    for family in [
+        "homebox_entities_locations",
+        "homebox_tags_fields",
+        "homebox_templates_types",
+        "homebox_files_links",
+        "homebox_maintenance",
+    ] {
+        for direction in ["input", "output"] {
+            let descriptor = schemas
+                .schema(&format!("#/$defs/family_{direction}_{family}"))
+                .unwrap();
+            assert!(
+                count_bounds(&Value::Object(descriptor)) > 0,
+                "{direction} {family}"
+            );
+        }
+    }
+}

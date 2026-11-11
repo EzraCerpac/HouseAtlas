@@ -4,8 +4,8 @@
   "sources": [
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
-      "bytes": 955535
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede",
+      "bytes": 947975
     },
     {
       "path": "packages/contracts/schemas/atlas.schema.json",
@@ -474,15 +474,15 @@
   ],
   "outputs": {
     "agent-ajv.schema.json": {
-      "sha256": "e815bf18fed215770154fe60a1cd5278a3c18114b80b22cf51c5cac23ea14bdb",
-      "bytes": 451798
+      "sha256": "61bcdf0bf65e35489f3d9f1c0b2d18b860a088a1dad4711cecc7908377c8900b",
+      "bytes": 444478
     },
     "agent-exact.schema.json": {
-      "sha256": "145733ef3c4047d903f66ac3388fffe3c56831d2e003a591b83f4149ebdb9dd6",
-      "bytes": 308960
+      "sha256": "d019fb220a09909bd8d397bce013c4dfd1644961af9080d34df476294940b11b",
+      "bytes": 303920
     },
     "agent-exact-pin.json": {
-      "sha256": "e067bff4a28e82d6f45629ef8cf67c9956cf3cd034e88646ea1ef8112f36a622",
+      "sha256": "fad1a73d5b78d25df1118b89f8c9efd309c168836e896ba7fb2f2c97f20ab6ee",
       "bytes": 67
     },
     "operation-catalog.json": {

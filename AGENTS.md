@@ -1091,3 +1091,26 @@ all NOT RUN; 21 prior tests/code and corpus originals are unchanged. The complet
 32-case ledger now has five scorer subsets, nineteen structural controls and
 eight cases without bridges. Production/frontend code and runner/workflows stay
 unchanged. Exact scopes/names/remaining gaps are in INTEGRATION.md.
+
+
+Logical HomeBox collection identity amendment: exactly 126 UUID-only
+`collectionId` schema leaves now use the original registration/access owner's
+1..4096 Unicode-scalar text bound, preserving exact spelling. Every other schema
+node, source/entity/resource/physical UUID, command, wire version and authority
+check is unchanged. Current stock3/stock4, browser and native MCP pins follow the
+amended source. Geodata's active predecessor closure records the amendment and
+retains both original hashes; historical inspected-boundary evidence is unchanged.
+
+Two new default-library controls cover actual StockValidation/AdmittedSnapshot
+opaque bounds and native HomeBox descriptor materialization. The existing browser
+schema-subset control adds full/derived parity and true-UUID refusals. These new
+controls remain NOT RUN. Pure checked-in browser source generation used existing
+pinned Node 26; no compiler, test, formatter or provider ran locally. Existing runner
+counts remain 80 SOURCE / 1 BUILD / 7 BROWSER. The existing #586 writer separately
+owns the original-fixture opaque cached-capture regression; selector/schema
+acceptance alone does not establish that path, runtime admission or source access.
+
+At preceding 0183afd6, hosted Ubuntu source, ordinary-core, capture, performance
+and all three loopbacks passed. Backend/frontend/macOS were still pending at
+this source handoff. Those checks do not qualify the amended source head.
+The denied log/artifact-download route and PR metadata writes remain stopped.

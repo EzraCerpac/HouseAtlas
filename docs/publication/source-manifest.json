@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 76254,
-      "sha256": "b415abe7246084b8136b4168bd6ff74fd7600bae55828b7dc068cbc16da38983",
+      "bytes": 77771,
+      "sha256": "c0dc34ad542a42c415897d03ab91038dab9bf6007c1ff7292bcfa4345e98efeb",
       "owner": "core-integration"
     },
     {
@@ -5803,7 +5803,7 @@
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
       "bytes": 15986,
-      "sha256": "f476236beb834ba0807cc4294af3fc1c5fc11cb2a0c96ca3dfa600650f66c693",
+      "sha256": "ecd55bc0888189fa31d842ee4635f15da6dbe655b8c254328df330c03dd11f4e",
       "owner": "mcp"
     },
     {
@@ -5844,8 +5844,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 19621,
-      "sha256": "69cd7ee54121569ebc14b1f6bfdee44971ffa93dd2a1830d7e4dc2589499dcd1",
+      "bytes": 24309,
+      "sha256": "19c38aa7dbba03eff329f7894b212d0fc6a0f815f7e64fdb4bfeccd63b411759",
       "owner": "mcp"
     },
     {
@@ -5978,7 +5978,7 @@
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
       "bytes": 11186,
-      "sha256": "a4e36f9e7da888cbef1d038ded4d84da9135957eb5823e44b22eab1e2a209f44",
+      "sha256": "32cb0f4fcbed0894280e9c0bed1737c6a42768984570d7140020c7917788b77a",
       "owner": "mcp"
     },
     {
@@ -6026,22 +6026,22 @@
     {
       "path": "contracts/client-schemas/agent-ajv.schema.json",
       "mode": "100644",
-      "bytes": 451798,
-      "sha256": "e815bf18fed215770154fe60a1cd5278a3c18114b80b22cf51c5cac23ea14bdb",
+      "bytes": 444478,
+      "sha256": "61bcdf0bf65e35489f3d9f1c0b2d18b860a088a1dad4711cecc7908377c8900b",
       "owner": "contracts"
     },
     {
       "path": "contracts/client-schemas/agent-exact-pin.json",
       "mode": "100644",
       "bytes": 67,
-      "sha256": "e067bff4a28e82d6f45629ef8cf67c9956cf3cd034e88646ea1ef8112f36a622",
+      "sha256": "fad1a73d5b78d25df1118b89f8c9efd309c168836e896ba7fb2f2c97f20ab6ee",
       "owner": "contracts"
     },
     {
       "path": "contracts/client-schemas/agent-exact.schema.json",
       "mode": "100644",
-      "bytes": 308960,
-      "sha256": "145733ef3c4047d903f66ac3388fffe3c56831d2e003a591b83f4149ebdb9dd6",
+      "bytes": 303920,
+      "sha256": "d019fb220a09909bd8d397bce013c4dfd1644961af9080d34df476294940b11b",
       "owner": "contracts"
     },
     {
@@ -6055,7 +6055,7 @@
       "path": "contracts/client-schemas/pins.json",
       "mode": "100644",
       "bytes": 34675,
-      "sha256": "f614c47b752decbdf599397ca4aa89eb3a630b4a668c50011443614e93e8ff8e",
+      "sha256": "5c6e9a66551b8bbe3c0fd2d9083ad83e3f1cd9e8f896f1701e7ad3d937228bb4",
       "owner": "contracts"
     },
     {
@@ -6089,8 +6089,8 @@
     {
       "path": "contracts/geodata-wire-v2/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 2668,
-      "sha256": "6b126f38f0a6f3791aae7dff4b1aa4f827bd820fe05e47bd997b4b543e961571",
+      "bytes": 3511,
+      "sha256": "9197e652aaf8389f98951396c984f07c4646090ddc0f2547449fa374cfa86620",
       "owner": "contracts"
     },
     {
@@ -6131,8 +6131,8 @@
     {
       "path": "contracts/stock-wire3/README.md",
       "mode": "100644",
-      "bytes": 2762,
-      "sha256": "0c769bb54c36176b7a8b5c5260870629376deefd57326d466c40244d27b5b1b8",
+      "bytes": 3316,
+      "sha256": "7c8d432b29b4f2528d4b6889099a90ad46aa9942b4aa0197f79507c6e3a0481b",
       "owner": "contracts"
     },
     {
@@ -6145,15 +6145,15 @@
     {
       "path": "contracts/stock-wire3/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 6036,
-      "sha256": "06da07ee6ab48545b4282162a4576bfe50c569412bf913f7e839b830f771109f",
+      "bytes": 6309,
+      "sha256": "b250aa9dd9bb386f6fa7f609fe6fff282b522c5486ebdf6f3fe806cda6c4dae3",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
       "mode": "100644",
-      "bytes": 955535,
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
+      "bytes": 947975,
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede",
       "owner": "contracts"
     },
     {
@@ -6244,14 +6244,14 @@
       "path": "contracts/stock-wire3/resource-map.json",
       "mode": "100644",
       "bytes": 1707,
-      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4",
+      "sha256": "a61f21b3511a9f2a4b3e6025ca94bfe8792a1ed0c35df73b481f21f88cbd6762",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire4/adoption-manifest.json",
       "mode": "100644",
       "bytes": 950,
-      "sha256": "af7df2e91c9311c3bc633b90d898f616f0fae6e2e6e14c05481c545ce13c4d30",
+      "sha256": "cb0fb85080a0c2c6e68827d8d595f4e69d204c8338c24f0340e5577caa5bfde4",
       "owner": "contracts"
     },
     {
@@ -6265,7 +6265,7 @@
       "path": "contracts/stock-wire4/resource-map.json",
       "mode": "100644",
       "bytes": 873,
-      "sha256": "9dc3df00759725ba14f64be18ebb40bf4138841fffed10972881a5cc9adf38ac",
+      "sha256": "c8934b84edf0b4aa30c200a31dd0f633d3907bfd160295dbae2fa9edd4a81b53",
       "owner": "contracts"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 300364,
-      "sha256": "508cb47e5ee60c65c023f5081b57fac7e75f55fa16f6df131dc5cf9d4e91eab1",
+      "bytes": 301882,
+      "sha256": "63066cd7d6f02decc89742fb9874e797b1639182cc893dc19ed71fcf3c216970",
       "owner": "core-integration"
     },
     {
@@ -7342,15 +7342,15 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
       "mode": "100644",
-      "bytes": 232641,
-      "sha256": "56db69b254860b03d7426458e129a793d7b6cdf39ab6f6e6b33eb34e836cafe7",
+      "bytes": 232878,
+      "sha256": "5b238561592361a2a373119d930ca826a2f39cfd33b74ad4ebfb7d6c48f82537",
       "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
       "mode": "100644",
-      "bytes": 15707,
-      "sha256": "e9e3b1b0ee5744c2412400b6311a53c6e13195788cdbf35415368eb20565240b",
+      "bytes": 16188,
+      "sha256": "b7e82f234ed92468f79fe754ae9eaa268d6857d8fe3fbf799a5d8879e606b7bf",
       "owner": "mcp"
     },
     {
@@ -8049,8 +8049,8 @@
     {
       "path": "frontend/lantern-tests/client-schema-subset.mjs",
       "mode": "100644",
-      "bytes": 7471,
-      "sha256": "dd9099c8b0be66f30efb73f199b6dc92cf74e793db5729b55cc6eb42a9a28489",
+      "bytes": 8845,
+      "sha256": "4031b43c39049af3c69ac1eec0eb759e86397e84ffe940ee8979d7b102068404",
       "owner": "web"
     },
     {

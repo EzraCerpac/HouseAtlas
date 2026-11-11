@@ -167,6 +167,13 @@ manual native-handoff SOURCE selections after `b19e7d91` (80 SOURCE / 1 BUILD /
 7 BROWSER). The backend selected-input module registration adds no operation or
 route. No historical evidence is promoted and every previous selection remains.
 
+Three inputs were then reinspected after `0183afd6`: the agent schema changes
+exactly 126 logical HomeBox collection constraints to the original opaque scalar
+bound; native_schemas updates only its exact schema digest; healthy_examples adds
+two authored default-library structural/descriptor controls. No native binding,
+capability, operation/profile or historical execution result is changed. These
+hash updates establish only the reviewed amended source, not current execution.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor

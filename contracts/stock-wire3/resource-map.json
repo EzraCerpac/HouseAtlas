@@ -12,7 +12,7 @@
     {
       "uri": "urn:houseatlas:agent:stock:3",
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca"
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede"
     },
     {
       "path": "contracts/stock-wire3/presence/witness.v1.schema.json",
