@@ -74,8 +74,8 @@ const BROWSER = [
   ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network', 'live-launch']),
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
   node('unified-atlas-plan-wheel-browser.mjs'),
-  node('unified-atlas-regression/browser.mjs', '--electrical'),
-  ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],
+  // unified-atlas-regression/browser.mjs and capture-drafts-tests/browser-storage.mjs launch Chrome
+  // with its sandbox on, which hosted runners refuse; they stay explicit regression commands.
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;

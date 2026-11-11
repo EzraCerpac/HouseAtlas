@@ -369,21 +369,19 @@ fn original_opaque_collection_capture_recheck_and_inspection_keep_native_binding
     ));
     selected.recheck(&fixture.core, &p).unwrap();
     // Revocation uses the exact original opaque partition, not a UUID alias.
-    fixture
-        .core
-        .access
-        .lock()
-        .unwrap()
-        .set_source_enabled(
-            &a::SourcePartition {
-                workspace_id: a::CanonicalId::parse(id(1))?,
-                home_id: a::CanonicalId::parse(id(2))?,
-                source_instance_id: a::CanonicalId::parse(id(10))?,
-                collection_id: collection.into(),
-            },
-            false,
-        )?;
-    assert_eq!(selected.recheck(&fixture.core, &p), Err(InputError::Changed));
+    fixture.core.access.lock().unwrap().set_source_enabled(
+        &a::SourcePartition {
+            workspace_id: a::CanonicalId::parse(id(1))?,
+            home_id: a::CanonicalId::parse(id(2))?,
+            source_instance_id: a::CanonicalId::parse(id(10))?,
+            collection_id: collection.into(),
+        },
+        false,
+    )?;
+    assert_eq!(
+        selected.recheck(&fixture.core, &p),
+        Err(InputError::Changed)
+    );
     assert!(matches!(
         selected.inspection(
             &fixture.core,

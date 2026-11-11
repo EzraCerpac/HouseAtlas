@@ -121,7 +121,12 @@ try {
       .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation }) =>
         ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation })) });
     try {
-      await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read settled before session replacement');
+      // A binding change aborts the first round and the provider reads again; wait for that
+      // replacement round too, not for the gap between the cancellation and its next request.
+      const completed = commandId => rows().some(read => read.commandId === commandId && read.status === 200 && read.finished && !read.failed);
+      await until(() => rows().length >= 4 && rows().every(read => read.finished)
+        && ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list'].every(completed),
+        'Every viewer native read settled before session replacement');
     } catch (error) { throw new Error(error.message + ': ' + describe()); }
     // An old body may be canceled only AFTER its actual authorized200 headers.
     // That settles traffic; it does not count as successfully read content.
