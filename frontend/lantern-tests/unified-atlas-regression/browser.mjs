@@ -273,25 +273,41 @@ try {
       await click(button('.ua-inspector button', 'Clear drawing group'));
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker.is-electrical-group").length'), 0);
     });
-    const openDrawingGroup = async () => {
+    const openDrawingGroup = async invocation => {
       await clear();
       await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Hall'));
       const symbol = `Array.from(document.querySelectorAll('.ua-doc')).find(row=>row.querySelector('.ua-doc-label')?.textContent==='Generated hall symbol')`;
       if (!await evaluate(`(${symbol}).open`)) await click(`(${symbol}).querySelector('summary')`);
       await click(button('.ua-doc button', 'Show drawing group'));
-      assert.equal(await evaluate('document.querySelectorAll(".ua-marker.is-electrical-group").length'), 2);
+      const observed = await evaluate(`(()=>{
+        const layer=Array.from(document.querySelectorAll('.layer-bar button')).find(b=>b.textContent.trim()==='Electrical');
+        const key=document.querySelector('[aria-label="Electrical layer"]');
+        const room=document.querySelector('.ua-inspector.is-room h2')?.textContent;
+        const coverage=Array.from(key?.querySelectorAll('.ua-coverage-state') ?? []).slice(0,10).map(row=>{
+          const value=row.textContent.toLowerCase();
+          return value.includes('stored-copy')?'stored-copy':value.includes('unavailable')?'unavailable':value.includes('available')?'available':value.includes('loading')?'loading':'other';
+        });
+        return { highlights:document.querySelectorAll('.ua-marker.is-electrical-group').length,
+          inspector:!!document.querySelector('[aria-label="Historic drawing group"]'),
+          electricalPressed:layer?.getAttribute('aria-pressed') ?? null,
+          room:room==='Hall'?'Hall':room==null?'none':'other',
+          source:{ keyPresent:!!key, stored:!!key?.querySelector('.ua-key-stored'), coverage } };
+      })()`);
+      if (observed.highlights !== 2) report.drawingGroupFailure = { invocation,
+        expected: { highlights: 2, inspector: true, electricalPressed: 'true', room: 'Hall', source: 'documentary records available, possibly stored' }, observed };
+      assert.equal(observed.highlights, 2);
     };
     await check('drawing group retires on clear room, layer off, source invalidation and publication owner replacement', async () => {
       const retired = async () => {
         await until('document.querySelectorAll(".ua-marker.is-electrical-group").length===0&&!document.querySelector("[aria-label=\'Historic drawing group\']")', 'drawing group retired');
       };
-      await openDrawingGroup(); await clear(); await retired();
-      await openDrawingGroup(); await sheet(false); await click(button('.layer-bar button', 'Electrical')); await retired();
-      await click(button('.layer-bar button', 'Electrical')); await openDrawingGroup();
+      await openDrawingGroup('before clear room'); await clear(); await retired();
+      await openDrawingGroup('before layer off'); await sheet(false); await click(button('.layer-bar button', 'Electrical')); await retired();
+      await click(button('.layer-bar button', 'Electrical')); await openDrawingGroup('after layer on');
       await evaluate('window.dispatchEvent(new Event("synthetic-atlas-source-invalidate"))'); await retired();
       // The feed may retain documentary records as a labelled stored copy. Its
       // new snapshot must not retain the user's previous group selection.
-      await openDrawingGroup();
+      await openDrawingGroup('after source invalidation');
       await evaluate('window.dispatchEvent(new Event("synthetic-atlas-selection-replace"))'); await retired();
       await until('Boolean(document.querySelector(".ua-room-btn"))', 'replacement publication ready');
     });
@@ -303,7 +319,7 @@ try {
       await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       await sheet(false); await click(button('.layer-bar button', 'Electrical'));
       await until('document.querySelectorAll(".ua-marker").length===2', 'reduced-motion documentary markers');
-      await openDrawingGroup();
+      await openDrawingGroup('reduced motion');
       await evaluate('document.querySelector(".ua-viewport").focus()'); await key('Escape', 'Escape', 27);
       assert.equal(await selectedRoom(), null);
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker.is-electrical-group").length'), 0);
