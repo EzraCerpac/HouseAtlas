@@ -26,6 +26,14 @@ assert.equal(process.argv.length, 4, `Select --case ${CASES.join(' | ')}`);
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3];
 assert(CASES.includes(selected), `Select --case ${CASES.join(' | ')}`);
+const phaseStarted = performance.now();
+let phasePrevious = phaseStarted;
+const phase = label => {
+  const now = performance.now();
+  console.log(`PHASE ${label} elapsed=${Math.round(now - phaseStarted)}ms since_previous=${Math.round(now - phasePrevious)}ms`);
+  phasePrevious = now;
+};
+phase('build-start');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
 assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspected local Chromium executable');
 
@@ -64,6 +72,7 @@ const swapWitnessPlugin = {
 
 await build({ root: frontend, configFile: false, logLevel: 'silent', plugins: [swapWitnessPlugin, react()], base: './', publicDir: false,
   build: { outDir: dist, rolldownOptions: { input: ['render-bench', 'embedded-png-material-visual'].map(page => join(frontend, `lantern-tests/${page}/index.html`)) } } });
+phase('build-finished');
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript' };
 const server = createServer((request, response) => {
@@ -176,6 +185,7 @@ try {
     }
   } else {
     // 1. A generated house: drawn, selection visible, a handful of GPU calls per frame however many primitives.
+    phase('house-start');
     await open('/lantern-tests/render-bench/index.html?frames=8&pieces=600', 480, 480);
     const result = await poll('window.benchDone', 60_000, 'Generated house frames did not finish');
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure');
@@ -193,6 +203,8 @@ try {
     assert(drawn > house.width * house.height * .05, `Only ${drawn} drawn pixels`);
     assert(lantern > 20, `The selected room's lantern tone is missing (${lantern} pixels)`);
     // A new mesh set builds behind the one on screen and replaces it only once drawn: never a blank stage.
+    phase('house-finished');
+    phase('ordinary-swap-start');
     await evaluate('window.swapReport = window.swap(), true');
     await poll('window.swapReport.done', 60_000, 'The swapped mesh set did not finish actual settled shading');
     const assertShadedSwap = (value, label) => {
@@ -224,6 +236,8 @@ try {
     assert.deepEqual(await evaluate('window.shownSets'), [0, 1], 'each set is reported shown once, in order');
     // A much larger set, as the Full model replaces Light: it merges, uploads and
     // compiles over several frames while the old set stays on screen.
+    phase('ordinary-swap-finished');
+    phase('large-swap-start');
     await evaluate('window.bigSwap = window.swap(6000), true');
     await poll('window.bigSwap.done', 120_000, 'The larger mesh set did not finish actual settled shading');
     const big = await evaluate('window.bigSwap');
@@ -234,11 +248,14 @@ try {
     assert.deepEqual(await evaluate('window.shownSets'), [0, 1, 2], 'the larger set is reported shown once');
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the larger swap');
     // The Full model's GLB parses and prepares in a worker with the same result and refusals.
+    phase('large-swap-finished');
+    phase('worker-checks-start');
     assert.deepEqual(await evaluate('window.checkWorker()'), { same: true, moved: true, admitted: true, meshes: 24, refused: 'refused', aborted: 'aborted', malformed: 'container' });
     // Its pinned SHA-256 is checked in a worker too, so the page never copies the whole download to hash it.
     assert.deepEqual(await evaluate('window.checkDigestWorker()'), { same: true, unchanged: true, moved: true, aborted: 'aborted' });
     assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
+    phase('worker-checks-finished');
 
     // A new hour over a still view keeps the contact shading already averaged and
     // redraws only the colour: after a scrub, the same picture as that hour drawn whole.
@@ -248,6 +265,7 @@ try {
       return shot();
     };
     const meanDifference = (a, b) => { let sum = 0; for (let i = 0; i < a.pixels.length; i++) sum += Math.abs(a.pixels[i] - b.pixels[i]); return sum / a.pixels.length; };
+    phase('relighting-start');
     await open('/lantern-tests/render-bench/index.html?frames=36&pieces=600&scrub=day&hold', 480, 480);
     const before = await quiet();
     await evaluate('window.go = true');
@@ -262,8 +280,10 @@ try {
     assert(moved > 4 * kept && kept < 1.5, `A relit hour differs from the same hour drawn whole (${kept.toFixed(2)} mean channel difference; the hour itself moved ${moved.toFixed(2)})`);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure while the hour moved');
     console.log(`relit hour: ${scrub.passes} passes per frame, ${kept.toFixed(2)} mean channel difference from the hour drawn whole (the hour moved ${moved.toFixed(2)})`);
+    phase('relighting-finished');
 
     // The on-device speed check: once the model is shown it times every case, reports them, and drawing resumes.
+    phase('render-probe-start');
     await open('/lantern-tests/render-bench/index.html?frames=0&pieces=200&render-probe', 480, 480);
     const report = await poll(`document.querySelector('[aria-label="3D speed check"] pre')?.textContent`, 240_000, 'The speed check did not report');
     for (const row of ['As drawn', '¼ of the pixels', '½ of the triangles', '¼ of the triangles', 'Contact shading']) assert.match(report, new RegExp(`${row} +\\d+\\.\\d ms +\\d+\\.\\d ms`), report);
@@ -271,8 +291,10 @@ try {
     await poll(`window.lastDrawn > Number(document.querySelector('[aria-label="3D speed check"]').dataset.shownAt)`, 30_000, 'The view did not redraw after the speed check');
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure during the speed check');
     console.log(report);
+    phase('render-probe-finished');
 
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
+    phase('material-samples-start');
     await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
     await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Material samples did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
@@ -290,6 +312,8 @@ try {
     assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
     // The same generated material entry also exercises the glass shader. The
     // two source orders must agree, while orbiting reverses the foreground tint.
+    phase('material-samples-finished');
+    phase('glass-samples-start');
     await open('/lantern-tests/embedded-png-material-visual/index.html?glass', 1400, 900);
     await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Glass samples did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
@@ -322,7 +346,9 @@ try {
 
     // The actual opaque and glass shader paths see the same generated surface
     // at scalar 0, 0.5, 1 and the shader fallback. Metallic output must not vary.
+    phase('glass-samples-finished');
     for (const mode of ['dielectric', 'mixed', 'metal', 'glass', 'glass-metal']) {
+      phase(`scalar-${mode}-start`);
       await open(`/lantern-tests/embedded-png-material-visual/index.html?scalar=${mode}`, 1400, 900);
       await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, `Scalar ${mode} samples did not draw`);
       assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
@@ -351,10 +377,12 @@ try {
         assert(half > zero + margin && half < one - margin,
           `${mode}: intermediate scalar collapsed to an endpoint (${zero}, ${half}, ${one})`);
       }
+      phase(`scalar-${mode}-finished`);
     }
 
     // 3. A closed elevated emitter lights a distant receiver without losing its
     // nearby metal pool; the finite envelope ends at 10 m. Same existing GPU case.
+    phase('lamps-start');
     await open('/lantern-tests/embedded-png-material-visual/index.html?lamps', 1400, 900);
     await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Lamp receivers did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
@@ -383,6 +411,7 @@ try {
       `A receiver at/beyond the finite 10 m limit was lit: ${JSON.stringify(lampDeltas)}`);
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
     console.log(`PASS finite omni lamp pools on ${expected}: ${JSON.stringify(lampDeltas)}; approximate illumination, no per-lamp occlusion or device proof`);
+    phase('lamps-finished');
     console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load and digest match) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {
