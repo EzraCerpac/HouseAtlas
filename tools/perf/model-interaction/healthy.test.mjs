@@ -20,8 +20,12 @@ test('generated GLB retains drawn transforms and unbound meshes', async () => {
   const bounds = api.geometry.drawnBounds(glb.meshes, [], null);
   assert(Math.abs(bounds.max[0] - 11.2) < 1e-5);
   assert(glb.meshes.every(mesh => mesh.occurrenceId === null && mesh.floorId === null));
-  const optional = ['embedded-png-material.ts', 'glb-meshopt.ts'].filter(name => existsSync(join(root, 'frontend/src/lantern/canonical-ifc', name)));
+  const optional = ['embedded-png-material.ts', 'glb-meshopt.ts', 'mesh-state-table.ts'].filter(name => existsSync(join(root, 'frontend/src/lantern/canonical-ifc', name)));
   assert.equal(observed.size, 4 + optional.length);
+  if (optional.includes('mesh-state-table.ts')) {
+    const path = 'frontend/src/lantern/canonical-ifc/mesh-state-table.ts';
+    assert.equal(observed.get(path), sha256(readFileSync(join(root, path))), 'State table helper is included in source provenance');
+  }
 });
 
 test('optional embedded-material import loads through the mapped production closure without a browser', async t => {
