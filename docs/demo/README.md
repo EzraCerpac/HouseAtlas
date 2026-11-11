@@ -89,19 +89,6 @@ They do not establish a building, floor or room placement.
 The existing media artifact does not capture this Library view;
 the example uses an in-page synthetic reader, not a live document source.
 
-### Historic electrical drawing group
-
-In the Atlas, choose **Synthetic house**, turn on the **Electrical** layer,
-and select **Hall** on the Ground floor.
-Expand **Generated hall symbol** in the room's electrical records and choose
-**Show drawing group**.
-The group lists generated Hall and Living room symbols and an unplaced symbol.
-It is a fictional historic drawing group, unverified;
-it does not establish a current circuit, tested wiring or a physical wire route.
-The example uses the generated browser fixture as an in-page source owner;
-its room bindings and receipt are synthetic, not real review evidence.
-The existing media tour shows electrical counts, not this group interaction.
-
 ### Starting state
 
 Four optional URL parameters name the Atlas's starting view:

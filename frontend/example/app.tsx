@@ -19,7 +19,6 @@ import { readUnifiedAtlas } from '../integration/unified-atlas-reader';
 import { createSyntheticDocumentServer } from '../lantern-tests/source-host-visual/synthetic-documents';
 import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/synthetic-site';
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
-import { createSyntheticDrawingGroups } from '../lantern-tests/unified-atlas-regression/synthetic-drawing-groups';
 import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart } from './household';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
@@ -46,7 +45,7 @@ async function example() {
   const models: SourceModelPort = {
     site: createSyntheticSitePort(),
     // The production reader, guards and admission against the in-page HTTPS fake.
-    atlas: { current, subscribe, createOverlays: createSyntheticDrawingGroups,
+    atlas: { current, subscribe,
       async read(requested, signal) {
         const read = await readUnifiedAtlas({ selection: requested, signal,
           origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
