@@ -13,8 +13,10 @@ export function materialGpuResources(meshes: readonly PreparedMesh[], enabled: b
   for (const mesh of meshes) {
     bytes += mesh.vertices.byteLength;
     if (!enabled || !mesh.sourceMaterial) continue;
-    if (!mesh.materialVertices || mesh.materialVertices.length !== mesh.triangles * 27) throw new Error('Required texture attributes unavailable');
-    bytes += mesh.materialVertices.byteLength;
+    if (!mesh.sourceMaterial.scalarOnly || mesh.sourceMaterial.shadingAttributes) {
+      if (!mesh.materialVertices || mesh.materialVertices.length !== mesh.triangles * 27) throw new Error('Required texture attributes unavailable');
+      bytes += mesh.materialVertices.byteLength;
+    }
     for (const texture of [mesh.sourceMaterial.baseColorTexture, mesh.sourceMaterial.normalTexture, mesh.sourceMaterial.metallicRoughnessTexture]) {
       if (!texture) continue;
       const prior = textures.get(texture.key);

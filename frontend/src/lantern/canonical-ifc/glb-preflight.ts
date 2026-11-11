@@ -130,6 +130,9 @@ const INDEX_TYPES = new Set([5121, 5123, 5125]);
 
 /** Refuses any `extensions` object outside extras, wherever a plugin might read it. */
 function refuseExtensions(json: Row) {
+  const materials = rows(json.materials, 'Materials');
+  const owners = new Set(materials);
+  let found = false;
   const pending: unknown[] = [json];
   while (pending.length > 0) {
     const value = pending.pop();
@@ -137,11 +140,20 @@ function refuseExtensions(json: Row) {
     if (!isRow(value)) continue;
     for (const [key, item] of Object.entries(value)) {
       if (key === 'extras') continue;
-      if (key === 'extensions')
-        need(isRow(item) && Object.keys(item).every(name => ALLOWED_EXTENSIONS.has(name)), 'preflight', 'An unsupported glTF extension is used');
+      if (key === 'extensions') {
+        need(owners.has(value) && isRow(item) && Object.keys(item).length === 1 && isRow(item.KHR_materials_specular), 'preflight', 'An unsupported glTF extension is used');
+        const specular = item.KHR_materials_specular;
+        need(Object.keys(specular).every(name => name === 'specularFactor')
+          && (specular.specularFactor === undefined || typeof specular.specularFactor === 'number' && Number.isFinite(specular.specularFactor)
+            && specular.specularFactor >= 0 && specular.specularFactor <= 1), 'preflight', 'Invalid scalar specular');
+        found = true;
+        continue;
+      }
       pending.push(item);
     }
   }
+  const used = json.extensionsUsed;
+  need(found === (Array.isArray(used) && used.includes('KHR_materials_specular')), 'preflight', 'Specular declaration does not match material use');
 }
 
 interface AccessorShape { readonly count: number; readonly components: number; readonly componentType: number; readonly normalized: boolean }
@@ -214,8 +226,10 @@ export function preflightGltf({ json, bin }: GlbContainer, limits = STANDARD_GLB
   const required = json.extensionsRequired, used = json.extensionsUsed;
   need(required === undefined || Array.isArray(required) && required.length === 0, 'preflight', 'Required extensions are not supported');
   need(used === undefined || Array.isArray(used) && used.every(name => typeof name === 'string'), 'preflight', 'Invalid extension list');
-  const unknown = ((used ?? []) as string[]).filter(name => !ALLOWED_EXTENSIONS.has(name));
+  const unknown = ((used ?? []) as string[]).filter(name => name !== 'KHR_materials_specular');
   need(unknown.length === 0, 'preflight', 'An unsupported glTF extension is used');
+  need(used === undefined || new Set(used as string[]).size === (used as string[]).length, 'preflight', 'Duplicate extension declaration');
+  need(!(Array.isArray(used) && used.includes('KHR_materials_specular')) || required === undefined, 'preflight', 'Scalar specular must be optional');
   refuseExtensions(json);
   const buffers = rows(json.buffers, 'Buffers');
   need(buffers.length <= 1, 'preflight', 'Only the embedded GLB buffer is supported');

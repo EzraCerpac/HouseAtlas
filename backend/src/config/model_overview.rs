@@ -339,9 +339,27 @@ fn validate_plain_glb(bytes: &[u8], max: u64) -> Result<(), String> {
     {
         return Err(invalid());
     }
-    fn safe(v: &serde_json::Value) -> bool {
+    fn safe(v: &serde_json::Value, material: bool, found: &mut bool) -> bool {
         match v {
             serde_json::Value::Object(o) => o.iter().all(|(k, v)| {
+                if k == "extensions" && material {
+                    let Some(ext) = v.as_object() else {
+                        return false;
+                    };
+                    let Some(spec) = ext
+                        .get("KHR_materials_specular")
+                        .and_then(serde_json::Value::as_object)
+                    else {
+                        return false;
+                    };
+                    *found = true;
+                    return ext.len() == 1
+                        && spec.keys().all(|key| key == "specularFactor")
+                        && spec.get("specularFactor").is_none_or(|n| {
+                            n.as_f64()
+                                .is_some_and(|n| n.is_finite() && (0.0..=1.0).contains(&n))
+                        });
+                }
                 ![
                     "uri",
                     "extensions",
@@ -351,13 +369,25 @@ fn validate_plain_glb(bytes: &[u8], max: u64) -> Result<(), String> {
                     "skins",
                 ]
                 .contains(&k.as_str())
-                    && safe(v)
+                    && safe(v, false, found)
             }),
-            serde_json::Value::Array(a) => a.iter().all(safe),
+            serde_json::Value::Array(a) => a.iter().all(|v| safe(v, false, found)),
             _ => true,
         }
     }
-    if !safe(&json) {
+    let mut found = false;
+    let Some(root) = json.as_object() else {
+        return Err(invalid());
+    };
+    let valid = root.iter().all(|(key, value)| match key.as_str() {
+        "extensionsUsed" => value == &serde_json::json!(["KHR_materials_specular"]),
+        "materials" => value
+            .as_array()
+            .is_some_and(|a| a.iter().all(|v| safe(v, true, &mut found))),
+        "uri" | "extensions" | "extensionsRequired" | "animations" | "skins" => false,
+        _ => safe(value, false, &mut found),
+    });
+    if !valid || found != json.get("extensionsUsed").is_some() {
         return Err(invalid());
     }
     let declared = match json.get("buffers") {
@@ -415,4 +445,65 @@ fn validate_plain_glb(bytes: &[u8], max: u64) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod scalar_specular_tests {
+    use super::validate_plain_glb;
+    use serde_json::{Value, json};
+
+    fn admit(value: Value) -> bool {
+        let mut text = serde_json::to_vec(&value).unwrap();
+        while !text.len().is_multiple_of(4) {
+            text.push(b' ');
+        }
+        let mut glb = Vec::new();
+        for word in [
+            0x4654_6c67u32,
+            2,
+            (20 + text.len()) as u32,
+            text.len() as u32,
+            0x4e4f_534a,
+        ] {
+            glb.extend_from_slice(&word.to_le_bytes());
+        }
+        glb.extend_from_slice(&text);
+        validate_plain_glb(&glb, 1024 * 1024).is_ok()
+    }
+
+    #[test]
+    fn scalar_specular_declarations_and_material_shape() {
+        for spec in [
+            json!({}),
+            json!({"specularFactor": 0}),
+            json!({"specularFactor": 0.5}),
+            json!({"specularFactor": 1}),
+        ] {
+            let material = json!({"extensions": {"KHR_materials_specular": spec}});
+            assert!(admit(
+                json!({"asset": {"version":"2.0"}, "extensionsUsed":["KHR_materials_specular"], "materials":[material]})
+            ));
+        }
+        for spec in [
+            json!({"specularFactor": -0.1}),
+            json!({"specularFactor": 1.1}),
+            json!({"specularFactor":null}),
+            json!({"specularFactor":"1"}),
+            json!({"specularTexture":{}}),
+            json!({"specularColorFactor":[1,1,1]}),
+            json!({"other":0}),
+        ] {
+            assert!(!admit(
+                json!({"asset":{"version":"2.0"}, "extensionsUsed":["KHR_materials_specular"], "materials":[{"extensions":{"KHR_materials_specular":spec}}]})
+            ));
+        }
+        for value in [
+            json!({"asset":{"version":"2.0"}, "extensionsUsed":["KHR_materials_specular"]}),
+            json!({"asset":{"version":"2.0"}, "materials":[{"extensions":{"KHR_materials_specular":{}}}]}),
+            json!({"asset":{"version":"2.0"}, "extensionsUsed":["KHR_materials_specular"], "extensionsRequired":["KHR_materials_specular"], "materials":[{"extensions":{"KHR_materials_specular":{}}}]}),
+            json!({"asset":{"version":"2.0"}, "extensionsUsed":["KHR_materials_specular"], "nodes":[{"extensions":{"KHR_materials_specular":{}}}]}),
+        ] {
+            assert!(!admit(value));
+        }
+    }
 }

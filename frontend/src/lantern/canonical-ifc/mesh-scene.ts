@@ -360,7 +360,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const { source, maps } = material, on = s6.x.greaterThan(.5);
         if (!source.doubleSided) Discard(on.and(frontFacing.not()).and(cut.not()));
         const matUv = attribute('materialUv', 'vec2'), tangent = attribute('materialTangent', 'vec4');
-        let N: V3 = normalize(attribute('shadingNormal', 'vec3'));
+        let N: V3 = source.scalarOnly && !source.shadingAttributes ? normalize(vNormal) : normalize(attribute('shadingNormal', 'vec3'));
         if (maps.normal) {
           const T = normalize(tangent.xyz.sub(N.mul(dot(N, tangent.xyz)))), B = cross(N, T).mul(select(tangent.w.lessThan(0), -1, 1));
           N = normalize(mat3(T, B, N).mul(texture(maps.normal, matUv).rgb.mul(2).sub(1)));
@@ -375,9 +375,13 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const a = roughness.mul(roughness), a2 = a.mul(a), denom = nh.mul(nh).mul(a2.sub(1)).add(1);
         const D = a2.div(denom.mul(denom).mul(Math.PI)), k = roughness.add(1).mul(roughness.add(1)).div(8);
         const G = nv.div(nv.mul(float(1).sub(k)).add(k)).mul(nl.div(nl.mul(float(1).sub(k)).add(k)));
-        const f0 = mix(vec3(.04), base, metallic), F = f0.add(float(1).sub(f0).mul(pow(float(1).sub(vh), 5)));
+        const strength = source.specular ?? 1;
+        const f0 = mix(vec3(.04 * strength), base, metallic);
+        const f90 = mix(float(strength), float(1), metallic);
+        const F = f0.add(f90.sub(f0).mul(pow(float(1).sub(vh), 5)));
         const spec = D.mul(G).mul(F).div(max(nv.mul(nl).mul(4), .0001));
-        const diffuse = float(1).sub(F).mul(float(1).sub(metallic)).mul(base).div(Math.PI);
+        const dielectric = float(strength).mul(float(.04).add(float(.96).mul(pow(float(1).sub(vh), 5))));
+        const diffuse = float(1).sub(source.hasSpecular ? dielectric : F).mul(float(1).sub(metallic)).mul(base).div(Math.PI);
         const light = base.mul(float(1).sub(metallic)).add(f0.mul(.12)).mul(u.ambient).mul(sky(N))
           .add(diffuse.add(spec).mul(nl).mul(Math.PI).mul(float(1).sub(u.ambient)).mul(u.direct).mul(sunlit));
         color = select(on, display(mix(max(light, vec3(0)), u.paper, s6.y), s1.w), plain);
@@ -409,7 +413,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       let tint: V3 = select(s1.w.greaterThan(.5), s1.xyz, pow(s1.xyz, vec3(2.2)));
       if (material) {
         const { source, maps } = material, on = s6.x.greaterThan(.5), matUv = attribute('materialUv', 'vec2');
-        let N: V3 = normalize(attribute('shadingNormal', 'vec3'));
+        let N: V3 = source.scalarOnly && !source.shadingAttributes ? normalize(vNormal) : normalize(attribute('shadingNormal', 'vec3'));
         if (maps.normal) {
           const tangent = attribute('materialTangent', 'vec4');
           const T = normalize(tangent.xyz.sub(N.mul(dot(N, tangent.xyz)))), B = cross(N, T).mul(select(tangent.w.lessThan(0), -1, 1));
@@ -429,7 +433,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       // Schlick's Fresnel for glass (4% head-on); frosted glass scatters it to a sheen.
       const along = positionGeometry.x.sub(positionGeometry.z).add(positionGeometry.y.mul(1.6)).div(STREAK_SPACING).mul(2 * Math.PI);
       const streak = smoothstep(.55, 1, along.sin()).mul(STREAK);
-      const fresnel = float(GLASS_SHEEN).add(streak).add(float(1 - GLASS_SHEEN).mul(pow(float(1).sub(head), 5))).mul(mix(float(1), float(.4), frost));
+      const reflection = float(GLASS_SHEEN).add(streak).add(float(1 - GLASS_SHEEN).mul(pow(float(1).sub(head), 5))).mul(mix(float(1), float(.4), frost));
+      const metal = material ? float(material.source.metallic).mul(material.maps.metalRough ? texture(material.maps.metalRough, attribute('materialUv', 'vec2')).b : float(1)) : float(0);
+      const strength = material ? select(s6.x.greaterThan(.5), mix(float(material.source.specular ?? 1), float(1), metal), float(1)) : float(1);
+      const fresnel = reflection.mul(strength);
       const R = N.mul(head.mul(2)).sub(V);
       // The hour's dome, with its glow low toward the sun.
       const across = max(length(vec2(R.x, R.z)), .001);
@@ -615,7 +622,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const hull = new Mesh(geometry, shell); hull.frustumCulled = false; hull.matrixAutoUpdate = false; shellScene.add(hull);
       }
     };
-    const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
+    const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined
+      && (meshes[index]!.sourceMaterial!.scalarOnly === true || meshes[index]!.materialVertices !== undefined);
     // Keep each glass primitive independently sortable, including its display
     // lift. Merging panes fixes their order even when the camera turns around.
     // Three.js sorts these objects far-to-near at the common glass renderOrder.
@@ -645,7 +653,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     for (const [index, mesh] of meshes.entries()) {
       if (!textured(index)) continue;
       // The extra attribute stream follows the mesh's own vertices, so a textured mesh stays one piece.
-      const source = mesh.sourceMaterial!, [geometry] = await geometriesOf([index], Infinity, mesh.materialVertices!);
+      const source = mesh.sourceMaterial!, [geometry] = await geometriesOf([index], Infinity, mesh.materialVertices);
       if (!geometry) continue;
       const maps = Object.fromEntries(Object.entries({ base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) }).filter(([, map]) => map));
       const pass = mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
