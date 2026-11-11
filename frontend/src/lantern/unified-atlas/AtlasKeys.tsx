@@ -7,16 +7,18 @@ import { PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import type { BuildingCoverage, DocumentaryRecord, PropertyRecords } from './runtime-overlays';
 import { MEASURED_BASIS, MEASUREMENT_BASIS } from './measurements';
 import type { OverlayFeedSnapshot } from './overlay-feed';
-import { NetworkGraph } from './NetworkGraph';
+import { NetworkGraph, type StageTrace } from './NetworkGraph';
 import type { NetworkConnections } from './network-connections';
 import { OVERLAY_ICON, OVERLAY_LABEL, plural, stampTime, UNPLACED_LABEL } from './atlas-text';
 
 /** The model's network in the Network lens. Its graph is read with the
  * Network layer, as on the stage; the lens offers that layer alone and never
  * changes another. */
-export function NetworkLensSection({ graphs, networkOn, published, availability, headingId, showLayer }: {
+export function NetworkLensSection({ graphs, networkOn, published, availability, headingId, showLayer, onTrace }: {
   readonly graphs: NonNullable<PropertyRecords['networkGraphs']>; readonly networkOn: boolean; readonly published: boolean;
   readonly availability: 'available' | 'partial' | 'unavailable' | 'loading'; readonly headingId: string; readonly showLayer: () => void;
+  /** Lights the chosen device's route on the stage. */
+  readonly onTrace?: (graphKey: string, trace: StageTrace | null) => void;
 }) {
   return <section className="ua-lens-section" aria-labelledby={headingId} style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
     <h3 id={headingId}><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</h3>
@@ -25,7 +27,7 @@ export function NetworkLensSection({ graphs, networkOn, published, availability,
       <button type="button" className="btn btn-small" onClick={showLayer}>Show Network layer</button>
     </> : <>
       {availability === 'partial' && <p className="ua-unplaced">Some buildings or sources are unavailable; their records are not counted.</p>}
-      {graphs.length > 0 ? graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} />)
+      {graphs.length > 0 ? graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} onTrace={onTrace} />)
         : <p role="status">{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
           : published ? 'No logical network graph in this publication.' : 'No logical network graph in the available source.'}</p>}
     </>}

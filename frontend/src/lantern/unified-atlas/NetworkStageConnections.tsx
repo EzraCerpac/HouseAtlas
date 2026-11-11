@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { projectNetworkConnections, type NetworkConnectionAnchor, type NetworkConnections } from './network-connections';
+import type { StageTrace } from './NetworkGraph';
 import type { RuntimeRecords } from './runtime-overlays';
 
 /** Display anchors retain the current occurrence and camera projection. They
@@ -37,27 +39,49 @@ export function networkRoomConnections(records: RuntimeRecords | null, rooms: re
 
 /** Noninteractive topology decoration keeps existing stage picking intact.
  * Full identities, dates and uncertainty remain in the source records/graph. */
-export function NetworkStageConnections({ connections, selected }: {
+export function NetworkStageConnections({ connections, selected, trace = null, fade = 1, shown }: {
   readonly connections: NetworkConnections; readonly selected: string | null;
+  /** A device's route to the root, chosen in the network graph. */
+  readonly trace?: StageTrace | null;
+  /** Opacity of every untraced association; a plan hides them, a traced route stays. */
+  readonly fade?: number;
+  /** When set, only hops between rooms it admits are drawn (a plan's own floors). */
+  readonly shown?: ((occurrenceId: string) => boolean) | undefined;
 }) {
+  const order = trace ? new Map(trace.linkIds.map((id, at) => [id, at])) : null;
   const rows = [
     ...connections.connections.map(row => ({ ...row, medium: row.link.medium,
+      hop: order && row.graphKey === trace!.graphKey ? order.get(row.link.id) ?? null : null,
+      reversed: trace?.reversedLinkIds.has(row.link.id) ?? false,
       detail: [row.link.kind, row.link.sourceConfidence, row.link.temporalStatus, row.link.recordedAt, row.link.basis, row.link.notes].filter(Boolean).join(' · ') })),
-    ...connections.sharedMediumAssociations.map(row => ({ ...row, detail: 'Shared-medium association from recorded segment memberships' })),
-  ];
+    // A shared medium is on the route when the route passes through its segment
+    // between the two devices it associates.
+    ...connections.sharedMediumAssociations.map(row => ({ ...row,
+      hop: order && row.graphKey === trace!.graphKey && trace!.segmentIds.has(row.segment.id)
+        && trace!.deviceOrder.has(row.from.sourceId) && trace!.deviceOrder.has(row.to.sourceId)
+        ? Math.min(...row.memberships.map(link => order.get(link.id) ?? Infinity)) : null,
+      reversed: (trace?.deviceOrder.get(row.from.sourceId) ?? 0) > (trace?.deviceOrder.get(row.to.sourceId) ?? 0),
+      detail: 'Shared-medium association from recorded segment memberships' })),
+  ].map(row => ({ ...row, hop: row.hop === Infinity ? null : row.hop }));
   return <g pointerEvents="none" fill="none" stroke={TONE_COLOR.network} strokeWidth={1.8} strokeDasharray="6 4"
-    data-network-associations="room-summary">
-    {rows.flatMap((row, index) => row.placements.map(placement => {
-      const [x1, y1] = placement.from.point, [x2, y2] = placement.to.point;
-      const focused = selected === placement.from.occurrenceId || selected === placement.to.occurrenceId;
+    data-network-associations="room-summary" className={trace ? 'ua-net-tracing' : undefined}>
+    {rows.flatMap((row, index) => row.placements.flatMap(placement => {
+      const traced = row.hop !== null;
+      if (!traced && fade <= 0) return [];
+      if (shown && !(shown(placement.from.occurrenceId) && shown(placement.to.occurrenceId))) return [];
+      // A traced hop draws from the chosen device's side toward the root.
+      const [start, end] = traced && row.reversed ? [placement.to, placement.from] : [placement.from, placement.to];
+      const [x1, y1] = start.point, [x2, y2] = end.point;
+      const focused = traced || (!trace && (selected === placement.from.occurrenceId || selected === placement.to.occurrenceId));
       const dx = x2 - x1, dy = y2 - y1, length = Math.hypot(dx, dy);
       const bend = ((index % 5) - 2) * 5;
       const loop = 22 + (index % 5) * 5;
       const path = placement.coincident
         ? `M ${x1} ${y1} c ${-loop} ${-loop * 1.2} ${loop} ${-loop * 1.2} 0 0`
         : `M ${x1} ${y1} Q ${(x1 + x2) / 2 - dy / length * bend} ${(y1 + y2) / 2 + dx / length * bend} ${x2} ${y2}`;
-      return <path key={placement.key} d={path} vectorEffect="non-scaling-stroke" opacity={focused ? 1 : .65}
-        strokeWidth={focused ? 2.8 : 1.8}>
+      return <path key={placement.key} d={path} vectorEffect="non-scaling-stroke" opacity={traced ? 1 : (focused ? 1 : trace ? .14 : .65) * fade}
+        strokeWidth={traced ? 3.4 : focused ? 2.8 : 1.8} className={traced ? 'ua-net-trace' : undefined}
+        pathLength={traced ? 1 : undefined} style={traced ? { '--hop': row.hop } as CSSProperties : undefined}>
         <title>{`${row.from.label} ↔ ${row.to.label} · ${row.medium} · Logical room association, no cable route · ${row.qualification} · ${row.detail}`}</title>
       </path>;
     }))}
