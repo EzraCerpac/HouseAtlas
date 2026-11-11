@@ -65,8 +65,17 @@ try {
     // A fixture root keeps the public offline-shell plugin from replacing this
     // explicit fixture input with the production live/saved shell entries.
     await build({ root: join(frontend, 'lantern-tests/unified-atlas-regression'), configFile: join(frontend, 'vite.config.ts'), logLevel: 'error',
+      plugins: [{ name: 'generated-mounted-electrical-entry', apply: 'build', transformIndexHtml: {
+        order: 'pre', handler(html, context) {
+          if (context.filename !== join(frontend, 'lantern-tests/unified-atlas-regression/electrical-trace.html')) return html;
+          // Only this explicit test build reaches the actual projector's
+          // package-local dependencies; unrelated dev HTML scans stay inert.
+          return { html, tags: [{ tag: 'script', attrs: { type: 'module', src: './mounted-electrical-trace.tsx' }, injectTo: 'body' }] };
+        },
+      } }],
       publicDir: false, build: { target: 'esnext', outDir: join(scratch, 'dist'), emptyOutDir: true,
-        rolldownOptions: { input: join(frontend, 'lantern-tests/unified-atlas-regression/index.html') } } });
+        rolldownOptions: { input: [join(frontend, 'lantern-tests/unified-atlas-regression/index.html'),
+          ...(storedDialogOnly ? [] : [join(frontend, 'lantern-tests/unified-atlas-regression/electrical-trace.html')])] } } });
   } finally { process.chdir(previous); }
   report.build = 'passed';
   if (buildOnly) {
@@ -113,7 +122,8 @@ try {
     collect(join(scratch, 'dist'));
     server = createServer((req, res) => {
       const path = new URL(req.url, 'http://127.0.0.1').pathname;
-      const bytes = files.get(path === '/lantern-tests/unified-atlas-regression/index.html' ? '/index.html' : path);
+      const bytes = files.get(path === '/lantern-tests/unified-atlas-regression/index.html' ? '/index.html'
+        : path === '/lantern-tests/unified-atlas-regression/electrical-trace.html' ? '/electrical-trace.html' : path);
       if (req.method !== 'GET' || !bytes) { res.writeHead(path === '/favicon.ico' ? 204 : 404); res.end(); return; }
       const type = path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css'
         : path.endsWith('.woff2') ? 'font/woff2' : path.endsWith('.wasm') ? 'application/wasm' : 'text/html';
@@ -449,6 +459,58 @@ try {
       assert.equal(await selectedRoom(), null);
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker.is-electrical-group").length'), 0);
     });
+    await check('generated breaker trace mounts actual Inspector, selects panel room and retires explicit props', async () => {
+      await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/electrical-trace.html` });
+      const trace = 'document.querySelector("[aria-label=\'Circuit and panel\']")';
+      const text = () => evaluate(`(${trace})?.textContent ?? ''`);
+      const selected = () => evaluate('document.querySelector("[aria-label=\'Selected occurrence\']").textContent');
+      const noCircuitFacts = async () => {
+        assert.doesNotMatch(await text(), /Generated circuit|Generated panel|Circuit association confirmed by test/);
+        assert.equal(await evaluate(`(${trace})?.querySelectorAll('button').length ?? 0`), 0, 'Retired facts have no room action');
+      };
+      await until(`Boolean(${trace})`, 'generated actual Inspector trace');
+      assert.equal(await selected(), 'syn-occ-hall');
+      const owner = await text();
+      for (const value of ['Generated circuit A', 'Generated panel Δ', 'A1', '16 A', 'Owner report', 'Low', 'Not confirmed by test'])
+        assert.ok(owner.includes(value), value);
+      assert.doesNotMatch(owner, /verified wiring|wiring verified|wire route|cable/i);
+      // The real TraceRowDetail button calls Inspector.choose, then atlasReducer.
+      await click(button('[aria-label="Circuit and panel"] button', 'Living room'));
+      await until('document.querySelector(".ua-inspector h2")?.textContent === "Living room"', 'actual Inspector selects panel room');
+      assert.equal(await selected(), 'syn-occ-living');
+      assert.equal(await evaluate('document.activeElement === document.querySelector(".ua-inspector h2")'), true,
+        'Inspector navigation focuses its actual new heading');
+      await click(button('nav button', 'Show generated test'));
+      await until(`(${trace})?.textContent.includes('Circuit association confirmed by test')`, 'generated tested-state projection');
+      assert.match(await text(), /Generated circuit C/);
+      assert.match(await text(), /Generated panel Δ/);
+      assert.match(await text(), /observed 2026-10-01T12:00:00Z/);
+      assert.match(await text(), /Generated test-result assertion; no real test performed/);
+      assert.doesNotMatch(await text(), /verified wiring|wiring verified|wire route|cable/i);
+      // Explicit replacement of the supplied projection, NOT an independent
+      // native electrical-review withdrawal subscription or production mount.
+      await click(button('nav button', 'Replace with withheld projection'));
+      await until(`(${trace})?.textContent.includes('Withheld:')`, 'projector withholds replaced review context');
+      assert.match(await text(), /No current review of this exact assertion/);
+      await noCircuitFacts();
+      await click(button('nav button', 'Show owner report'));
+      await until(`(${trace})?.textContent.includes('Generated circuit A')`, 'explicit current prop restored');
+      await click(button('nav button', 'Remove electrical data'));
+      await until(`!(${trace})`, 'electricalData prop removed');
+      assert.ok(await evaluate('Boolean(document.querySelector("[aria-label=\'Historic drawing group\']"))'),
+        'Removing electrical data preserves the separate documentary group');
+      assert.doesNotMatch(await evaluate('document.querySelector(".ua-inspector").textContent'), /Generated circuit|Generated panel|Circuit association confirmed by test/);
+      await click(button('body > #root button', 'Remount Inspector'));
+      await until(`(${trace})?.textContent.includes('Generated circuit A')`, 'fresh generated Inspector mount');
+      assert.equal(await evaluate('document.querySelector("[aria-label=\'Inspector generation\']").textContent'), '1');
+      assert.equal(await evaluate('document.querySelectorAll(".ua-inspector").length'), 1, 'Only the new Inspector is mounted');
+      assert.equal(await selected(), 'syn-occ-hall', 'The keyed Inspector mount resets actual selection');
+      await click(button('[aria-label="Circuit and panel"] button', 'Living room'));
+      await until('document.querySelector(".ua-inspector h2")?.textContent === "Living room"', 'fresh room action works');
+      assert.equal(await selected(), 'syn-occ-living');
+      await click(button('nav button', 'Remove electrical data'));
+      await until(`!(${trace})`, 'fresh mount also removes its electrical data');
+    });
     const openLibrary = async mode => {
       await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?electrical-library=${mode}` });
       await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Library")', 'library navigation');
@@ -513,5 +575,9 @@ try {
   report.cleanup.scratchRemoved = !existsSync(scratch);
   if (!Object.values(report.cleanup).every(Boolean)) exitCode = 1;
   console.log(JSON.stringify(report, null, 2));
+  // Fixed generated labels/enums, DOM count, booleans and <=10 coverage values
+  // fit within 1024 ASCII bytes, intact (no slicing). The runner tails stdout +
+  // stderr, so emit last on stderr to preserve every existing snapshot field.
+  if (report.drawingGroupFailure) console.error(JSON.stringify({ drawingGroupFailure: report.drawingGroupFailure }));
 }
 process.exitCode = exitCode;
