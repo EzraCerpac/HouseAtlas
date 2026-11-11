@@ -1,0 +1,1136 @@
+{
+  "synthetic": true,
+  "notice": "All records, source bytes, reviews and tested state are GENERATED; no native admission, installed wiring or real receipt is asserted.",
+  "data": {
+    "schema": "houseatlas.electrical-data.v1",
+    "scope": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "viewKey": "generated:electrical-data-v1",
+    "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+    "panels": [
+      {
+        "id": "generated-panel",
+        "basis": "owner-report",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-panel",
+            "sha256": "ebba6d869a1e780fc6c89184cde59d4445c4160659d4d368fab73b172640c295"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000804",
+              "revision": 1
+            }
+          ],
+          "confidence": "medium",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "identity": {
+          "recordType": "identity",
+          "recordId": "00000000-0000-4000-8000-000000000500",
+          "revision": 1
+        },
+        "label": "Generated panel Δ",
+        "roomAssociation": {
+          "room": {
+            "recordType": "identity",
+            "recordId": "00000000-0000-4000-8000-000000000600",
+            "revision": 1
+          },
+          "semantics": {
+            "recordType": "location-semantics",
+            "recordId": "00000000-0000-4000-8000-000000000610",
+            "revision": 1
+          }
+        }
+      }
+    ],
+    "breakers": [
+      {
+        "id": "generated-breaker-1",
+        "basis": "label-match",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-breaker-1",
+            "sha256": "1c9a2c40f176be2d0004ef0c7fae76e69bc646d79ddf6323aa29d6833e5d720b"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000805",
+              "revision": 1
+            }
+          ],
+          "confidence": "medium",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "circuit": {
+          "recordType": "circuit",
+          "recordId": "00000000-0000-4000-8000-000000000701",
+          "revision": 1
+        },
+        "panel": {
+          "recordType": "identity",
+          "recordId": "00000000-0000-4000-8000-000000000500",
+          "revision": 1
+        },
+        "position": {
+          "label": "A1",
+          "ways": [
+            "A1"
+          ]
+        },
+        "ratingAmperes": 16,
+        "protection": null
+      },
+      {
+        "id": "generated-breaker-2",
+        "basis": "label-match",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-breaker-2",
+            "sha256": "78c54f9991016c459dd4ce1bb3516b805f62056d7cc94679bde070e1b55be5df"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000805",
+              "revision": 1
+            }
+          ],
+          "confidence": "medium",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "circuit": {
+          "recordType": "circuit",
+          "recordId": "00000000-0000-4000-8000-000000000702",
+          "revision": 1
+        },
+        "panel": {
+          "recordType": "identity",
+          "recordId": "00000000-0000-4000-8000-000000000500",
+          "revision": 1
+        },
+        "position": null
+      },
+      {
+        "id": "generated-breaker-3",
+        "basis": "label-match",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-breaker-3",
+            "sha256": "b56584938161fbf705c35486cf91969568acf23ae99b177957140f9608b0b430"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000805",
+              "revision": 1
+            }
+          ],
+          "confidence": "medium",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "circuit": {
+          "recordType": "circuit",
+          "recordId": "00000000-0000-4000-8000-000000000703",
+          "revision": 1
+        },
+        "panel": {
+          "recordType": "identity",
+          "recordId": "00000000-0000-4000-8000-000000000500",
+          "revision": 1
+        },
+        "position": {
+          "label": "A3–A4",
+          "ways": [
+            "A3",
+            "A4"
+          ]
+        },
+        "ratingAmperes": null,
+        "protection": "Generated label: RCD 30 mA"
+      }
+    ],
+    "mappings": [
+      {
+        "id": "generated-mapping-1",
+        "basis": "owner-report",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-mapping-1",
+            "sha256": "6f4c8ef15064794853f36e9bfb6d2b1fa86327e5388058555e022ab37945f727"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000801",
+              "revision": 1
+            }
+          ],
+          "confidence": "low",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "target": {
+          "kind": "documentary-group",
+          "id": "generated-group-1"
+        },
+        "candidates": [
+          {
+            "recordType": "circuit",
+            "recordId": "00000000-0000-4000-8000-000000000701",
+            "revision": 1
+          }
+        ]
+      },
+      {
+        "id": "generated-mapping-2",
+        "basis": "label-match",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-mapping-2",
+            "sha256": "3bbfbf43fb33557dc106500234d8c230706ecd6c9377d1c5920adac0d7655002"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000802",
+              "revision": 1
+            }
+          ],
+          "confidence": "medium",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "target": {
+          "kind": "documentary-group",
+          "id": "generated-group-2"
+        },
+        "candidates": [
+          {
+            "recordType": "circuit",
+            "recordId": "00000000-0000-4000-8000-000000000702",
+            "revision": 1
+          }
+        ]
+      },
+      {
+        "id": "generated-mapping-3",
+        "basis": "test",
+        "review": {
+          "status": "reviewed",
+          "receipt": {
+            "id": "generated-review-mapping-3",
+            "sha256": "39b811d7622e618df3f828a76954c490a3490e3e9f61e8e22c9b036da65dc3a7"
+          },
+          "evidence": [
+            {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000803",
+              "revision": 1
+            }
+          ],
+          "confidence": "high",
+          "uncertainty": "Generated synthetic assertion only"
+        },
+        "target": {
+          "kind": "fixture",
+          "id": "generated-symbol-3"
+        },
+        "candidates": [
+          {
+            "recordType": "circuit",
+            "recordId": "00000000-0000-4000-8000-000000000703",
+            "revision": 1
+          }
+        ],
+        "test": {
+          "evidence": {
+            "recordType": "evidence",
+            "recordId": "00000000-0000-4000-8000-000000000803",
+            "revision": 1
+          },
+          "observedAt": "2026-10-01T12:00:00Z",
+          "method": "Generated test-result assertion; no real test performed",
+          "outcome": "confirmed",
+          "fixtureIds": [
+            "generated-symbol-3"
+          ]
+        }
+      }
+    ]
+  },
+  "context": {
+    "scope": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "viewKey": "generated:electrical-data-v1",
+    "records": [
+      {
+        "schemaVersion": 1,
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000801",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010801",
+        "payload": {
+          "statement": "Generated owner report associates fictional symbol A with circuit A",
+          "provenance": {
+            "source": null,
+            "sourceRevision": null,
+            "sourceConfidence": null,
+            "evidenceBasis": "owner-report",
+            "factAt": null,
+            "retrievedAt": "2026-10-01T12:00:00Z",
+            "vantage": null,
+            "uncertainty": {
+              "status": "unknown",
+              "explanation": "Generated fixture only; no installed household facts"
+            }
+          },
+          "supersedesEvidenceIds": [],
+          "references": []
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000802",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010802",
+        "payload": {
+          "statement": "Generated matching label B; no continuity or installed wiring test",
+          "provenance": {
+            "source": null,
+            "sourceRevision": null,
+            "sourceConfidence": null,
+            "evidenceBasis": "document",
+            "factAt": null,
+            "retrievedAt": "2026-10-01T12:00:00Z",
+            "vantage": null,
+            "uncertainty": {
+              "status": "unknown",
+              "explanation": "Generated fixture only; no installed household facts"
+            }
+          },
+          "supersedesEvidenceIds": [],
+          "references": []
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000803",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010803",
+        "payload": {
+          "statement": "GENERATED TEST FIXTURE: fictional test confirms symbol C only; never household evidence",
+          "provenance": {
+            "source": null,
+            "sourceRevision": null,
+            "sourceConfidence": null,
+            "evidenceBasis": "physical-survey",
+            "factAt": "2026-10-01T12:00:00Z",
+            "retrievedAt": "2026-10-01T12:00:00Z",
+            "vantage": null,
+            "uncertainty": {
+              "status": "supported",
+              "explanation": "Generated fixture only; no installed household facts"
+            }
+          },
+          "supersedesEvidenceIds": [],
+          "references": []
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000804",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010804",
+        "payload": {
+          "statement": "Generated panel and room statement; no physical cable position",
+          "provenance": {
+            "source": null,
+            "sourceRevision": null,
+            "sourceConfidence": null,
+            "evidenceBasis": "owner-report",
+            "factAt": null,
+            "retrievedAt": "2026-10-01T12:00:00Z",
+            "vantage": null,
+            "uncertainty": {
+              "status": "unknown",
+              "explanation": "Generated fixture only; no installed household facts"
+            }
+          },
+          "supersedesEvidenceIds": [],
+          "references": []
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000805",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010805",
+        "payload": {
+          "statement": "Generated breaker label reading; rating/protection unknown unless explicitly supplied",
+          "provenance": {
+            "source": null,
+            "sourceRevision": null,
+            "sourceConfidence": null,
+            "evidenceBasis": "document",
+            "factAt": null,
+            "retrievedAt": "2026-10-01T12:00:00Z",
+            "vantage": null,
+            "uncertainty": {
+              "status": "unknown",
+              "explanation": "Generated fixture only; no installed household facts"
+            }
+          },
+          "supersedesEvidenceIds": [],
+          "references": []
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "identity",
+        "recordId": "00000000-0000-4000-8000-000000000500",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010500",
+        "payload": {
+          "kind": "item",
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000804"
+          ]
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "identity",
+        "recordId": "00000000-0000-4000-8000-000000000600",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010600",
+        "payload": {
+          "kind": "location",
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000804"
+          ]
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "location-semantics",
+        "recordId": "00000000-0000-4000-8000-000000000610",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010610",
+        "payload": {
+          "atlasId": "00000000-0000-4000-8000-000000000600",
+          "label": "Generated utility room Ω",
+          "semanticKind": "room",
+          "reviewStatus": "accepted",
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000804"
+          ]
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000701",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010701",
+        "payload": {
+          "label": "Generated circuit A",
+          "panel": {
+            "kind": "atlas-record",
+            "ref": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500"
+            }
+          },
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000801"
+          ]
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000702",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010702",
+        "payload": {
+          "label": null,
+          "panel": {
+            "kind": "atlas-record",
+            "ref": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500"
+            }
+          },
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000802"
+          ]
+        }
+      },
+      {
+        "schemaVersion": 1,
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000703",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-10-01T12:00:00Z",
+        "updatedAt": "2026-10-01T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010703",
+        "payload": {
+          "label": "Generated circuit C",
+          "panel": {
+            "kind": "atlas-record",
+            "ref": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500"
+            }
+          },
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000803"
+          ]
+        }
+      }
+    ],
+    "documentary": {
+      "sha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+      "data": {
+        "schema": "houseatlas.documentary-electrical-fixtures.v1",
+        "viewKey": "generated:electrical-data-v1",
+        "interpretationDate": "2026-10-01",
+        "symbolLegend": {
+          "xMeansSocket": null,
+          "socketsPerX": null,
+          "receiptId": null
+        },
+        "roomMappingReceipt": null,
+        "registrationReceipts": [],
+        "sheets": [
+          {
+            "id": "generated-sheet",
+            "title": "Generated historic drawing",
+            "pdfPage": 1,
+            "originalPhoto": "generated-original.txt",
+            "originalPhotoSha256": "a20eb1de11f86683bf5a2f25d8693640f83fa06d27ce65376b30536436a11848",
+            "renderedPhotoSha256": "b4f41bef6a789e8155ea3818fff4dfc12ee7d5de165eb2e249d5093f7a858c8a",
+            "sourceDate": null,
+            "regionIds": [
+              "generated-region"
+            ]
+          }
+        ],
+        "groups": [
+          {
+            "id": "generated-group-1",
+            "label": "Historic 1",
+            "fixtureIds": [
+              "generated-symbol-1"
+            ],
+            "evidenceBasis": "historic-drawing-label",
+            "currentCircuitId": null,
+            "verifiedWiring": false
+          },
+          {
+            "id": "generated-group-2",
+            "label": "Historic 2",
+            "fixtureIds": [
+              "generated-symbol-2"
+            ],
+            "evidenceBasis": "historic-drawing-label",
+            "currentCircuitId": null,
+            "verifiedWiring": false
+          },
+          {
+            "id": "generated-group-3",
+            "label": "Historic 3",
+            "fixtureIds": [
+              "generated-symbol-3"
+            ],
+            "evidenceBasis": "historic-drawing-label",
+            "currentCircuitId": null,
+            "verifiedWiring": false
+          }
+        ],
+        "regions": [
+          {
+            "id": "generated-region",
+            "sheetId": "generated-sheet",
+            "label": "Generated region",
+            "sourceOutline": [],
+            "outlineClosed": false,
+            "sourceBounds": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "outlineBasis": "untraced",
+            "places": [],
+            "orientation": "unregistered",
+            "physicalTransform": null
+          }
+        ],
+        "fixtures": [
+          {
+            "id": "generated-symbol-1",
+            "sheetId": "generated-sheet",
+            "regionId": "generated-region",
+            "clusterId": null,
+            "kind": "unresolved",
+            "label": "Generated symbol 1",
+            "glyph": "?",
+            "source": {
+              "symbolKey": "generated-symbol-1",
+              "originalPhotoSha256": "a20eb1de11f86683bf5a2f25d8693640f83fa06d27ce65376b30536436a11848",
+              "renderedPhotoSha256": "b4f41bef6a789e8155ea3818fff4dfc12ee7d5de165eb2e249d5093f7a858c8a",
+              "normalizedBox": [
+                0.1,
+                0.1,
+                0.8,
+                0.8
+              ],
+              "normalizedPoint": [
+                0.25,
+                0.5
+              ],
+              "literalLabels": [
+                "Historic 1"
+              ],
+              "placementDescription": "Generated drawing annotation only"
+            },
+            "group": {
+              "id": "generated-group-1",
+              "label": "Historic 1",
+              "basis": "label-adjacent",
+              "note": "No installed circuit inference"
+            },
+            "glyphCount": null,
+            "fixtureCount": null,
+            "uncertainty": "Generated historic mark; physical fixture identity unknown",
+            "currentState": "historic-unverified",
+            "physicalCoordinate": null,
+            "wireRoute": null
+          },
+          {
+            "id": "generated-symbol-2",
+            "sheetId": "generated-sheet",
+            "regionId": "generated-region",
+            "clusterId": null,
+            "kind": "unresolved",
+            "label": "Generated symbol 2",
+            "glyph": "?",
+            "source": {
+              "symbolKey": "generated-symbol-2",
+              "originalPhotoSha256": "a20eb1de11f86683bf5a2f25d8693640f83fa06d27ce65376b30536436a11848",
+              "renderedPhotoSha256": "b4f41bef6a789e8155ea3818fff4dfc12ee7d5de165eb2e249d5093f7a858c8a",
+              "normalizedBox": [
+                0.1,
+                0.1,
+                0.8,
+                0.8
+              ],
+              "normalizedPoint": [
+                0.35,
+                0.5
+              ],
+              "literalLabels": [
+                "Historic 2"
+              ],
+              "placementDescription": "Generated drawing annotation only"
+            },
+            "group": {
+              "id": "generated-group-2",
+              "label": "Historic 2",
+              "basis": "label-adjacent",
+              "note": "No installed circuit inference"
+            },
+            "glyphCount": null,
+            "fixtureCount": null,
+            "uncertainty": "Generated historic mark; physical fixture identity unknown",
+            "currentState": "historic-unverified",
+            "physicalCoordinate": null,
+            "wireRoute": null
+          },
+          {
+            "id": "generated-symbol-3",
+            "sheetId": "generated-sheet",
+            "regionId": "generated-region",
+            "clusterId": null,
+            "kind": "unresolved",
+            "label": "Generated symbol 3",
+            "glyph": "?",
+            "source": {
+              "symbolKey": "generated-symbol-3",
+              "originalPhotoSha256": "a20eb1de11f86683bf5a2f25d8693640f83fa06d27ce65376b30536436a11848",
+              "renderedPhotoSha256": "b4f41bef6a789e8155ea3818fff4dfc12ee7d5de165eb2e249d5093f7a858c8a",
+              "normalizedBox": [
+                0.1,
+                0.1,
+                0.8,
+                0.8
+              ],
+              "normalizedPoint": [
+                0.45,
+                0.5
+              ],
+              "literalLabels": [
+                "Historic 3"
+              ],
+              "placementDescription": "Generated drawing annotation only"
+            },
+            "group": {
+              "id": "generated-group-3",
+              "label": "Historic 3",
+              "basis": "label-adjacent",
+              "note": "No installed circuit inference"
+            },
+            "glyphCount": null,
+            "fixtureCount": null,
+            "uncertainty": "Generated historic mark; physical fixture identity unknown",
+            "currentState": "historic-unverified",
+            "physicalCoordinate": null,
+            "wireRoute": null
+          }
+        ]
+      }
+    },
+    "currentReviews": [
+      {
+        "receipt": {
+          "id": "generated-review-panel",
+          "sha256": "ebba6d869a1e780fc6c89184cde59d4445c4160659d4d368fab73b172640c295"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "panel",
+          "row": {
+            "id": "generated-panel",
+            "basis": "owner-report",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-panel",
+                "sha256": "ebba6d869a1e780fc6c89184cde59d4445c4160659d4d368fab73b172640c295"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000804",
+                  "revision": 1
+                }
+              ],
+              "confidence": "medium",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "identity": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500",
+              "revision": 1
+            },
+            "label": "Generated panel Δ",
+            "roomAssociation": {
+              "room": {
+                "recordType": "identity",
+                "recordId": "00000000-0000-4000-8000-000000000600",
+                "revision": 1
+              },
+              "semantics": {
+                "recordType": "location-semantics",
+                "recordId": "00000000-0000-4000-8000-000000000610",
+                "revision": 1
+              }
+            }
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-breaker-1",
+          "sha256": "1c9a2c40f176be2d0004ef0c7fae76e69bc646d79ddf6323aa29d6833e5d720b"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "breaker",
+          "row": {
+            "id": "generated-breaker-1",
+            "basis": "label-match",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-breaker-1",
+                "sha256": "1c9a2c40f176be2d0004ef0c7fae76e69bc646d79ddf6323aa29d6833e5d720b"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000805",
+                  "revision": 1
+                }
+              ],
+              "confidence": "medium",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "circuit": {
+              "recordType": "circuit",
+              "recordId": "00000000-0000-4000-8000-000000000701",
+              "revision": 1
+            },
+            "panel": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500",
+              "revision": 1
+            },
+            "position": {
+              "label": "A1",
+              "ways": [
+                "A1"
+              ]
+            },
+            "ratingAmperes": 16,
+            "protection": null
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-breaker-2",
+          "sha256": "78c54f9991016c459dd4ce1bb3516b805f62056d7cc94679bde070e1b55be5df"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "breaker",
+          "row": {
+            "id": "generated-breaker-2",
+            "basis": "label-match",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-breaker-2",
+                "sha256": "78c54f9991016c459dd4ce1bb3516b805f62056d7cc94679bde070e1b55be5df"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000805",
+                  "revision": 1
+                }
+              ],
+              "confidence": "medium",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "circuit": {
+              "recordType": "circuit",
+              "recordId": "00000000-0000-4000-8000-000000000702",
+              "revision": 1
+            },
+            "panel": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500",
+              "revision": 1
+            },
+            "position": null
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-breaker-3",
+          "sha256": "b56584938161fbf705c35486cf91969568acf23ae99b177957140f9608b0b430"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "breaker",
+          "row": {
+            "id": "generated-breaker-3",
+            "basis": "label-match",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-breaker-3",
+                "sha256": "b56584938161fbf705c35486cf91969568acf23ae99b177957140f9608b0b430"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000805",
+                  "revision": 1
+                }
+              ],
+              "confidence": "medium",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "circuit": {
+              "recordType": "circuit",
+              "recordId": "00000000-0000-4000-8000-000000000703",
+              "revision": 1
+            },
+            "panel": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000500",
+              "revision": 1
+            },
+            "position": {
+              "label": "A3–A4",
+              "ways": [
+                "A3",
+                "A4"
+              ]
+            },
+            "ratingAmperes": null,
+            "protection": "Generated label: RCD 30 mA"
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-mapping-1",
+          "sha256": "6f4c8ef15064794853f36e9bfb6d2b1fa86327e5388058555e022ab37945f727"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "mapping",
+          "row": {
+            "id": "generated-mapping-1",
+            "basis": "owner-report",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-mapping-1",
+                "sha256": "6f4c8ef15064794853f36e9bfb6d2b1fa86327e5388058555e022ab37945f727"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000801",
+                  "revision": 1
+                }
+              ],
+              "confidence": "low",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "target": {
+              "kind": "documentary-group",
+              "id": "generated-group-1"
+            },
+            "candidates": [
+              {
+                "recordType": "circuit",
+                "recordId": "00000000-0000-4000-8000-000000000701",
+                "revision": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-mapping-2",
+          "sha256": "3bbfbf43fb33557dc106500234d8c230706ecd6c9377d1c5920adac0d7655002"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "mapping",
+          "row": {
+            "id": "generated-mapping-2",
+            "basis": "label-match",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-mapping-2",
+                "sha256": "3bbfbf43fb33557dc106500234d8c230706ecd6c9377d1c5920adac0d7655002"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000802",
+                  "revision": 1
+                }
+              ],
+              "confidence": "medium",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "target": {
+              "kind": "documentary-group",
+              "id": "generated-group-2"
+            },
+            "candidates": [
+              {
+                "recordType": "circuit",
+                "recordId": "00000000-0000-4000-8000-000000000702",
+                "revision": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "receipt": {
+          "id": "generated-review-mapping-3",
+          "sha256": "39b811d7622e618df3f828a76954c490a3490e3e9f61e8e22c9b036da65dc3a7"
+        },
+        "subject": {
+          "scope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "viewKey": "generated:electrical-data-v1",
+          "fixtureLedgerSha256": "4e05342cfdb62f4188fdef19748ded7247ba5856bbe6cb6d397ceaca9716a652",
+          "kind": "mapping",
+          "row": {
+            "id": "generated-mapping-3",
+            "basis": "test",
+            "review": {
+              "status": "reviewed",
+              "receipt": {
+                "id": "generated-review-mapping-3",
+                "sha256": "39b811d7622e618df3f828a76954c490a3490e3e9f61e8e22c9b036da65dc3a7"
+              },
+              "evidence": [
+                {
+                  "recordType": "evidence",
+                  "recordId": "00000000-0000-4000-8000-000000000803",
+                  "revision": 1
+                }
+              ],
+              "confidence": "high",
+              "uncertainty": "Generated synthetic assertion only"
+            },
+            "target": {
+              "kind": "fixture",
+              "id": "generated-symbol-3"
+            },
+            "candidates": [
+              {
+                "recordType": "circuit",
+                "recordId": "00000000-0000-4000-8000-000000000703",
+                "revision": 1
+              }
+            ],
+            "test": {
+              "evidence": {
+                "recordType": "evidence",
+                "recordId": "00000000-0000-4000-8000-000000000803",
+                "revision": 1
+              },
+              "observedAt": "2026-10-01T12:00:00Z",
+              "method": "Generated test-result assertion; no real test performed",
+              "outcome": "confirmed",
+              "fixtureIds": [
+                "generated-symbol-3"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "currentCircuitIds": [
+      "00000000-0000-4000-8000-000000000701",
+      "00000000-0000-4000-8000-000000000702",
+      "00000000-0000-4000-8000-000000000703"
+    ],
+    "verifiedWiring": [
+      false,
+      false,
+      true
+    ],
+    "reviewedRoomId": "00000000-0000-4000-8000-000000000600"
+  }
+}

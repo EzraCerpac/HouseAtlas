@@ -33,7 +33,7 @@ const { daylightAt, modelDirection, resolveSunPlace, stageBackdrop, stageColors,
 const { FLAT_SKY, LUMA } = await import(skyURL);
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
 const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL, './sky-light': skyURL }));
-const { prepareMeshes, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
+const { isGlass, prepareMeshes, primitiveGlass, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
 const vec = (actual, expected, label) => expected.forEach((value, at) => near(actual[at], value, 1e-9, `${label}[${at}]`));
@@ -244,6 +244,28 @@ assert.equal(primitiveRoughness(roughGltf(2), 0, 0), undefined, 'an out-of-range
 assert.equal(primitiveRoughness({ meshes: [{ primitives: [{ material: 0 }] }], materials: [{}] }, 0, 0), undefined);
 assert.equal(prepareMeshes([{ meshKey: 'g', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]),
   sourceNight: 'glazing', sourceRoughness: .7 }])[0].sourceRoughness, .7);
+
+// Lamp glass: an emitter that also carries the glazing mark stays an emitter and is glass
+// too, so it draws in the glass pass by day and its glow fills it in after dusk.
+const shades = [{ emissiveFactor: [1, .8, .5], alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, .4] } },
+  { emissiveFactor: [1, .8, .5] }, { emissiveFactor: [1, .8, .5], alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] } },
+  { alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, .4] } }];
+assert.deepEqual(night(shades), ['emitter', 'emitter', 'emitter', 'glazing']);
+assert.deepEqual(shades.map((_, index) => primitiveGlass(gltf(shades), 0, index)), [true, false, false, true]);
+assert.equal(primitiveGlass(gltf([{}]), 0, 1), false, 'a primitive without a material');
+const [shade, solidLamp, glassPane] = prepareMeshes([
+  { meshKey: 'shade', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]), sourceNight: 'emitter', sourceGlass: true, sourceRoughness: .7 },
+  { meshKey: 'solid', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]), sourceNight: 'emitter' },
+  { meshKey: 'pane', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]), sourceNight: 'glazing', sourceGlass: true },
+]);
+assert.deepEqual([shade, solidLamp, glassPane].map(isGlass), [true, false, true]);
+assert.equal(shade.sourceRoughness, .7); assert.equal(glassPane.sourceGlass, undefined, 'only emitters carry the glass mark');
+const shadeRows = [{ ...at('shade', 0), sourceBaseColor: [1, 1, 1, .4] }];
+const shadeTable = new Float32Array(STATE_FLOATS);
+const shadeFrame = writeAppearance(shadeRows, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight,
+  glazingKeys: new Set(['shade']), emitterKeys: new Set(['shade']) }, shadeTable);
+assert.deepEqual([shadeTable[20], Math.round(shadeTable[27] * 100) / 100, shadeTable[31]], [MeshPass.Glass, .4, 1], 'glass pass, its own cover, still an emitter');
+assert.equal(shadeFrame.lamps.length, 1, 'lamp glass still throws light');
 
 // Aimed lamps: an emitter whose glowing faces mostly face one way (a lens) beams
 // that way; a closed or all-round one (a bulb, a glass box) does not; nothing else aims.

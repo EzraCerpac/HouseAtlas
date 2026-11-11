@@ -1,0 +1,536 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/contracts/electrical-data/v1.schema.json",
+  "title": "HouseAtlas electrical data read contract v1",
+  "description": "Revision-pinned extension of existing native identities/circuits/evidence and documentary fixture ledger. No native mutation or receipt issuer. Cross-record currentness requires the documented projector/host context.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "houseatlas.electrical-data.v1"
+    },
+    "scope": {
+      "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+    },
+    "viewKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "fixtureLedgerSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "panels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/panel"
+      },
+      "minItems": 0,
+      "maxItems": 128,
+      "uniqueItems": true
+    },
+    "breakers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/breaker"
+      },
+      "minItems": 0,
+      "maxItems": 1024,
+      "uniqueItems": true
+    },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mapping"
+      },
+      "minItems": 0,
+      "maxItems": 10000,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema",
+    "scope",
+    "viewKey",
+    "fixtureLedgerSha256",
+    "panels",
+    "breakers",
+    "mappings"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "identityPin": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "const": "identity"
+        },
+        "recordId": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/recordRef/properties/recordId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "evidencePin": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "const": "evidence"
+        },
+        "recordId": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/recordRef/properties/recordId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "circuitPin": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "const": "circuit"
+        },
+        "recordId": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/recordRef/properties/recordId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "location-semanticsPin": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "const": "location-semantics"
+        },
+        "recordId": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/recordRef/properties/recordId"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "unreviewed",
+            "reviewed",
+            "ambiguous",
+            "conflicting",
+            "stale"
+          ]
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/receipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidencePin"
+          },
+          "minItems": 0,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "confidence": {
+          "enum": [
+            "unknown",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "uncertainty": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "receipt",
+        "evidence",
+        "confidence",
+        "uncertainty"
+      ],
+      "additionalProperties": false
+    },
+    "roomAssociation": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "$ref": "#/$defs/identityPin"
+        },
+        "semantics": {
+          "$ref": "#/$defs/location-semanticsPin"
+        }
+      },
+      "required": [
+        "room",
+        "semantics"
+      ],
+      "additionalProperties": false
+    },
+    "position": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "ways": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "label",
+        "ways"
+      ],
+      "additionalProperties": false
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "basis": {
+          "enum": [
+            "owner-report",
+            "label-match",
+            "test",
+            "unknown"
+          ]
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "identity": {
+          "$ref": "#/$defs/identityPin"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roomAssociation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/roomAssociation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "basis",
+        "review",
+        "identity",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "breaker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "basis": {
+          "enum": [
+            "owner-report",
+            "label-match",
+            "test",
+            "unknown"
+          ]
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "circuit": {
+          "$ref": "#/$defs/circuitPin"
+        },
+        "panel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identityPin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ratingAmperes": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protection": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "basis",
+        "review",
+        "circuit",
+        "panel"
+      ],
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "documentary-group",
+            "fixture"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "test": {
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidencePin"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "outcome": {
+          "enum": [
+            "confirmed",
+            "inconclusive",
+            "contradicted"
+          ]
+        },
+        "fixtureIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "minItems": 1,
+          "maxItems": 1024,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "evidence",
+        "observedAt",
+        "method",
+        "outcome",
+        "fixtureIds"
+      ],
+      "additionalProperties": false
+    },
+    "mapping": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "basis": {
+          "enum": [
+            "owner-report",
+            "label-match",
+            "test",
+            "unknown"
+          ]
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/circuitPin"
+          },
+          "minItems": 0,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "test": {
+          "$ref": "#/$defs/test"
+        }
+      },
+      "required": [
+        "id",
+        "basis",
+        "review",
+        "target",
+        "candidates"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "test"
+              }
+            },
+            "required": [
+              "basis"
+            ]
+          },
+          "then": {
+            "required": [
+              "test"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "test"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
