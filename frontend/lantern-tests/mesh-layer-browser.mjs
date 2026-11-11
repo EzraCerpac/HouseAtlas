@@ -321,8 +321,8 @@ try {
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
 
     // The actual opaque and glass shader paths see the same generated surface
-    // at scalar 0, 0.5, 1 and the legacy default. Metallic output must not vary.
-    for (const mode of ['dielectric', 'metal', 'glass']) {
+    // at scalar 0, 0.5, 1 and the shader fallback. Metallic output must not vary.
+    for (const mode of ['dielectric', 'mixed', 'metal', 'glass', 'glass-metal']) {
       await open(`/lantern-tests/embedded-png-material-visual/index.html?scalar=${mode}`, 1400, 900);
       await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, `Scalar ${mode} samples did not draw`);
       assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
@@ -338,12 +338,14 @@ try {
         return sum / (169 * 3);
       };
       const [zero, half, one, legacy] = scalarBoxes.map(mean);
-      assert(Math.abs(one - legacy) < 2, `${mode}: scalar one differs from default (${one}, ${legacy})`);
-      if (mode === 'metal') {
+      if (mode !== 'mixed') assert(Math.abs(one - legacy) < 2, `${mode}: scalar one differs from shader fallback (${one}, ${legacy})`);
+      if (mode === 'metal' || mode === 'glass-metal') {
         assert(Math.max(zero, half, one) - Math.min(zero, half, one) < 2, `Metal changed with dielectric strength: ${zero}, ${half}, ${one}`);
       } else {
-        assert(Math.abs(one - zero) > 1, `${mode}: scalar did not change rendered pixels (${zero}, ${one})`);
-        assert(half >= Math.min(zero, one) - 2 && half <= Math.max(zero, one) + 2, `${mode}: intermediate scalar outside endpoints (${zero}, ${half}, ${one})`);
+        assert(one - zero > 10, `${mode}: scalar did not increase reflection enough (${zero}, ${one})`);
+        const margin = Math.max(1, (one - zero) * .1);
+        assert(half > zero + margin && half < one - margin,
+          `${mode}: intermediate scalar collapsed to an endpoint (${zero}, ${half}, ${one})`);
       }
     }
 

@@ -82,7 +82,7 @@ function LampFixture() {
 }
 
 // Four otherwise identical fictional surfaces isolate the scalar in the
-// production shader. The final surface uses the legacy default material.
+// production shader. The final surface exercises the shader's default fallback.
 function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; metallic: number; glass: boolean; legacy: boolean }) {
   const [failure, setFailure] = useState('');
   const meshes = useMemo(() => {
@@ -95,7 +95,7 @@ function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; met
   }, [factor, metallic, glass, legacy]);
   const projection = useMemo(() => makeProjection({ yaw: 0, pitch: 0, zoom: 1, panX: 0, panY: 0 },
     { min: [-.1, -.1, -.1], max: [1.1, 1.1, .1] }, { width: 320, height: 300 }, 0), []);
-  return <section><h2>{legacy ? 'Default' : `Specular ${factor}`}</h2><MeshLayer meshes={meshes} projection={projection}
+  return <section><h2>{legacy ? 'Shader fallback' : `Specular ${factor}`}</h2><MeshLayer meshes={meshes} projection={projection}
     rules={{ visibleFloors: 'all', clipY: null }} currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]}
     tints={new Map()} hidden={false} sourceColors sourceMaterials ambient={.2} twoSided light={[0, 0, 1]}
     glazingKeys={glass ? new Set(['scalar']) : new Set()}
@@ -103,7 +103,7 @@ function ScalarSample({ factor, metallic, glass, legacy }: { factor: number; met
     onUnavailable={setFailure} /><output>{failure}</output></section>;
 }
 function ScalarFixture({ mode }: { mode: string }) {
-  const glass = mode === 'glass', metallic = mode === 'metal' ? 1 : 0;
+  const glass = mode === 'glass' || mode === 'glass-metal', metallic = mode === 'metal' || mode === 'glass-metal' ? 1 : mode === 'mixed' ? .5 : 0;
   return <main>{[0, .5, 1, 1].map((factor, index) => <ScalarSample key={index} factor={factor} metallic={metallic}
     glass={glass} legacy={index === 3} />)}</main>;
 }
