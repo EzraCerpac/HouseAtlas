@@ -53,6 +53,25 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
     const first = room.occurrenceIds.find(id => selectable.has(id));
     if (first !== undefined) place(room.roomId, room.label, 'room', ids.get(levelOf.get(first) ?? '') ?? null);
   }
+  // HomeBox parentage is source hierarchy, not a reviewed Atlas placement.
+  for (const [roomId, name, category] of [
+    ['syn-room-living', 'Fictional reading lamp', 'Lighting'],
+    ['syn-room-study', 'Fictional sketchbook', 'Stationery'],
+    ['syn-room-gallery', 'Fictional folding stool', 'Furniture'],
+  ] as const) {
+    const parent = ids.get(roomId);
+    if (!parent) throw new Error(`Example room is missing: ${roomId}`);
+    const id = `00000000-0000-4000-8000-${(0xe1000 + entries.length).toString(16).padStart(12, '0')}`;
+    entries.push({
+      workspaceId, homeId, key: JSON.stringify([workspaceId, homeId, SOURCE, COLLECTION, 'homebox-entity', id]),
+      source: { sourceInstanceId: SOURCE, collectionId: COLLECTION, sourceKind: 'homebox-entity', externalId: id },
+      entity: { id, name, description: '', entityType: { id: '00000000-0000-4000-8000-0000000e0902', name: category, isLocation: false },
+        parent: { id: parent }, archived: false, quantity: null, manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
+      kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null, retrievedAt: RETRIEVED,
+      aliases: [], mobility: 'unknown', attachments: [], maintenance: [], nativeLinks: [],
+      networkBound: false, networkStates: [], networkRelations: [],
+    });
+  }
   return {
     status: 'ready', scope: { workspaceId, homeId }, homeLabel: EXAMPLE_LABEL, now: RETRIEVED, canEdit: false,
     homes: [{ workspaceId, homeId, label: EXAMPLE_LABEL }], entries,

@@ -660,8 +660,19 @@ try {
   }, { ...sentinel, rows: outboxRows.toString() });
   const seeded = await readSentinels();
   assert.deepEqual([seeded.local, seeded.session, seeded.cookie, seeded.outbox.length], [sentinel.value, sentinel.value, `${sentinel.key}=${sentinel.value}`, 1]);
-  await production.goto(`${exampleOrigin}${exampleEntry}`, { waitUntil: 'load' });
+  // Named starting states from the URL, each on a fresh load (no remembered view).
+  const stateFacts = page => page.evaluate(() => {
+    const names = selector => [...document.querySelectorAll(selector)].map(node => node.textContent.trim());
+    return { building: names('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name'), floor: names('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name'),
+      view: names('.ua-tools .seg button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
+      room: document.querySelector('.ua-inspector.is-room h2')?.textContent.trim() ?? null,
+      roomFloor: document.querySelector('.ua-room-floor')?.textContent.trim() ?? null };
+  });
+  const ignoredEntry = '/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways';
+  examplePhase('sentinels seeded; initial example starting');
+  await production.goto(`${exampleOrigin}${ignoredEntry}`, { waitUntil: 'load' });
   await exampleReady(production, 'exampleProductionDrawCalls');
+  examplePhase('initial example ready');
   assert.deepEqual(await production.evaluate(() => window.examplePreIsolationUse), [], 'No page script used a replaced global before isolation ran');
   const exampleRealm = await production.evaluate(key => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key), cookie: document.cookie,
     indexedDB: typeof indexedDB, caches: typeof caches, broadcastChannel: typeof BroadcastChannel, locks: typeof navigator.locks }), sentinel.key);
@@ -671,49 +682,18 @@ try {
   await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
   assert.deepEqual(await readSentinels(), seeded, 'The example left origin storage unchanged');
   await production.goBack({ waitUntil: 'commit' });
+  examplePhase('back navigation committed');
   await production.waitForFunction(() => document.readyState === 'complete' && window.examplePageshows?.length > 0);
   await exampleReady(production, 'exampleProductionDrawCalls');
+  examplePhase('back example ready');
   const back = await production.evaluate(() => ({ pageshows: window.examplePageshows, navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null }));
   const backPath = back.pageshows.at(-1) === true ? 'back-forward-cache restore' : 'back navigation reload';
   if (backPath === 'back navigation reload') assert.deepEqual([back.pageshows, back.navigationType], [[false], 'back_forward']);
-  await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
-  assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
-  // Named starting states from the URL, each on a fresh load (no remembered view).
-  const stateFacts = page => page.evaluate(() => {
-    const names = selector => [...document.querySelectorAll(selector)].map(node => node.textContent.trim());
-    return { building: names('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name'), floor: names('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name'),
-      view: names('.ua-tools .seg button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
-      room: document.querySelector('.ua-inspector.is-room h2')?.textContent.trim() ?? null,
-      roomFloor: document.querySelector('.ua-room-floor')?.textContent.trim() ?? null };
-  });
-  const stateEntry = '/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan';
-  await production.goto(`${exampleOrigin}${stateEntry}`, { waitUntil: 'load' });
-  assert.equal(await production.title(), exampleTitle);
-  await production.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-inspector.is-room h2'));
-  await frames(production);
-  const direct = await stateFacts(production);
-  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
-    'A direct link opens its named building, floor, room and view');
-  await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
-  // A later choice survives closing and reopening the Atlas: the reopened
-  // stage's fresh read carries a new start array for the same scene.
-  const section = name => production.locator('nav.navrail').getByRole('button', { name, exact: true }).click();
-  await production.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
-  await production.waitForFunction(() => !document.querySelector('.ua-shell.is-plan'));
-  await section('Upkeep');
-  await production.waitForFunction(() => !document.querySelector('section.ua-shell'));
-  await section('Atlas');
-  await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
-  await frames(production);
-  const reopened = await stateFacts(production);
-  assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
   // A mismatched floor and room and an unknown view are each ignored; the building applies.
-  const ignoredEntry = '/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways';
-  await production.goto(`${exampleOrigin}${ignoredEntry}`, { waitUntil: 'load' });
-  await exampleReady(production, 'exampleProductionDrawCalls');
   const ignored = await stateFacts(production);
   assert.deepEqual(ignored, { building: ['Synthetic house'], floor: ['All floors'], view: ['3D'], plan: false, room: null, roomFloor: null },
     'Unknown and mismatched values leave the view as it opens');
+  examplePhase('ignored state checked; places click starting');
   // Home records derived from the same publication, from a stale HomeBox copy.
   await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: /^Rooms & places/ }).click();
   const placesLens = production.locator('section.atlas-lens.is-places');
@@ -729,6 +709,46 @@ try {
   for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Studio', 'Gallery'])
     assert(home.places.includes(name), `Home lists ${name} from the Atlas publication`);
   assert(home.flags.includes('Source: present; cache: stale'), 'Home shows its HomeBox copy as stale');
+  // The source hierarchy names a room; it is not reviewed physical placement.
+  const belongings = placesLens.locator('.ledger-unplaced');
+  for (const name of ['Fictional reading lamp', 'Fictional sketchbook', 'Fictional folding stool'])
+    await belongings.getByRole('button', { name: new RegExp(`^${name}`) }).waitFor();
+  await belongings.scrollIntoViewIfNeeded();
+  await production.screenshot({ path: resolve(output, 'example-inventory-list.png'), animations: 'disabled' });
+  await belongings.getByRole('button', { name: /^Fictional reading lamp/ }).click();
+  const detail = production.getByRole('complementary', { name: 'Details' });
+  await detail.getByRole('heading', { name: 'Fictional reading lamp', exact: true }).waitFor();
+  assert.match(await detail.innerText(), /No reviewed placement is supplied in this view/);
+  assert.match(await detail.innerText(), /Synthetic house \/ Ground floor \/ Living room/);
+  assert.match(await detail.innerText(), /stale/);
+  assert.equal(await detail.getByRole('button', { name: 'Edit', exact: true }).isDisabled(), true);
+  await production.screenshot({ path: resolve(output, 'example-inventory-detail.png'), animations: 'disabled' });
+  await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
+  assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
+  const stateEntry = '/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan';
+  examplePhase('direct state starting');
+  await production.goto(`${exampleOrigin}${stateEntry}`, { waitUntil: 'load' });
+  assert.equal(await production.title(), exampleTitle);
+  await production.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const direct = await stateFacts(production);
+  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
+    'A direct link opens its named building, floor, room and view');
+  await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
+  examplePhase('direct state captured');
+  // A later choice survives closing and reopening the Atlas: the reopened
+  // stage's fresh read carries a new start array for the same scene.
+  const section = name => production.locator('nav.navrail').getByRole('button', { name, exact: true }).click();
+  await production.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await production.waitForFunction(() => !document.querySelector('.ua-shell.is-plan'));
+  await section('Upkeep');
+  await production.waitForFunction(() => !document.querySelector('section.ua-shell'));
+  await section('Atlas');
+  await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const reopened = await stateFacts(production);
+  assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
+  examplePhase('reopen checked');
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
   await exampleBrowser.close();
@@ -749,12 +769,12 @@ try {
       files: files.size, exampleFiles: exampleFiles.length, startup: startupSizes, linkChunk: linkFiles[0].path, exampleInOfflineShell: false,
       typecheck: { config: 'frontend/example/tsconfig.json', failedOutsideLanternTests: 0, lanternTestsDiagnostics: fixtureDiagnostics },
       storage: { seeded: ['localStorage', 'sessionStorage', 'script-visible cookie', 'houseatlas-outbox-v1 row'], exampleRealm, unchangedAfterLeaving: true, unchangedAfterBack: true },
-      back: { path: backPath, ...back },
+      back: { entry: ignoredEntry, path: backPath, ...back },
     },
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
