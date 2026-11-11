@@ -18,13 +18,9 @@ fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
 }
 fn prepare_local(directory: &Path) -> Result<Core, Failure> {
-    fs::create_dir(directory)?;
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
-    let directory = fs::canonicalize(directory)?;
     let mut fixture = lifecycle::fixture()?;
-    // Existing stock wire3 and AdmittedSnapshot target validation still require
-    // UUID HomeBox collections. Keep this adaptation only for those downstream
-    // checks; the opaque-selector regression below uses the original fixture.
+    // Preserve the existing UUID-collection controls. The original-collection
+    // regression separately passes the unchanged fixture to prepare_snapshot.
     fn rebind(value: &mut Value) -> usize {
         match value {
             Value::Object(fields) => {
@@ -40,6 +36,13 @@ fn prepare_local(directory: &Path) -> Result<Core, Failure> {
         }
     }
     assert!(rebind(&mut fixture) > 0);
+    prepare_snapshot(directory, fixture)
+}
+
+fn prepare_snapshot(directory: &Path, fixture: Value) -> Result<Core, Failure> {
+    fs::create_dir(directory)?;
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
+    let directory = fs::canonicalize(directory)?;
     let home = d::HomeSummary {
         scope: d::Scope {
             workspace_id: id(1),
@@ -144,9 +147,12 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Result<Self, Failure> {
+        Self::prepare(prepare_local)
+    }
+    fn prepare(prepare: impl FnOnce(&Path) -> Result<Core, Failure>) -> Result<Self, Failure> {
         let scratch = tempfile::tempdir()?;
         let directory = scratch.path().join("fixture");
-        let core = prepare_local(&directory)?;
+        let core = prepare(&directory)?;
         let receipt: Value =
             serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
         let cookie = receipt["cookie"]
@@ -306,6 +312,92 @@ fn collection_scalar_boundaries_preserve_text_without_relaxing_uuid_fields() {
         assert_eq!(request.validate(), Err(InputError::InvalidSelection));
     }
 }
+
+#[test]
+fn original_opaque_collection_capture_recheck_and_inspection_keep_native_binding()
+-> Result<(), Failure> {
+    let fixture = Fixture::prepare(|directory| prepare_snapshot(directory, lifecycle::fixture()?))?;
+    let p = fixture.principal()?;
+    let collection = "synthetic-collection-a";
+    let raw = json!({"feature":"inventory","selections":[{"role":"subject","selector":{
+        "kind":"entity","sourceInstanceId":id(10),"collectionId":collection,"entityId":id(501)}}]});
+    let request = SelectionRequest::parse(&serde_json::to_vec(&raw)?)
+        .expect("unchanged original collection selector");
+    // This exercises the real cached dispatcher and AdmittedSnapshot validators.
+    // It deliberately requires the coordinated shared opaque-collection repair;
+    // no local schema, ID substitution or alternate authority is supplied.
+    let selected = SelectedInputs::capture(&fixture.core, &p, request)
+        .expect("original authenticated opaque collection capture");
+    assert!(selected.graph.sources.iter().any(|registration| {
+        registration["sourceInstanceId"] == id(10) && registration["collectionId"] == collection
+    }));
+    let admitted = selected.current(&fixture.core, &p).unwrap();
+    let input = admitted.input();
+    assert_eq!(input.actor_id, p.principal.actor_id().as_str());
+    assert_eq!(input.scope.workspace_id, id(1));
+    assert_eq!(input.scope.home_id, id(2));
+    let source = &input.sources[0];
+    assert!(matches!(
+        &source.target,
+        StockTarget::Homebox { source_instance_id, collection_id, entity_id: Some(entity_id), .. }
+            if source_instance_id == &id(10) && collection_id == collection && entity_id == &id(501)
+    ));
+    assert!(source.version.starts_with("cache-observation:"));
+    assert_eq!(source.source_date.as_deref(), Some("2025-12-01T00:00:00Z"));
+    assert_eq!(source.retrieved_at, "2026-01-02T12:00:00Z");
+    let evidence = source
+        .evidence
+        .iter()
+        .find(|evidence| evidence.excerpt == "Synthetic mobile item")
+        .expect("original retained assertion");
+    let binding = selected
+        .inspection(
+            &fixture.core,
+            &p,
+            &source.input_ref,
+            &source.version,
+            Some(&evidence.evidence_ref),
+            Some(&ai::EvidenceLocation::Record),
+        )
+        .unwrap();
+    assert_eq!(binding.text.as_deref(), Some(evidence.excerpt.as_str()));
+    assert_eq!(binding.field.as_deref(), Some("name"));
+    assert!(matches!(
+        &binding.target,
+        InspectionTarget::CachedEntity { source_instance_id, collection_id, entity_id }
+            if source_instance_id == &id(10) && collection_id == collection && entity_id == &id(501)
+    ));
+    selected.recheck(&fixture.core, &p).unwrap();
+    // Revocation uses the exact original opaque partition, not a UUID alias.
+    fixture
+        .core
+        .access
+        .lock()
+        .unwrap()
+        .set_source_enabled(
+            &a::SourcePartition {
+                workspace_id: a::CanonicalId::parse(id(1))?,
+                home_id: a::CanonicalId::parse(id(2))?,
+                source_instance_id: a::CanonicalId::parse(id(10))?,
+                collection_id: collection.into(),
+            },
+            false,
+        )?;
+    assert_eq!(selected.recheck(&fixture.core, &p), Err(InputError::Changed));
+    assert!(matches!(
+        selected.inspection(
+            &fixture.core,
+            &p,
+            &source.input_ref,
+            &source.version,
+            Some(&evidence.evidence_ref),
+            Some(&ai::EvidenceLocation::Record),
+        ),
+        Err(InputError::Changed)
+    ));
+    Ok(())
+}
+
 #[test]
 fn cached_input_and_exact_inspection_keep_observation_semantics_without_refresh()
 -> Result<(), Failure> {

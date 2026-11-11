@@ -4680,3 +4680,17 @@ At preceding 0183afd6, hosted Ubuntu source, ordinary-core, capture, performance
 and all three loopbacks passed. Backend/frontend/macOS were still pending at
 this source handoff. Those checks do not qualify the amended source head.
 The denied log/artifact-download route and PR metadata writes remain stopped.
+
+
+The original-fixture cached-capture follow-up composes exact #588 `d6e2ce52`:
+only suggestion_inputs_healthy.rs changes, preserving the ten UUID-fixture
+controls and adding an eleventh test with unchanged `synthetic-collection-a`.
+It uses real Core/Access/SQLite, cached dispatcher and admitted snapshot, exact
+retained inspection evidence, then exact-partition withdrawal and refused
+recheck/inspection. Independent static review is clean; this new case is NOT RUN.
+No provider, model, original bytes, native write or runtime admission is qualified.
+At parent ce7d838b the hosted backend library set, all three loopbacks, ordinary
+core, capture and performance passed; frontend and both combined source gates
+failed. Their accessible annotations expose only exit codes. Log/artifact
+downloads remain stopped after Forbidden; no failure cause is invented and no
+assertion, sandbox, budget, workflow or permission is weakened.
