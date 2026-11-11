@@ -26,6 +26,11 @@ import {
   type StockApplicationPorts,
 } from "./StockApplication";
 
+/** The attempt was neither aborted nor superseded by a later one. */
+const latest = (controller: AbortController, attempt: number, generation: { readonly current: number }) =>
+  !controller.signal.aborted && attempt === generation.current;
+/** The shipped synthetic example page; it never opens or reads a real Home. */
+const exampleLink = <p><a href="/example/index.html">Example house</a></p>;
 type SessionState =
   | { status: "loading" }
   | { status: "opening" }
@@ -91,13 +96,13 @@ export function SessionApp({
       try {
         mode = await localAccess.mode(controller.signal);
       } catch {
-        if (!controller.signal.aborted && attempt === generation.current) {
+        if (latest(controller, attempt, generation)) {
           initialHomeBootstrap?.retire();
           setState({ status: "unavailable", action: "mode" });
         }
         return;
       }
-      if (controller.signal.aborted || attempt !== generation.current) return;
+      if (!latest(controller, attempt, generation)) return;
       if (initial && initialHomeBootstrap &&
           (mode === "loopback-local" || mode === "trusted-proxy")) {
         const open = mode === "loopback-local"
@@ -114,10 +119,10 @@ export function SessionApp({
           setState({ status: "opening" });
           try {
             const info = await open(controller.signal);
-            if (!controller.signal.aborted && attempt === generation.current)
+            if (latest(controller, attempt, generation))
               setState({ status: "authenticated", info });
           } catch {
-            if (!controller.signal.aborted && attempt === generation.current)
+            if (latest(controller, attempt, generation))
               setState({ status: "unavailable", action: "local" });
           }
           return;
@@ -134,13 +139,13 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       const info = await sessions.session(controller.signal);
-      if (controller.signal.aborted || attempt !== generation.current) return;
+      if (!latest(controller, attempt, generation)) return;
       if (info) {
         initialHomeBootstrap?.retire();
         setState({ status: "authenticated", info });
       } else await toSignedOut(controller, attempt, initial);
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current) {
+      if (latest(controller, attempt, generation)) {
         initialHomeBootstrap?.retire();
         setState({ status: "unavailable", action: "load" });
       }
@@ -246,10 +251,10 @@ export function SessionApp({
     setState({ status: "opening" });
     try {
       const info = await open(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "authenticated", info });
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "local" });
     }
   };
@@ -260,10 +265,10 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       await sessions.signOut(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         await toSignedOut(controller, attempt);
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "sign-out" });
     }
   };
@@ -280,10 +285,10 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       const info = await sessions.rotate(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "authenticated", info });
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "rotate" });
     }
   };
@@ -453,6 +458,7 @@ function OpenHomePanel({ openHome }: { openHome: () => void }) {
           Open Home
         </button>
       </div>
+      {exampleLink}
     </SessionPanel>
   );
 }
@@ -535,6 +541,7 @@ function SignInForm({
           {error}
         </p>
       </form>
+      {exampleLink}
     </SessionPanel>
   );
 }

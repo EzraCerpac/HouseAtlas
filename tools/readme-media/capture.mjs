@@ -36,9 +36,12 @@ function countDraws(counter) {
   wrap(globalThis.GPURenderPassEncoder?.prototype, ['draw', 'drawIndexed']);
 }
 const errors = [], requests = [];
-let browser, server, exampleDeadline, productionDeadline, staticServer, navigationBrowser;
+let browser, server, exampleDeadline, productionDeadline, staticServer, navigationBrowser, buildChild, rejectBuild;
 const temporary = [];
-const stopAll = () => { server?.kill('SIGTERM'); staticServer?.close(); void browser?.close(); void navigationBrowser?.close(); };
+const stopAll = () => {
+  server?.kill('SIGTERM'); buildChild?.kill('SIGTERM'); rejectBuild?.(new Error('Example production build exceeded its bound'));
+  staticServer?.close(); void browser?.close(); void navigationBrowser?.close();
+};
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
 try {
   // CI enables Vite's colored URLs even on pipes. Keep the readiness URL plain.
@@ -509,10 +512,9 @@ try {
   const tourMs = Date.now() - exampleStarted;
 
   // Production-mode checks, separately bounded: a type check of the example
-  // sources, then a production-mode bundle of the example page alone (the
-  // fixture-root `vite build example`; the app's own build does not include
-  // it) served from a temporary folder by an owned loopback server with the
-  // Rust host's exact-path, file-type, size and cache-header rules.
+  // sources, then the example-only production pass (example/vite.config.ts)
+  // into a temporary folder, served by an owned loopback server with the Rust
+  // host's exact-path, file-type, size and cache-header rules.
   clearTimeout(exampleDeadline);
   productionDeadline = setTimeout(stopAll, 60_000);
   const productionStarted = Date.now();
@@ -524,20 +526,25 @@ try {
   const diagnostics = `${typecheck.stdout}\n${typecheck.stderr}`.split('\n').filter(line => /error TS\d+/.test(line));
   assert.deepEqual(diagnostics.filter(line => !/^[^\s(]+\(\d+,\d+\): error TS\d+/.test(line)), [], 'Every compiler diagnostic names a file');
   assert(typecheck.status === 0 || diagnostics.length > 0, `The compiler failed without diagnostics: ${typecheck.stderr}`);
-  const exampleDiagnostics = diagnostics.filter(line => line.startsWith('example/'));
-  const fixtureDiagnostics = diagnostics.filter(line => !line.startsWith('example/'));
-  if (fixtureDiagnostics.length) console.log(`Type diagnostics outside frontend/example (recorded, not failed):\n${fixtureDiagnostics.join('\n')}`);
-  assert.deepEqual(exampleDiagnostics, [], 'frontend/example sources must type-check');
+  // Only the imported lantern-tests fixtures are outside the claim; they stay
+  // visible here and in the receipt. Anything else, including the app modules
+  // the example imports, fails.
+  const fixtureDiagnostics = diagnostics.filter(line => line.startsWith('lantern-tests/'));
+  if (fixtureDiagnostics.length) console.log(`Type diagnostics in imported lantern-tests fixtures (recorded, not failed):\n${fixtureDiagnostics.join('\n')}`);
+  assert.deepEqual(diagnostics.filter(line => !line.startsWith('lantern-tests/')), [], 'The example sources and the app modules they import must type-check');
   const built = await mkdtemp(join(tmpdir(), 'houseatlas-example-build-'));
   temporary.push(built);
+  // The example's own production pass (example/vite.config.ts), into a
+  // temporary folder instead of dist/example.
   await new Promise((done, reject) => {
-    const child = spawn(process.execPath, [resolve(frontend, 'node_modules/vite/bin/vite.js'), 'build', 'example', '--config', 'vite.config.ts', '--outDir', built, '--emptyOutDir', '--logLevel', 'warn'],
+    rejectBuild = reject;
+    buildChild = spawn(process.execPath, [resolve(frontend, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'example/vite.config.ts', '--outDir', built, '--logLevel', 'warn'],
       { cwd: frontend, env: { ...process.env, NO_COLOR: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
     let log = '';
-    child.stderr.on('data', data => { log += data; });
-    child.once('error', reject);
-    child.once('exit', code => code === 0 ? done() : reject(new Error(`Example production build failed (${code}): ${log}`)));
-  });
+    buildChild.stderr.on('data', data => { log += data; });
+    buildChild.once('error', reject);
+    buildChild.once('exit', code => code === 0 ? done() : reject(new Error(`Example production build failed (${code}): ${log}`)));
+  }).finally(() => { buildChild = null; rejectBuild = null; });
   const types = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', woff2: 'font/woff2', webmanifest: 'application/manifest+json', png: 'image/png' };
   const files = new Map();
   const collect = async directory => {
@@ -547,7 +554,7 @@ try {
       if (entry.isDirectory()) { await collect(path); continue; }
       assert(types[entry.name.split('.').at(-1)], `The Rust host refuses this built file type: ${key}`);
       assert((await stat(path)).size <= 4_000_000, `The Rust host refuses this built file size: ${key}`);
-      files.set(key === '/index.html' ? '/example/index.html' : key, path);
+      files.set(`/example${key}`, path);
     }
   };
   await collect(built);
@@ -575,6 +582,25 @@ try {
   const production = await productionContext.newPage();
   production.on('pageerror', error => errors.push(error.message));
   await production.addInitScript(countDraws, 'exampleProductionDrawCalls');
+  // Records any page use of the replaced globals before the example's
+  // isolation replaces them; isolation's own definitions remove these traps.
+  await production.addInitScript(() => {
+    window.examplePreIsolationUse = [];
+    const trap = (owner, name) => {
+      let original, holder = owner;
+      while (holder && !(original = Object.getOwnPropertyDescriptor(holder, name))) holder = Object.getPrototypeOf(holder);
+      if (!original) throw new Error(`Missing global: ${name}`);
+      Object.defineProperty(owner, name, { configurable: true, get() {
+        window.examplePreIsolationUse.push(name);
+        return original.get ? original.get.call(owner) : original.value;
+      }, set(value) {
+        window.examplePreIsolationUse.push(name);
+        if (original.set) original.set.call(owner, value);
+      } });
+    };
+    for (const name of ['fetch', 'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'BroadcastChannel']) trap(window, name);
+    trap(navigator, 'locks'); trap(document, 'cookie');
+  });
   // Draws are counted afresh after the page is hidden or restored.
   await production.addInitScript(() => {
     window.examplePageshows = [];
@@ -608,6 +634,7 @@ try {
   assert.deepEqual([seeded.local, seeded.session, seeded.cookie, seeded.outbox.length], [sentinel.value, sentinel.value, `${sentinel.key}=${sentinel.value}`, 1]);
   await production.goto(`${productionOrigin}${exampleEntry}`, { waitUntil: 'load' });
   await exampleReady(production, 'exampleProductionDrawCalls');
+  assert.deepEqual(await production.evaluate(() => window.examplePreIsolationUse), [], 'No page script used a replaced global before isolation ran');
   const exampleRealm = await production.evaluate(key => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key), cookie: document.cookie,
     indexedDB: typeof indexedDB, caches: typeof caches, broadcastChannel: typeof BroadcastChannel, locks: typeof navigator.locks }), sentinel.key);
   assert.deepEqual(exampleRealm, { local: null, session: null, cookie: '', indexedDB: 'undefined', caches: 'undefined', broadcastChannel: 'undefined', locks: 'undefined' },
@@ -633,10 +660,11 @@ try {
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
     production: {
-      build: 'vite build example --config vite.config.ts (fixture-root production mode, temporary output); not the app build, which does not include the example',
+      build: 'vite build --config example/vite.config.ts (the example-only production pass, temporary output instead of dist/example); the app build is not run here',
+      preIsolationUse: [],
       served: 'owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host',
       files: files.size,
-      typecheck: { config: 'frontend/example/tsconfig.json', exampleDiagnostics: 0, otherDiagnostics: fixtureDiagnostics.length },
+      typecheck: { config: 'frontend/example/tsconfig.json', failedOutsideLanternTests: 0, lanternTestsDiagnostics: fixtureDiagnostics },
       storage: { seeded: ['localStorage', 'sessionStorage', 'script-visible cookie', 'houseatlas-outbox-v1 row'], exampleRealm, unchangedAfterLeaving: true, unchangedAfterBack: true },
       back: { path: backPath, ...back },
     },

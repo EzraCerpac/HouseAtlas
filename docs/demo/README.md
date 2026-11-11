@@ -60,22 +60,26 @@ unified Atlas images above, plus the synthetic Documents, site and core-read
 fixtures. Every label, identifier, coordinate and date is invented. The home
 name, shown on every screen, is *Synthetic example house*.
 
-Open it from the Vite dev server at `/example/index.html` (for example
-`npm --prefix frontend exec vite -- --host 127.0.0.1`). It is not in the
-production build and the app does not link to it: as a third build entry it
-moved shared code out of the app's startup file into extra startup chunks,
-and the startup JavaScript budget has no headroom (see
-[CI performance](../ci-performance.md)). Shipping it needs a separate
-build pass and a budget decision for any sign-in link.
+It has its own production pass, `vite build --config example/vite.config.ts`,
+which writes only `dist/example/` after the app's build. The app's inputs,
+chunks, startup files and offline shell stay unchanged, and nothing from the
+example enters the app's precache or service worker. Until the frontend
+`build` script runs that pass, the app build does not contain the page; the
+Vite dev server serves it at `/example/index.html`. The signed-out screen
+links there as **Example house**. The Rust host serves a built
+`dist/example/index.html` at exactly `/example/index.html` without a session;
+`/example/` alone is not mapped.
 
 `?building=syn-building-house` or `?building=syn-building-studio` opens the
 Atlas on that generated building; an unknown ID is ignored. View, floor and
 room have no URL parameters; choose them in the page.
 
-The page shares the app's origin and is not a browser sandbox. Before any app
-module runs it replaces, for script on the page only, `fetch` (every request
-is refused locally), `localStorage`, `sessionStorage`, IndexedDB, Cache
-Storage, `BroadcastChannel`, `navigator.locks` and `document.cookie`. No
+The page shares the app's origin and is not a browser sandbox. Its entry
+module first runs `isolation.ts` and only then loads the app, so before any
+app module runs it replaces, for script in the page's own realm, `fetch`
+(every request is refused locally), `localStorage`, `sessionStorage`,
+IndexedDB, Cache Storage, `BroadcastChannel`, `navigator.locks` and
+`document.cookie`. Workers have their own realm and are not covered. No
 session credentials are used for application-data reads, the app modules on
 the page neither read nor change the real app's outbox, Atlas caches or
 preferences, and changes made in the example are not persisted. The browser
@@ -100,34 +104,39 @@ Attach or drag the PNG or WebM into the PR description to show a change; do
 not commit them. To show a different state, extend the tour in
 `tools/readme-media/capture.mjs`.
 
-The same run then, under a separate bound:
+The same run then:
 
-- type-checks `frontend/example/` with `frontend/example/tsconfig.json` and the
-  pinned compiler; diagnostics in the imported `lantern-tests` fixtures are
-  logged and counted, not failed;
-- builds the example alone in production mode (`vite build example`, the
-  fixture-root form) into a temporary folder and serves it from an owned
-  loopback server applying the Rust host's path, file-type, size and
-  cache-header rules;
+- type-checks `frontend/example/` (including its Vite config) with
+  `frontend/example/tsconfig.json` and the pinned compiler. The example
+  sources and the app modules they import must type-check under this config;
+  diagnostics in the imported `lantern-tests` fixtures are logged and recorded,
+  not failed, so those fixtures are not established type-safe;
+- runs the example's own production pass into a temporary folder and serves
+  it from an owned loopback server applying the Rust host's path, file-type,
+  size and cache-header rules;
+- checks that no page script used a replaced global before isolation ran;
 - seeds synthetic `localStorage`, `sessionStorage`, cookie and outbox-database
   sentinels on that origin, opens the example, checks that its script sees
   none of them, leaves for another owned page, goes Back, waits for a fresh
   3D draw, and checks the sentinels are unchanged.
 
-`capture.json` records the example entry, file hashes, compiler diagnostic
-counts, the storage results, the Back path Chromium took (back/forward-cache
-restore or reload; both pages are served `no-store`, like the Rust host) and
-informational durations. The tour has a 40-second bound and the production
-checks a 60-second bound; the existing 90-second bound is unchanged.
+`capture.json` records the example entry, file hashes, the `lantern-tests`
+diagnostics, the storage results, the Back path Chromium took (back/forward-cache
+restore or reload; both pages are served `no-store`, like the Rust host, so a
+reload is likely) and informational durations. The example adds two bounded
+phases after the existing capture, whose 90-second bound is unchanged: the
+tour (40 seconds) and the production checks (60 seconds), so the script can
+take up to 190 seconds in all.
 
-These checks do not establish: the app's production build or the Rust host
-serving the page (it is not shipped); coexistence with an existing browser
+These checks do not establish: the app's own build or the Rust host serving
+the page; real cross-tab or service-worker isolation (the sentinels sample
+storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
-are blocked); iPhone, PWA, offline or device behavior; inventory editing,
-HomeBox or Network sources, native documents or sign-in. Its Home records
-(the core-read fixture's *Alpha* building) and its Atlas buildings are two
-separate generated fixtures, not one coherent household. This first slice
-does not complete the feature coverage tracked in #591.
+are blocked); worker realms; iPhone, PWA, offline or device behavior;
+inventory editing, HomeBox or Network sources, native documents or sign-in.
+Its Home records (the core-read fixture's *Alpha* building) and its Atlas
+buildings are two separate generated fixtures, not one coherent household.
+This first slice does not complete the feature coverage tracked in #591.
 
 ## Reproduce
 

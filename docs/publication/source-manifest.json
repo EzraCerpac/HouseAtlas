@@ -6551,8 +6551,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 11433,
-      "sha256": "9d740c489ae61cc74682e09b6932864436f257223c2658ab2776a6da9c4ea81d",
+      "bytes": 12095,
+      "sha256": "4c551e3019dd7af960c5f3cc5a693f25a0b0162de0385e750a2609c9db562592",
       "owner": "web"
     },
     {
@@ -7557,6 +7557,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/example/app.tsx",
+      "mode": "100644",
+      "bytes": 4914,
+      "sha256": "956f5234a2a7935cc486064d7eed026f5b4334e9589218a1aa94f32e9aa864d6",
+      "owner": "web"
+    },
+    {
       "path": "frontend/example/index.html",
       "mode": "100644",
       "bytes": 425,
@@ -7573,15 +7580,22 @@
     {
       "path": "frontend/example/main.tsx",
       "mode": "100644",
-      "bytes": 5166,
-      "sha256": "74f31c06902b7562049bca02631750865672b3177cc2d333ca8635a5f8df04f9",
+      "bytes": 278,
+      "sha256": "f875347f6f97879bdbd92e20b41c66038c6d68074caac263262a7bccb00292ea",
       "owner": "web"
     },
     {
       "path": "frontend/example/tsconfig.json",
       "mode": "100644",
-      "bytes": 109,
-      "sha256": "2042828ba7fedfe9ff8fd416e95eb90adc18f67f9308ab3de17117f339d3ccc4",
+      "bytes": 142,
+      "sha256": "a9640dfc540bdcd5e02e641c74de49ef3b7a3c0256897c28b05ec3633bcf8ced",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/vite.config.ts",
+      "mode": "100644",
+      "bytes": 2216,
+      "sha256": "fa5197126b5b213776695cd5971b9b5aa47f6f9502f1e68dbe94f9578fa64aef",
       "owner": "web"
     },
     {
@@ -9127,8 +9141,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 19433,
-      "sha256": "380cab0feb3c3f3dfdfa16a76a571190a37ef51074e8ded2b84bf6f9b12f80a3",
+      "bytes": 19622,
+      "sha256": "c134aebec44eb97aa57cb655fd105286b98d2e073620c76e69a814f5cde27f01",
       "owner": "web"
     },
     {
@@ -12816,8 +12830,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 56185,
-      "sha256": "e2657f0e86ac5352de3fde0ebb9c0b33b0f32e252f90da1c4e3eb2e69b8db5fe",
+      "bytes": 57807,
+      "sha256": "2af7c8b6ddd723522c7c89f12bb2c326b8c5cbb5681fabe8b189ad4132d7c210",
       "owner": "web"
     },
     {
