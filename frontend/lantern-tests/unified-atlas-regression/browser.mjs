@@ -268,8 +268,21 @@ try {
             short:matchMedia('(max-height: 480px)').matches,landscape:matchMedia('(orientation: landscape)').matches,
             stageWidth:document.querySelector('.ua-viewport').getBoundingClientRect().width,
             compact:document.querySelector('.ua-shell').classList.contains('is-compact')}))()`);
-          await click('document.querySelector(".ua-fold-layers")');
+          // The short-layout fold lives in a clipped horizontal rail. A
+          // positive bounding box alone does not prove its centre receives a
+          // pointer event. Reach the actual control with native Tab instead;
+          // never focus/click it through DOM APIs or bypass a hidden control.
+          const foldFocused = 'document.activeElement===document.querySelector(".ua-fold-layers")';
+          for (const due = Date.now() + 10_000; !await evaluate(foldFocused) && Date.now() < due;)
+            await key('Tab', 'Tab', 9);
+          assert.equal(await evaluate(foldFocused), true, 'Native Tab reaches the Layer details opener');
+          const opener = await evaluate(`(()=>{const b=document.querySelector('.ua-fold-layers'),r=b.getBoundingClientRect(),s=getComputedStyle(b);
+            return {connected:b.isConnected,enabled:!b.disabled,visible:r.width>0&&r.height>0&&s.visibility==='visible'&&s.display!=='none',
+              inert:!!b.closest('[inert],[hidden],[aria-hidden="true"]'),popup:b.getAttribute('aria-haspopup'),expanded:b.getAttribute('aria-expanded')};})()`);
+          assert.deepEqual(opener, { connected: true, enabled: true, visible: true, inert: false, popup: 'dialog', expanded: 'false' });
+          await key('Enter', 'Enter', 13);
           await until('document.querySelector(".ua-layer-dialog")?.matches(":modal")', 'actual Layer details native modal');
+          assert.equal(await evaluate('document.querySelector(".ua-fold-layers").getAttribute("aria-expanded")'), 'true');
           await key('Tab', 'Tab', 9);
           assert.equal(await evaluate('document.activeElement===document.querySelector(".ua-layer-dialog .ua-key-head")'), true,
             'Native Tab focuses the existing layer control inside the modal');
