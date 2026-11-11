@@ -2926,6 +2926,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lantern-host .ua-net-trace { animation: none; }
+  .lantern-host .ua-net-tracing path { transition: none; }
   .lantern-host .ua-spinner { animation: none; border-top-color: var(--hair-2); }
   .lantern-host .ua-plan,
   .lantern-host .ua-key,

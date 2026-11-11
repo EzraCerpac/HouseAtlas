@@ -1,5 +1,21 @@
 # HouseAtlas
 
+The #552 shared registration adds required SOURCE
+`unified-atlas-network-source-root-healthy.mjs` and required BROWSER
+`network-trace-mounted/browser.mjs`: 82 SOURCE / 1 BUILD / 10 BROWSER
+(93 total). All prior 81 source entries, the build and nine browser entries
+remain. Registration changes no assertion, command deadline, sandbox setup or
+workflow; every required entry retains its existing 180000 ms limit.
+The source entry separates pure, static-markup and static-source controls.
+The mounted generated fixture builds both index.html and host.html, exercising
+standalone graph and actual UnifiedAtlas host/lens wiring, trace publication
+and retirement, chain/hop, Plan/3D and reduced-motion controls after settlement.
+These authored controls are unrun; they are not live-owner acceptance,
+first-frame retirement or elapsed-latency evidence. No local test/build/compiler,
+typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
+required. Earlier 81/1/9 counts describe the prior candidate. Existing #552
+source/writer and ownership boundaries remain; no new workflow or authority.
+
 The existing healthy SOURCE list additionally requires
 `unified-atlas-start-healthy.mjs`: 81 SOURCE / 1 BUILD / 9 BROWSER (91 total).
 All prior 80 source selections, the build selection and nine browser selections
