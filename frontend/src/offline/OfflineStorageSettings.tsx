@@ -49,7 +49,7 @@ export function OfflineStorageSettings({ controls }: { controls: OfflineStorageC
       const value = event.currentTarget.checked; setKeepLibrary(value); if (value) void fill();
       else { attempt.controller?.abort(); setBusy(false); setMessage('Automatic library downloads are off. Held files remain on this device.'); }
     }} /> Keep Library files on this device</label>
-    <p className="setting-static">{library ? `${library.complete ? 'Documents' : 'Some documents'}: ${storageSize(library.bytes)}.` : 'Document sizes are unavailable.'} {electricalBytes !== null ? `Electrical PDFs read so far: ${storageSize(electricalBytes)}.` : 'Electrical PDF sizes are unavailable.'} HomeBox attachments require a connection.</p>
+    <p className="setting-static">{library ? `${library.complete ? 'Documents' : 'Some documents'}: ${storageSize(library.bytes)}.` : 'Document sizes are unavailable.'} {electricalBytes !== null ? `Electrical PDFs read so far: ${storageSize(electricalBytes)}.` : 'Electrical PDF sizes are unavailable.'} HomeBox PDFs marked “On this device” in Library can open offline. Downloading missing files requires a connection.</p>
     <p className="setting-static">{status ? `${status.documents} files held · ${storageSize(status.bytes)} of ${storageSize(status.budgetBytes)} soft budget. Storage persistence: ${status.persistence}.` : 'Device storage status is unavailable.'}</p>
     {controls.fillLibrary ? <button type="button" className="btn" disabled={busy} onClick={() => void fill()}>Keep library now</button>
       : <p className="setting-static">Open live to download missing files. This preference applies on the next live read.</p>}

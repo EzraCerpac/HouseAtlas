@@ -8525,8 +8525,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 32769,
-      "sha256": "fcf80d7c743b70c98eed797dd711b02f9f7d965dd38f3c6fd3063694f89f7af8",
+      "bytes": 33421,
+      "sha256": "42646d264a9d6ef06b11923e29a6f530ba87f26a5b76b1068c0adb4f87ac9bed",
       "owner": "web"
     },
     {
@@ -10933,8 +10933,8 @@
     {
       "path": "frontend/src/offline/OfflineStorageSettings.tsx",
       "mode": "100644",
-      "bytes": 5091,
-      "sha256": "ded2e7cad41a781ac3a3545ad38d795197f873631a6640aded7e8b9161f8a336",
+      "bytes": 5168,
+      "sha256": "800e9f3f25637272f80cf3dd4f06e6d982611780121461af575ed06aa9e45221",
       "owner": "web"
     },
     {
