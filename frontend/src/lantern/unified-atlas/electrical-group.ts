@@ -5,6 +5,11 @@ export interface ElectricalGroup {
   readonly label: string;
   readonly members: readonly { readonly record: DocumentaryRecord; readonly rooms: readonly string[] }[];
   readonly missing: number;
+  /** Parsed from the same exact key: documentary group ID, its complete sorted
+   * declared membership (including unavailable members) and the stamped source. */
+  readonly groupId: string;
+  readonly fixtureIds: readonly string[];
+  readonly source: { readonly workspaceId: string; readonly homeId: string; readonly sceneEvidenceId: string; readonly sceneOriginalSha256: string };
 }
 
 /** Only exact, reciprocal source membership and already admitted room links are used. */
@@ -33,7 +38,12 @@ export function electricalGroups(records: PropertyRecords | null): ElectricalGro
       own.members.set(entry.record.id, entry); groups.set(key, own);
     } catch { /* Invalid or older saved metadata does not establish a group. */ }
   }
-  return [...groups].map(([key, group]) => ({ key, label: group.label,
-    members: [...group.members.values()].map(({ record, rooms }) => ({ record, rooms: [...rooms] })),
-    missing: group.ids.length - group.members.size }));
+  return [...groups].map(([key, group]) => {
+    const [, workspaceId, homeId, , sceneEvidenceId, sceneOriginalSha256, groupId] = JSON.parse(key) as string[];
+    return { key, label: group.label,
+      members: [...group.members.values()].map(({ record, rooms }) => ({ record, rooms: [...rooms] })),
+      missing: group.ids.length - group.members.size,
+      groupId: groupId!, fixtureIds: [...group.ids].sort(),
+      source: { workspaceId: workspaceId!, homeId: homeId!, sceneEvidenceId: sceneEvidenceId!, sceneOriginalSha256: sceneOriginalSha256! } };
+  });
 }

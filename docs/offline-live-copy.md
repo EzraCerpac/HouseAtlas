@@ -115,51 +115,65 @@ keeping stops additional original downloads. Explicitly opened files can still
 be retained within the hard budget. Settings reports measured source sizes and
 held storage separately; browser persistence is an explicit button action.
 
-HomeBox attachments remain a separate source. Their one-use capture/offer client
-is not a reusable byte-read port and its 10 MiB capture cap does not cover arbitrary
-Library PDFs. They remain listed as needing a connection. No claim of every
-possible Library source being retained follows from this increment.
+HomeBox attachments are a third source namespace, never a native Document v2 or
+electrical identity. The one-use capture/offer client is unchanged; the borrowed
+reader below uses the separate offline-original response instead.
 
-### Remaining HomeBox original-read contract
+### HomeBox borrowed originals
 
-The source boundary for the remaining #372/#560 HomeBox work is concrete:
+Producer: `GET /api/atlas/stock/v4/workspaces/{workspace}/homes/{home}/homebox-offline-original?request=`
+with one pinned-v4 `homebox.file.download` request (PR #578). The server spends the
+request's admission before provider reads, returns the exact bytes as
+`application/octet-stream` and describes them in the base64 JSON header
+`x-houseatlas-original` (16384 encoded bytes at most). Bytes stay within the
+existing 10 MiB capture limit; this increment does not raise it.
 
-| Existing owner | Available behavior and limit |
-| --- | --- |
-| [`http/providers/homebox_native.rs`](../backend/src/http/providers/homebox_native.rs), `OPERATIONS` | Configured stock reads cover entity tags, fields and maintenance; file download is not an admitted operation. |
-| [`http/mod.rs`](../backend/src/http/mod.rs), pinned-file routes; [`http/homebox_pinned_files.rs`](../backend/src/http/homebox_pinned_files.rs), `capture_selected` | The mounted original producer consumes a fresh capture request before provider I/O, then issues a finite token through the pinned artifact broker. Availability/redemption operate on that issued token. They are not an independent original-read route. |
-| [`read/client.rs`](../backend/src/providers/homebox/read/client.rs), `capture_native_file_snapshot`; [`read/http_transport.rs`](../backend/src/providers/homebox/read/http_transport.rs); [`media/homebox_pinned_artifacts.rs`](../backend/src/media/homebox_pinned_artifacts.rs), `measure` | Intake and broker measurement enforce [`media::MAX_BYTES`](../backend/src/media/mod.rs), 10 MiB. A separate offline storage bound does not enlarge these limits. |
-| [`read/query/native_file_owner.rs`](../backend/src/providers/homebox/read/query/native_file_owner.rs), `current_snapshot` | Qualified bytes can be borrowed only under the current original Access guard, original grants, source mutex and finite local capture window. This owner establishes a local snapshot, not an upstream version or remote currentness. |
-| [`read/query/owned_file_source.rs`](../backend/src/providers/homebox/read/query/owned_file_source.rs), `NativeStoredFileOwner` | The alternate provider-version adapter requires a genuine original owner. Its only concrete implementation in this tree is the generated `LocalOwner` in `owned_file_source_healthy.rs`; it does not supply a production fallback. |
-| [`api/pinned-file-client.ts`](../frontend/src/api/pinned-file-client.ts), `PinnedFileClient` | Discovery, explicit capture and one availability observation expose facts/offers, with the same 10 MiB bound. No borrowed Blob/frame read exists. [`PinnedFileAction.tsx`](../frontend/src/lantern/components/PinnedFileAction.tsx) owns this explicit UI exchange. |
+[`homebox-original-reader.ts`](../frontend/src/offline/homebox-original-reader.ts)
+sends one same-origin GET with a fresh `requestId`, holds no token or credential
+and never retries. It checks exact keys, request/scope/source/collection/entity/
+attachment correlation, bounded header and body, measured length and SHA-256.
+A non-200 answer is `unavailable`; a sent request without a complete verifiable
+answer (network, cancellation, truncated body, malformed facts) is `unknown`;
+complete bytes that differ from their facts are `integrity`. The source MIME is
+kept as descriptive `sourceContentType`; only a local `%PDF-` signature sets
+`contentType` and admits the sandboxed PDF viewer. Other files can only be saved.
 
-The smallest missing producer is an authenticated read-only HomeBox original
-owner and its frontend borrowed-reader port. It must deliver measured bytes
-under the existing exact workspace/home/source-instance/collection/entity/
-attachment association and current session/source/partition authorization,
-without issuing capture offers or acquiring evidence/submission authority.
-A completed read needs a distinct local observation identity, measured digest
-and length, preserved lexical retrieval facts and explicit content-type
-qualification. A local observation must remain labeled historical; hashes,
-titles, attachment timestamps and native paths cannot supply a provider revision
-or prove current remote membership. Reuse the existing native qualification
-owner where its semantics apply instead of fabricating a `HomeboxFileVersion`.
+`OfflineHomeboxPinV1` keeps the complete association, the random per-response
+`observationId`, source-registration version/digest (configuration provenance
+only) and the three lexical retrieval times. None of these is a provider revision,
+remote currentness or catalog membership. `live-copy-owner.ts` holds one
+`homebox-document` row per exact association: a newer observation replaces the
+older one. A durable per-partition registration mark (kept in the control table,
+removed with account change/clear, never evicted by LRU) refuses a late lower or a
+conflicting equal registration in the same transaction; a higher one removes older
+rows from that source partition atomically. Rows share the account/
+home/epoch witness, tombstone, acknowledged transactions, digest recheck and the
+aggregate LRU budget with native and electrical originals.
 
-The producer needs explicit cancellation, final authorization/disclosure checks,
-bounded lifetime and owned-frame release. Files above the existing 10 MiB
-capture limit need a separately reviewed original-read resource policy; changing
-the capture limit or replaying fresh captures is not this contract. No such
-producer or larger-file support is implemented here.
+There is no HomeBox catalog and no completeness claim. Library lists the held
+view's attachments as before. `homeboxStatus` reports held only when a row exists
+for that exact association; `readHomeboxDocument` additionally requires the newest
+held view to still list that stored-file association before and after the byte
+read, so a withdrawn or re-associated attachment stays unavailable.
 
-Once that producer exists, the retention consumer can add an independent
-HomeBox namespace to `live-copy-types.ts` and `live-copy-owner.ts`, following the
-electrical borrowed-reader integration. Its pins must include the complete
-source association and local observation identity; it must share the account/
-home/epoch witness, withdrawal, tombstone, acknowledged transactions, integrity
-checks and aggregate byte budget. Catalog enumeration/completeness must come
-from an actual HomeBox read owner, not the currently captured view or a title
-join. Failed, unknown or withdrawn originals remain unavailable. No placeholder
-adapter is registered while the producer is missing.
+`retainHomeboxOriginal(ref, signal)` on the live retention owner admits only an
+exact stored-file association listed by the current live view, loads the reader
+lazily and stores bytes only if the session/view binding is still current after
+the response. A sent association is claimed synchronously for that session
+allocation (an unsent claim is released) and is not read again automatically, even with a fresh `requestId`; an unknown outcome
+reports `uncertain`. Nothing about sent requests is persisted.
+
+[`offline-homebox-policy.ts`](../frontend/integration/offline-homebox-policy.ts)
+is one bounded automatic pass: at most 32 reads, only files whose view size hint
+is a known integer up to 10 MiB, held files skipped, and an uncertain/retired/
+aborted result stops the pass. Size hints schedule work; they never admit bytes.
+It refuses the pass when native, electrical and HomeBox sizes together exceed 80%
+of the budget. Mounting it in the live host is a separate integration step; until
+then HomeBox files are held only through explicit `retainHomeboxOriginal` calls.
+
+Not established: mounted producer authorization/revocation/provider failure,
+real IndexedDB, browser rendering, installed HomeBox or device acceptance. Files
+above 10 MiB, remote change detection and HomeBox catalog enumeration remain open.
 
 ## Public bootstrap and presentation
 
@@ -185,6 +199,16 @@ retirement does not reopen the legacy Atlas. An already displayed app selection
 also cannot fall back after it is withdrawn.
 
 ## Qualification
+
+The existing `offline-electrical-copy.test.mjs` selection also holds ten
+generated HomeBox cases: exact v4 wire and fresh request IDs for opaque and UUID
+collections, measured PDF versus descriptive MIME, definitive/unknown/integrity
+outcomes without retry, separate namespace and pin-exact opening, no replay after
+unknown, session replacement, withdrawal/re-association and account change,
+source-registration supersession and stale/conflicting refusal, concurrent
+single-send claims, refusal of rows stored under another association, and the automatic pass's size, held, uncertain
+and budget rules. They use an injected generated transport and in-memory store;
+no backend, provider, browser or IndexedDB runs.
 
 The existing offline-root-entry healthy selection invokes generated contracts
 in `offline-live-copy-fixture.mjs`: allowlist/decimal preservation; stale roundtrip

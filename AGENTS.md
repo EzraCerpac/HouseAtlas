@@ -1,5 +1,78 @@
 # HouseAtlas
 
+The follow-up composition preserves selected-input donor #586 `4cf41d52`,
+inspection donor #587 `8584ee97`, manual native-handoff donor #585 `0d18454b`
+and partial electrical reader #584 `9a8e32fc`. The backend module is now
+registered, discovering ten authored selected-input controls. The frontend
+runner adds the existing 22 inspection and 11 handoff controls: 80 SOURCE,
+1 BUILD and 7 BROWSER selections. Ten new controller controls bring its
+suite to 59, preserving displayed inspection cancellation after opening and
+terminal/replacement abort reentrancy fences. These new controls are NOT RUN.
+
+Automatic HomeBox-original reads now require the existing authenticated
+pinned-source discovery's exact scope/source/collection/entity selection and
+still-current binding. Cached attachment metadata alone cannot trigger an
+unconfigured original GET. Native catalog or incomplete native-pass failures
+stop source composition before HomeBox; all original assertions remain.
+Four discovery controls and a native/root stop group are authored, NOT RUN.
+
+These are reusable source functions, not an application/root suggestion mount.
+Authenticated selected inputs retain only assertions/metadata, not Content;
+positive document-content classification/linking remains unavailable. Opaque
+collection selectors retain their spelling, while downstream UUID-only wire
+and canonical target admission can still refuse them. Inspection original maps
+must come from a genuine owner; manual handoff navigates only via independently
+verified nativeLink, never applies or approves. Partial electrical inputs supply
+identity/location only, not circuit/evidence/electrical-review authority.
+
+The preceding b19e7d91 candidate passed hosted backend, both source platforms,
+ordinary-core, capture and performance jobs but failed frontend and all three
+loopbacks. Raw artifact/job downloads returned Forbidden and remain stopped;
+no log cause is inferred from exit-code annotations. This new source requires
+its own automatic hosted execution; no local build/test/compiler/formatter,
+security change, new lane, live inference/provider, activation or deployment.
+
+
+The next composed source candidate preserves exact donors #555 `0a657eef`,
+#580 `2b28c406`, #582 `054c07c1`, #578 `3905725b`, #581 `70abbeed`
+and #583 `30081ada`. Startup remains lazy with unchanged budgets. HomeBox
+original retention is mounted only after complete, current, enabled native and
+electrical passes; unknown outcomes stop the sequence. The electrical trace
+consumer remains unmounted pending genuine data/review ownership.
+
+Confirmed `no-current-association` now retires only the selected building's
+local catalog eligibility; transient failure preserves it. Document retention
+borrows the already-open original reader/frame/blob, without a second original
+download or taking lease ownership. Foreground refresh still hides, aborts and
+revalidates data; only neutral section/exact-pin/page/zoom/scroll intent survives
+for the same actor revision and scope, with fresh allocation and byte checks.
+Effect preparation restores temporary renderer state before four safe yields;
+the scene permits direct-only redraw there, retaining the compilation guard and
+zero history until shading is ready. No renderer deadline or assertion changes.
+
+New authored controls remain NOT RUN: ten preparation controls (19 declarations
+total), six retention/retirement controls, three policy/root groups, four source
+presentation assertion groups, and a focus/PDF extension in the existing
+live-launch browser case. The default frontend runner now has 78 SOURCE,
+1 BUILD and 7 BROWSER selections. No new lane/workflow or removed case.
+Independent static review is not execution qualification. Producer donor
+`3905725b` separately passed its mounted admission/disclosure/error/replay case
+in hosted job130146474925 (354 passed, zero failed); that does not qualify this
+new composed head, in-flight withdrawal, device acceptance or runtime authority.
+Existing Chromium sandbox launch failures remain unresolved; no sandbox/security
+setting, credential, provider, activation or deployment change is made here.
+
+
+The existing default backend-library selection discovers the generated mounted
+HomeBox offline-original case in `http::homebox_pinned_files::mounted_offline_original_tests`.
+It exercises the actual router and original owner with disposable Access and a
+generated loopback TLS peer: measured source bytes/association, anonymous and
+withdrawn access refusal, provider 503 and spent-request replay. Its dedicated
+test-only trust root admits only the generated loopback peer. Authored pending
+hosted execution; no live provider, real credentials or device are used. It does not
+establish remote freshness, in-flight revocation or consumer-store acceptance.
+No workflow or runner command is added.
+
 Composition follow-up: main8a20f596 is merged with preserved continuation
 fence (#577), source inventory (#579) and accepted reporting policy (#575).
 Exact electrical projector donor0138f373 is composed as its three-path delta;
@@ -454,12 +527,20 @@ loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+The existing topology-read case also exercises a partial electrical record reader
+with synthetic identity and location-semantics records, rechecks and retirement;
+circuit, evidence and electrical review authority remain unavailable.
 The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 (#552): the pure network route search over generated topologies, with no DOM,
 browser, native host or source reads. The same list runs
 `unified-atlas-electrical-group-healthy.mjs`: generated documentary membership,
 room and unplaced projections, source separation and incomplete membership; no
-browser, provider, native authority or wiring assertion.
+browser, provider, native authority or wiring assertion. That file also runs the
+#554 breaker/panel trace over the actual #557 projector and generated fixture:
+reviewed group or fixture association, then current breaker, then panel, then
+supplied room binding. It covers refusals, withheld/unknown states and static
+detail markup. No live or saved host supplies electrical data yet; the optional
+`AtlasPresentationEnvironment.electricalData` input stays unset.
 
 The default backend-library set also executes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,
@@ -1010,3 +1091,26 @@ all NOT RUN; 21 prior tests/code and corpus originals are unchanged. The complet
 32-case ledger now has five scorer subsets, nineteen structural controls and
 eight cases without bridges. Production/frontend code and runner/workflows stay
 unchanged. Exact scopes/names/remaining gaps are in INTEGRATION.md.
+
+
+Logical HomeBox collection identity amendment: exactly 126 UUID-only
+`collectionId` schema leaves now use the original registration/access owner's
+1..4096 Unicode-scalar text bound, preserving exact spelling. Every other schema
+node, source/entity/resource/physical UUID, command, wire version and authority
+check is unchanged. Current stock3/stock4, browser and native MCP pins follow the
+amended source. Geodata's active predecessor closure records the amendment and
+retains both original hashes; historical inspected-boundary evidence is unchanged.
+
+Two new default-library controls cover actual StockValidation/AdmittedSnapshot
+opaque bounds and native HomeBox descriptor materialization. The existing browser
+schema-subset control adds full/derived parity and true-UUID refusals. These new
+controls remain NOT RUN. Pure checked-in browser source generation used existing
+pinned Node 26; no compiler, test, formatter or provider ran locally. Existing runner
+counts remain 80 SOURCE / 1 BUILD / 7 BROWSER. The existing #586 writer separately
+owns the original-fixture opaque cached-capture regression; selector/schema
+acceptance alone does not establish that path, runtime admission or source access.
+
+At preceding 0183afd6, hosted Ubuntu source, ordinary-core, capture, performance
+and all three loopbacks passed. Backend/frontend/macOS were still pending at
+this source handoff. Those checks do not qualify the amended source head.
+The denied log/artifact-download route and PR metadata writes remain stopped.

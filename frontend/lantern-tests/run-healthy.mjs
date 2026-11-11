@@ -21,6 +21,8 @@ const SOURCE = [
   node('healthy-read.mjs'),
   node('ai-suggestion-review.test.mjs'),
   node('ai-suggestion-adapter.test.mjs'),
+  node('ai-suggestion-inspection.test.mjs'),
+  node('ai-native-handoff.test.mjs'),
   node('canonical-geometry.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
   node('electricity-overlay-read.mjs'),
@@ -56,7 +58,7 @@ const SOURCE = [
   node('offline-atlas-mounting-healthy.mjs'), node('offline-atlas-overlays-healthy.mjs'),
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
   ...cases('offline-catalog-healthy.mjs', '--case', ['complete', 'partial']),
-  node('offline-root-entry-healthy.mjs'), node('offline-electrical-copy.test.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
+  node('offline-root-entry-healthy.mjs'), node('offline-presentation-healthy.mjs'), node('offline-electrical-copy.test.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
   node('outbox-healthy.mjs'), node('backup-settings-healthy.mjs'),
   // Unified Atlas
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'), node('unified-atlas-network-trace-healthy.mjs'), node('unified-atlas-electrical-group-healthy.mjs'),

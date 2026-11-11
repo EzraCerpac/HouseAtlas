@@ -300,11 +300,35 @@ try {
     await tab('Changes');
     assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Operation history is not held')`), true);
     await tab('Library');
-    await poll(`document.querySelector('main').textContent.includes('On this device')`, 5_000, 'PDF availability not shown');
+    // Wait for the native row's own action: electrical rows can report "On this device" first.
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Generated held PDF')`, 5_000, 'PDF availability not shown');
     await screenshot('phone-offline-library');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated held PDF').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 1"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
+    // Ordinary focus retires all borrowed data, then restores neutral reading
+    // intent only after fresh owner reads and a replacement React commit.
+    await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF second page did not draw');
+    await evaluate(`document.querySelector('button[aria-label="Zoom in PDF"]').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      return document.querySelector('.source-pdf-controls').textContent.includes('200%') && canvas && canvas.width > 0
+        && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF zoom did not draw');
+    const reading = await evaluate(`(() => { const frame = document.querySelector('.source-pdf-page');
+      frame.scrollTop = 100; frame.scrollLeft = 40; frame.dispatchEvent(new Event('scroll'));
+      return { top: frame.scrollTop, left: frame.scrollLeft }; })()`);
+    assert(reading.top > 0, 'Generated zoomed PDF must exercise a real vertical reading offset');
+    assert.equal(await evaluate(`(() => { window.dispatchEvent(new Event('focus'));
+      return document.querySelector('.offline-app-root').hidden; })()`), true, 'Focus must hide borrowed content synchronously');
+    await poll(`(() => { const root = document.querySelector('.offline-app-root');
+      const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      const frame = document.querySelector('.source-pdf-page');
+      return root && !root.hidden && document.querySelector('main h1')?.textContent === 'Library'
+        && document.querySelector('.source-pdf-controls')?.textContent.includes('200%')
+        && canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden' && frame
+        && Math.abs(frame.scrollTop - ${reading.top}) <= 1 && Math.abs(frame.scrollLeft - ${reading.left}) <= 1;
+    })()`, 15_000, 'Foreground revalidation lost Library or exact PDF page/zoom/reading offset');
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });

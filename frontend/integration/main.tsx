@@ -1,8 +1,6 @@
-import { OfflineStorageSettings, type OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
+import type { OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
 import { keepLibrary } from '../src/offline/library-preference';
-import { fillOfflineElectricalLibraries } from './offline-electrical-policy';
-import { fillOfflineLibrary } from './offline-library-policy';
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import { lazy, StrictMode, Suspense, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
@@ -45,6 +43,10 @@ import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 import { forgetSavedEntry } from "../src/offline/saved-entry";
+
+// Settings UI loads only when its live settings leaf mounts. Retained bootstrap
+// and actor retirement remain independent of this presentation chunk.
+const OfflineStorageSettings = lazy(() => import('../src/offline/OfflineStorageSettings').then(module => ({ default: module.OfflineStorageSettings })));
 
 // After each launch, keep the public Saved shell and the root offline entry on
 // this build, so a later launch without the server opens the Saved entry with
@@ -131,23 +133,28 @@ const retainedSourceDocuments: import('../src/lantern/source-documents/types').S
     void getLiveCopyRetention().then(owner => { if (active) { stop = owner.read.subscribe(changed); changed(); } });
     return () => { active = false; stop?.(); };
   },
-  async retainOpenedOriginal(documentId, revision, signal) {
+  async retainOpenedOriginal(reader, frame, document, signal) {
     const owner = await getLiveCopyRetention();
-    if (signal.aborted) return;
-    // Refresh catalog pins before admitting the exact original; no retry on uncertain storage.
-    if ((await owner.retainCatalog(signal)).status === 'ok') await owner.retainDocument(documentId, revision, signal);
+    if (signal.aborted || !reader.isCurrent(frame)) return;
+    await owner.retainDocumentFrame(reader, frame, document, signal);
   },
 };
 async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
   const current = () => currentSession === session && currentReadyView === view;
+  const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }, { fillOfflineHomeboxOriginals }] = await Promise.all([
+    import('./offline-electrical-policy'), import('./offline-library-policy'), import('./offline-homebox-policy'),
+  ]);
+  // Imports may finish after the owning read has retired; no stale catalog work.
+  if (!current() || signal.aborted) return 'The live view changed.';
   // Measure both source lists before either automatic byte pass. Unknown source
   // sizes do not justify evicting previously held files from another source.
   const catalog = await owner.retainCatalog(signal);
   if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted')
     return `Library download stopped (${catalog.status}). Check held files before trying again.`;
   if (!current() || signal.aborted) return 'The live view changed.';
+  if (catalog.status !== 'ok') return 'Document list is unavailable. Automatic downloads paused until file sizes can be checked.';
   const measured = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled: () => false, signal });
   const lists = `${catalog.status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
   if (!current() || signal.aborted || !enabled()) return lists;
@@ -156,7 +163,10 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const native = catalog.status === 'ok' ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
   if (nativeStopped || !current() || signal.aborted || !enabled()) return native;
   const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
-  return `${native} ${electrical.message}`;
+  if (!electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
+  // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
+  const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
+  return `${native} ${electrical.message} ${homebox.message}`;
 }
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);
@@ -166,7 +176,9 @@ function LiveOfflineSettings() {
       fillLibrary: signal => fillDeviceLibrary(owner, signal, () => true) }); });
     return () => { active = false; };
   }, []);
-  return controls ? <OfflineStorageSettings controls={controls} /> : null;
+  return controls ? <Suspense fallback={<p className="setting-static" role="status">Loading offline storage…</p>}>
+    <OfflineStorageSettings controls={controls} />
+  </Suspense> : null;
 }
 function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
   if (value === null) liveCopies?.retire();

@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 70779,
-      "sha256": "f0209a19ae8845866661b9e7a184086903c28f3f063afe321b517728862d09ff",
+      "bytes": 77771,
+      "sha256": "c0dc34ad542a42c415897d03ab91038dab9bf6007c1ff7292bcfa4345e98efeb",
       "owner": "core-integration"
     },
     {
@@ -2589,8 +2589,8 @@
     {
       "path": "backend/src/http/homebox_pinned_files.rs",
       "mode": "100644",
-      "bytes": 30110,
-      "sha256": "f961acc41042acf9c27ca460a4c4886e6c56b90f78a5a77c00d6e445d5910d46",
+      "bytes": 47794,
+      "sha256": "52a30aae413261370c36015da992f4f36e0a3e6ba783de8c0754bcc8c25b469f",
       "owner": "core-integration"
     },
     {
@@ -2624,8 +2624,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 24940,
-      "sha256": "ffe72ad3d3b63188ab1554e1eaf67d197501d8c278dd54387dd97f6f1dd72c79",
+      "bytes": 25171,
+      "sha256": "b7b9952bb1cd0a2e64a42a9f308cb6d4732b64a72cd355d2b8c821da2cf9500b",
       "owner": "core-integration"
     },
     {
@@ -2850,6 +2850,20 @@
       "mode": "100644",
       "bytes": 35508,
       "sha256": "e01ee729e0476716db298ccf28afc9e002c48e010855657df61e42fc0e994110",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/suggestion_inputs.rs",
+      "mode": "100644",
+      "bytes": 25656,
+      "sha256": "79c64093bd17638641fe253ecdf0e231de0b5dc3becfc2c092f6b3f7e98b0d56",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/suggestion_inputs_healthy.rs",
+      "mode": "100644",
+      "bytes": 20858,
+      "sha256": "e32e9b472de28f3465a020cb6e316ea277f4e376722ba6cadee56f1fd9c50c1a",
       "owner": "core-integration"
     },
     {
@@ -3408,8 +3422,8 @@
     {
       "path": "backend/src/media/homebox_pinned_artifacts.rs",
       "mode": "100644",
-      "bytes": 22682,
-      "sha256": "1dbce8f8eb919ab00f6b3d8475b9ab04392f89a7b4f8173920c61229890ba632",
+      "bytes": 26582,
+      "sha256": "8dc745c5018c982063d51fe7ff193af16e4a35ede1eb7777c698794d5a9e6e97",
       "owner": "media"
     },
     {
@@ -3919,8 +3933,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/native_file_owner.rs",
       "mode": "100644",
-      "bytes": 14436,
-      "sha256": "6493f22ca84b5f27e154f7b55cbcd0f889e2cec3cb4074ce13b13f5cffea825f",
+      "bytes": 16177,
+      "sha256": "4853467e6148f202b72cebac6443ec735c0f9d68e0d3a482cdd0a571e2473833",
       "owner": "homebox"
     },
     {
@@ -5789,7 +5803,7 @@
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
       "bytes": 15986,
-      "sha256": "f476236beb834ba0807cc4294af3fc1c5fc11cb2a0c96ca3dfa600650f66c693",
+      "sha256": "ecd55bc0888189fa31d842ee4635f15da6dbe655b8c254328df330c03dd11f4e",
       "owner": "mcp"
     },
     {
@@ -5830,8 +5844,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 19621,
-      "sha256": "69cd7ee54121569ebc14b1f6bfdee44971ffa93dd2a1830d7e4dc2589499dcd1",
+      "bytes": 24309,
+      "sha256": "19c38aa7dbba03eff329f7894b212d0fc6a0f815f7e64fdb4bfeccd63b411759",
       "owner": "mcp"
     },
     {
@@ -5964,7 +5978,7 @@
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
       "bytes": 11186,
-      "sha256": "a4e36f9e7da888cbef1d038ded4d84da9135957eb5823e44b22eab1e2a209f44",
+      "sha256": "32cb0f4fcbed0894280e9c0bed1737c6a42768984570d7140020c7917788b77a",
       "owner": "mcp"
     },
     {
@@ -6012,22 +6026,22 @@
     {
       "path": "contracts/client-schemas/agent-ajv.schema.json",
       "mode": "100644",
-      "bytes": 451798,
-      "sha256": "e815bf18fed215770154fe60a1cd5278a3c18114b80b22cf51c5cac23ea14bdb",
+      "bytes": 444478,
+      "sha256": "61bcdf0bf65e35489f3d9f1c0b2d18b860a088a1dad4711cecc7908377c8900b",
       "owner": "contracts"
     },
     {
       "path": "contracts/client-schemas/agent-exact-pin.json",
       "mode": "100644",
       "bytes": 67,
-      "sha256": "e067bff4a28e82d6f45629ef8cf67c9956cf3cd034e88646ea1ef8112f36a622",
+      "sha256": "fad1a73d5b78d25df1118b89f8c9efd309c168836e896ba7fb2f2c97f20ab6ee",
       "owner": "contracts"
     },
     {
       "path": "contracts/client-schemas/agent-exact.schema.json",
       "mode": "100644",
-      "bytes": 308960,
-      "sha256": "145733ef3c4047d903f66ac3388fffe3c56831d2e003a591b83f4149ebdb9dd6",
+      "bytes": 303920,
+      "sha256": "d019fb220a09909bd8d397bce013c4dfd1644961af9080d34df476294940b11b",
       "owner": "contracts"
     },
     {
@@ -6041,14 +6055,14 @@
       "path": "contracts/client-schemas/pins.json",
       "mode": "100644",
       "bytes": 34675,
-      "sha256": "f614c47b752decbdf599397ca4aa89eb3a630b4a668c50011443614e93e8ff8e",
+      "sha256": "5c6e9a66551b8bbe3c0fd2d9083ad83e3f1cd9e8f896f1701e7ad3d937228bb4",
       "owner": "contracts"
     },
     {
       "path": "contracts/electrical-data/README.md",
       "mode": "100644",
-      "bytes": 13877,
-      "sha256": "b517fb5e123745f246c45a91db70bbacd5c6e64aa5a1bdf3f4fab999bace5c55",
+      "bytes": 14746,
+      "sha256": "e8bfe2f05356b7749142f6d389b8fee64fdd09b398eff9349c4feb781350ccb2",
       "owner": "contracts"
     },
     {
@@ -6075,8 +6089,8 @@
     {
       "path": "contracts/geodata-wire-v2/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 2668,
-      "sha256": "6b126f38f0a6f3791aae7dff4b1aa4f827bd820fe05e47bd997b4b543e961571",
+      "bytes": 3511,
+      "sha256": "9197e652aaf8389f98951396c984f07c4646090ddc0f2547449fa374cfa86620",
       "owner": "contracts"
     },
     {
@@ -6117,8 +6131,8 @@
     {
       "path": "contracts/stock-wire3/README.md",
       "mode": "100644",
-      "bytes": 2762,
-      "sha256": "0c769bb54c36176b7a8b5c5260870629376deefd57326d466c40244d27b5b1b8",
+      "bytes": 3316,
+      "sha256": "7c8d432b29b4f2528d4b6889099a90ad46aa9942b4aa0197f79507c6e3a0481b",
       "owner": "contracts"
     },
     {
@@ -6131,15 +6145,15 @@
     {
       "path": "contracts/stock-wire3/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 6036,
-      "sha256": "06da07ee6ab48545b4282162a4576bfe50c569412bf913f7e839b830f771109f",
+      "bytes": 6309,
+      "sha256": "b250aa9dd9bb386f6fa7f609fe6fff282b522c5486ebdf6f3fe806cda6c4dae3",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
       "mode": "100644",
-      "bytes": 955535,
-      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
+      "bytes": 947975,
+      "sha256": "b6c2ef3aa884cd4d537635521676a99e500f445dc2a587b6181c4f5a3f633ede",
       "owner": "contracts"
     },
     {
@@ -6230,14 +6244,14 @@
       "path": "contracts/stock-wire3/resource-map.json",
       "mode": "100644",
       "bytes": 1707,
-      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4",
+      "sha256": "a61f21b3511a9f2a4b3e6025ca94bfe8792a1ed0c35df73b481f21f88cbd6762",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire4/adoption-manifest.json",
       "mode": "100644",
       "bytes": 950,
-      "sha256": "af7df2e91c9311c3bc633b90d898f616f0fae6e2e6e14c05481c545ce13c4d30",
+      "sha256": "cb0fb85080a0c2c6e68827d8d595f4e69d204c8338c24f0340e5577caa5bfde4",
       "owner": "contracts"
     },
     {
@@ -6251,7 +6265,7 @@
       "path": "contracts/stock-wire4/resource-map.json",
       "mode": "100644",
       "bytes": 873,
-      "sha256": "9dc3df00759725ba14f64be18ebb40bf4138841fffed10972881a5cc9adf38ac",
+      "sha256": "c8934b84edf0b4aa30c200a31dd0f633d3907bfd160295dbae2fa9edd4a81b53",
       "owner": "contracts"
     },
     {
@@ -6600,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 293493,
-      "sha256": "f834b66f0d3c7f266dcc089bd681aba1975a660640f732457c4083d2ef70cc2c",
+      "bytes": 301882,
+      "sha256": "63066cd7d6f02decc89742fb9874e797b1639182cc893dc19ed71fcf3c216970",
       "owner": "core-integration"
     },
     {
@@ -7027,8 +7041,8 @@
     {
       "path": "docs/offline-live-copy.md",
       "mode": "100644",
-      "bytes": 15512,
-      "sha256": "bc43a08a397eb50ae8014937035019e01928eb835591ca88fdc76ac2df6a8491",
+      "bytes": 15694,
+      "sha256": "7bc30e0b10d1d76470394b012951c5b4d0f98786f3f0606f00a7605ba65fbbe1",
       "owner": "core-integration"
     },
     {
@@ -7328,15 +7342,15 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
       "mode": "100644",
-      "bytes": 232300,
-      "sha256": "f01eb890927e334d8b3e5ab828d8ef70fe7e25710be8c2d720cee621bb4ae430",
+      "bytes": 232878,
+      "sha256": "5b238561592361a2a373119d930ca826a2f39cfd33b74ad4ebfb7d6c48f82537",
       "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
       "mode": "100644",
-      "bytes": 14922,
-      "sha256": "2e9b68b641dbd8f956c02bfa69c30b921f7c21be3a735a95afca6e5ad85b49dc",
+      "bytes": 16188,
+      "sha256": "b7e82f234ed92468f79fe754ae9eaa268d6857d8fe3fbf799a5d8879e606b7bf",
       "owner": "mcp"
     },
     {
@@ -7669,6 +7683,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/electrical-record-owner.ts",
+      "mode": "100644",
+      "bytes": 4864,
+      "sha256": "08c754ff35908e581b1d2d3a49760d8c4455fbfb05eb5493551a15ed68a83efb",
+      "owner": "web"
+    },
+    {
       "path": "frontend/integration/last-atlas-copy.ts",
       "mode": "100644",
       "bytes": 5763,
@@ -7678,15 +7699,15 @@
     {
       "path": "frontend/integration/live-copy-retention.ts",
       "mode": "100644",
-      "bytes": 20419,
-      "sha256": "028c414f404807bf8030ca18d7be655ff77f9f80cc2fb0f346c8674fb0e384cf",
+      "bytes": 29236,
+      "sha256": "4f8067a3a86b35942d4c5f60e7c25135bb37759c3c41d56e73b29d8174af1fc1",
       "owner": "core-integration"
     },
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 48388,
-      "sha256": "ad64b8c4782f6c7d7d66e106fdc9cda6424cc20c332317debfedd2effce9be03",
+      "bytes": 49433,
+      "sha256": "00f59489ead70d8926e44853855ae25db08d78bbd055c57fe6a99c0deba1a261",
       "owner": "core-integration"
     },
     {
@@ -7790,8 +7811,15 @@
     {
       "path": "frontend/integration/offline-electrical-policy.ts",
       "mode": "100644",
-      "bytes": 3680,
-      "sha256": "49625add6ec9f76747540d9ee6b7bafb1335dc9622132385e75cc7e7cfce652b",
+      "bytes": 4447,
+      "sha256": "5a4c69100e6e7218603ed30a286f67143d26f502356b9316ff487cb4ddb63d79",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/integration/offline-homebox-policy.ts",
+      "mode": "100644",
+      "bytes": 6536,
+      "sha256": "bb0de5b1582e40c3f5f5948c263cb8fdf00a977b642b3f0c1fa9b724a50a8845",
       "owner": "core-integration"
     },
     {
@@ -7804,8 +7832,8 @@
     {
       "path": "frontend/integration/offline-library-policy.ts",
       "mode": "100644",
-      "bytes": 3177,
-      "sha256": "f2faab098c8cd237bda18035b2d1c81996210161b35f02906870e3109cbf2198",
+      "bytes": 3164,
+      "sha256": "7859d7ba52cfe283d2ee00cde5baced1f709c8263e1f07f722ee8a3429563e5a",
       "owner": "core-integration"
     },
     {
@@ -7949,6 +7977,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ai-native-handoff.test.mjs",
+      "mode": "100644",
+      "bytes": 15417,
+      "sha256": "a70fa2a9cb1acbf19c873956d79afcdf89dd52220ff2d0277914970ef03330b3",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
       "bytes": 34507,
@@ -7956,10 +7991,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ai-suggestion-inspection.test.mjs",
+      "mode": "100644",
+      "bytes": 21211,
+      "sha256": "206f898a8db8ffda215544a777a185af3e9c9e205cdd0f5407fe993f10e93be8",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/ai-suggestion-review.test.mjs",
       "mode": "100644",
-      "bytes": 59077,
-      "sha256": "eb4f79d9d8414c81834a296b36dc580a564c085d4d3528d0c5500f2c1c419bd2",
+      "bytes": 67280,
+      "sha256": "221173f0779c07bcebf8815fe9ca25caee393f0d0f85676046ebc38fea8a1169",
       "owner": "web"
     },
     {
@@ -7993,8 +8035,8 @@
     {
       "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
       "mode": "100644",
-      "bytes": 20998,
-      "sha256": "25a2e9ca2baa6a5a67bbb798163cab742960b3a3a54303ce077726920a8185b0",
+      "bytes": 37601,
+      "sha256": "6ce4c72f5e2d5717a83c5bd356b413d6be54a229a55d94a3ccd8d0808b29b8db",
       "owner": "web"
     },
     {
@@ -8007,8 +8049,8 @@
     {
       "path": "frontend/lantern-tests/client-schema-subset.mjs",
       "mode": "100644",
-      "bytes": 7471,
-      "sha256": "dd9099c8b0be66f30efb73f199b6dc92cf74e793db5729b55cc6eb42a9a28489",
+      "bytes": 8845,
+      "sha256": "4031b43c39049af3c69ac1eec0eb759e86397e84ffe940ee8979d7b102068404",
       "owner": "web"
     },
     {
@@ -8044,6 +8086,13 @@
       "mode": "100644",
       "bytes": 16780,
       "sha256": "49dd3ef7469125dcebb2435a602a7f74248cc804c7eb8d5622446f57af3c3db4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-record-owner-healthy.mjs",
+      "mode": "100644",
+      "bytes": 3382,
+      "sha256": "0c4c688b16b8deddcc3ff3a6a8ee342794f5b4510ca06e5b6e9cfdd7f74c26af",
       "owner": "web"
     },
     {
@@ -8133,8 +8182,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 28512,
-      "sha256": "f866c725850edd1049d8903011ba7efadc1ec580cdbbfea614e4d6c490034455",
+      "bytes": 28506,
+      "sha256": "71a227b4d01049f208e78dbb16b8f57969811a1f25a21580f0fc9a1063854d32",
       "owner": "web"
     },
     {
@@ -8357,8 +8406,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 15780,
-      "sha256": "ddb34ba6acdff47ed43755bce2795d4296f4d924f1a4c46e19adf415e63232aa",
+      "bytes": 54256,
+      "sha256": "6d3ee0be00b09fcc6279d5a1a8da8ff878ed1616e7de67b3966701b803133dc4",
       "owner": "web"
     },
     {
@@ -8371,8 +8420,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 27938,
-      "sha256": "28ee1d50939410fb186611ac317144359a36f183e94c5287b19354cc1ede4cdb",
+      "bytes": 30387,
+      "sha256": "fbb63bb0be3b415e981a1353c13d7b39afb152403587ca5f1dbd2304a98d3cab",
       "owner": "web"
     },
     {
@@ -8385,8 +8434,8 @@
     {
       "path": "frontend/lantern-tests/offline-library-policy-fixture.mjs",
       "mode": "100644",
-      "bytes": 4102,
-      "sha256": "605113e629e9033a52255552ea806ecd728315440840413bf98ef4fdd489b3c0",
+      "bytes": 10852,
+      "sha256": "754f2638087b5f05a90d5761938c791bdeb9b7a98c52c0182add4c097a3311eb",
       "owner": "web"
     },
     {
@@ -8401,6 +8450,13 @@
       "mode": "100644",
       "bytes": 13276,
       "sha256": "c60993c00ed94fd910cb46ffa28a6604eed9ceaa33f7dddde5ae49e05e41e3a2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-presentation-healthy.mjs",
+      "mode": "100644",
+      "bytes": 14760,
+      "sha256": "8ba19d7ce9079c926775bc34e3965452c252945ce52251e7ad21107ebab05b46",
       "owner": "web"
     },
     {
@@ -8497,8 +8553,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6545,
-      "sha256": "61fb0103633812427a7eeea3167943671e5c624e2b420f0d28750937c6737d71",
+      "bytes": 6670,
+      "sha256": "b32a642ad828fb47e57eefb27fe45e92721c129985973247e7a9c0f3c7c41697",
       "owner": "web"
     },
     {
@@ -8665,8 +8721,8 @@
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
       "mode": "100644",
-      "bytes": 66906,
-      "sha256": "1fd1ddc1206ce47079d7c1634b3e859de096b631cd3e3efb93d813aa9b71e070",
+      "bytes": 67205,
+      "sha256": "7c4082d668332fdb728a2054c9b15f9186271ddc15ae8ea23809ae361d098ead",
       "owner": "web"
     },
     {
@@ -8700,8 +8756,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
       "mode": "100644",
-      "bytes": 37426,
-      "sha256": "7d15f60c86c8f9f8999824b2299e37b0f4634aa0a4d03f5aa5a14f410a8234fd",
+      "bytes": 46262,
+      "sha256": "848bf70afeb750b1811fbd3e5c371e6344496eef529886bee60f4d5f36640f96",
       "owner": "web"
     },
     {
@@ -8728,8 +8784,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs",
       "mode": "100644",
-      "bytes": 6864,
-      "sha256": "94dafa122fcb1bb127b9facd67928ce76375eeb574058e6111dd8d7d1d928f9e",
+      "bytes": 22181,
+      "sha256": "0a231c0116a133e925d268f6ce44dcce8acd247a94513f4e753814eeebc472e9",
       "owner": "web"
     },
     {
@@ -9139,10 +9195,31 @@
       "owner": "ai"
     },
     {
+      "path": "frontend/src/ai/suggestion-adapter/inspection-owner.ts",
+      "mode": "100644",
+      "bytes": 18202,
+      "sha256": "4104d2144d8071434dbdb5f4860757ca50b4b3e4f66437e3a824cfa9811eaa4f",
+      "owner": "ai"
+    },
+    {
       "path": "frontend/src/ai/suggestion-adapter/mount.tsx",
       "mode": "100644",
       "bytes": 1204,
       "sha256": "5e4fb64da1b2e9839b7fe75527319c91cd967104488cf7720a6e3e5b291b9f38",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/native-handoff-view.tsx",
+      "mode": "100644",
+      "bytes": 1325,
+      "sha256": "934107a0f3e81d23ec5c3cdb42aa509685fea1958ef76c263cd938fcabb45093",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/native-handoff.ts",
+      "mode": "100644",
+      "bytes": 11946,
+      "sha256": "b5e4f0313e4e9fe3a7eb9539e8c7257bfc899f58c925a4b3f4c3aec9abed0774",
       "owner": "ai"
     },
     {
@@ -9169,8 +9246,8 @@
     {
       "path": "frontend/src/ai/suggestion-review/controller.ts",
       "mode": "100644",
-      "bytes": 27268,
-      "sha256": "1e9e4ca74b3420fe9c4da7276259ecd9f75b4136259b296b9799989b02643060",
+      "bytes": 28764,
+      "sha256": "d16e223d7504892c86638c7be64e35e5a10918be31eef9bda0e31c5fb20b453e",
       "owner": "ai"
     },
     {
@@ -9680,8 +9757,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 66062,
-      "sha256": "3670371882cb7db7699d0bbb87d03a7b492bc758032ca03f91cd512e5e3305af",
+      "bytes": 66475,
+      "sha256": "24414559a6d7a31fb2d814dede568e9e77c55c5e441d69c59791fbfffa196be4",
       "owner": "web"
     },
     {
@@ -9701,8 +9778,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/prepare-effect-pipelines.ts",
       "mode": "100644",
-      "bytes": 7716,
-      "sha256": "8325313fe3e518408aa06fb83f7c715b9d7109755cf1d2ef2e48a5ba8406d9a0",
+      "bytes": 8405,
+      "sha256": "56a01c0fd0a047bb31f4af8aef59ea526572f4ca59410a47579c5ed0438394f1",
       "owner": "web"
     },
     {
@@ -9909,10 +9986,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/components/SettingsContents.tsx",
+      "mode": "100644",
+      "bytes": 8899,
+      "sha256": "3f4b5fea6e62a59a4aeed1991046f44901a100327f17f5427c77d0e3d0c62af1",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 9273,
-      "sha256": "842474fa898fb8aab6ce9181a580d6c36d6b18fea339aacfe48b6e135f8b0c9b",
+      "bytes": 745,
+      "sha256": "c43cffb33013fb9bc8a5785bf85d95440ca6638513f76cb01a1b1979ade92166",
       "owner": "web"
     },
     {
@@ -10261,22 +10345,22 @@
     {
       "path": "frontend/src/lantern/source-documents/SourceDocuments.tsx",
       "mode": "100644",
-      "bytes": 17225,
-      "sha256": "cc4a4f37ccc725ee6888fef07a8681d49d273c9348fc9fcaf8deee0d9e08b9f0",
+      "bytes": 17210,
+      "sha256": "63c833e2a93f136f164baffaa822c6395d6d9c8844e050411c1f0504c07095ae",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/source-documents/SourcePdf.tsx",
       "mode": "100644",
-      "bytes": 2256,
-      "sha256": "d17aea14d56d2681cb7ca327561ad1bcd073d3f59a7a9528bb7432af8e3cf27e",
+      "bytes": 2330,
+      "sha256": "e1caedc8f5cc2c003dddcfb7da7166f4b967ad822d91f5181794d2a8a0501e37",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/source-documents/SourcePdfView.tsx",
       "mode": "100644",
-      "bytes": 8920,
-      "sha256": "9698ef3f73af58e635b1de4f0fe791fa778615cced3055bef9d65e78cb71359d",
+      "bytes": 11142,
+      "sha256": "b0c637d3827402e83e5b793bd07fac61ce8e609a113c978227f72b0e47f431ed",
       "owner": "web"
     },
     {
@@ -10303,8 +10387,8 @@
     {
       "path": "frontend/src/lantern/source-documents/types.ts",
       "mode": "100644",
-      "bytes": 4719,
-      "sha256": "4ddd578b12e33bbf39e81a1cf2fcdce0936c4ef3ef23eb991b67374b1d94b87e",
+      "bytes": 4877,
+      "sha256": "2102aaf336edf8a2ea365f1450f992de4857416c4151a5530a21157a76550efd",
       "owner": "web"
     },
     {
@@ -10422,8 +10506,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/AtlasInspector.tsx",
       "mode": "100644",
-      "bytes": 17494,
-      "sha256": "824c9d7a2135db0abf56065922de9961a13d437593a78fbdae03d52f9713afa2",
+      "bytes": 18060,
+      "sha256": "688856ef87149a4682b2279bacf44f64297291953fdbd1627991b120433693f1",
       "owner": "web"
     },
     {
@@ -10438,6 +10522,13 @@
       "mode": "100644",
       "bytes": 9594,
       "sha256": "7ee3a3ff76a47871875e62d1a8d2d55ea3f4758cb7c0a25dcb43ce741d57ba66",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/ElectricalTraceDetail.tsx",
+      "mode": "100644",
+      "bytes": 4287,
+      "sha256": "aefe8c904e6c79032b83fb6859e9ded35e157d9e9046c2736414ee169b56de17",
       "owner": "web"
     },
     {
@@ -10478,8 +10569,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 121394,
-      "sha256": "e73b696c07c0933949eb3c0ba02fe94d618bf9b5034f6bc56efa42a3d8d4bc73",
+      "bytes": 121751,
+      "sha256": "18539921bdda9c4764a7c33631ff7c8514f92ae5da0bc7ee6aef98880e29f04c",
       "owner": "web"
     },
     {
@@ -10506,8 +10597,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/electrical-group.ts",
       "mode": "100644",
-      "bytes": 2656,
-      "sha256": "b810b93b32f5902717216df8060ee76fce32d66a708c1f41c8fdfd6aaa908092",
+      "bytes": 3374,
+      "sha256": "92baa185b4bb89018ceef158b411521bf4fa9f9974accddf5b540519c5375a23",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/electrical-trace.ts",
+      "mode": "100644",
+      "bytes": 11164,
+      "sha256": "566a44b42bbb6035bcfffea1dee0b62bb5036f7ef5a56c6acb514965493b52ce",
       "owner": "web"
     },
     {
@@ -10709,8 +10807,8 @@
     {
       "path": "frontend/src/offline/OfflineLanternHost.tsx",
       "mode": "100644",
-      "bytes": 18273,
-      "sha256": "dad80a11f3ef6aec241588145923e4195ae09dce5b1726ff8101bfd1746b3d08",
+      "bytes": 26200,
+      "sha256": "2a4f6b083bc0072e011c2bd04a551c8b1f57219224833e93beaf3a9f2d862536",
       "owner": "web"
     },
     {
@@ -10770,6 +10868,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/offline/homebox-original-reader.ts",
+      "mode": "100644",
+      "bytes": 9719,
+      "sha256": "70f864a692caf7dd23223c41cb14790decdcbf8ad217bc9927d1d63241ae8c1a",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/offline/library-preference.ts",
       "mode": "100644",
       "bytes": 903,
@@ -10786,15 +10891,15 @@
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 36859,
-      "sha256": "a5aae7680e05359047de6e7909df6366e5559d6b378a3332ae8ddcd97cd70030",
+      "bytes": 46281,
+      "sha256": "975c051eb103dc390c1f407ea45840f3bddddb0a5605e71e9bc90aa971ebe990",
       "owner": "web"
     },
     {
       "path": "frontend/src/offline/live-copy-types.ts",
       "mode": "100644",
-      "bytes": 7173,
-      "sha256": "f8b3b84da03b256ec1f90d0b080d31cc027a2127f1af7b1d0d0256117c05fa46",
+      "bytes": 8855,
+      "sha256": "feef245ed50292a63fc3b65591dddebec4ecd4870b6bea47dc8234d98233e664",
       "owner": "web"
     },
     {
@@ -10816,6 +10921,13 @@
       "mode": "100644",
       "bytes": 647,
       "sha256": "4357c8c36402eb2354886b73e5b4da176b2098085b0aacc659722cd9695f337e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/offline-reading-intent.ts",
+      "mode": "100644",
+      "bytes": 3080,
+      "sha256": "8fa860d2c17775ba34d9e15e2800666c141c3d1459e8d2cfd0042aee23791223",
       "owner": "web"
     },
     {
@@ -12081,8 +12193,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 58310,
-      "sha256": "940743a5784bd9f4765589a736caee42705ed1ad4f077ed8d889277fb08a0cbc",
+      "bytes": 58370,
+      "sha256": "4d1ca491d9fe2a3f114f64623bdbf7abd2a9fe06cc9129fc6e85086929139dde",
       "owner": "core-integration"
     },
     {

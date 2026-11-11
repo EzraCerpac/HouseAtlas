@@ -42,3 +42,11 @@ new behavioral test, provider call, login, grant or credential operation is
 introduced by this adoption. Static file/reference/digest inspection only was
 performed. Stopped guard, omission/mutation, adversarial/rejection, replay,
 expiry/revocation, failure/crash and concurrency controls remain unrun.
+
+The logical HomeBox `collectionId` is the original registration's exact opaque
+text, bounded to 1–4096 Unicode scalars. The shared wire3 target, concrete
+request/result and provider-reference schemas now use that existing owner bound;
+source-instance, entity, resource and physical-collection UUID constraints are
+unchanged. UUID collection values remain compatible. No trimming, normalization,
+new wire version, dispatch admission or authority is introduced. This source
+correction does not qualify configured provider, account or runtime operation.

@@ -44,10 +44,12 @@ function quadVertex(quad: QuadMesh) {
 }
 
 /** Ahead-of-time preparation on a renderer which is still owned by build().
- * No scene/frame is drawn, and the history stays at its initial zero count.
+ * The helper draws no scene/frame; history stays at its initial zero count.
  * Keeping updateBeforeType unchanged retains the runtime dependency lists;
  * returning false from the deferred hooks leaves NodeFrame's update stamps
- * untouched, so the first real shaded frame still performs every update. */
+ * untouched, so the first real shaded frame still performs every update.
+ * nextSlice runs only after every temporary member and renderer setting has
+ * been restored. Its owner may draw direct frames there, but not run effects. */
 export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: {
   pipeline: RenderPipeline; relit: RenderPipeline; occlusion: Node; history: OcclusionHistory; passes: readonly Node[];
 }, nextSlice: () => Promise<void>, signal?: AbortSignal): Promise<void> {
@@ -56,75 +58,88 @@ export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: 
   signal?.throwIfAborted();
   const contexts = (renderer as unknown as ContextAccess)._renderContexts;
   if (!contexts || typeof contexts.get !== 'function') throw new PreparationRefused('Unsupported Three render-context preparation');
-  const restoreUpdates: (() => void)[] = [];
-  try {
-    for (const node of new Set([...effects.passes, effects.occlusion, effects.history])) {
-      if (typeof node.updateBefore !== 'function') throw new PreparationRefused('Unsupported effect update hook');
-      restoreUpdates.push(replaceMember(node, 'updateBefore', () => false));
-    }
-
-    const compileQuad = async (quad: QuadMesh, target: RenderTarget | null, depth: 0 | 1, reset: boolean) => {
-      signal?.throwIfAborted();
-      const material = quad.material as NodeMaterial;
-      if (!quad.isQuadMesh || !material.isNodeMaterial || material.fragmentNode == null)
-        throw new PreparationRefused('Effect graph was not initialized before preparation');
-      const vertex = material.vertexNode, culled = quad.frustumCulled;
-      const saved = RendererUtils.saveRendererState(renderer), xr = renderer.xr.enabled;
-      // compileAsync otherwise always selects depth 0. AO/history draw inside
-      // the output quad at depth 1, and that context identity is in the builder
-      // cache key. Preparing depth 0 would rebuild their graph on the first draw.
-      const get = contexts.get;
-      const restoreContext = replaceMember(contexts, 'get', function(this: typeof contexts,
-        at?: RenderTarget | null, mrt?: unknown, level = depth) { return get.call(this, at, mrt, level); });
-      try {
-        if (reset) {
-          RendererUtils.resetRendererState(renderer, saved);
-          renderer.toneMapping = NoToneMapping; renderer.outputColorSpace = ColorManagement.workingColorSpace; renderer.xr.enabled = false;
-        }
-        renderer.setRenderTarget(target);
-        material.vertexNode = quadVertex(quad); quad.frustumCulled = false;
-        await renderer.compileAsync(quad, quad.camera);
-        signal?.throwIfAborted();
-      } finally {
-        material.vertexNode = vertex; quad.frustumCulled = culled;
-        restoreContext(); RendererUtils.restoreRendererState(renderer, saved); renderer.xr.enabled = xr;
-      }
-      await nextSlice(); signal?.throwIfAborted();
-    };
-
-    const compileOutput = async (pipeline: RenderPipeline) => {
-      const access = pipeline as unknown as PipelineAccess;
-      if (pipeline.renderer !== renderer || typeof access._update !== 'function' || !access._quadMesh)
-        throw new PreparationRefused('Unsupported Three output-pipeline preparation');
-      access._update();
-      const checkCallbacks = () => {
-        if (!access._contextData || access._contextData.onBeforePipelineCallbacks.length
-          || access._contextData.onAfterPipelineCallbacks.length)
-          throw new PreparationRefused('Effect preparation does not support pipeline callbacks');
-      };
-      checkCallbacks();
-      const tone = renderer.toneMapping, color = renderer.outputColorSpace, xr = renderer.xr.enabled;
-      try {
-        // The same output state RenderPipeline.render supplies around its quad.
-        renderer.toneMapping = NoToneMapping; renderer.outputColorSpace = ColorManagement.workingColorSpace; renderer.xr.enabled = false;
-        await compileQuad(access._quadMesh, null, 0, false);
-        checkCallbacks();
-      } finally { renderer.toneMapping = tone; renderer.outputColorSpace = color; renderer.xr.enabled = xr; }
-    };
-
-    // Building the actual output graph runs GTAO.setup and history.setup, which
-    // initialize their real materials without running their drawing hooks.
-    await compileOutput(effects.pipeline);
-    await effects.history.prepareQuad((quad, target) => compileQuad(quad, target, 1, true));
-    // History's graph can initialize GTAO's shared context again. Prepare AO
-    // after that, against its final material and native RedFormat target.
-    const ao = effects.occlusion as unknown as OcclusionAccess;
-    if (!ao._material?.isNodeMaterial || !ao._aoRenderTarget?.isRenderTarget)
-      throw new PreparationRefused('Unsupported Three AO preparation');
-    await compileQuad(new QuadMesh(ao._material), ao._aoRenderTarget, 1, true);
-    await compileOutput(effects.relit);
-    if (effects.history.count !== 0) throw new Error('Effect preparation advanced the history');
-  } finally {
-    for (const restore of restoreUpdates.reverse()) restore();
+  const updates = [...new Set([...effects.passes, effects.occlusion, effects.history])];
+  // Refuse an unsupported dependency before replacing any hook.
+  for (const node of updates) {
+    if (typeof node.updateBefore !== 'function') throw new PreparationRefused('Unsupported effect update hook');
   }
+
+  const compileQuad = async (quad: QuadMesh, target: RenderTarget | null, depth: 0 | 1, reset: boolean) => {
+    signal?.throwIfAborted();
+    const material = quad.material as NodeMaterial;
+    if (!quad.isQuadMesh || !material.isNodeMaterial || material.fragmentNode == null)
+      throw new PreparationRefused('Effect graph was not initialized before preparation');
+    const vertex = material.vertexNode, culled = quad.frustumCulled;
+    const saved = RendererUtils.saveRendererState(renderer), xr = renderer.xr.enabled;
+    // compileAsync otherwise always selects depth 0. AO/history draw inside
+    // the output quad at depth 1, and that context identity is in the builder
+    // cache key. Preparing depth 0 would rebuild their graph on the first draw.
+    const get = contexts.get;
+    let restoreContext: (() => void) | undefined;
+    const restoreUpdates: (() => void)[] = [];
+    try {
+      for (const node of updates) restoreUpdates.push(replaceMember(node, 'updateBefore', () => false));
+      restoreContext = replaceMember(contexts, 'get', function(this: typeof contexts,
+        at?: RenderTarget | null, mrt?: unknown, level = depth) { return get.call(this, at, mrt, level); });
+      if (reset) {
+        RendererUtils.resetRendererState(renderer, saved);
+        renderer.toneMapping = NoToneMapping; renderer.outputColorSpace = ColorManagement.workingColorSpace; renderer.xr.enabled = false;
+      }
+      renderer.setRenderTarget(target);
+      material.vertexNode = quadVertex(quad); quad.frustumCulled = false;
+      await renderer.compileAsync(quad, quad.camera);
+      signal?.throwIfAborted();
+    } finally {
+      material.vertexNode = vertex; quad.frustumCulled = culled;
+      restoreContext?.();
+      for (const restore of restoreUpdates.reverse()) restore();
+      RendererUtils.restoreRendererState(renderer, saved); renderer.xr.enabled = xr;
+    }
+  };
+
+  const compileOutput = async (pipeline: RenderPipeline) => {
+    const access = pipeline as unknown as PipelineAccess;
+    if (pipeline.renderer !== renderer || typeof access._update !== 'function' || !access._quadMesh)
+      throw new PreparationRefused('Unsupported Three output-pipeline preparation');
+    access._update();
+    const checkCallbacks = () => {
+      if (!access._contextData || access._contextData.onBeforePipelineCallbacks.length
+        || access._contextData.onAfterPipelineCallbacks.length)
+        throw new PreparationRefused('Effect preparation does not support pipeline callbacks');
+    };
+    checkCallbacks();
+    const tone = renderer.toneMapping, color = renderer.outputColorSpace, xr = renderer.xr.enabled;
+    try {
+      // The same output state RenderPipeline.render supplies around its quad.
+      renderer.toneMapping = NoToneMapping; renderer.outputColorSpace = ColorManagement.workingColorSpace; renderer.xr.enabled = false;
+      await compileQuad(access._quadMesh, null, 0, false);
+      checkCallbacks();
+    } finally { renderer.toneMapping = tone; renderer.outputColorSpace = color; renderer.xr.enabled = xr; }
+  };
+
+  // In particular, compileOutput's outer output settings must be restored
+  // before its caller can open a direct-frame window.
+  const yieldRestored = async () => {
+    signal?.throwIfAborted();
+    if (effects.history.count !== 0) throw new Error('Effect preparation advanced the history');
+    await nextSlice(); signal?.throwIfAborted();
+    if (effects.history.count !== 0) throw new Error('Effect preparation advanced the history');
+  };
+
+  // Building the actual output graph runs GTAO.setup and history.setup, which
+  // initialize their real materials without running their drawing hooks.
+  await compileOutput(effects.pipeline);
+  await yieldRestored();
+  await effects.history.prepareQuad((quad, target) => compileQuad(quad, target, 1, true));
+  await yieldRestored();
+  // History's graph can initialize GTAO's shared context again. Prepare AO
+  // after that, against its final material and native RedFormat target.
+  const ao = effects.occlusion as unknown as OcclusionAccess;
+  if (!ao._material?.isNodeMaterial || !ao._aoRenderTarget?.isRenderTarget)
+    throw new PreparationRefused('Unsupported Three AO preparation');
+  await compileQuad(new QuadMesh(ao._material), ao._aoRenderTarget, 1, true);
+  await yieldRestored();
+  await compileOutput(effects.relit);
+  await yieldRestored();
+  if (effects.history.count !== 0) throw new Error('Effect preparation advanced the history');
 }
