@@ -56,9 +56,14 @@ tour below; it is a review aid, not timing or pixel evidence.
 `frontend/example/` is one fictional example house for showing features,
 changes and fixes in PRs. It mounts the actual `LanternHost` and
 `UnifiedAtlas` against the same generated two-building publication as the
-unified Atlas images above, plus the synthetic Documents, site and core-read
-fixtures. Every label, identifier, coordinate and date is invented. The home
-name, shown on every screen, is *Synthetic example house*.
+unified Atlas images above, plus the synthetic Documents and site fixtures.
+Its Home records are derived in the page from that publication
+(`frontend/example/household.ts`): one place per building with floors, per
+floor and per room with a selectable part, with the Atlas names and nesting.
+A room on several floors sits under the floor of its first selectable part.
+Home and Atlas therefore show one household; Home has places only, no
+inventory items. Every label, identifier, coordinate and date is invented.
+The home name, shown on every screen, is *Synthetic example house*.
 
 `npm --prefix frontend run build` ships it: after the app's own build, a
 second pass, `vite build --config example/vite.config.ts`, writes only
@@ -137,9 +142,7 @@ storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
 inventory editing, HomeBox or Network sources, native documents or sign-in.
-Its Home records (the core-read fixture's *Alpha* building) and its Atlas
-buildings are two separate generated fixtures, not one coherent household.
-This first slice does not complete the feature coverage tracked in #591.
+The capture does not yet check the derived Home records. This first slice does not complete the feature coverage tracked in #591.
 
 ## Reproduce
 
