@@ -84,13 +84,24 @@ async function liveLaunchSeed() {
   const pin = { documentId: '00000000-0000-4000-8000-000000000850', documentRevision: 1,
     assetId: '00000000-0000-4000-8000-000000000851', assetRevision: 1,
     sha256: await sha256Hex(pdf), bytes: pdf.length, contentType: 'application/pdf' };
+  // Exact source-native association from the generated HomeBox storage contracts;
+  // registration/observation facts describe this held copy, not a provider revision.
+  const homeboxPin = { source: 'homebox-attachment', sourceInstanceId: '00000000-0000-4000-8000-000000000040',
+    collectionId: 'generated-opaque-collection', entityId: '00000000-0000-4000-8000-000000000041',
+    attachmentId: '00000000-0000-4000-8000-000000000042', observationId: '00000000-0000-4000-8000-000000000070',
+    sourceRegistrationVersion: 3, sourceRegistrationSha256: 'e'.repeat(64), sha256: pin.sha256, bytes: pdf.length,
+    contentType: 'application/pdf', sourceContentType: 'application/pdf', beforeRetrievedAt: '2026-01-03T10:00:01Z',
+    bodyRetrievedAt: '2026-01-03T10:00:02Z', afterRetrievedAt: '2026-01-03T10:00:03Z' };
   const view = { status: 'ready', scope, homeLabel: 'Synthetic offline home', now: '2026-01-03T10:00:00Z', canEdit: true,
     homes: [{ ...scope, label: 'Synthetic offline home' }], caches: [], entries: [{
-      ...scope, key: 'generated-item', source: { sourceInstanceId: 'generated', collectionId: 'items', sourceKind: 'homebox-entity', externalId: 'one' },
-      entity: { id: 'one', name: 'Generated pump', description: '', entityType: null, parent: null, archived: false,
+      ...scope, key: 'generated-item', source: { sourceInstanceId: homeboxPin.sourceInstanceId, collectionId: homeboxPin.collectionId, sourceKind: 'homebox-entity', externalId: homeboxPin.entityId },
+      entity: { id: homeboxPin.entityId, name: 'Generated pump', description: '', entityType: null, parent: null, archived: false,
         quantity: '1', manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
       kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null,
-      retrievedAt: '2026-01-03T10:00:00Z', aliases: [], mobility: 'unknown', attachments: [], nativeLinks: [],
+      retrievedAt: '2026-01-03T10:00:00Z', aliases: [], mobility: 'unknown', attachments: [{
+        attachmentId: homeboxPin.attachmentId, title: 'Generated HomeBox PDF', kind: 'stored-file',
+        contentType: 'application/pdf', byteSize: String(pdf.length), downloadHref: null, previewHref: null,
+      }], nativeLinks: [],
       maintenance: [{ entryId: 'generated-upkeep', name: 'Inspect generated pump', description: 'Generated maintenance only',
         scheduledDate: '2026-01-10', completedDate: null, cost: null }], networkBound: false, networkStates: [], networkRelations: [],
     }] };
@@ -118,7 +129,7 @@ async function liveLaunchSeed() {
     body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
       idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
     createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
-  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
@@ -209,7 +220,7 @@ try {
   const reopenWrites = [];
   if (selected === 'live-launch') {
     seeded = await liveLaunchSeed();
-    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
+    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -239,6 +250,7 @@ try {
         check(await copies.keepDocument(home, ${JSON.stringify(pin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
         check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
         check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
+        check(await copies.keepHomeboxDocument(home, ${JSON.stringify(homeboxPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
       } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
@@ -332,6 +344,16 @@ try {
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await poll(`(() => {
+      const button = [...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated HomeBox PDF');
+      return button && !button.disabled && button.closest('li')?.textContent.includes('On this device · Copied from HomeBox');
+    })()`, 5_000, 'Exact held HomeBox attachment availability not shown');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated HomeBox PDF').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated HomeBox PDF, PDF page 1"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held HomeBox PDF did not render offline');
+    assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Held HomeBox PDF must not fetch public bytes or data from network');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
@@ -384,7 +406,7 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
-    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, native and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {
