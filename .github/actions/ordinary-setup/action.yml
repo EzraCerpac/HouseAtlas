@@ -79,7 +79,9 @@ runs:
         candidates += [pathlib.Path(name) for name in (
             '/opt/google/chrome/chrome-sandbox',
             '/usr/local/share/chromium/chrome-linux/chrome-sandbox',
-            '/usr/local/share/chromium/chrome-linux/chrome_sandbox')]
+            '/usr/local/share/chromium/chrome-linux/chrome_sandbox',
+            '/opt/microsoft/msedge/msedge-sandbox',
+            '/opt/microsoft/msedge/msedge_sandbox')]
         def metadata(path):
             info = path.lstat()
             return {'path': str(path), 'uid': info.st_uid, 'gid': info.st_gid,
@@ -104,7 +106,7 @@ runs:
                 print(json.dumps({'kernelSetting': name, 'metadataUnavailable': type(error).__name__}))
         PY
         # Package version is provenance only, not compatibility evidence for the pinned browser.
-        dpkg-query --show google-chrome-stable 2>/dev/null || true
+        dpkg-query --show google-chrome-stable microsoft-edge-stable 2>/dev/null || true
     # Cache public package content only, never node_modules, npm logs or credentials.
     # PRs only restore; only successful main pushes may publish caches.
     - name: Restore exact npm content cache

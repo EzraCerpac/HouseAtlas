@@ -34,8 +34,8 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 8349,
-      "sha256": "905234a55170c0ca78699bbf4ddb35a576ae77c69a8a7cb4c9ff22ccef1bd932",
+      "bytes": 8475,
+      "sha256": "06b560ffc37661f1d06d5ce54d46aede448a41b46deb7bf2fc38c0121c767772",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 86211,
-      "sha256": "95bee9ac692b6c901e6571a4d2b686e3b26f720fa9762af3ca9405731ac348c4",
+      "bytes": 86939,
+      "sha256": "568d842c3bd5ca0efe7bac0a20fa233a066871cb4e7378e41e27b62347cb82a2",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 310402,
-      "sha256": "9bcaa8f9605f89bf7fa02892609f7680c9689ea38983793c2d836d0195738696",
+      "bytes": 311131,
+      "sha256": "a0a15d1232312d294224704f73e218519af5385df280838a5a28f50d5a4df5df",
       "owner": "core-integration"
     },
     {
@@ -12200,8 +12200,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 60775,
-      "sha256": "23920354a33f67ab901c45fd604d0be88fca7d43b875bed2ea4e9709dee5b0e5",
+      "bytes": 60891,
+      "sha256": "149326bc130fa8c8e0c21fc1faaa145772085a469f722b4b627ff053b0ff40e0",
       "owner": "core-integration"
     },
     {

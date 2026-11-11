@@ -1,5 +1,15 @@
 # HouseAtlas
 
+The read-only sandbox metadata follow-up adds two fixed Microsoft Edge helper
+candidate spellings and its installed package version. The official Ubuntu24.04
+runner image lists Edge in addition to Chrome/Chromium; the original five-candidate
+report found no setuid helper, so the Edge candidates remain unqualified until
+hosted metadata is read. Pinned Chromium156 source requests helper API1 and exposes
+--get-api, but no helper/API query is executed or selected by this report. Seven
+metadata candidates are not seven browser cases: browser selections remain the
+unchanged80 SOURCE /1 BUILD /7 BROWSER. No permission, policy, package, security
+flag, workflow, runtime or authority is changed. No local functional checks ran.
+
 The existing Chrome setup command additionally reports bounded read-only metadata
 for five fixed sandbox-helper candidates: ownership/modes, resolved-parent
 permissions, two namespace kernel settings and installed Chrome package version.
