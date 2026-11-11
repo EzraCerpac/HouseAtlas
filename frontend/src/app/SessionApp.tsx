@@ -26,6 +26,9 @@ import {
   type StockApplicationPorts,
 } from "./StockApplication";
 
+/** The attempt was neither aborted nor superseded by a later one. */
+const latest = (controller: AbortController, attempt: number, generation: { readonly current: number }) =>
+  !controller.signal.aborted && attempt === generation.current;
 type SessionState =
   | { status: "loading" }
   | { status: "opening" }
@@ -91,13 +94,13 @@ export function SessionApp({
       try {
         mode = await localAccess.mode(controller.signal);
       } catch {
-        if (!controller.signal.aborted && attempt === generation.current) {
+        if (latest(controller, attempt, generation)) {
           initialHomeBootstrap?.retire();
           setState({ status: "unavailable", action: "mode" });
         }
         return;
       }
-      if (controller.signal.aborted || attempt !== generation.current) return;
+      if (!latest(controller, attempt, generation)) return;
       if (initial && initialHomeBootstrap &&
           (mode === "loopback-local" || mode === "trusted-proxy")) {
         const open = mode === "loopback-local"
@@ -114,10 +117,10 @@ export function SessionApp({
           setState({ status: "opening" });
           try {
             const info = await open(controller.signal);
-            if (!controller.signal.aborted && attempt === generation.current)
+            if (latest(controller, attempt, generation))
               setState({ status: "authenticated", info });
           } catch {
-            if (!controller.signal.aborted && attempt === generation.current)
+            if (latest(controller, attempt, generation))
               setState({ status: "unavailable", action: "local" });
           }
           return;
@@ -134,13 +137,13 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       const info = await sessions.session(controller.signal);
-      if (controller.signal.aborted || attempt !== generation.current) return;
+      if (!latest(controller, attempt, generation)) return;
       if (info) {
         initialHomeBootstrap?.retire();
         setState({ status: "authenticated", info });
       } else await toSignedOut(controller, attempt, initial);
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current) {
+      if (latest(controller, attempt, generation)) {
         initialHomeBootstrap?.retire();
         setState({ status: "unavailable", action: "load" });
       }
@@ -246,10 +249,10 @@ export function SessionApp({
     setState({ status: "opening" });
     try {
       const info = await open(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "authenticated", info });
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "local" });
     }
   };
@@ -260,10 +263,10 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       await sessions.signOut(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         await toSignedOut(controller, attempt);
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "sign-out" });
     }
   };
@@ -280,10 +283,10 @@ export function SessionApp({
     setState({ status: "loading" });
     try {
       const info = await sessions.rotate(controller.signal);
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "authenticated", info });
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (latest(controller, attempt, generation))
         setState({ status: "unavailable", action: "rotate" });
     }
   };
@@ -353,10 +356,17 @@ export function SessionApp({
   }
   if (state.status === "signed-out") {
     const mode = state.mode;
-    return mode === "loopback-local" || mode === "trusted-proxy" ? (
-      <OpenHomePanel openHome={() => void openHome(mode)} />
-    ) : (
-      <SignInForm signIn={signIn} />
+    return (
+      <SessionPanel title="Sign in">
+        {mode === "loopback-local" || mode === "trusted-proxy" ? (
+          <OpenHomePanel openHome={() => void openHome(mode)} />
+        ) : (
+          <SignInForm signIn={signIn} />
+        )}
+        <a className="access-actions" href="/example/index.html">
+          Example house
+        </a>
+      </SessionPanel>
     );
   }
   return (
@@ -447,13 +457,11 @@ function OpenHomePanel({ openHome }: { openHome: () => void }) {
     button.current?.focus();
   }, []);
   return (
-    <SessionPanel title="Sign in">
-      <div className="access-actions">
-        <button ref={button} type="button" onClick={openHome}>
-          Open Home
-        </button>
-      </div>
-    </SessionPanel>
+    <div className="access-actions">
+      <button ref={button} type="button" onClick={openHome}>
+        Open Home
+      </button>
+    </div>
   );
 }
 function SignInForm({
@@ -499,8 +507,7 @@ function SignInForm({
     }
   };
   return (
-    <SessionPanel title="Sign in">
-      <form
+    <form
         className="session-form"
         aria-busy={busy}
         onSubmit={(event) => void submit(event)}
@@ -534,7 +541,6 @@ function SignInForm({
         <p className="session-error" role="alert">
           {error}
         </p>
-      </form>
-    </SessionPanel>
+    </form>
   );
 }

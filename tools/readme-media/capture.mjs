@@ -1,9 +1,12 @@
 /** Public synthetic presentation only. No native server, household input or provider. */
 import assert from 'node:assert/strict';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile, readdir, stat, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
+import { tmpdir } from 'node:os';
+import { join, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 
 assert.equal(process.version, 'v26.10.0');
@@ -34,7 +37,14 @@ function countDraws(counter) {
   wrap(globalThis.GPURenderPassEncoder?.prototype, ['draw', 'drawIndexed']);
 }
 const errors = [], requests = [];
-let browser, server;
+let browser, server, exampleDeadline, staticServer, exampleBrowser, buildChild, rejectBuild;
+const temporary = [];
+// The build runs as its own process group (npm, its shell and Vite), stopped as a whole.
+const stopBuild = () => { try { if (buildChild) process.kill(-buildChild.pid, 'SIGTERM'); } catch { /* already gone */ } };
+const stopAll = () => {
+  server?.kill('SIGTERM'); stopBuild(); rejectBuild?.(new Error('The frontend build exceeded the example bound'));
+  staticServer?.close(); void browser?.close(); void exampleBrowser?.close();
+};
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
 try {
   // CI enables Vite's colored URLs even on pipes. Keep the readiness URL plain.
@@ -438,11 +448,259 @@ try {
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone; no provider/native acceptance');
+  // Example house: the real `npm --prefix frontend run build` output (the app
+  // build, then the example's own pass into dist/example), served by an owned
+  // loopback server with the Rust host's path, file-type, size and
+  // cache-header rules. One bounded phase after the receipt above is complete,
+  // so the existing capture keeps its unchanged 90 seconds.
+  clearTimeout(deadline);
+  exampleDeadline = setTimeout(stopAll, 60_000);
+  const exampleStarted = Date.now(), frontend = resolve(root, 'frontend');
+  // The dev server is not used from here on and must not watch the build.
+  if (server.exitCode === null) {
+    const devStopped = new Promise(done => server.once('exit', done));
+    server.kill('SIGTERM');
+    await devStopped;
+  }
+  // Type check of the example sources with the frontend's pinned compiler.
+  const typescript = JSON.parse(await readFile(resolve(frontend, 'node_modules/typescript/package.json'), 'utf8'));
+  const typecheck = spawnSync(process.execPath, [resolve(frontend, 'node_modules/typescript', typescript.bin.tsc), '-p', 'example/tsconfig.json', '--noEmit', '--pretty', 'false'],
+    { cwd: frontend, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(typecheck.error, undefined, 'The pinned TypeScript compiler must run');
+  const diagnostics = `${typecheck.stdout}\n${typecheck.stderr}`.split('\n').filter(line => /error TS\d+/.test(line));
+  assert.deepEqual(diagnostics.filter(line => !/^[^\s(]+\(\d+,\d+\): error TS\d+/.test(line)), [], 'Every compiler diagnostic names a file');
+  assert(typecheck.status === 0 || diagnostics.length > 0, `The compiler failed without diagnostics: ${typecheck.stderr}`);
+  // Only the imported lantern-tests fixtures are outside the claim; they stay
+  // visible here and in the receipt. Anything else, including the app modules
+  // the example imports, fails.
+  const fixtureDiagnostics = diagnostics.filter(line => line.startsWith('lantern-tests/'));
+  if (fixtureDiagnostics.length) console.log(`Type diagnostics in imported lantern-tests fixtures (recorded, not failed):\n${fixtureDiagnostics.join('\n')}`);
+  assert.deepEqual(diagnostics.filter(line => !line.startsWith('lantern-tests/')), [], 'The example sources and the app modules they import must type-check');
+  await new Promise((done, reject) => {
+    rejectBuild = reject;
+    buildChild = spawn('npm', ['--prefix', 'frontend', 'run', 'build'], { cwd: root, detached: true, env: { ...process.env, NO_COLOR: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
+    let log = '';
+    buildChild.stderr.on('data', data => { log += data; });
+    buildChild.once('error', reject);
+    buildChild.once('exit', code => code === 0 ? done() : reject(new Error(`npm run build failed (${code}): ${log}`)));
+  }).finally(() => { buildChild = null; rejectBuild = null; });
+  const built = resolve(frontend, 'dist');
+  const types = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', woff2: 'font/woff2', webmanifest: 'application/manifest+json', png: 'image/png' };
+  const files = new Map();
+  const collect = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name), key = '/' + relative(built, path).split(sep).join('/');
+      assert(!entry.isSymbolicLink(), `Built output contains a symlink: ${key}`);
+      if (entry.isDirectory()) { await collect(path); continue; }
+      assert(types[entry.name.split('.').at(-1)], `The Rust host refuses this built file type: ${key}`);
+      assert((await stat(path)).size <= 4_000_000, `The Rust host refuses this built file size: ${key}`);
+      files.set(key, path);
+    }
+  };
+  await collect(built);
+  // The app's startup files and offline shell stay outside dist/example, and
+  // the signed-out link ships in the app's startup JavaScript.
+  const appIndex = await readFile(files.get('/index.html'), 'utf8');
+  const startup = [...appIndex.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^"]+\.js)"/g)].map(match => match[1]);
+  assert(startup.length > 0 && startup.every(path => !path.startsWith('/example/')), 'The app startup loads nothing from the example');
+  // Per-file startup bytes and default node gzip, the startup budget's method;
+  // the startup file carrying the link is kept for size review.
+  const startupFiles = await Promise.all(startup.map(async path => ({ path, bytes: await readFile(files.get(path)) })));
+  const startupSizes = startupFiles.map(({ path, bytes }) => ({ path, bytes: bytes.length, gzip: gzipSync(bytes).length }));
+  const linkFiles = startupFiles.filter(({ bytes }) => bytes.includes('/example/index.html'));
+  assert.equal(linkFiles.length, 1, 'The signed-out link to the example ships in one app startup file');
+  await writeFile(resolve(output, 'example-link-startup-chunk.js'), linkFiles[0].bytes);
+  assert(!(await readFile(files.get('/saved/service-worker.js'), 'utf8')).includes('/example/'), 'The offline shell precaches nothing from the example');
+  const exampleFiles = [...files.keys()].filter(key => key.startsWith('/example/'));
+  assert(exampleFiles.includes('/example/index.html') && exampleFiles.some(key => key.startsWith('/example/assets/')), 'The build emits the example page and its assets');
+  // One synthetic same-origin page to seed storage and to navigate away to.
+  const away = '<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Away</title></head><body><p>Synthetic navigation target</p></body></html>';
+  staticServer = createServer((request, response) => {
+    const path = new URL(request.url, 'http://127.0.0.1').pathname, key = path === '/' ? '/index.html' : path;
+    const headers = key.startsWith('/assets/') && !key.slice(8).includes('/')
+      ? { 'cache-control': 'public, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' }
+      : { 'cache-control': 'private, no-store', pragma: 'no-cache', 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin' };
+    if (request.method !== 'GET' || key.includes('%') || (key !== '/away.html' && !files.has(key))) { response.writeHead(404, headers).end(); return; }
+    const body = key === '/away.html' ? Promise.resolve(away) : readFile(files.get(key));
+    body.then(bytes => response.writeHead(200, { ...headers, 'content-type': types[key.split('.').at(-1)] }).end(bytes),
+      () => response.writeHead(500, headers).end());
+  });
+  await new Promise(done => staticServer.listen(0, '127.0.0.1', done));
+  const exampleOrigin = `http://127.0.0.1:${staticServer.address().port}`;
+  const buildMs = Date.now() - exampleStarted;
+  // A separate browser without Playwright's default back/forward-cache switch,
+  // so the capture records which Back path Chromium actually takes.
+  exampleBrowser = await chromium.launch({ ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+  const guard = context => context.route('**/*', route => {
+    requests.push(route.request().url());
+    if (new URL(route.request().url()).origin === exampleOrigin) return route.continue();
+    errors.push(`External browser request: ${route.request().url()}`);
+    return route.abort();
+  });
+  const exampleTitle = 'Synthetic example house · HouseAtlas';
+  // The example readiness used by every example check: label, Atlas section,
+  // fresh 3D draw and the house opened through ?building=.
+  const exampleReady = async (page, counter) => {
+    assert.equal(await page.title(), exampleTitle);
+    await page.getByRole('button', { name: 'Home: Synthetic example house. Choose home.', exact: true }).waitFor();
+    assert.equal(await page.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
+    const stage = page.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
+    await stage.waitFor();
+    const drawn = await page.waitForFunction(name => window[name] > 0 ? 'drawn'
+      : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false, counter);
+    assert.equal(await drawn.jsonValue(), 'drawn', 'The example house must draw in 3D');
+    await stage.getByRole('list', { name: 'Floors of Synthetic house' }).waitFor();
+    assert.equal(await stage.getByRole('list', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).getAttribute('aria-pressed'), 'true');
+    return stage;
+  };
+  const exampleEntry = '/example/index.html?building=syn-building-house';
+  // One screenshot and one short scripted video tour of the built page.
+  const videoDirectory = await mkdtemp(join(tmpdir(), 'houseatlas-example-video-'));
+  temporary.push(videoDirectory);
+  const tourContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
+    colorScheme: 'light', serviceWorkers: 'block', recordVideo: { dir: videoDirectory, size: { width: 1280, height: 800 } } });
+  await guard(tourContext);
+  const tour = await tourContext.newPage();
+  tour.on('pageerror', error => errors.push(error.message));
+  await tour.addInitScript(countDraws, 'syntheticAtlasDrawCalls');
+  await tour.goto(`${exampleOrigin}${exampleEntry}`, { waitUntil: 'load' });
+  await tour.evaluate(() => document.fonts.ready);
+  const tourShell = await exampleReady(tour, 'syntheticAtlasDrawCalls');
+  await frames(tour);
+  await tour.screenshot({ path: resolve(output, 'example-house.png'), animations: 'disabled' });
+  const pause = () => tour.waitForTimeout(800);
+  await pause();
+  const tourRooms = tourShell.getByRole('complementary', { name: 'Rooms' });
+  const tourShowRooms = tourRooms.getByRole('button', { name: 'Show rooms', exact: true });
+  if (await tourShowRooms.isVisible()) await tourShowRooms.click();
+  await tourRooms.getByRole('button', { name: 'Living room', exact: true }).click();
+  await tourShell.getByRole('heading', { level: 2, name: 'Living room', exact: true }).waitFor();
+  await pause();
+  await tourShell.getByRole('button', { name: 'Spread floors', exact: true }).click();
+  await pause();
+  await tourShell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: 'Plan', exact: true }).click();
+  await tour.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan'));
+  await tourShell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Electrical', exact: true }).click();
+  await tourShell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).waitFor();
+  await pause();
+  await tourShell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await tour.waitForFunction(() => !document.querySelector('.ua-viewport canvas.cifc-canvas').hidden);
+  await pause();
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+  const tourVideo = tour.video();
+  await tourContext.close();
+  await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
+  const tourMs = Date.now() - exampleStarted - buildMs;
+  // Isolation order, storage sentinels and Back navigation on the built page.
+  const navigationStarted = Date.now();
+  const productionContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
+    colorScheme: 'light', reducedMotion: 'reduce', serviceWorkers: 'block' });
+  await guard(productionContext);
+  const production = await productionContext.newPage();
+  production.on('pageerror', error => errors.push(error.message));
+  await production.addInitScript(countDraws, 'exampleProductionDrawCalls');
+  // Records any page use of the replaced globals before the example's
+  // isolation replaces them; isolation's own definitions remove these traps.
+  await production.addInitScript(() => {
+    window.examplePreIsolationUse = [];
+    const trap = (owner, name) => {
+      let original, holder = owner;
+      while (holder && !(original = Object.getOwnPropertyDescriptor(holder, name))) holder = Object.getPrototypeOf(holder);
+      if (!original) throw new Error(`Missing global: ${name}`);
+      Object.defineProperty(owner, name, { configurable: true, get() {
+        window.examplePreIsolationUse.push(name);
+        return original.get ? original.get.call(owner) : original.value;
+      }, set(value) {
+        window.examplePreIsolationUse.push(name);
+        if (original.set) original.set.call(owner, value);
+      } });
+    };
+    for (const name of ['fetch', 'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'BroadcastChannel']) trap(window, name);
+    trap(navigator, 'locks'); trap(document, 'cookie');
+  });
+  // Draws are counted afresh after the page is hidden or restored.
+  await production.addInitScript(() => {
+    window.examplePageshows = [];
+    addEventListener('pagehide', () => { window.exampleProductionDrawCalls = 0; });
+    addEventListener('pageshow', event => { window.examplePageshows.push(event.persisted); if (event.persisted) window.exampleProductionDrawCalls = 0; });
+  });
+  // Synthetic same-origin sentinels the example must neither read nor change,
+  // including one row in the real outbox database.
+  const sentinel = { key: 'houseatlas-synthetic-sentinel', value: 'synthetic-sentinel-value' };
+  const outboxRows = (key, write) => new Promise((done, reject) => {
+    const request = indexedDB.open('houseatlas-outbox-v1', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('entries', { keyPath: 'id' });
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result, tx = db.transaction('entries', write ? 'readwrite' : 'readonly'), store = tx.objectStore('entries');
+      if (write) store.put({ id: key, seq: 1, kind: 'synthetic-sentinel', value: write });
+      const all = store.getAll();
+      tx.oncomplete = () => { db.close(); done(all.result); };
+      tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  });
+  const readSentinels = () => production.evaluate(async ({ key, rows }) => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key),
+    cookie: document.cookie, outbox: await new Function('return ' + rows)()(key, null) }), { key: sentinel.key, rows: outboxRows.toString() });
+  await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
+  await production.evaluate(async ({ key, value, rows }) => {
+    localStorage.setItem(key, value); sessionStorage.setItem(key, value);
+    document.cookie = `${key}=${value}; path=/; SameSite=Strict`;
+    await new Function('return ' + rows)()(key, value);
+  }, { ...sentinel, rows: outboxRows.toString() });
+  const seeded = await readSentinels();
+  assert.deepEqual([seeded.local, seeded.session, seeded.cookie, seeded.outbox.length], [sentinel.value, sentinel.value, `${sentinel.key}=${sentinel.value}`, 1]);
+  await production.goto(`${exampleOrigin}${exampleEntry}`, { waitUntil: 'load' });
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  assert.deepEqual(await production.evaluate(() => window.examplePreIsolationUse), [], 'No page script used a replaced global before isolation ran');
+  const exampleRealm = await production.evaluate(key => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key), cookie: document.cookie,
+    indexedDB: typeof indexedDB, caches: typeof caches, broadcastChannel: typeof BroadcastChannel, locks: typeof navigator.locks }), sentinel.key);
+  assert.deepEqual(exampleRealm, { local: null, session: null, cookie: '', indexedDB: 'undefined', caches: 'undefined', broadcastChannel: 'undefined', locks: 'undefined' },
+    'Script on the example page sees none of the origin storage');
+  // Back/Forward: leave for another owned page, check the sentinels, go back.
+  await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
+  assert.deepEqual(await readSentinels(), seeded, 'The example left origin storage unchanged');
+  await production.goBack({ waitUntil: 'commit' });
+  await production.waitForFunction(() => document.readyState === 'complete' && window.examplePageshows?.length > 0);
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  const back = await production.evaluate(() => ({ pageshows: window.examplePageshows, navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null }));
+  const backPath = back.pageshows.at(-1) === true ? 'back-forward-cache restore' : 'back navigation reload';
+  if (backPath === 'back navigation reload') assert.deepEqual([back.pageshows, back.navigationType], [[false], 'back_forward']);
+  await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
+  assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+  await productionContext.close();
+  await exampleBrowser.close();
+  await new Promise(done => staticServer.close(done));
+  const navigationMs = Date.now() - navigationStarted;
+  const exampleHouse = {
+    entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
+    viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
+    tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
+    production: {
+      build: 'npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example',
+      preIsolationUse: [],
+      served: 'all of frontend/dist from an owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host',
+      files: files.size, exampleFiles: exampleFiles.length, startup: startupSizes, linkChunk: linkFiles[0].path, exampleInOfflineShell: false,
+      typecheck: { config: 'frontend/example/tsconfig.json', failedOutsideLanternTests: 0, lanternTestsDiagnostics: fixtureDiagnostics },
+      storage: { seeded: ['localStorage', 'sessionStorage', 'script-visible cookie', 'houseatlas-outbox-v1 row'], exampleRealm, unchangedAfterLeaving: true, unchangedAfterBack: true },
+      back: { path: backPath, ...back },
+    },
+    durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
+    scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
+      'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-tour.webm'].map(async name =>
+      [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
+  };
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
+  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation and storage sentinels; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
+  clearTimeout(exampleDeadline);
+  stopBuild();
   await browser?.close();
+  await exampleBrowser?.close();
+  staticServer?.close();
+  await Promise.all(temporary.map(path => rm(path, { recursive: true, force: true })));
   if (server && server.exitCode === null) {
     const stopped = new Promise(done => server.once('exit', done));
     server.kill('SIGTERM');
