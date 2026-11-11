@@ -8525,8 +8525,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 30387,
-      "sha256": "fbb63bb0be3b415e981a1353c13d7b39afb152403587ca5f1dbd2304a98d3cab",
+      "bytes": 32769,
+      "sha256": "fcf80d7c743b70c98eed797dd711b02f9f7d965dd38f3c6fd3063694f89f7af8",
       "owner": "web"
     },
     {
