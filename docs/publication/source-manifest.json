@@ -6649,8 +6649,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 17356,
-      "sha256": "f2ca2c946388ee45fdfd7f8326d80a852a158f1cf0e31b1fd0021e630e4bde2f",
+      "bytes": 17797,
+      "sha256": "bb44a5f8bafac19cfcbe4407beeb371fd537be5e8d7010e0143d5ff7ddfb9d65",
       "owner": "web"
     },
     {
@@ -13383,8 +13383,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 69972,
-      "sha256": "0e4b740ec29a1ac4a6ac4a6b9662faba84e11331f1336980def456f7d7ee0713",
+      "bytes": 72133,
+      "sha256": "c501bf73b0196ce4c8ff5ce09bddca1e2effcb148d96e09c743141382b3c0390",
       "owner": "web"
     },
     {

@@ -803,6 +803,32 @@ try {
   assert.match(await documentDialog.innerText(), /Licence permits use: Synthetic open licence 1\.0/);
   await production.screenshot({ path: resolve(output, 'example-documents-detail.png'), animations: 'disabled' });
   await documentDialog.getByRole('button', { name: 'Close', exact: true }).click();
+  // Trace the fictional logical network through the shipped Atlas lens.
+  await section('Atlas');
+  await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
+  assert.deepEqual(await stateFacts(production), reopened, 'Returning from Library retains the Stairs view');
+  await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: 'Network', exact: true }).click();
+  const networkLens = production.locator('section.atlas-lens.is-network');
+  await networkLens.getByRole('heading', { name: 'Logical network graph', exact: true }).waitFor();
+  const showNetwork = networkLens.getByRole('button', { name: 'Show Network layer', exact: true });
+  if (await showNetwork.isVisible()) await showNetwork.click();
+  const graph = networkLens.locator('figure.ung');
+  await graph.getByText('Recorded logical network; no physical routes', { exact: true }).waitFor();
+  const devices = graph.locator('details.ung-list').filter({ has: production.getByText('Devices (2)', { exact: true }) });
+  await devices.locator('summary').click();
+  await devices.getByRole('button', { name: /^Fictional access point/ }).click();
+  const trace = graph.getByRole('region', { name: 'Route to Fictional network root' });
+  await trace.getByRole('heading', { name: 'Route to Fictional network root · 1 step', exact: true }).waitFor();
+  await trace.getByText('Fictional access point', { exact: true }).waitFor();
+  await trace.getByText('ethernet · recorded', { exact: true }).waitFor();
+  await trace.getByRole('button', { name: 'Fictional network root', exact: true }).waitFor();
+  const steps = await trace.locator('ol > li').allTextContents();
+  assert.equal(steps.length, 2);
+  assert.match(steps[0], /Fictional access point/);
+  assert.match(steps[0], /ethernet · recorded/);
+  assert.match(steps[1], /Fictional network root/);
+  await trace.getByText('Recorded connections only; not a cable route.', { exact: true }).waitFor();
+  await graph.screenshot({ path: resolve(output, 'example-network-trace.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
   await exampleBrowser.close();
@@ -828,7 +854,7 @@ try {
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png', 'example-network-trace.png'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
