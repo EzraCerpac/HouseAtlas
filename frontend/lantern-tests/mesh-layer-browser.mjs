@@ -320,6 +320,33 @@ try {
     assert(mapDifference / 1200 > 4, `Admitted glass maps had no visible effect (${mapDifference / 1200} mean channel difference)`);
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
 
+    // The actual opaque and glass shader paths see the same generated surface
+    // at scalar 0, 0.5, 1 and the legacy default. Metallic output must not vary.
+    for (const mode of ['dielectric', 'metal', 'glass']) {
+      await open(`/lantern-tests/embedded-png-material-visual/index.html?scalar=${mode}`, 1400, 900);
+      await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, `Scalar ${mode} samples did not draw`);
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
+      assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+      await new Promise(done => setTimeout(done, 500));
+      const capture = await shot(), scalarBoxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })`);
+      const mean = ([x, y, w, h]) => {
+        let sum = 0;
+        for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+          const at = ((Math.round(y + h / 2) + dy) * capture.width + Math.round(x + w / 2) + dx) * 3;
+          sum += capture.pixels[at] + capture.pixels[at + 1] + capture.pixels[at + 2];
+        }
+        return sum / (169 * 3);
+      };
+      const [zero, half, one, legacy] = scalarBoxes.map(mean);
+      assert(Math.abs(one - legacy) < 2, `${mode}: scalar one differs from default (${one}, ${legacy})`);
+      if (mode === 'metal') {
+        assert(Math.max(zero, half, one) - Math.min(zero, half, one) < 2, `Metal changed with dielectric strength: ${zero}, ${half}, ${one}`);
+      } else {
+        assert(Math.abs(one - zero) > 1, `${mode}: scalar did not change rendered pixels (${zero}, ${one})`);
+        assert(half >= Math.min(zero, one) - 2 && half <= Math.max(zero, one) + 2, `${mode}: intermediate scalar outside endpoints (${zero}, ${half}, ${one})`);
+      }
+    }
+
     // 3. A closed elevated emitter lights a distant receiver without losing its
     // nearby metal pool; the finite envelope ends at 10 m. Same existing GPU case.
     await open('/lantern-tests/embedded-png-material-visual/index.html?lamps', 1400, 900);
