@@ -459,6 +459,7 @@ try {
     stopAll();
   }, 60_000);
   const exampleStarted = Date.now(), frontend = resolve(root, 'frontend');
+  const examplePhase = phase => console.log(`Example capture ${phase}: ${Date.now() - exampleStarted} ms`);
   // The dev server is not used from here on and must not watch the build.
   if (server.exitCode === null) {
     const devStopped = new Promise(done => server.once('exit', done));
@@ -531,6 +532,7 @@ try {
   await new Promise(done => staticServer.listen(0, '127.0.0.1', done));
   const exampleOrigin = `http://127.0.0.1:${staticServer.address().port}`;
   const buildMs = Date.now() - exampleStarted;
+  examplePhase('build complete');
   // A separate browser without Playwright's default back/forward-cache switch,
   // so the capture records which Back path Chromium actually takes.
   exampleBrowser = await chromium.launch({ ignoreDefaultArgs: ['--disable-back-forward-cache'] });
@@ -594,6 +596,7 @@ try {
   await tourContext.close();
   await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
   const tourMs = Date.now() - exampleStarted - buildMs;
+  examplePhase('tour complete');
   // Isolation order, storage sentinels and Back navigation on the built page.
   const navigationStarted = Date.now();
   const productionContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
@@ -709,6 +712,12 @@ try {
   // Home records derived from the same publication, from a stale HomeBox copy.
   await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: /^Rooms & places/ }).click();
   const placesLens = production.locator('section.atlas-lens.is-places');
+  examplePhase('places lens requested');
+  console.log('Example places lens at request:', await production.evaluate(() => {
+    const lens = document.querySelector('section.atlas-lens.is-places');
+    return { present: !!lens, rows: lens?.querySelectorAll('.ledger-name').length ?? 0,
+      status: [...(lens?.querySelectorAll('[role="status"]') ?? [])].map(node => node.textContent?.trim()).slice(0, 5) };
+  }));
   await placesLens.locator('.ledger-name').first().waitFor();
   const home = await placesLens.evaluate(node => ({ places: [...node.querySelectorAll('.ledger-name')].map(row => row.textContent.trim()),
     flags: [...new Set([...node.querySelectorAll('.ledger-flag')].map(row => row.textContent.trim()))] }));
