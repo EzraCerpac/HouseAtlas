@@ -456,6 +456,7 @@ try {
       const studio = `Array.from(document.querySelectorAll('.ua-coverage-list li')).find(row=>row.querySelector('.ua-coverage-name')?.textContent==='Synthetic studio')?.querySelector('.ua-coverage-state')?.textContent`;
       const groupShown = `document.querySelectorAll('.ua-marker.is-electrical-group').length===2&&!!document.querySelector('[aria-label="Historic drawing group"]')`;
       const stored = `(${presentation}).reason==='stored-copy'&&(${presentation}).stored&&(${presentation}).busy===true`;
+      let scenarioFailed = false;
       try {
         await evaluate(`${command('arm')};window.dispatchEvent(new Event('synthetic-atlas-source-invalidate'))`);
         assert.equal(await evaluate(control('timer-captured')), true, 'Expected one invalidation reopen timer');
@@ -473,7 +474,18 @@ try {
         assert.equal(await evaluate(`${control('released')}&&${groupShown}`), true, 'Fresh group selected before publication replacement');
         await evaluate('window.dispatchEvent(new Event("synthetic-atlas-selection-replace"))'); await retired();
         await until('Boolean(document.querySelector(".ua-room-btn"))', 'replacement publication ready');
-      } finally { await evaluate(command('cancel')).catch(() => {}); }
+      } catch (error) {
+        scenarioFailed = true; throw error;
+      } finally {
+        let cleanupClean = false;
+        try {
+          cleanupClean = await evaluate(`(()=>{${command('cancel')};return document.documentElement.dataset.drawingGroupCleanup==='disposed-clean';})()`);
+        } catch { /* Preserve an existing failure; otherwise fail below. */ }
+        if (!cleanupClean) {
+          if (scenarioFailed) console.error(JSON.stringify({ drawingGroupCleanup: 'failed' }));
+          else throw new Error('Generated drawing group cleanup failed');
+        }
+      }
     });
     await check('drawing group remains keyboard-operable with reduced motion', async () => {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });

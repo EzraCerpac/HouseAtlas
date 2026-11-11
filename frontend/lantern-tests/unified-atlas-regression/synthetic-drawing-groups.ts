@@ -5,9 +5,11 @@ import type { UnifiedAtlasOverlayAvailableFrame } from '../../integration/unifie
 import type { NativeSceneSourceSelection } from '../../src/lantern/scans/native-scene-source-types';
 import type { ElectricalFixtureData } from '../../src/lantern/overlays/electricity/fixture-types';
 import { ExactDecimal } from '../../src/numeric/decimal';
-import { OVERLAY_REOPEN_DELAY_MS, type OverlayFeedEnvironment } from '../../src/lantern/unified-atlas/overlay-feed';
+import type { OverlayFeedEnvironment } from '../../src/lantern/unified-atlas/overlay-feed';
 import { modelUpdatesAllowed } from '../../src/lantern/unified-atlas/model-updates';
 
+// Test expectation for the existing feed delay; a production change must update this fixture.
+const EXPECTED_REOPEN_DELAY_MS = 15_000;
 /** Page-owned, generated-only scheduler and read gates; never native authority. */
 export function createDrawingGroupControl() {
   let disposed = false, armed = false, consumed = false, completed = false, captured: { run: () => void; active: boolean } | null = null;
@@ -16,8 +18,9 @@ export function createDrawingGroupControl() {
   let houseEntered = false, studioEntered = false, houseReleased = false, studioReleased = false;
   const pending = new Set<() => void>();
   const status = (value: string) => {
+    if (failed) return;
+    document.documentElement.dataset.drawingGroupControl = value;
     if (value === 'error') failed = true;
-    if (!failed || value === 'disposed') document.documentElement.dataset.drawingGroupControl = value;
   };
   const gate = (kind: 'house' | 'studio', signal: AbortSignal) => new Promise<void>((resolve, reject) => {
     signal.throwIfAborted();
@@ -37,10 +40,10 @@ export function createDrawingGroupControl() {
   const environment: OverlayFeedEnvironment = {
     setTimeout(run, ms) {
       if (!armed) {
-        if (captured && !completed && ms === OVERLAY_REOPEN_DELAY_MS) status('error');
+        if (captured && ms === EXPECTED_REOPEN_DELAY_MS) status('error');
         return globalThis.setTimeout(run, ms);
       }
-      if (disposed || captured || !admitted || !invalidated || ms !== OVERLAY_REOPEN_DELAY_MS) { status('error'); throw new Error('Unexpected generated timer'); }
+      if (disposed || captured || !admitted || !invalidated || ms !== EXPECTED_REOPEN_DELAY_MS) { status('error'); throw new Error('Unexpected generated timer'); }
       captured = { run, active: true }; armed = false; status('timer-captured'); return captured;
     },
     clearTimeout(handle) {
@@ -48,7 +51,7 @@ export function createDrawingGroupControl() {
       globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>);
     },
     subscribeOnline(changed) {
-      const online = () => { if (armed || captured?.active || consumed) status('error'); changed(); };
+      const online = () => { if (!disposed && (armed || captured?.active || consumed)) status('error'); changed(); };
       window.addEventListener('online', online); return () => window.removeEventListener('online', online);
     },
     now: () => Date.now(), mayReadUnasked: modelUpdatesAllowed,
@@ -63,11 +66,17 @@ export function createDrawingGroupControl() {
     else status('error');
   };
   const dispose = () => {
-    if (disposed) return; disposed = true; armed = false;
+    if (disposed) return;
+    const clean = !failed && !armed && captured !== null && !captured.active && consumed && completed
+      && houseEntered && studioEntered && houseReleased && studioReleased && pending.size === 0
+      && !releases.house && !releases.studio;
+    disposed = true; armed = false;
     if (captured) captured.active = false;
     for (const cancel of [...pending]) cancel();
     admittedOwner = null; armedOwner = null; admittedCurrent = null;
-    window.removeEventListener('synthetic-drawing-control', command); status('disposed');
+    window.removeEventListener('synthetic-drawing-control', command);
+    if (!failed) status('disposed');
+    document.documentElement.dataset.drawingGroupCleanup = failed ? 'disposed-after-error' : clean ? 'disposed-clean' : 'disposed-incomplete';
   };
   window.addEventListener('synthetic-drawing-control', command);
   const createOverlays: NonNullable<UnifiedAtlasPort['createOverlays']> = async (selection, scene, building, signal) => {
