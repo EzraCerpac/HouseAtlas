@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 98984,
-      "sha256": "8248f1ea936bc47ef26610e9264bece8a8fb9ed0c83ef200685bea060fa16ceb",
+      "bytes": 100192,
+      "sha256": "5edbccdc79d817e621fda0177c0a90774437ef51589aec044eb963951fc09fb4",
       "owner": "core-integration"
     },
     {
@@ -1476,8 +1476,8 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 43624,
-      "sha256": "917ce01c7eb372b7df95aeed66cc32e2245043976ba4b80b90803e6349e60cb1",
+      "bytes": 44889,
+      "sha256": "a0e35842ca6d84dc94e6547354ed44c71958065080260d37686ee6af26ef520a",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 325659,
-      "sha256": "06715ac1707432a9b3eb8baea795f3c3da9f9d39091442b5b3e906fdfa66a950",
+      "bytes": 327521,
+      "sha256": "3420f0d032c2d9b2d00560b44f8ee6565d3bdb5955f348f5bf1948c2fa501658",
       "owner": "core-integration"
     },
     {
@@ -7034,8 +7034,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 41005,
-      "sha256": "f2c1989d47bb7ffad885e956c7c8962a10ec63a57e99ae8053b68fba7d4621d8",
+      "bytes": 42197,
+      "sha256": "196a1e59154cc3cc033b20d199c1ddfc3ca2edf12515cb1b1372e6b61a06d224",
       "owner": "core-integration"
     },
     {
@@ -8077,8 +8077,8 @@
     {
       "path": "frontend/lantern-tests/canonical-geometry.test.mjs",
       "mode": "100644",
-      "bytes": 23938,
-      "sha256": "ed5c784022513622fd2da33f2e2042ae5d53f3b16dd320f6514d74e40cdd9af0",
+      "bytes": 25163,
+      "sha256": "b59ca8525c0147a55b308f903d8bc0b8693710162d8b9d57523d628c722a36c4",
       "owner": "web"
     },
     {
@@ -8182,8 +8182,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-healthy.mjs",
       "mode": "100644",
-      "bytes": 12877,
-      "sha256": "d9dd90c41db7f4b6bae932d3df0bcf78103acb81435487cbf6735818ea910752",
+      "bytes": 16113,
+      "sha256": "4bf193ed0591883b3cc0acf9cb7d2f89bd2983f75467f9d8e0c1e5f1bfbae2ef",
       "owner": "web"
     },
     {
@@ -8735,8 +8735,8 @@
     {
       "path": "frontend/lantern-tests/site-publication-logic.test.mjs",
       "mode": "100644",
-      "bytes": 6263,
-      "sha256": "c57b505e2f4da26295ed0461dee7d018140f9660658a94a2eb4fb82005cf2bc2",
+      "bytes": 7941,
+      "sha256": "996743bb3f1ff740d13b150e7a0fc095a8065f7709dbc41cc7f1152eba914f32",
       "owner": "web"
     },
     {
@@ -8882,8 +8882,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 33904,
-      "sha256": "df1a61c87db97c0176cca847cd3cc1d9e03c6fab5ac67c0ce165d19f7bf98e03",
+      "bytes": 34022,
+      "sha256": "ed8120a2a3d13f562e73a7a933963306830107a7f158d628480fd344bddf4025",
       "owner": "web"
     },
     {
@@ -8896,8 +8896,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 142232,
-      "sha256": "aa06c49b0717608b9fd75ad5810004b6d2b527bde504941e01553256a1002f4c",
+      "bytes": 142354,
+      "sha256": "73e3a6631dda06d6edc1a04d2b21bf9f49b7b403c612d230f126d5835603f7ab",
       "owner": "web"
     },
     {
@@ -9848,8 +9848,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/embedded-png-material.ts",
       "mode": "100644",
-      "bytes": 22096,
-      "sha256": "da7ec22f306fd132e0b060397f2d0ddd6a87c00b7c9de77feddc78eeabb9ab43",
+      "bytes": 22217,
+      "sha256": "2bdfc33e5df5dfc6d33d4b8ca93a0112c88f082a571d7d693140991d15e447d9",
       "owner": "web"
     },
     {
@@ -9869,29 +9869,36 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/glb-preflight.ts",
       "mode": "100644",
-      "bytes": 18941,
-      "sha256": "31a2cfe3878e3ac55e47ca5c55a554a2a192a369dd36bf30efb31c5db6112ece",
+      "bytes": 19288,
+      "sha256": "91d944763eae104e63cf44d6dc27056c64ceeabd473ce0fad07a43aa8bd55997",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/gpu-budget.ts",
       "mode": "100644",
-      "bytes": 2267,
-      "sha256": "e94129978af7b7a767f595db5e713d9a9e653f6d857a92500a493dfee2e0efb7",
+      "bytes": 2520,
+      "sha256": "4148434b58f327162956ac58554e92ec5f599dc87d7927bf5786cf83562143fd",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 22565,
-      "sha256": "7e1511f38f71863ebb302addf0acb2f7999fd938fa34ec75c9399bb8adee7650",
+      "bytes": 22504,
+      "sha256": "da7a84a46146503f2dfd78f1e9b0b9fb3eaf004c733129ff2752925049e0440c",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 67328,
-      "sha256": "d6a3217030c46d6e8b93cdddab9c288b90e17789d633afce6b2c5dd5b830fba5",
+      "bytes": 67406,
+      "sha256": "b7bc2b6ce3354d5c916bf75c2c3dedf80f95c3fba5b2bc33fc85ccd55df39a9d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/mesh-state-table.ts",
+      "mode": "100644",
+      "bytes": 1169,
+      "sha256": "237a8b694eaebe4358c343ca92d5b7998ac10977a0f52d2ea5ced047e09db5f2",
       "owner": "web"
     },
     {
@@ -10457,8 +10464,8 @@
     {
       "path": "frontend/src/lantern/site-artifacts/site-budget.ts",
       "mode": "100644",
-      "bytes": 4749,
-      "sha256": "378406ca1577fcfa2e3476a74313be591c0de8c6b8b5537f7bdfb17f8d4be7cc",
+      "bytes": 5872,
+      "sha256": "b348197e0c53fa08adfb6362b3c202cfc65f581ca56f5088717e9fa7cafd5fb5",
       "owner": "web"
     },
     {
@@ -10471,8 +10478,8 @@
     {
       "path": "frontend/src/lantern/site-artifacts/useSitePublication.ts",
       "mode": "100644",
-      "bytes": 9745,
-      "sha256": "96af20766267bd75b59557a0b4fb31479277471b9d41c69007945b9470dbb92d",
+      "bytes": 9882,
+      "sha256": "7ff665eb91c9c341e352cd8a72012bdc0d3633ddb9bea1c656b728e9c6264512",
       "owner": "web"
     },
     {
@@ -12795,8 +12802,8 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 6738,
-      "sha256": "a16b03a7e421e42b8c1be9a85e0fb45e9ac18c96b29609c40ad2288faadffe37",
+      "bytes": 6888,
+      "sha256": "0521814192cf1db184061b36c3ea9716e2352da3da627ed96cc5a463c2f37f0f",
       "owner": "media"
     },
     {
@@ -12830,8 +12837,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 54501,
-      "sha256": "612ee500bf6fb3cf22932e0446684e37dc8812ae5eb456f1ef392c4532cb8a0e",
+      "bytes": 54562,
+      "sha256": "62b14ca01c0e089c00a729560561ad94e7e5651cbdf416af671dab5de01b0e65",
       "owner": "media"
     },
     {
@@ -12984,8 +12991,8 @@
     {
       "path": "tools/perf/harness/cpu-worker.mjs",
       "mode": "100644",
-      "bytes": 7512,
-      "sha256": "93287af29195780c4d6e6659d5d9c0b4612075ffa1254bb302ed4efa11cd5638",
+      "bytes": 7690,
+      "sha256": "00f50e44b254aedaffe3f5803d60e7d69d63740932cda3c5d90a2c8d8a8e2cb3",
       "owner": "core-integration"
     },
     {
@@ -13131,8 +13138,8 @@
     {
       "path": "tools/perf/model-interaction/README.md",
       "mode": "100644",
-      "bytes": 7278,
-      "sha256": "c26eb88f98106e9d23c770afb155b8b54e807665e2d9631b8dc9dbd28a0b55c9",
+      "bytes": 7644,
+      "sha256": "9d643f41e48b646fb40382d142e176a2adc52e74edb821bc043702bf261af2e2",
       "owner": "core-integration"
     },
     {
@@ -13166,8 +13173,8 @@
     {
       "path": "tools/perf/model-interaction/source.mjs",
       "mode": "100644",
-      "bytes": 2008,
-      "sha256": "6d77c000015e90c279ca9023f26440e1efc7ccc3ec27a91a6778f39c850117d9",
+      "bytes": 2255,
+      "sha256": "3a4891fb0eeb9ca06922e0f19e74b424c73f6c4d396ddd7c292f7875773a4cf1",
       "owner": "core-integration"
     },
     {

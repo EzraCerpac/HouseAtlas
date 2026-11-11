@@ -1,5 +1,22 @@
 # HouseAtlas
 
+GPU admission and renderer reservation additionally account for one appearance
+state texture per rendered mesh set: nine RGBA32F texels per drawn instance,
+128 entries per row, or 18,432 bytes times the rounded-up row count. Repeated
+node instances count separately; a combined SiteArtifact set rounds its summed
+instance count once. Skipped empty rendering costs zero; direct scene creation
+retains its existing minimum row. The two CPU state arrays are not two GPU
+textures, and material admission must not charge the state texture twice.
+Geometry remains 72 bytes per triangle with separate prepared-geometry reporting.
+The existing 64/384 MiB limits, all 95 selections and their deadlines remain.
+Authored existing controls cover row boundaries, repeated nodes, material/plain
+admission, combined-set release and generated artifacts straddling configured
+caps. They are unrun until exact-head hosted qualification. No private/installed
+artifact is requalified. Allocation layout and shader behavior stay unchanged;
+admission tightens at the existing caps. Transition peaks, fixed render targets
+and global memory policy remain separate. Earlier
+notes below describe their respective source checkpoints.
+
 The existing required `unified-atlas-daylight-healthy.mjs` SOURCE check adds
 generated CPU controls for lamp descriptor ranking/capping, hiding, whole and
 partial clipping, clip-boundary overrides, display lift and reappearance.
