@@ -271,9 +271,19 @@ try {
         const settledPlan = async () => {
           let last = null, still = 0;
           for (const due = Date.now() + 10_000; Date.now() < due; await wait(100)) {
-            const value = await evaluate('document.querySelector(".ua-plan")?.getAttribute("transform") ?? null');
-            const match = value?.match(/^matrix\(([^)]+)\)$/);
-            const matrix = match?.[1].split(/[ ,]+/).map(Number);
+            // Read every SVG transform in order, including the source-origin
+            // translate after planMatrix. multiply returns a new matrix;
+            // never consolidate or otherwise mutate React's transform list.
+            const matrix = await evaluate(`(()=>{
+              const transforms=document.querySelector('.ua-plan')?.transform.baseVal;
+              if(!transforms?.numberOfItems)return null;
+              let composed=new DOMMatrix();
+              for(let i=0;i<transforms.numberOfItems;i++){
+                const m=transforms.getItem(i).matrix;
+                composed=composed.multiply(new DOMMatrix([m.a,m.b,m.c,m.d,m.e,m.f]));
+              }
+              return [composed.a,composed.b,composed.c,composed.d,composed.e,composed.f];
+            })()`);
             if (!matrix || matrix.length !== 6 || !matrix.every(Number.isFinite)) { last = null; still = 0; continue; }
             still = last && matrix.every((n, i) => Math.abs(n - last[i]) < (i < 4 ? 1e-3 : .05)) ? still + 1 : 0;
             if (still >= 4) return matrix;
