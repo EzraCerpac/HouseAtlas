@@ -61,7 +61,7 @@ const SOURCE = [
   node('offline-root-entry-healthy.mjs'), node('offline-presentation-healthy.mjs'), node('offline-electrical-copy.test.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
   node('outbox-healthy.mjs'), node('backup-settings-healthy.mjs'),
   // Unified Atlas
-  node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-start-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'), node('unified-atlas-network-trace-healthy.mjs'), node('unified-atlas-electrical-group-healthy.mjs'),
+  node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-start-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'), node('unified-atlas-network-trace-healthy.mjs'), node('unified-atlas-network-source-root-healthy.mjs'), node('unified-atlas-electrical-group-healthy.mjs'),
   node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-overlay-feed-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
   node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'), node('unified-atlas-daylight-healthy.mjs'),
   // Named healthy cases
@@ -75,6 +75,7 @@ const BROWSER = [
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2', 'webgl2-probe', 'lamp-glass']),
   node('unified-atlas-plan-wheel-browser.mjs'),
   node('unified-atlas-regression/browser.mjs', '--electrical'),
+  node('network-trace-mounted/browser.mjs'),
   ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],
 ];
 
