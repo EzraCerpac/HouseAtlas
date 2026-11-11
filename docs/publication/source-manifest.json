@@ -2855,15 +2855,15 @@
     {
       "path": "backend/src/http/suggestion_inputs.rs",
       "mode": "100644",
-      "bytes": 26580,
-      "sha256": "bc83178405da0c7b252dcf264bcb95a1570bbe6c23c0f3266e46f59927b20283",
+      "bytes": 26533,
+      "sha256": "d4c86fd65df137368e1cdf4abc4669c40e9f4835960e8fd01aef4fbc81476f73",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/suggestion_inputs_healthy.rs",
       "mode": "100644",
-      "bytes": 39429,
-      "sha256": "e421eb41f7825d7131ee381d98676252edada20bfdb501f41090093466c045d1",
+      "bytes": 42097,
+      "sha256": "e1a1d03f78379367d8f37c3e82cd611bfddb60190bdff91195124f2a21238f24",
       "owner": "core-integration"
     },
     {
