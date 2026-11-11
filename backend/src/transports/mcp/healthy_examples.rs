@@ -569,7 +569,9 @@ fn healthy_history_fixtures_preserve_bare_array_and_order() {
 #[test]
 fn healthy_logical_collection_contract_preserves_opaque_scalar_bounds_and_uuid_ids() {
     use crate::ai::suggestions as ai;
-    use crate::contracts::stock::{HomeboxResourceKind, StockContext, StockTarget, StockValidation};
+    use crate::contracts::stock::{
+        HomeboxResourceKind, StockContext, StockTarget, StockValidation,
+    };
 
     let validation = StockValidation::new().unwrap();
     let id = |n: u32| format!("00000000-0000-4000-8000-{n:012}");
