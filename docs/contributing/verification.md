@@ -699,7 +699,7 @@ hosted step logs remain the execution record.
 
 | Workflow / job | Step | Command | Runs when | Cases | Scope |
 | --- | --- | --- | --- | --- | --- |
-| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 23 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
+| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 33 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. Ten generated archive and metadata controls also cover pinned copy/extraction, corrupted/duplicate/symlink/bounded members, source substitution and cleanup marker/ownership validation; no root, SUID permission, installer, cleanup, helper, browser or network operation runs in these unit cases. |
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
@@ -747,7 +747,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / loopback | Real aggregate stock operation events and read-only Changes view | `node tools/rust-integration/healthy-operation-events-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
 | rust-react-ordinary / ci-ok | Require successful or skipped jobs | `RESULTS=${{ join(needs.*.result, ' ') }}`<br>`for result in $RESULTS; do`<br>`  case "$result" in`<br>`    success\|skipped) ;;`<br>`    *) exit 1 ;;`<br>`  esac`<br>`done` | every run |  | Runs after the selector, source, unit-test, frontend and loopback jobs; fails unless each succeeded or was skipped by lane selection. |
 
-19 setup, plumbing and summary run steps (4 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
+21 setup, plumbing and summary run steps (4 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
 Triggers: `ordinary-core.yml` on push (branches [main]), pull_request; `rust-react-ordinary.yml` on pull_request, push (branches [main]).
 The backend lane runs on pushes, after failed change selection, and on PRs except frontend-presentation-only or docs-only changes. The frontend lane runs on pushes, after failed change selection, and on PRs except backend-only or docs-only changes. The loopback lane runs all three shards on pushes, after failed change selection, and on PRs except docs-only changes; frontend-presentation-only PRs run shard 1 only.
 Toolchains: `node` 26.10.0, `npm` 11.19.1, `rust` 1.99.0, `python3` (runner-provided, unpinned), `chromium` 156.0.8078.47.
@@ -4846,3 +4846,29 @@ rationale addresses the hosted8c glass surface/background ambiguity; new hosted
 pixels must still pass. It is not private-material, device or product acceptance.
 No local test, syntax check, compiler, formatter or browser ran. Page-side donor
 d98ea7fc, mainc67637c, original corpus and seven browser cases remain preserved.
+
+
+Existing ephemeral Ubuntu24 CI Chrome jobs now prepare a temporary pinned SUID
+sandbox helper without repairing pre-existing helpers or OS policy. The installer
+uses no-follow held directory FDs, refuses mutable/non-root ancestors or an
+existing destination, verifies a root-private copy of the pinned156.0.8078.47 ZIP,
+extracts one bounded regular helper, verifies installed bytes/inodes, durably
+records job custody before activation, and publishes only after write FDs close.
+The browser stays user-owned; normal-user --get-api must return1 before exporting
+the fixed CHROME_DEVEL_SANDBOX path. Capture storage forwards only that exact
+path; browser flags/assertions and seven required browser cases stay unchanged.
+
+Frontend and loopback always-cleanup runs after setup/API/test failure too. It
+validates the job/inode marker, revokes SUID before refusing changed contents,
+removes only known owned files/empty created directories and never exports an
+empty helper variable. SIGKILL before the durable marker can leave only private,
+non-SUID residue which cleanup refuses; ephemeral VM disposal is the fallback.
+No existing permissions, AppArmor/sysctl, package, Mac/NAS/deployment or credential
+state is modified. Helper creation is confined to existing hosted Ubuntu jobs.
+
+The existing tools/ci stdlib selection gains ten generated data-only archive and
+metadata controls (33 methods total). They never install/clean a helper, invoke
+sudo/browser/API or set SUID. New controls and actual installer/API/sandbox/cleanup
+execution are NOT RUN locally and require exact-head hosted CI. Inventory and
+publication-byte regeneration are source maintenance, not runtime qualification.
+No new workflow/lane; frontend selections remain80 SOURCE /1 BUILD /7 BROWSER.

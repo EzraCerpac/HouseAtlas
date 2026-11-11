@@ -34,8 +34,8 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 8475,
-      "sha256": "06b560ffc37661f1d06d5ce54d46aede448a41b46deb7bf2fc38c0121c767772",
+      "bytes": 9234,
+      "sha256": "2c0524eb5a836b186dd572f14c363365d8afa46d9ea6cdbb41cbd2d2e94b3437",
       "owner": "core-integration"
     },
     {
@@ -62,8 +62,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 22540,
-      "sha256": "60449355c50b8ad19b7694ea7db348ad02a64e1d93e205e571e45f86bbd03cb4",
+      "bytes": 23145,
+      "sha256": "22264a2031468c066d425b270cd5181c1fba922fde52ffaf9b56326037ecccb7",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 88779,
-      "sha256": "69b6bb3b9bd95861d2c597dd07f35fb3c9bc7eb14d512bcdda39c7beffdf9bfd",
+      "bytes": 90543,
+      "sha256": "3135769c92ec066b90454dc945a305c1cf61bc7f745233215b46802f51a28726",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 312973,
-      "sha256": "ff71c067b9f9132cc665f77938be6b2a95a920247c22f7ebc79d2902efece43b",
+      "bytes": 315032,
+      "sha256": "ad97e96987a750dcce78ae6f65529ed73687ea5927a845924d4d85fa1a656e05",
       "owner": "core-integration"
     },
     {
@@ -7573,8 +7573,8 @@
     {
       "path": "frontend/capture-drafts-tests/browser-storage.mjs",
       "mode": "100644",
-      "bytes": 13849,
-      "sha256": "dbb3c4eb93dca686096521c6cc163ae7f36e72c5b40def7b8741a4f384f74274",
+      "bytes": 14048,
+      "sha256": "447030337dcfd58a4bf5706e54bc3585c535dfc69862dc02a0dccea98cda5e6c",
       "owner": "core-integration"
     },
     {
@@ -12198,10 +12198,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/ci/chrome_sandbox.py",
+      "mode": "100644",
+      "bytes": 14650,
+      "sha256": "299dcf3acee8ca7b90ca0ca07b17e681abd0849894112e4594dc65e9d774ebf1",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 60891,
-      "sha256": "149326bc130fa8c8e0c21fc1faaa145772085a469f722b4b627ff053b0ff40e0",
+      "bytes": 64172,
+      "sha256": "19b916347e7983386ef47ad89ddc132ff22f28bd5d28b05c97b8e3883ca53107",
       "owner": "core-integration"
     },
     {
@@ -12216,6 +12223,13 @@
       "mode": "100644",
       "bytes": 24025,
       "sha256": "ceecfb779968b428d1859559b6083678076e97d3c4f98a13594a0dc8d66b4151",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/ci/test_chrome_sandbox.py",
+      "mode": "100644",
+      "bytes": 8120,
+      "sha256": "d09077e5938913d56148b992984f21eb18683b1b2d747c21b2a2dae1c7252bdc",
       "owner": "core-integration"
     },
     {

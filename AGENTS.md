@@ -1,5 +1,30 @@
 # HouseAtlas
 
+Existing ephemeral Ubuntu24 CI Chrome jobs now prepare a temporary pinned SUID
+sandbox helper without repairing pre-existing helpers or OS policy. The installer
+uses no-follow held directory FDs, refuses mutable/non-root ancestors or an
+existing destination, verifies a root-private copy of the pinned156.0.8078.47 ZIP,
+extracts one bounded regular helper, verifies installed bytes/inodes, durably
+records job custody before activation, and publishes only after write FDs close.
+The browser stays user-owned; normal-user --get-api must return1 before exporting
+the fixed CHROME_DEVEL_SANDBOX path. Capture storage forwards only that exact
+path; browser flags/assertions and seven required browser cases stay unchanged.
+
+Frontend and loopback always-cleanup runs after setup/API/test failure too. It
+validates the job/inode marker, revokes SUID before refusing changed contents,
+removes only known owned files/empty created directories and never exports an
+empty helper variable. SIGKILL before the durable marker can leave only private,
+non-SUID residue which cleanup refuses; ephemeral VM disposal is the fallback.
+No existing permissions, AppArmor/sysctl, package, Mac/NAS/deployment or credential
+state is modified. Helper creation is confined to existing hosted Ubuntu jobs.
+
+The existing tools/ci stdlib selection gains ten generated data-only archive and
+metadata controls (33 methods total). They never install/clean a helper, invoke
+sudo/browser/API or set SUID. New controls and actual installer/API/sandbox/cleanup
+execution are NOT RUN locally and require exact-head hosted CI. Inventory and
+publication-byte regeneration are source maintenance, not runtime qualification.
+No new workflow/lane; frontend selections remain80 SOURCE /1 BUILD /7 BROWSER.
+
 Scalar visibility fixture donor38ca67b5 is composed after independent source
 review. Only the generated glass sample's shared tint changes0.18 to0.02 and
 opacity0.12 to0.5; all scalar variants use those same settings and retain the

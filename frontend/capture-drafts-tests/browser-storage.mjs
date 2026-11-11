@@ -222,7 +222,9 @@ async function runBrowser(caseName) {
     ], {
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe'],
-      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', TMPDIR: profile },
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', TMPDIR: profile,
+        ...(process.env.CHROME_DEVEL_SANDBOX === '/usr/local/libexec/houseatlas-ci-sandbox-156.0.8078.47/chrome-sandbox'
+          ? { CHROME_DEVEL_SANDBOX: process.env.CHROME_DEVEL_SANDBOX } : {}) },
     });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', chunk => {
