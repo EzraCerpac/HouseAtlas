@@ -1,5 +1,19 @@
 # HouseAtlas
 
+The required SOURCE list adds `example-combined-overlays-healthy.mjs`:
+83 SOURCE / 1 BUILD / 11 BROWSER (95 total). All previous entries and
+180000 ms per-entry limits remain, including the explicit stored-dialog case.
+The generated control uses the production reader/projector and actual graph
+builder (exposed only in its test bundle), checking three Hall and one Living
+room electrical records, one Stairs network record and logical root tracing.
+It checks owner retirement through
+both signals, release and disposal. This is example-only fictional DATA,
+not native/physical/provider authority, a mounted demonstration or #591
+completion. New controls are authored and unrun locally; exact-head hosted
+checks, startup/performance and existing capture remain required. No workflow,
+timeout, sandbox, persistence, production-consumer or capture change is added.
+Earlier counts below describe their respective source checkpoints.
+
 The required browser list additionally selects only
 `unified-atlas-regression/browser.mjs --stored-dialog-currentness`:
 82 SOURCE / 1 BUILD / 11 BROWSER (94 total). All previous selections,
