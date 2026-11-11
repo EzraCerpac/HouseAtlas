@@ -5,6 +5,95 @@ import type { UnifiedAtlasOverlayAvailableFrame } from '../../integration/unifie
 import type { NativeSceneSourceSelection } from '../../src/lantern/scans/native-scene-source-types';
 import type { ElectricalFixtureData } from '../../src/lantern/overlays/electricity/fixture-types';
 import { ExactDecimal } from '../../src/numeric/decimal';
+import { OVERLAY_REOPEN_DELAY_MS, type OverlayFeedEnvironment } from '../../src/lantern/unified-atlas/overlay-feed';
+import { modelUpdatesAllowed } from '../../src/lantern/unified-atlas/model-updates';
+
+/** Page-owned, generated-only scheduler and read gates; never native authority. */
+export function createDrawingGroupControl() {
+  let disposed = false, armed = false, consumed = false, completed = false, captured: { run: () => void; active: boolean } | null = null;
+  let admitted = false, invalidated = false, failed = false;
+  let admittedOwner: object | null = null, admittedCurrent: (() => boolean) | null = null, armedOwner: object | null = null;
+  let houseEntered = false, studioEntered = false, houseReleased = false, studioReleased = false;
+  const pending = new Set<() => void>();
+  const status = (value: string) => {
+    if (value === 'error') failed = true;
+    if (!failed || value === 'disposed') document.documentElement.dataset.drawingGroupControl = value;
+  };
+  const gate = (kind: 'house' | 'studio', signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+    signal.throwIfAborted();
+    if (disposed || failed || !consumed || (kind === 'house' ? houseEntered : studioEntered)) { status('error'); reject(new Error('Generated gate unavailable')); return; }
+    if (kind === 'house') houseEntered = true; else studioEntered = true;
+    status(houseEntered && studioEntered ? 'both-waiting' : `${kind}-waiting`);
+    let done = false;
+    const cleanup = () => { signal.removeEventListener('abort', abort); pending.delete(cancel); delete releases[kind]; };
+    const finish = () => { if (done) return; done = true; cleanup(); if (kind === 'house') completed = true; resolve(); };
+    const cancel = () => { if (done) return; done = true; cleanup(); reject(new Error('Generated gate cancelled')); };
+    const abort = () => cancel();
+    pending.add(cancel); signal.addEventListener('abort', abort, { once: true });
+    const release = () => { if (kind === 'house' ? houseReleased : studioReleased) finish(); };
+    releases[kind] = release; release();
+  });
+  const releases: Partial<Record<'house' | 'studio', () => void>> = {};
+  const environment: OverlayFeedEnvironment = {
+    setTimeout(run, ms) {
+      if (!armed) {
+        if (captured && !completed && ms === OVERLAY_REOPEN_DELAY_MS) status('error');
+        return globalThis.setTimeout(run, ms);
+      }
+      if (disposed || captured || !admitted || !invalidated || ms !== OVERLAY_REOPEN_DELAY_MS) { status('error'); throw new Error('Unexpected generated timer'); }
+      captured = { run, active: true }; armed = false; status('timer-captured'); return captured;
+    },
+    clearTimeout(handle) {
+      if (handle === captured && captured) { captured.active = false; return; }
+      globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>);
+    },
+    subscribeOnline(changed) {
+      const online = () => { if (armed || captured?.active || consumed) status('error'); changed(); };
+      window.addEventListener('online', online); return () => window.removeEventListener('online', online);
+    },
+    now: () => Date.now(), mayReadUnasked: modelUpdatesAllowed,
+  };
+  const command = (event: Event) => {
+    const value = (event as CustomEvent).detail;
+    if (value === 'arm' && !disposed && !failed && admitted && admittedOwner && admittedCurrent?.() && !armed && !captured && !consumed) { armed = true; armedOwner = admittedOwner; invalidated = false; status('armed'); }
+    else if (value === 'consume' && !failed && captured?.active && !consumed) { captured.active = false; consumed = true; captured.run(); }
+    else if (value === 'studio' && !failed && consumed && !studioReleased) { studioReleased = true; releases.studio?.(); status('studio-released'); }
+    else if (value === 'house' && !failed && consumed && !houseReleased && studioReleased) { houseReleased = true; releases.house?.(); status('released'); }
+    else if (value === 'cancel') dispose();
+    else status('error');
+  };
+  const dispose = () => {
+    if (disposed) return; disposed = true; armed = false;
+    if (captured) captured.active = false;
+    for (const cancel of [...pending]) cancel();
+    admittedOwner = null; armedOwner = null; admittedCurrent = null;
+    window.removeEventListener('synthetic-drawing-control', command); status('disposed');
+  };
+  window.addEventListener('synthetic-drawing-control', command);
+  const createOverlays: NonNullable<UnifiedAtlasPort['createOverlays']> = async (selection, scene, building, signal) => {
+    signal.throwIfAborted();
+    if (consumed && !completed && building.buildingId === 'syn-building-studio') { await gate('studio', signal); signal.throwIfAborted(); return null; }
+    const handle = await createSyntheticDrawingGroups(selection, scene, building, signal);
+    if (!handle || building.buildingId !== 'syn-building-house') return handle;
+    const owner = {};
+    return { ...handle, source: { ...handle.source,
+      subscribeInvalidation(frame, changed) { return handle.source.subscribeInvalidation(frame, () => {
+        if (armed) { if (armedOwner === owner && admittedOwner === owner) invalidated = true; else status('error'); }
+        changed();
+      }); },
+      async open(request, opening) {
+      if (consumed && !completed) await gate('house', opening);
+      opening.throwIfAborted();
+      const frame = await handle.source.open(request, opening);
+      opening.throwIfAborted();
+      if (disposed || frame.status !== 'available' || !handle.source.isCurrent(frame)) throw new Error('Generated owner retired');
+      admitted = true;
+      admittedOwner = owner; admittedCurrent = () => handle.source.isCurrent(frame);
+      return frame;
+    } } };
+  };
+  return { environment, createOverlays, dispose };
+}
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 export const createSyntheticDrawingGroups: NonNullable<UnifiedAtlasPort['createOverlays']> = async (_selection, scene, building, signal) => {

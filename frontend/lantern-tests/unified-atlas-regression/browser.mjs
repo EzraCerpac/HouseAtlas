@@ -390,7 +390,7 @@ try {
       });
     } else {
     await check('historic drawing group uses projected room badges and retains unknown placement', async () => {
-      await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated&atlas-drawing-groups=generated` });
+      await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated&atlas-drawing-groups=generated&drawing-group-control=generated-reopen-v1` });
       await until('Boolean(document.querySelector(".ua-room-btn"))', 'generated documentary host ready');
       await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       await sheet(false); await click(button('.layer-bar button', 'Electrical'));
@@ -451,12 +451,29 @@ try {
       await openDrawingGroup('before clear room'); await clear(); await retired();
       await openDrawingGroup('before layer off'); await sheet(false); await click(button('.layer-bar button', 'Electrical')); await retired();
       await click(button('.layer-bar button', 'Electrical')); await openDrawingGroup('after layer on');
-      await evaluate('window.dispatchEvent(new Event("synthetic-atlas-source-invalidate"))'); await retired();
-      // The feed may retain documentary records as a labelled stored copy. Its
-      // new snapshot must not retain the user's previous group selection.
-      await openDrawingGroup('after source invalidation');
-      await evaluate('window.dispatchEvent(new Event("synthetic-atlas-selection-replace"))'); await retired();
-      await until('Boolean(document.querySelector(".ua-room-btn"))', 'replacement publication ready');
+      const command = value => `window.dispatchEvent(new CustomEvent('synthetic-drawing-control',{detail:${JSON.stringify(value)}}))`;
+      const control = value => `document.documentElement.dataset.drawingGroupControl===${JSON.stringify(value)}`;
+      const studio = `Array.from(document.querySelectorAll('.ua-coverage-list li')).find(row=>row.querySelector('.ua-coverage-name')?.textContent==='Synthetic studio')?.querySelector('.ua-coverage-state')?.textContent`;
+      const groupShown = `document.querySelectorAll('.ua-marker.is-electrical-group').length===2&&!!document.querySelector('[aria-label="Historic drawing group"]')`;
+      const stored = `(${presentation}).reason==='stored-copy'&&(${presentation}).stored&&(${presentation}).busy===true`;
+      try {
+        await evaluate(`${command('arm')};window.dispatchEvent(new Event('synthetic-atlas-source-invalidate'))`);
+        assert.equal(await evaluate(control('timer-captured')), true, 'Expected one invalidation reopen timer');
+        await retired();
+        await evaluate(command('consume'));
+        await until(`${control('both-waiting')}&&(${studio})?.includes('loading')&&${stored}`, 'both generated reads held');
+        await evaluate(command('studio'));
+        await until(`${control('studio-released')}&&(${studio})?.includes('no-native-building-link')&&${stored}`, 'studio unavailable and house held');
+        await openDrawingGroup('after source invalidation');
+        assert.equal(await evaluate(`${control('studio-released')}&&${stored}&&${groupShown}`), true, 'Stored selection precedes replacement');
+        await evaluate(command('house'));
+        await until(`${control('released')}&&(${presentation}).reason==='available'&&!(${presentation}).stored&&document.querySelectorAll('.ua-marker.is-electrical-group').length===0&&!document.querySelector('[aria-label="Historic drawing group"]')`, 'available replacement retires group');
+        await retired();
+        await openDrawingGroup('before publication replacement');
+        assert.equal(await evaluate(`${control('released')}&&${groupShown}`), true, 'Fresh group selected before publication replacement');
+        await evaluate('window.dispatchEvent(new Event("synthetic-atlas-selection-replace"))'); await retired();
+        await until('Boolean(document.querySelector(".ua-room-btn"))', 'replacement publication ready');
+      } finally { await evaluate(command('cancel')).catch(() => {}); }
     });
     await check('drawing group remains keyboard-operable with reduced motion', async () => {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });

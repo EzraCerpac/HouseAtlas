@@ -23,8 +23,18 @@ import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasT
 import type { SourceModelPort } from '../../src/lantern/source-ports';
 import type { ModelOverviewSelection } from '../../src/lantern/source-models/overview-types';
 import { StageTimings } from '../stage-timings/StageTimings';
-import { createSyntheticDrawingGroups } from '../unified-atlas-regression/synthetic-drawing-groups';
+import { createDrawingGroupControl, createSyntheticDrawingGroups } from '../unified-atlas-regression/synthetic-drawing-groups';
+import { OverlayFeedEnvironmentContext } from '../../src/lantern/unified-atlas/OverlayFeedEnvironmentContext';
 import { createSyntheticElectricalLibrary } from '../electrical-library-visual/synthetic-electrical';
+
+const params = new URLSearchParams(location.search);
+const controlled = params.has('drawing-group-control');
+if (controlled && (params.get('drawing-group-control') !== 'generated-reopen-v1'
+  || location.pathname !== '/lantern-tests/unified-atlas-regression/index.html'
+  || params.get('atlas') !== 'generated' || params.get('atlas-drawing-groups') !== 'generated'
+  || ['atlas', 'atlas-drawing-groups', 'drawing-group-control'].some(key => params.getAll(key).length !== 1)
+  || Array.from(params.keys()).some(key => !['atlas', 'atlas-drawing-groups', 'drawing-group-control'].includes(key)))) throw new Error('Conflicting generated control');
+const drawingControl = controlled ? createDrawingGroupControl() : null;
 
 // Kept only for the explicit same-origin fixture paths below.
 const pageFetch = globalThis.fetch.bind(globalThis);
@@ -146,7 +156,7 @@ async function sourceModels(): Promise<SourceModelPort> {
     ...base,
     // The production reader, guards and admission against the in-page HTTPS fake.
     atlas: { current, subscribe, entryBuildingId: () => entry,
-      ...(drawingGroups ? { createOverlays: createSyntheticDrawingGroups } : {}),
+      ...(drawingGroups ? { createOverlays: drawingControl?.createOverlays ?? createSyntheticDrawingGroups } : {}),
       ...(saved ? { savedDocumentary: saved } : {}),
       ...(storedPending ? { async stored(requested: ModelOverviewSelection, signal: AbortSignal) {
         return { ...await readGenerated(requested, signal), storedAt: '2026-01-01T00:00:00Z' };
@@ -162,7 +172,8 @@ const root = createRoot(document.getElementById('root')!);
 const electricalMode = new URLSearchParams(location.search).get('electrical-library');
 const electrical = electricalMode === 'generated' || electricalMode === 'unavailable'
   ? createSyntheticElectricalLibrary() : Promise.resolve(null);
-void Promise.all([sourceModels(), electrical]).then(([models, library]) => root.render(<LanternHost view={library?.view ?? fixture.view as ReadyView}
+void Promise.all([sourceModels(), electrical]).then(([models, library]) => {
+  const host = <LanternHost view={library?.view ?? fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
     session: { ...(library?.session ?? session), signOut: async () => {} } }}
   {...(library ? { topology: library.topology, sourceElectricalLibrary: {
@@ -171,9 +182,11 @@ void Promise.all([sourceModels(), electrical]).then(([models, library]) => root.
       return electricalMode === 'unavailable' ? { ...reader, createDrawingClient() { throw new Error('Generated drawing source unavailable'); } } : reader;
     },
   } } : {})}
-  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
+  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />;
+  root.render(drawingControl ? <OverlayFeedEnvironmentContext.Provider value={drawingControl.environment}>{host}</OverlayFeedEnvironmentContext.Provider> : host);
+},
 error => root.render(<p role="alert">{error instanceof Error ? error.message : 'The Atlas fixture could not start.'}</p>));
 // Anonymous site and model stage timings, below the host and bounded.
 const timings = createRoot(document.getElementById('timings')!);
 timings.render(<div className="lantern-host" style={{ height: 'auto', padding: 16 }}><StageTimings areas={['site', 'model']} /></div>);
-window.addEventListener('pagehide', () => { root.unmount(); timings.unmount(); }, { once: true });
+window.addEventListener('pagehide', () => { try { root.unmount(); timings.unmount(); } finally { drawingControl?.dispose(); } }, { once: true });
