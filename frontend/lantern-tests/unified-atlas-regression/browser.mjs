@@ -257,8 +257,17 @@ try {
           await sheet(false); await click(button('.layer-bar button', 'Electrical'));
           await click(button('[aria-label="Atlas view"] button', 'Plan'));
           await until('document.querySelectorAll(".ua-plan path").length>0', 'stored Plan drawn');
-          await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: false });
-          await until('matchMedia("(max-height: 480px)").matches&&document.querySelector(".ua-shell")?.classList.contains("is-compact")', 'short landscape compact stage');
+          // Compact follows the measured stage width (<=720), not viewport
+          // height. 844px leaves a tablet host whose stage can exceed that
+          // boundary; use a phone-width landscape viewport and verify both.
+          await send('Emulation.setDeviceMetricsOverride', { width: 700, height: 390, deviceScaleFactor: 1, mobile: false });
+          await until(`(()=>{const width=document.querySelector('.ua-viewport')?.getBoundingClientRect().width;
+            return matchMedia('(max-height: 480px)').matches&&matchMedia('(orientation: landscape)').matches
+              &&width>0&&width<=720&&document.querySelector('.ua-shell')?.classList.contains('is-compact');})()`, 'short landscape compact stage');
+          report.storedDialogViewport = await evaluate(`(()=>({width:innerWidth,height:innerHeight,
+            short:matchMedia('(max-height: 480px)').matches,landscape:matchMedia('(orientation: landscape)').matches,
+            stageWidth:document.querySelector('.ua-viewport').getBoundingClientRect().width,
+            compact:document.querySelector('.ua-shell').classList.contains('is-compact')}))()`);
           await click('document.querySelector(".ua-fold-layers")');
           await until('document.querySelector(".ua-layer-dialog")?.matches(":modal")', 'actual Layer details native modal');
           await key('Tab', 'Tab', 9);
