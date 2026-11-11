@@ -1,5 +1,20 @@
 # HouseAtlas
 
+Bounded Stock dependency closure composes exact ac03072e (three commits atop
+c6d71046). Only selected identity/semantics/circuit payload.evidenceIds and explicit
+root pins are followed, preserving exact numbers, revisions and unknowns. Missing,
+conflicting, duplicate or withheld records refuse and retire the partial owner.
+Pin length is checked before cloning/visiting; pool, root and reference work are
+bounded. Repeated references deduplicate without selecting a competing revision.
+
+The existing topology selection extends its generated controls for dependency and
+root-only withheld evidence, exact numeric provenance, bounds and retirement.
+All new controls are authored, NOT RUN locally; 80 SOURCE / 1 BUILD / 7 BROWSER
+selections and workflows are unchanged. This remains partial Stock DATA, without
+canonical record admission, projector compatibility, evidence-asset/supersession/
+external-source closure, independent review authority, ongoing observation or live
+mount. No runtime, provider, native effect or release is added.
+
 Current bounded electrical continuation composes exact d707481f after independent
 source review. Its exact browser subset adds only circuit/evidence list result
 roots; existing definitions and original source pins, including opaque HomeBox

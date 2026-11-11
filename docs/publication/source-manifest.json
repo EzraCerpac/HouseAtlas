@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 82122,
-      "sha256": "2b4245a2ef8a7f1ac99d9445bf5b364d9b936a7f2751a7276329c9c51a18e519",
+      "bytes": 83161,
+      "sha256": "68bc44c6bbc73cecac3e32871bb36df18e5b94b9e43f79f0d6ff7c147dbd65ab",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 306309,
-      "sha256": "6778cb16805d3a623faecd4d8b096db32cf9202d7f76f0be8de476308262ec7c",
+      "bytes": 307349,
+      "sha256": "ba0d3a6fe55b094f2093ca12b5a208df119e464be30d2ad89c6647e1aa436377",
       "owner": "core-integration"
     },
     {
@@ -7683,10 +7683,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/electrical-record-closure.ts",
+      "mode": "100644",
+      "bytes": 3621,
+      "sha256": "eb85f959db557047d913f6ab7393929432345c8c8f0bae96147d7ad1c210307a",
+      "owner": "web"
+    },
+    {
       "path": "frontend/integration/electrical-record-owner.ts",
       "mode": "100644",
-      "bytes": 5959,
-      "sha256": "1bb2344cb6a6230cebe4f1d9afece7c94f390945492160b6890504e4090da2bc",
+      "bytes": 4605,
+      "sha256": "c889017f09ef7e543ba10aa5f67774ae6c2ed023dd1f45dcf2bc6babc10b3509",
       "owner": "web"
     },
     {
@@ -8091,8 +8098,8 @@
     {
       "path": "frontend/lantern-tests/electrical-record-owner-healthy.mjs",
       "mode": "100644",
-      "bytes": 4774,
-      "sha256": "0d2eb52675491e6ba2c203dcd2c9200fada57cce0057a33285475be28dc94a4f",
+      "bytes": 7864,
+      "sha256": "d25e59c92f02813c4b6eba78480501c4c83bb295d11f9bec9c5a358e578abbf5",
       "owner": "web"
     },
     {
@@ -8721,8 +8728,8 @@
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
       "mode": "100644",
-      "bytes": 68747,
-      "sha256": "14fa9aef2c7ef1b2185db5c2c4fb965f3a0fdec1106b5ec2b11fa1888cb56ad2",
+      "bytes": 69281,
+      "sha256": "88c7e90e24c12a6eacc2a967de1e7bbd4cf0f74cd5ca6138c0d69f411dcf9942",
       "owner": "web"
     },
     {
