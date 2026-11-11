@@ -15,7 +15,8 @@ let browser, server;
 const pending = new Map(), requests = []; let serial = 0, buffer = '';
 try {
   const previous = process.cwd();
-  try { process.chdir(frontend); await build({ root: join(frontend, 'lantern-tests/network-trace-mounted'), configFile: join(frontend, 'vite.config.ts'), logLevel: 'error', publicDir: false, build: { target: 'esnext', outDir: join(scratch, 'dist'), emptyOutDir: true } }); }
+  try { process.chdir(frontend); await build({ root: join(frontend, 'lantern-tests/network-trace-mounted'), configFile: join(frontend, 'vite.config.ts'), logLevel: 'error', publicDir: false, build: { target: 'esnext', outDir: join(scratch, 'dist'), emptyOutDir: true,
+    rolldownOptions: { input: [join(frontend, 'lantern-tests/network-trace-mounted/index.html'), join(frontend, 'lantern-tests/network-trace-mounted/host.html')] } } }); }
   finally { process.chdir(previous); }
   const chrome = process.env.HOUSEATLAS_CHROMIUM;
   assert(chrome && existsSync(chrome));
@@ -43,6 +44,7 @@ try {
     await press(client);
   };
   await command('Runtime.enable', {}); await command('Page.enable', {}); await command('Network.enable', {});
+  await command('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false });
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await command('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` });
   await until(`Boolean([...document.querySelectorAll('button')].find(x=>x.textContent.includes('Client')))`);
@@ -132,6 +134,31 @@ try {
   await until(`!!document.querySelector('.ung-trace')`);
   assert.match(await evaluate(`document.querySelector('.ung-trace').textContent`), /Client.*Shared segment.*Root/s);
   assert.equal(await evaluate(`document.querySelectorAll('.ua-net-trace').length`), 1);
+  // Actual UnifiedAtlas, with generated saved-documentary room associations.
+  // This is not a live source owner or the production LanternHost.
+  await command('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/host.html` });
+  await until(`!!document.querySelector('.ua-room-btn')`);
+  await press(`[...document.querySelectorAll('.layer-chip')].find(x=>x.textContent.trim().startsWith('Network'))`);
+  await until(`!!document.querySelector('.ua-graph-open')`);
+  await press(`document.querySelector('.ua-graph-open')`); await until(`!!document.querySelector('.ua-graph .ung')`);
+  const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
+  const chooseHostClient = async () => { if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`); await press(hostClient); };
+  await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
+  assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
+  await press(`document.querySelector('.ua-graph-open')`); await until(`!!document.querySelector('.ua-graph .ung')`);
+  await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
+  await click('Switch host mode'); await click('Toggle fixture lens');
+  await until(`!!document.querySelector('#generated-lens .ung')`); await chooseHostClient();
+  await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  await click('Toggle fixture lens'); await until(`!document.querySelector('#generated-lens .ung')`);
+  assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
+  await click('Toggle fixture lens'); await until(`!!document.querySelector('#generated-lens .ung')`); await chooseHostClient();
+  await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  await press(`[...document.querySelectorAll('.layer-chip')].find(x=>x.textContent.trim().startsWith('Network'))`);
+  await until(`!document.querySelector('#generated-lens .ung')`);
+  assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
   console.log('mounted generated network trace controls passed');
 } finally {
   if (browser) { const exited = browser.exitCode !== null ? Promise.resolve() : new Promise(resolve => browser.once('exit', resolve)); browser.kill('SIGTERM'); await exited; }

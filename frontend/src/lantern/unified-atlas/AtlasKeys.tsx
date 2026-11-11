@@ -18,7 +18,7 @@ export function NetworkLensSection({ graphs, networkOn, published, availability,
   readonly graphs: NonNullable<PropertyRecords['networkGraphs']>; readonly networkOn: boolean; readonly published: boolean;
   readonly availability: 'available' | 'partial' | 'unavailable' | 'loading'; readonly headingId: string; readonly showLayer: () => void;
   /** Lights the chosen device's route on the stage. */
-  readonly onTrace?: (graphKey: string, trace: StageTrace | null) => void;
+  readonly onTrace?: (graphKey: string, trace: StageTrace | null, data: StageTrace['data']) => void;
 }) {
   return <section className="ua-lens-section" aria-labelledby={headingId} style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
     <h3 id={headingId}><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</h3>
