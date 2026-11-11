@@ -200,9 +200,10 @@ Before the screenshot the same run:
 diagnostics, the storage results, the isolation and Back entry URL, the Back
 path Chromium took (back/forward-cache restore or reload; both pages are
 served `no-store`, like the Rust host, so a
-reload is likely) and informational durations. The example adds one phase after the existing
-capture, with its own 60-second bound; the existing 90-second bound is
-unchanged, so the script can take up to 150 seconds in all.
+reload is likely) and informational durations. The example adds two phases after
+the existing capture: build and tour, then production-state checks, each with a
+60-second bound. The existing 90-second bound is unchanged, so the phase
+allowances total 210 seconds; the workflow's job limit also applies.
 
 These checks do not establish: the Rust host itself serving the page (the
 loopback server applies its rules); real cross-tab or service-worker isolation (the sentinels sample

@@ -456,11 +456,11 @@ try {
   // Example house: the real `npm --prefix frontend run build` output (the app
   // build, then the example's own pass into dist/example), served by an owned
   // loopback server with the Rust host's path, file-type, size and
-  // cache-header rules. One bounded phase after the receipt above is complete,
-  // so the existing capture keeps its unchanged 90 seconds.
+  // cache-header rules. Two bounded phases follow the existing capture,
+  // whose 90-second bound remains unchanged.
   clearTimeout(deadline);
   exampleDeadline = setTimeout(() => {
-    console.error('Example capture exceeded its 60-second phase deadline');
+    console.error('Example build and tour exceeded their 60-second phase deadline');
     stopAll();
   }, 60_000);
   const exampleStarted = Date.now(), frontend = resolve(root, 'frontend');
@@ -617,6 +617,11 @@ try {
   await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
   const tourMs = Date.now() - exampleStarted - buildMs;
   examplePhase('tour complete');
+  clearTimeout(exampleDeadline);
+  exampleDeadline = setTimeout(() => {
+    console.error('Example production-state checks exceeded their 60-second phase deadline');
+    stopAll();
+  }, 60_000);
   // Isolation order, storage sentinels and Back navigation on the built page.
   const navigationStarted = Date.now();
   const productionContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
@@ -760,12 +765,19 @@ try {
   // A later choice survives closing and reopening the Atlas: the reopened
   // stage's fresh read carries a new start array for the same scene.
   const section = name => production.locator('nav.navrail').getByRole('button', { name, exact: true }).click();
+  examplePhase('reopen 3D selection starting');
   await production.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  examplePhase('reopen 3D selection complete; plan closure starting');
   await production.waitForFunction(() => !document.querySelector('.ua-shell.is-plan'));
+  examplePhase('reopen plan closed; Upkeep navigation starting');
   await section('Upkeep');
+  examplePhase('reopen Upkeep navigation complete; Atlas unmount starting');
   await production.waitForFunction(() => !document.querySelector('section.ua-shell'));
+  examplePhase('reopen Atlas unmounted; return starting');
   await section('Atlas');
+  examplePhase('reopen Atlas navigation complete; stage readiness starting');
   await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
+  examplePhase('reopen stage ready');
   await frames(production);
   const reopened = await stateFacts(production);
   assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
