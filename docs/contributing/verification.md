@@ -5049,3 +5049,28 @@ Required commands in the existing healthy selection:
 node frontend/lantern-tests/unified-atlas-network-source-root-healthy.mjs
 node frontend/lantern-tests/network-trace-mounted/browser.mjs
 ```
+
+## Selected-input completion source rechecks
+
+The native `SelectedInputs::disclose_completed` method joins the private admitted
+snapshot to the existing completion projection. It rechecks native source/access
+before and after projection, keeps the projected DTO local until the second
+check succeeds, and supplies an empty inspectable set. Retained text and metadata
+do not imply original-byte availability. The borrowed terminal outcome and usage
+are preserved; the checks are not atomic or continuing authorization. No route,
+root mount, inference, provider, credentials, activation or persistence is added.
+
+Six new `http::suggestion_inputs::healthy::authenticated_completion_*` /
+`authenticated_document_*` controls are discovered by the existing default
+backend library tests, alongside all eleven preserved controls. They cover exact
+opaque evidence without original authority; changed/deleted/revoked native
+inputs; post-projection whole-payload withholding; wrong pins/other captures;
+terminal rejection, usage and borrowed-outcome preservation; and metadata versus
+document-described assertions without content support. A missing Asset refuses
+with `ContextUnavailable`; an available document-described RecordAssertion
+separately refuses positive content proposals with `MissingSupport`. The race
+hook is `cfg(test)` only. Controls are authored and unrun locally; exact-head
+hosted execution is required. No new command, selection, deadline or workflow
+is introduced; inventory remains 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
+This does not complete broader #563/#564/#565 acceptance or provide original
+inspection, live-source or runtime integration evidence.

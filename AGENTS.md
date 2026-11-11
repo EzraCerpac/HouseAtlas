@@ -1,5 +1,20 @@
 # HouseAtlas
 
+
+Selected native suggestion inputs expose a source-owned `disclose_completed`
+method: it borrows the original terminal outcome, projects against the private
+admitted snapshot with an empty inspectable set, and rechecks the original
+native source/access owners both before and after projection. A failed second
+check withholds the entire projected DTO. Retained text/metadata never creates
+original-byte inspection authority. These are boundary checks, not an atomic
+transaction or continuing disclosure authority; original outcome/usage remain
+with their owner. The race hook is test-only. All eleven existing controls are
+preserved and six additional default-library controls are authored, unrun until
+exact-head hosted qualification. No route/root mount, inference/provider call,
+corpus/pin/runtime activation or persistence is added. Existing 83 SOURCE /
+1 BUILD / 11 BROWSER selections, workflows and all limits remain unchanged.
+
+
 GPU admission and renderer reservation additionally account for one appearance
 state texture per rendered mesh set: nine RGBA32F texels per drawn instance,
 128 entries per row, or 18,432 bytes times the rounded-up row count. Repeated
