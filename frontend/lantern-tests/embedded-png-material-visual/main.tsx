@@ -85,14 +85,15 @@ function LampFixture() {
 // classification follows the same loader path as a selected model.
 async function lampGlassMeshes(glass: boolean, signal: AbortSignal): Promise<readonly PreparedMesh[]> {
   const shade = { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0], indices: [0, 1, 2, 1, 3, 2] };
-  const bytes = buildGlb({ nodes: [{ mesh: 0 }, { mesh: 1 }, { mesh: 2 }, { mesh: 3 }], roots: [0, 1, 2, 3],
-    meshes: [shade, box([.2, .2, -.2], [.8, .8, -.19]), box([1.1, .2, 1.5], [1.6, .8, 1.51]), box([-.7, .2, -1.51], [-.2, .8, -1.5])],
+  const bytes = buildGlb({ nodes: [{ mesh: 0 }, { mesh: 1 }, { mesh: 2 }, { mesh: 3 }, { mesh: 4 }], roots: [0, 1, 2, 3, 4],
+    meshes: [shade, box([.2, .2, -.2], [.8, .8, -.19]), box([1.1, .2, 1.5], [1.6, .8, 1.51]), box([-.7, .2, -1.51], [-.2, .8, -1.5]), box([0, 0, -.45], [1, 1, -.44])],
     patch(json) {
       json.materials = [
         { emissiveFactor: [1, .35, .1], alphaMode: glass ? 'BLEND' : 'OPAQUE', pbrMetallicRoughness: { baseColorFactor: [.12, .12, .12, glass ? .2 : 1] } },
-        { pbrMetallicRoughness: { baseColorFactor: [.05, .1, .9, 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.01, .01, 1, 1] } },
         { pbrMetallicRoughness: { baseColorFactor: [.5, .5, .5, 1] } },
         { pbrMetallicRoughness: { baseColorFactor: [.5, .5, .5, 1] } },
+        { pbrMetallicRoughness: { baseColorFactor: [.005, .005, .005, 1] } },
       ];
       (json.meshes as { primitives: { material?: number }[] }[]).forEach((mesh, index) => { mesh.primitives[0]!.material = index; });
     } });
@@ -108,7 +109,7 @@ function GlassLampSample({ meshes, label, night, marker, emitting }: { meshes: r
     { min: [-.8, -.1, -1.6], max: [1.7, 1.1, 1.6] }, { width: 320, height: 300 }, 0), []);
   const shade = meshes[0]!, markerMesh = meshes[1]!;
   const point = (x: number, z: number) => projection.project(x, .5, z).slice(0, 2).join(',');
-  return <section data-glass-lamp={label} data-marker={point(.5, -.2)} data-front={point(1.35, 1.5)} data-back={point(-.45, -1.5)}><h2>{label}</h2><MeshLayer meshes={meshes} projection={projection}
+  return <section data-glass-lamp={label} data-marker-key={markerMesh.meshKey} data-shade-key={shade.meshKey} data-marker={point(.5, -.2)} data-front={point(1.35, 1.5)} data-back={point(-.45, -1.5)}><h2>{label}</h2><MeshLayer meshes={meshes} projection={projection}
     rules={{ visibleFloors: 'all', clipY: null }} currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]}
     tints={new Map()} hidden={false} sourceColors ambient={.4} twoSided light={[0, 0, 1]}
     hiddenKeys={marker ? new Set() : new Set([markerMesh.meshKey])}
@@ -173,4 +174,14 @@ function Fixture() {
     <Sample title="Selected" mesh={mesh} selected /><Sample title="Dimmed" mesh={mesh} dim={.65} /><Sample title="Ghost" mesh={mesh} ghost /></main> : <p>Preparing generated samples…</p>}</>;
 }
 const query = new URLSearchParams(location.search), scalar = query.get('scalar');
+if (query.has('lamp-glass')) {
+  // The browser test injects this callback after scene.render returns. Record
+  // the state actually submitted to each canvas, then its settled shading draw.
+  (globalThis as unknown as { __lampRender: (canvas: HTMLCanvasElement, shading: number, applied: { hiddenKeys?: ReadonlySet<string>; emitterKeys?: ReadonlySet<string> } | null) => void }).__lampRender = (canvas, shading, applied) => {
+    const section = canvas.closest<HTMLElement>('[data-glass-lamp]');
+    if (!section) return;
+    if (applied) canvas.dataset.lampApplied = `${!applied.hiddenKeys?.has(section.dataset.markerKey!)}:${!!applied.emitterKeys?.has(section.dataset.shadeKey!)}`;
+    if (shading === 1 && canvas.dataset.stage === 'shading' && canvas.dataset.lampApplied) canvas.dataset.lampRendered = canvas.dataset.lampApplied;
+  };
+}
 createRoot(document.getElementById('root')!).render(query.has('lamp-glass') ? <GlassLampFixture /> : scalar ? <ScalarFixture mode={scalar} /> : query.has('lamps') ? <LampFixture /> : <Fixture />);

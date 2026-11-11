@@ -8189,8 +8189,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-visual/main.tsx",
       "mode": "100644",
-      "bytes": 14819,
-      "sha256": "d391a3dfe6faba5f2dc3e26d1f302db9f2048edecd28bcd63faec45bf28b87ed",
+      "bytes": 15855,
+      "sha256": "13c777e5cc17add6dd9f0429359f1788bdc6712e4d473a3c8dee42bccce62dd8",
       "owner": "web"
     },
     {
@@ -8231,8 +8231,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 36811,
-      "sha256": "43ba1fa72bd0537b6c6324510f6f0e046cbe3d36b9cd9427dd6fe6b8399d91af",
+      "bytes": 37883,
+      "sha256": "fbcf08b2004651aa236993b5479d9dfc2490061db3ae68758ee7ba6385eff4b1",
       "owner": "web"
     },
     {
