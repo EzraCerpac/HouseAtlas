@@ -6649,8 +6649,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 15747,
-      "sha256": "f4c6190a7af5f6d3db86d27bc8a0ec6734f2ddd3fa307ec7dd3ffabff1e763c2",
+      "bytes": 16311,
+      "sha256": "945d0f575bc5d4024819d77f480c2964b494e1de80c43578d1eb1bd34fe4f022",
       "owner": "web"
     },
     {
@@ -7671,8 +7671,8 @@
     {
       "path": "frontend/example/household.ts",
       "mode": "100644",
-      "bytes": 5677,
-      "sha256": "5fc1a4ac5e85887ee3e5d25c88cb120175842148834a69e799bc89faa54ad036",
+      "bytes": 7053,
+      "sha256": "0c1fee0fe6f456dbc3ae578da8b75b4b5613b31b4f462cce66817132f557404b",
       "owner": "web"
     },
     {
@@ -13327,8 +13327,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 65153,
-      "sha256": "2a558970bc6c783272c58f03e6d51f428080f96a98e9f5ace63adbc54e6095fa",
+      "bytes": 66813,
+      "sha256": "2696da3a68f0808248ffd3947da0d5c84e058c6e53632a218d4f987f529c2003",
       "owner": "web"
     },
     {

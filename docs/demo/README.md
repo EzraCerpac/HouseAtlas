@@ -61,9 +61,10 @@ Its Home records are derived in the page from that publication
 (`frontend/example/household.ts`): one place per building with floors, per
 floor and per room with a selectable part, with the Atlas names and nesting.
 A room on several floors sits under the floor of its first selectable part.
-Home and Atlas therefore show one household; Home has places only, no
-inventory items. Its HomeBox copy is stale (retrieved 3 January 2026) and
-each place's source update time is unknown. Every label, identifier,
+Home and Atlas therefore show one household. Three fictional belongings have
+source parents in those rooms; that hierarchy does not establish reviewed
+physical placement. The read-only HomeBox copy is stale (retrieved 3 January
+2026) and each record's source update time is unknown. Every label, identifier,
 coordinate and date is invented.
 The home name, shown on every screen, is *Synthetic example house*.
 
@@ -143,6 +144,8 @@ receipt it writes:
 | --- | --- |
 | `example-house.png` | The example page at 1280 × 800, opened with `?building=syn-building-house`, after its first 3D draw. |
 | `example-house-state.png` | The direct link above: Stairs on the upper floor, in Plan. |
+| `example-inventory-list.png` | Fictional belongings in the unplaced list. |
+| `example-inventory-detail.png` | The reading lamp's read-only detail and source hierarchy. |
 | `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
 | `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
 
@@ -176,6 +179,8 @@ Before the screenshot the same run:
   and the room remain (the reopened read carries a new start array); opens a link with a mismatched floor and room and an unknown view
   and checks only its building applied; then checks that Rooms & places lists
   the publication's buildings, floors and rooms with a stale HomeBox cache.
+- checks the fictional belongings list and opens the reading lamp detail,
+  including its stale source hierarchy, unreviewed placement and disabled edit.
 
 `capture.json` records the example entry, file hashes, the `lantern-tests`
 diagnostics, the storage results, the Back path Chromium took (back/forward-cache
@@ -190,10 +195,12 @@ storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
 inventory editing, HomeBox or Network sources, native documents or sign-in.
+The example supplies no topology client or geometry metadata source;
+the corresponding building-record and geometry-metadata warnings remain visible.
 The starting-state checks use fresh reads only: the example has no stored
 copy, so a stored copy shown first is covered only by the pure ledger
 controls in `frontend/lantern-tests/unified-atlas-start-healthy.mjs`, which
-mount no React tree and are not yet on the healthy runner list. The example's
+mount no React tree and are on the healthy runner list. The example's
 coverage of #591 is not complete.
 
 ## Reproduce
