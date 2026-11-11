@@ -1,5 +1,20 @@
 # HouseAtlas
 
+Scoped repair donor #590 903ad712 is composed with electrical closure ac03072e.
+The source diff contains two formatting-only Rust edits, an exact fixture boundary
+correction and five wait-predicate changes. Retained Linux diagnostics named cargo
+fmt and suggestion_inputs_healthy.rs; the MCP formatting edit was found by the
+repair writer's earlier formatter, not a separate hosted diagnostic. The numeric
+fixture now ends at its closing brace before generated electrical statements.
+
+The loopback poll now waits for the already-required successful completion of
+every topology command. Existing later assertions, timeouts and diagnostics stay
+intact. A possible replacement-read gap is an interpretation of canceled reads,
+not proof: recorded rows span viewer-login rather than the latest binding epoch.
+No browser cases are removed; 80 SOURCE / 1 BUILD / 7 BROWSER, workflows, budgets
+and security settings are unchanged. All source changes require new exact-head
+hosted qualification; no local compiler, formatter, test or browser ran.
+
 Bounded Stock dependency closure composes exact ac03072e (three commits atop
 c6d71046). Only selected identity/semantics/circuit payload.evidenceIds and explicit
 root pins are followed, preserving exact numbers, revisions and unknowns. Missing,
