@@ -754,3 +754,147 @@ test('shared proposed-field source contract preserves raw multiline edits and ex
   assert.equal(suggestionFieldTextLimit('inventory', 'tags'), 4145);
   assert.equal(suggestionFieldTextLimit('document', 'document-class'), 4096);
 });
+
+test('completed displayed inspection remains owned until dismissal or disposal', async () => {
+  for (const ending of ['dismiss', 'dispose']) {
+    const s = setup(); await s.controller.inspectSource('source-1');
+    const signal = s.inspected[0].signal;
+    assert.equal(signal.aborted, false); assert.equal(s.controller.getSnapshot().phase, 'reviewing');
+    assert.equal(s.controller.editField('category', 'Still editable'), true);
+    s.controller[ending]();
+    assert.equal(signal.aborted, true); assert.equal(s.controller.getSnapshot().view, null);
+    s.controller.dispose();
+  }
+});
+test('completed displayed inspection is cancelled by notified and observed context or availability loss', async () => {
+  for (const notify of [true, false]) for (const change of ['context', 'availability']) {
+    const s = setup(); await s.controller.inspectSource('source-1');
+    const signal = s.inspected[0].signal;
+    s.set({ ...s.current(), ...(change === 'context' ? { context: {} } : { availability: 'offline' }) }, notify);
+    const state = s.controller.getSnapshot();
+    assert.equal(signal.aborted, true);
+    assert.equal(state.phase, change === 'context' ? 'superseded' : 'unavailable');
+    assert.equal(s.intents.length, 0); s.controller.dispose();
+  }
+});
+test('later inspection replaces displayed cancellation ownership without keeping review busy', async () => {
+  const s = setup(); await s.controller.inspectSource('source-1');
+  const first = s.inspected[0].signal;
+  await s.controller.inspectSource('source-1');
+  const second = s.inspected[1].signal;
+  assert.equal(first.aborted, true); assert.equal(second.aborted, false);
+  assert.equal(s.controller.selectField('category', true), true);
+  s.controller.dismiss(); assert.equal(second.aborted, true); s.controller.dispose();
+});
+test('later review retires displayed inspection before its source check and delivers once', async () => {
+  const s = setup(); await s.controller.inspectSource('source-1');
+  const signal = s.inspected[0].signal;
+  s.ports.recheck = async () => { assert.equal(signal.aborted, true); return 'current'; };
+  assert.equal(s.controller.selectField('category', true), true);
+  await s.controller.decide('accept-for-review');
+  assert.equal(s.intents.length, 1); assert.equal(s.controller.getSnapshot().phase, 'sent');
+  await s.controller.decide('accept-for-review'); assert.equal(s.intents.length, 1); s.controller.dispose();
+});
+test('failed inspection retires partial display while subsequent inspection keeps independent ownership', async () => {
+  let firstSignal;
+  const s = setup({}, { inspectSource: async (_view, _source, signal) => {
+    firstSignal = signal; throw new Error('Generated partial inspection failure');
+  } });
+  await s.controller.inspectSource('source-1');
+  assert.equal(firstSignal.aborted, true); assert.equal(s.controller.getSnapshot().phase, 'reviewing');
+  s.ports.inspectSource = async (_view, _source, signal) => { s.inspected.push({ signal }); };
+  await s.controller.inspectSource('source-1');
+  assert.equal(s.inspected[0].signal.aborted, false);
+  s.controller.dispose(); assert.equal(s.inspected[0].signal.aborted, true);
+});
+
+test('terminal cancellation fences synchronous abort-listener inspection reentry before retiring display', async () => {
+  for (const ending of ['dismiss', 'dispose']) {
+    const signals = [], reentries = [];
+    let s;
+    s = setup({}, { inspectSource: async (_view, _source, signal) => {
+      signals.push(signal);
+      signal.addEventListener('abort', () => { reentries.push(s.controller.inspectSource('source-1')); }, { once: true });
+    } });
+    await s.controller.inspectSource('source-1');
+    s.controller[ending](); await Promise.all(reentries);
+    assert.equal(signals.length, 1, 'Abort callback must not dispatch another inspection');
+    assert(signals.every(signal => signal.aborted));
+    assert.equal(s.controller.getSnapshot().phase, 'closed');
+    assert.equal(s.controller.getSnapshot().view, null);
+    s.controller.dispose();
+  }
+});
+test('nonterminal inspection retirement blocks synchronous abort-listener reentry while retaining its successor', async () => {
+  const signals = [], reentries = [];
+  let s;
+  s = setup({}, { inspectSource: async (_view, _source, signal) => {
+    signals.push(signal);
+    signal.addEventListener('abort', () => { reentries.push(s.controller.inspectSource('source-1')); }, { once: true });
+  } });
+  await s.controller.inspectSource('source-1');
+  await s.controller.inspectSource('source-1'); await Promise.all(reentries);
+  assert.equal(signals.length, 2, 'Only the explicit replacement may open');
+  assert.equal(signals[0].aborted, true); assert.equal(signals[1].aborted, false);
+  assert.equal(s.controller.getSnapshot().phase, 'reviewing');
+  s.controller.dispose(); await Promise.all(reentries);
+  assert.equal(signals.length, 2); assert(signals.every(signal => signal.aborted));
+});
+
+test('terminal close from inspection abort remains closed through context and availability retirement', async () => {
+  for (const ending of ['dismiss', 'dispose']) for (const notify of [true, false]) for (const change of ['context', 'availability']) {
+    let s, inspectionSignal;
+    s = setup({}, { inspectSource: async (_view, _source, signal) => {
+      inspectionSignal = signal;
+      signal.addEventListener('abort', () => s.controller[ending](), { once: true });
+    } });
+    await s.controller.inspectSource('source-1');
+    s.set({ ...s.current(), ...(change === 'context' ? { context: {} } : { availability: 'offline' }) }, notify);
+    const retired = s.controller.getSnapshot();
+    assert.equal(inspectionSignal.aborted, true);
+    assert.equal(retired.phase, 'closed', `${ending}/${notify}/${change}`);
+    assert.equal(retired.view, null);
+    assert.equal(s.controller.getSnapshot().phase, 'closed', 'Outer retirement cannot overwrite terminal state');
+    s.controller.dispose();
+  }
+});
+
+test('observed offline loss retires pending inspection even when abort resolves normally and permits recovery', async () => {
+  let inspectionSignal;
+  const s = setup({}, { inspectSource: (_view, _source, signal) => {
+    inspectionSignal = signal;
+    return new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+  } });
+  const opening = s.controller.inspectSource('source-1');
+  assert.equal(s.controller.getSnapshot().phase, 'inspecting');
+  s.set({ ...s.current(), availability: 'offline' }, false);
+  assert.equal(s.controller.getSnapshot().phase, 'unavailable');
+  assert.equal(inspectionSignal.aborted, true); await opening;
+  s.set({ ...s.current(), availability: 'ready' }, false);
+  assert.equal(s.controller.getSnapshot().phase, 'reviewing');
+  assert.equal(s.controller.editField('category', 'Recovered edit'), true);
+  const signals = [];
+  s.ports.inspectSource = async (_view, _source, signal) => { signals.push(signal); };
+  await s.controller.inspectSource('source-1');
+  assert.equal(signals.length, 1); assert.equal(signals[0].aborted, false);
+  assert.equal(s.controller.getSnapshot().phase, 'reviewing'); assert.equal(s.intents.length, 0);
+  s.controller.dispose(); assert.equal(signals[0].aborted, true);
+});
+test('observed offline loss cancels pending review checking without consuming or delivering an intent', async () => {
+  let checkingSignal;
+  const s = setup({}, { recheck: (_view, signal) => {
+    checkingSignal = signal;
+    return new Promise(resolve => signal.addEventListener('abort', () => resolve('current'), { once: true }));
+  } });
+  s.controller.selectField('category', true);
+  const deciding = s.controller.decide('accept-for-review');
+  assert.equal(s.controller.getSnapshot().phase, 'checking');
+  s.set({ ...s.current(), availability: 'offline' }, false);
+  assert.equal(s.controller.getSnapshot().phase, 'unavailable'); assert.equal(checkingSignal.aborted, true);
+  await deciding; assert.equal(s.intents.length, 0);
+  s.set({ ...s.current(), availability: 'ready' }, false);
+  assert.equal(s.controller.getSnapshot().phase, 'reviewing');
+  s.ports.recheck = async () => 'current';
+  await s.controller.decide('accept-for-review'); assert.equal(s.intents.length, 1);
+  s.controller.dispose();
+});

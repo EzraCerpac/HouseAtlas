@@ -244,6 +244,24 @@ function homeboxView(attachments = [{ attachmentId: uuid(42), byteSize: String(p
       contentType: 'application/pdf', byteSize: row.byteSize ?? null, downloadHref: null, previewHref: null })),
   }] };
 }
+// Synthetic authenticated discovery port: installed-source DATA is selected
+// only from this generated view; it never grants the original transport access.
+function currentPinnedFiles(view, discover = null) {
+  const binding = {}, calls = [];
+  const sources = view.entries.filter(entry => entry.source.sourceKind === 'homebox-entity')
+    .map(entry => ({ ...view.scope, key: { ...entry.source } }));
+  let current = binding;
+  const port = {
+    getBindingIdentity: () => current,
+    getBindingScope: identity => identity === current && identity === binding ? view.scope : null,
+    async discover(identity, signal) {
+      assert.equal(identity, binding); assert.equal(signal.aborted, false); calls.push(identity);
+      return discover ? discover(identity, signal) : { schemaVersion: 1, scope: view.scope,
+        revision: 'generated-discovery-only', installedSources: sources };
+    },
+  };
+  return { ...port, calls, retire() { current = null; } };
+}
 function facts(request, bytes = pdf, overrides = {}) {
   return { schemaVersion: 1, requestId: request.requestId, observationId: crypto.randomUUID(),
     scope: { ...request.context, sourceInstanceId: request.target.sourceInstanceId, collectionId: request.target.collectionId },
@@ -443,7 +461,7 @@ test('automatic HomeBox pass rechecks enablement, view retirement and abort afte
     const owner = { ...f.owner, read: { ...f.owner.read, homeboxStatus: async () => { startedStatus(); return pending; } },
       retainHomeboxOriginal: async () => { retains++; return { status: 'ok' }; } };
     try {
-      const pass = fillOfflineHomeboxOriginals({ owner, view: f.state.view, current: () => current, enabled: () => enabled, signal: controller.signal });
+      const pass = fillOfflineHomeboxOriginals({ owner, view: f.state.view, pinnedFiles: currentPinnedFiles(f.state.view), current: () => current, enabled: () => enabled, signal: controller.signal });
       await started;
       if (stop === 'disabled') enabled = false;
       else if (stop === 'retired') current = false;
@@ -467,14 +485,14 @@ test('automatic HomeBox pass skips unknown sizes, keeps held files, stops on unc
     return { facts: facts(request) };
   }), view);
   try {
-    const pass = () => fillOfflineHomeboxOriginals({ owner: f.owner, view, current: () => true, enabled: () => true, signal: signal() });
+    const pass = () => fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles: currentPinnedFiles(view), current: () => true, enabled: () => true, signal: signal() });
     const first = await pass();
     assert.equal(first.complete, false); assert.match(first.message, /uncertain/);
     assert.deepEqual(f.server.calls.map(call => call.target.resourceId), [uuid(42), uuid(44)]);
     const second = await pass();
     assert.deepEqual(f.server.calls.map(call => call.target.resourceId), [uuid(42), uuid(44), uuid(45)], 'held and sent files are not read again');
     assert.match(second.message, /2 HomeBox files on this device; 1 unavailable; 1 without a usable size/);
-    const disabled = await fillOfflineHomeboxOriginals({ owner: f.owner, view, current: () => true, enabled: () => false, signal: signal() });
+    const disabled = await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles: currentPinnedFiles(view), current: () => true, enabled: () => false, signal: signal() });
     assert.equal(disabled.complete, false); assert.equal(f.server.calls.length, 3);
   } finally { f.owner.close(); }
   const big = homeboxView([{ attachmentId: uuid(42), byteSize: String(10_485_760) }]);
@@ -484,9 +502,74 @@ test('automatic HomeBox pass skips unknown sizes, keeps held files, stops on unc
     assert(budget > 10_485_760 / 0.8, 'default budget leaves room; refusal below uses an oversized hint set');
     const many = homeboxView(Array.from({ length: 25 }, (_, i) => ({ attachmentId: uuid(100 + i), byteSize: String(10_485_760) })));
     g.state = { ...g.state, view: many };
-    const refused = await fillOfflineHomeboxOriginals({ owner: g.owner, view: many, current: () => true, enabled: () => true, signal: signal() });
+    const refused = await fillOfflineHomeboxOriginals({ owner: g.owner, view: many, pinnedFiles: currentPinnedFiles(many), current: () => true, enabled: () => true, signal: signal() });
     assert.match(refused.message, /exceed the automatic storage budget/); assert.equal(g.server.calls.length, 0);
   } finally { g.owner.close(); }
+});
+
+test('automatic HomeBox pass leaves absent installed sources unsent and unspent', async () => {
+  const f = await homeboxSetup(), view = f.state.view;
+  const pinnedFiles = currentPinnedFiles(view, async () => ({ schemaVersion: 1, scope: view.scope,
+    revision: 'generated-no-installed-source', installedSources: [] }));
+  try {
+    const result = await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles,
+      current: () => true, enabled: () => true, signal: signal() });
+    assert.equal(result.complete, false); assert.match(result.message, /No current enumerable/);
+    assert.equal(pinnedFiles.calls.length, 1); assert.equal(f.server.calls.length, 0);
+    assert.equal(f.owner.homeboxSent(ref()), false);
+    assert.equal((await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles: currentPinnedFiles(view),
+      current: () => true, enabled: () => true, signal: signal() })).complete, true);
+    assert.equal(f.server.calls.length, 1, 'later exact installed source can still send its first original');
+  } finally { f.owner.close(); }
+});
+
+test('automatic HomeBox pass requires every installed-source selector field to match', async () => {
+  for (const change of [source => ({ ...source, workspaceId: uuid(90) }), source => ({ ...source, homeId: uuid(90) }),
+    source => ({ ...source, key: { ...source.key, sourceInstanceId: uuid(90) } }),
+    source => ({ ...source, key: { ...source.key, collectionId: 'other-collection' } }),
+    source => ({ ...source, key: { ...source.key, sourceKind: 'network-entity' } }),
+    source => ({ ...source, key: { ...source.key, externalId: uuid(90) } })]) {
+    const f = await homeboxSetup(), view = f.state.view;
+    try {
+      const source = { ...view.scope, key: { ...view.entries[0].source } };
+      const pinnedFiles = currentPinnedFiles(view, async () => ({ schemaVersion: 1, scope: view.scope,
+        revision: 'generated-mismatched-source', installedSources: [change(source)] }));
+      const result = await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles,
+        current: () => true, enabled: () => true, signal: signal() });
+      assert.equal(result.complete, false); assert.equal(f.server.calls.length, 0);
+      assert.equal(f.owner.homeboxSent(ref()), false);
+    } finally { f.owner.close(); }
+  }
+});
+
+test('automatic HomeBox pass retires a discovery result from a replaced binding before claiming originals', async () => {
+  const f = await homeboxSetup(), view = f.state.view;
+  let resolveDiscovery, startedDiscovery;
+  const pending = new Promise(resolve => { resolveDiscovery = resolve; });
+  const started = new Promise(resolve => { startedDiscovery = resolve; });
+  const pinnedFiles = currentPinnedFiles(view, async () => { startedDiscovery(); return pending; });
+  try {
+    const pass = fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles,
+      current: () => true, enabled: () => true, signal: signal() });
+    await started; pinnedFiles.retire();
+    resolveDiscovery({ schemaVersion: 1, scope: view.scope, revision: 'generated-late-discovery',
+      installedSources: [{ ...view.scope, key: { ...view.entries[0].source } }] });
+    const result = await pass;
+    assert.equal(result.complete, false); assert.match(result.message, /retired/);
+    assert.equal(f.server.calls.length, 0); assert.equal(f.owner.homeboxSent(ref()), false);
+  } finally { f.owner.close(); }
+});
+
+test('automatic HomeBox discovery errors stop without original transport or a spent claim', async () => {
+  const f = await homeboxSetup(), view = f.state.view;
+  const pinnedFiles = currentPinnedFiles(view, async () => { throw new TypeError('Generated discovery failure'); });
+  try {
+    const result = await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles,
+      current: () => true, enabled: () => true, signal: signal() });
+    assert.equal(result.complete, false); assert.match(result.message, /source-unavailable/);
+    assert.equal(pinnedFiles.calls.length, 1); assert.equal(f.server.calls.length, 0);
+    assert.equal(f.owner.homeboxSent(ref()), false);
+  } finally { f.owner.close(); }
 });
 
 test('concurrent HomeBox retains for one session and association send exactly once', async () => {

@@ -727,7 +727,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 78 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-nine controller and twenty-five disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 80 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -4624,3 +4624,36 @@ in hosted job130146474925 (354 passed, zero failed); that does not qualify this
 new composed head, in-flight withdrawal, device acceptance or runtime authority.
 Existing Chromium sandbox launch failures remain unresolved; no sandbox/security
 setting, credential, provider, activation or deployment change is made here.
+
+
+The follow-up composition preserves selected-input donor #586 `4cf41d52`,
+inspection donor #587 `8584ee97`, manual native-handoff donor #585 `0d18454b`
+and partial electrical reader #584 `9a8e32fc`. The backend module is now
+registered, discovering ten authored selected-input controls. The frontend
+runner adds the existing 22 inspection and 11 handoff controls: 80 SOURCE,
+1 BUILD and 7 BROWSER selections. Ten new controller controls bring its
+suite to 59, preserving displayed inspection cancellation after opening and
+terminal/replacement abort reentrancy fences. These new controls are NOT RUN.
+
+Automatic HomeBox-original reads now require the existing authenticated
+pinned-source discovery's exact scope/source/collection/entity selection and
+still-current binding. Cached attachment metadata alone cannot trigger an
+unconfigured original GET. Native catalog or incomplete native-pass failures
+stop source composition before HomeBox; all original assertions remain.
+Four discovery controls and a native/root stop group are authored, NOT RUN.
+
+These are reusable source functions, not an application/root suggestion mount.
+Authenticated selected inputs retain only assertions/metadata, not Content;
+positive document-content classification/linking remains unavailable. Opaque
+collection selectors retain their spelling, while downstream UUID-only wire
+and canonical target admission can still refuse them. Inspection original maps
+must come from a genuine owner; manual handoff navigates only via independently
+verified nativeLink, never applies or approves. Partial electrical inputs supply
+identity/location only, not circuit/evidence/electrical-review authority.
+
+The preceding b19e7d91 candidate passed hosted backend, both source platforms,
+ordinary-core, capture and performance jobs but failed frontend and all three
+loopbacks. Raw artifact/job downloads returned Forbidden and remain stopped;
+no log cause is inferred from exit-code annotations. This new source requires
+its own automatic hosted execution; no local build/test/compiler/formatter,
+security change, new lane, live inference/provider, activation or deployment.

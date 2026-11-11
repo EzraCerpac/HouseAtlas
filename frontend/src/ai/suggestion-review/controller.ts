@@ -216,6 +216,14 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
       selected: false, title: task.title, interval: intervalDraft(task.interval), conditions: Object.freeze([...task.conditions]),
       urgency: task.urgency, valid: true, edited: false }))) });
   let disposed = false, consumed = false, active: AbortController | null = null, sequence = 0;
+  // Opening work may finish while its frame/text/URL remains displayed. Keep
+  // cancellation ownership separately from the busy operation slot.
+  let displayedInspection: AbortController | null = null, cancelling = false;
+  const retireInspection = () => {
+    const previous = displayedInspection; displayedInspection = null;
+    const alreadyCancelling = cancelling; cancelling = true;
+    try { previous?.abort(); } finally { cancelling = alreadyCancelling; }
+  };
   let resumePhase: 'reviewing' | 'stale' = initiallyStale ? 'stale' : 'reviewing';
   let held: SuggestionReviewSnapshot | null = null, heldAvailability = '';
   const current = () => {
@@ -225,7 +233,18 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   };
   const snapshot = (): SuggestionReviewSnapshot => {
     if (disposed || state.phase === 'closed') return closed;
-    const now = current(); if (!now) return superseded;
+    const now = current();
+    if (!now) {
+      cancel();
+      if (disposed || isClosed()) return closed;
+      state = superseded; return superseded;
+    }
+    if (now.availability !== 'ready') {
+      cancel();
+      if (disposed || isClosed()) return closed;
+      if (state.phase === 'checking' || state.phase === 'inspecting')
+        state = Object.freeze({ ...state, phase: resumePhase, message: 'Review paused. Check availability before continuing.' });
+    }
     if (now.availability !== 'ready' && !consumed) {
       if (!held || heldAvailability !== now.availability || held.fields !== state.fields || held.maintenance !== state.maintenance) {
         heldAvailability = now.availability;
@@ -239,10 +258,17 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   const publish = (phase: SuggestionReviewPhase, message: string) => { state = Object.freeze({ ...state, phase, message }); held = null; emit(); };
   // Read live phase after owner awaits; dismissal/subscribers can replace state.
   const isClosed = (): boolean => state.phase === 'closed';
-  const ready = () => !disposed && !consumed && current()?.availability === 'ready' && state.phase !== 'closed';
-  const cancel = () => { sequence++; active?.abort(); active = null; };
+  const ready = () => !disposed && !consumed && !cancelling && current()?.availability === 'ready' && state.phase !== 'closed';
+  const cancel = () => {
+    sequence++; const previous = active; active = null;
+    const alreadyCancelling = cancelling; cancelling = true;
+    try { retireInspection(); previous?.abort(); } finally { cancelling = alreadyCancelling; }
+  };
   const unsubscribe = ports.subscribe(() => {
-    if (!current()) { cancel(); state = superseded; }
+    if (!current()) {
+      cancel();
+      if (!disposed && !isClosed()) state = superseded;
+    }
     else if (current()?.availability !== 'ready' && !consumed) {
       cancel();
       if (state.phase === 'checking' || state.phase === 'inspecting')
@@ -295,8 +321,10 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
       const source = view.sources.find(s => s.key === key);
       if (!ready() || active || !source || source.original !== 'available'
         || !['reviewing', 'stale'].includes(state.phase)) return;
+      retireInspection();
+      if (!ready() || active || !['reviewing', 'stale'].includes(state.phase)) return;
       const previous = state.phase; resumePhase = previous === 'stale' ? 'stale' : 'reviewing';
-      const operation = ++sequence, controller = new AbortController(); active = controller;
+      const operation = ++sequence, controller = new AbortController(); active = controller; displayedInspection = controller;
       publish('inspecting', 'Opening the exact source through its owner.');
       try {
         if (!ready() || controller.signal.aborted || sequence !== operation) return;
@@ -304,14 +332,20 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
         if (!ready() || controller.signal.aborted || sequence !== operation) return;
         publish(previous, 'Source inspection finished.');
       } catch {
-        if (ready() && !controller.signal.aborted && sequence === operation) publish(previous, 'The source could not be opened.');
-      } finally { if (sequence === operation) active = null; }
+        if (displayedInspection === controller) retireInspection();
+        if (ready() && sequence === operation) publish(previous, 'The source could not be opened.');
+      } finally {
+        if ((!ready() || sequence !== operation) && displayedInspection === controller) retireInspection();
+        if (sequence === operation) active = null;
+      }
     },
     async decide(action: 'accept-for-review' | 'reject') {
       if (!['accept-for-review', 'reject'].includes(action) || !editable() || (action === 'accept-for-review' && !state.fields.some(f => f.selected) && !state.candidateKeys.length && !state.maintenance.some(task => task.selected))) return;
       if (action === 'accept-for-review' && state.maintenance.some(task => task.selected && !task.valid)) {
         publish('reviewing', 'Complete the selected maintenance titles, intervals and conditions before review.'); return;
       }
+      retireInspection();
+      if (!editable()) return;
       const operation = ++sequence, controller = new AbortController(); active = controller; publish('checking', 'Checking the current source selection.');
       try {
         if (!ready() || controller.signal.aborted || sequence !== operation) return;
@@ -342,8 +376,8 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
       } finally { if (sequence === operation) active = null; }
     },
     /** Local dismissal only: no inference, persistence or source callback. */
-    dismiss() { if (disposed || state.phase === 'closed') return; cancel(); state = closed; emit(); },
-    dispose() { if (disposed) return; cancel(); disposed = true; try { unsubscribe(); } finally { state = closed; emit(); listeners.clear(); } },
+    dismiss() { if (disposed || state.phase === 'closed') return; state = closed; cancel(); emit(); },
+    dispose() { if (disposed) return; disposed = true; state = closed; cancel(); try { unsubscribe(); } finally { state = closed; emit(); listeners.clear(); } },
   };
 }
 export type SuggestionReviewController = ReturnType<typeof createSuggestionReviewController>;

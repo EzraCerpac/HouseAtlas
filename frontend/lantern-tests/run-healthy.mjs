@@ -21,6 +21,8 @@ const SOURCE = [
   node('healthy-read.mjs'),
   node('ai-suggestion-review.test.mjs'),
   node('ai-suggestion-adapter.test.mjs'),
+  node('ai-suggestion-inspection.test.mjs'),
+  node('ai-native-handoff.test.mjs'),
   node('canonical-geometry.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
   node('electricity-overlay-read.mjs'),

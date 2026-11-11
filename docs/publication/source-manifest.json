@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 74112,
-      "sha256": "9ae8bd5a92cf7473049376e71aa6116b9234b44f22ad4a490d8eb9bca543fdfe",
+      "bytes": 76254,
+      "sha256": "b415abe7246084b8136b4168bd6ff74fd7600bae55828b7dc068cbc16da38983",
       "owner": "core-integration"
     },
     {
@@ -2624,8 +2624,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 25144,
-      "sha256": "cf97ca13b4589f60f48c9751bf722cef9e0acd9cef9e7776103ef211becf4b38",
+      "bytes": 25171,
+      "sha256": "b7b9952bb1cd0a2e64a42a9f308cb6d4732b64a72cd355d2b8c821da2cf9500b",
       "owner": "core-integration"
     },
     {
@@ -2850,6 +2850,20 @@
       "mode": "100644",
       "bytes": 35508,
       "sha256": "e01ee729e0476716db298ccf28afc9e002c48e010855657df61e42fc0e994110",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/suggestion_inputs.rs",
+      "mode": "100644",
+      "bytes": 25656,
+      "sha256": "79c64093bd17638641fe253ecdf0e231de0b5dc3becfc2c092f6b3f7e98b0d56",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/suggestion_inputs_healthy.rs",
+      "mode": "100644",
+      "bytes": 20858,
+      "sha256": "e32e9b472de28f3465a020cb6e316ea277f4e376722ba6cadee56f1fd9c50c1a",
       "owner": "core-integration"
     },
     {
@@ -6600,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 298162,
-      "sha256": "3708bf74cf34880b4b972586158acb21090933208b1cfee97153be88c2f9b413",
+      "bytes": 300364,
+      "sha256": "508cb47e5ee60c65c023f5081b57fac7e75f55fa16f6df131dc5cf9d4e91eab1",
       "owner": "core-integration"
     },
     {
@@ -7328,15 +7342,15 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
       "mode": "100644",
-      "bytes": 232479,
-      "sha256": "114c073bad03d5859636164f0b9bddc45ecb1001044622a879b940e581ae0035",
+      "bytes": 232641,
+      "sha256": "56db69b254860b03d7426458e129a793d7b6cdf39ab6f6e6b33eb34e836cafe7",
       "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
       "mode": "100644",
-      "bytes": 15387,
-      "sha256": "0bbd95fa2fc80cb9e905bda4619ff7575049bf1b3bf190ccb87fac96b63ab3c1",
+      "bytes": 15707,
+      "sha256": "e9e3b1b0ee5744c2412400b6311a53c6e13195788cdbf35415368eb20565240b",
       "owner": "mcp"
     },
     {
@@ -7692,8 +7706,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 49289,
-      "sha256": "5d217c9b65a823fa05766bc07222cde1baf3174328bd462bb7cb39f63e5dbe14",
+      "bytes": 49433,
+      "sha256": "00f59489ead70d8926e44853855ae25db08d78bbd055c57fe6a99c0deba1a261",
       "owner": "core-integration"
     },
     {
@@ -7804,8 +7818,8 @@
     {
       "path": "frontend/integration/offline-homebox-policy.ts",
       "mode": "100644",
-      "bytes": 4703,
-      "sha256": "08463cf820874e8124a0c6136b34f092214cbd5715f689ff7507938b0f5fa39d",
+      "bytes": 6536,
+      "sha256": "bb0de5b1582e40c3f5f5948c263cb8fdf00a977b642b3f0c1fa9b724a50a8845",
       "owner": "core-integration"
     },
     {
@@ -7818,8 +7832,8 @@
     {
       "path": "frontend/integration/offline-library-policy.ts",
       "mode": "100644",
-      "bytes": 3177,
-      "sha256": "f2faab098c8cd237bda18035b2d1c81996210161b35f02906870e3109cbf2198",
+      "bytes": 3164,
+      "sha256": "7859d7ba52cfe283d2ee00cde5baced1f709c8263e1f07f722ee8a3429563e5a",
       "owner": "core-integration"
     },
     {
@@ -7963,6 +7977,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ai-native-handoff.test.mjs",
+      "mode": "100644",
+      "bytes": 15417,
+      "sha256": "a70fa2a9cb1acbf19c873956d79afcdf89dd52220ff2d0277914970ef03330b3",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
       "bytes": 34507,
@@ -7970,10 +7991,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ai-suggestion-inspection.test.mjs",
+      "mode": "100644",
+      "bytes": 21211,
+      "sha256": "206f898a8db8ffda215544a777a185af3e9c9e205cdd0f5407fe993f10e93be8",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/ai-suggestion-review.test.mjs",
       "mode": "100644",
-      "bytes": 59077,
-      "sha256": "eb4f79d9d8414c81834a296b36dc580a564c085d4d3528d0c5500f2c1c419bd2",
+      "bytes": 67280,
+      "sha256": "221173f0779c07bcebf8815fe9ca25caee393f0d0f85676046ebc38fea8a1169",
       "owner": "web"
     },
     {
@@ -8378,8 +8406,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 49003,
-      "sha256": "9ba5127498a25b4772ada95ed256355a25c34fc0318dfe174e409648f1dff778",
+      "bytes": 54256,
+      "sha256": "6d3ee0be00b09fcc6279d5a1a8da8ff878ed1616e7de67b3966701b803133dc4",
       "owner": "web"
     },
     {
@@ -8406,8 +8434,8 @@
     {
       "path": "frontend/lantern-tests/offline-library-policy-fixture.mjs",
       "mode": "100644",
-      "bytes": 9521,
-      "sha256": "cd133dd60d83f4751e02df47a817351e884ab70b6f62ab7fc7b14f723cd42895",
+      "bytes": 10852,
+      "sha256": "754f2638087b5f05a90d5761938c791bdeb9b7a98c52c0182add4c097a3311eb",
       "owner": "web"
     },
     {
@@ -8525,8 +8553,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6587,
-      "sha256": "982e1061772e04356f76b91a2ac9effd02d4808637e550e1b26d45fc2b0eedbf",
+      "bytes": 6670,
+      "sha256": "b32a642ad828fb47e57eefb27fe45e92721c129985973247e7a9c0f3c7c41697",
       "owner": "web"
     },
     {
@@ -9167,10 +9195,31 @@
       "owner": "ai"
     },
     {
+      "path": "frontend/src/ai/suggestion-adapter/inspection-owner.ts",
+      "mode": "100644",
+      "bytes": 18202,
+      "sha256": "4104d2144d8071434dbdb5f4860757ca50b4b3e4f66437e3a824cfa9811eaa4f",
+      "owner": "ai"
+    },
+    {
       "path": "frontend/src/ai/suggestion-adapter/mount.tsx",
       "mode": "100644",
       "bytes": 1204,
       "sha256": "5e4fb64da1b2e9839b7fe75527319c91cd967104488cf7720a6e3e5b291b9f38",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/native-handoff-view.tsx",
+      "mode": "100644",
+      "bytes": 1325,
+      "sha256": "934107a0f3e81d23ec5c3cdb42aa509685fea1958ef76c263cd938fcabb45093",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/native-handoff.ts",
+      "mode": "100644",
+      "bytes": 11946,
+      "sha256": "b5e4f0313e4e9fe3a7eb9539e8c7257bfc899f58c925a4b3f4c3aec9abed0774",
       "owner": "ai"
     },
     {
@@ -9197,8 +9246,8 @@
     {
       "path": "frontend/src/ai/suggestion-review/controller.ts",
       "mode": "100644",
-      "bytes": 27268,
-      "sha256": "1e9e4ca74b3420fe9c4da7276259ecd9f75b4136259b296b9799989b02643060",
+      "bytes": 28764,
+      "sha256": "d16e223d7504892c86638c7be64e35e5a10918be31eef9bda0e31c5fb20b453e",
       "owner": "ai"
     },
     {
@@ -12144,8 +12193,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 58310,
-      "sha256": "cc900a42685d4214efbc7715d397ffc01349a39096105c9be2904e38c41f4848",
+      "bytes": 58370,
+      "sha256": "4d1ca491d9fe2a3f114f64623bdbf7abd2a9fe06cc9129fc6e85086929139dde",
       "owner": "core-integration"
     },
     {

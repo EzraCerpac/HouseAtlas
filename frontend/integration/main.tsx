@@ -154,6 +154,7 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted')
     return `Library download stopped (${catalog.status}). Check held files before trying again.`;
   if (!current() || signal.aborted) return 'The live view changed.';
+  if (catalog.status !== 'ok') return 'Document list is unavailable. Automatic downloads paused until file sizes can be checked.';
   const measured = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled: () => false, signal });
   const lists = `${catalog.status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
   if (!current() || signal.aborted || !enabled()) return lists;
@@ -164,7 +165,7 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
   if (!electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
   // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
-  const homebox = await fillOfflineHomeboxOriginals({ owner, view, current, enabled, signal });
+  const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
   return `${native} ${electrical.message} ${homebox.message}`;
 }
 function LiveOfflineSettings() {

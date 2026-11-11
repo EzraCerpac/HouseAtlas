@@ -1,5 +1,38 @@
 # HouseAtlas
 
+The follow-up composition preserves selected-input donor #586 `4cf41d52`,
+inspection donor #587 `8584ee97`, manual native-handoff donor #585 `0d18454b`
+and partial electrical reader #584 `9a8e32fc`. The backend module is now
+registered, discovering ten authored selected-input controls. The frontend
+runner adds the existing 22 inspection and 11 handoff controls: 80 SOURCE,
+1 BUILD and 7 BROWSER selections. Ten new controller controls bring its
+suite to 59, preserving displayed inspection cancellation after opening and
+terminal/replacement abort reentrancy fences. These new controls are NOT RUN.
+
+Automatic HomeBox-original reads now require the existing authenticated
+pinned-source discovery's exact scope/source/collection/entity selection and
+still-current binding. Cached attachment metadata alone cannot trigger an
+unconfigured original GET. Native catalog or incomplete native-pass failures
+stop source composition before HomeBox; all original assertions remain.
+Four discovery controls and a native/root stop group are authored, NOT RUN.
+
+These are reusable source functions, not an application/root suggestion mount.
+Authenticated selected inputs retain only assertions/metadata, not Content;
+positive document-content classification/linking remains unavailable. Opaque
+collection selectors retain their spelling, while downstream UUID-only wire
+and canonical target admission can still refuse them. Inspection original maps
+must come from a genuine owner; manual handoff navigates only via independently
+verified nativeLink, never applies or approves. Partial electrical inputs supply
+identity/location only, not circuit/evidence/electrical-review authority.
+
+The preceding b19e7d91 candidate passed hosted backend, both source platforms,
+ordinary-core, capture and performance jobs but failed frontend and all three
+loopbacks. Raw artifact/job downloads returned Forbidden and remain stopped;
+no log cause is inferred from exit-code annotations. This new source requires
+its own automatic hosted execution; no local build/test/compiler/formatter,
+security change, new lane, live inference/provider, activation or deployment.
+
+
 The next composed source candidate preserves exact donors #555 `0a657eef`,
 #580 `2b28c406`, #582 `054c07c1`, #578 `3905725b`, #581 `70abbeed`
 and #583 `30081ada`. Startup remains lazy with unchanged budgets. HomeBox

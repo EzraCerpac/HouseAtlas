@@ -60,6 +60,23 @@ export async function checkOfflineLibraryPolicy() {
     assert.match(await fillOfflineLibrary(owner, signal()), /changed/); assert.deepEqual(calls, []);
     cases.push('offline-library-policy-snapshot-replacement-stops');
   }
+  {
+    for (const blocked of ['catalog', 'snapshot', 'storage', 'electrical', 'budget', 'document']) {
+      const f = fixture(); let stopped = 0;
+      if (blocked === 'catalog') f.owner.retainCatalog = async () => ({ status: 'unavailable' });
+      if (blocked === 'snapshot') f.owner.read.readLast = async () => ({ status: 'unavailable' });
+      if (blocked === 'storage') f.owner.storage.status = async () => ({ status: 'unavailable' });
+      if (blocked === 'electrical') f.owner.read.readElectricalCatalog = async () => ({ status: 'unavailable' });
+      if (blocked === 'budget') f.owner.storage.status = async () => ({ status: 'ok', value: { budgetBytes: 1 } });
+      if (blocked === 'document') {
+        f.docs.splice(0, f.docs.length, f.docs[1]); // Only this failed available original can stop the pass.
+        f.owner.retainDocument = async () => ({ status: 'unavailable' });
+      }
+      await fillOfflineLibrary(f.owner, signal(), () => true, () => { stopped++; });
+      assert.equal(stopped, 1, blocked);
+    }
+    cases.push('offline-native-incomplete-pass-reports-stop-to-source-composition');
+  }
   const model = await loadNumericSource('lantern/topology/model.ts');
   const electricalCode = stripTypeScriptTypes(readFileSync(new URL('../integration/offline-electrical-policy.ts', import.meta.url), 'utf8'))
     .replace("'../src/lantern/topology/model'", JSON.stringify(model));
@@ -107,11 +124,11 @@ export async function checkOfflineLibraryPolicy() {
   assert(start >= 0 && end > start);
   const fillCode = stripTypeScriptTypes(rootSource.slice(start, end))
     .replace(/import\('([^']+)'\)/g, (_all, name) => `loadPolicy(${JSON.stringify(name)})`);
-  for (const outcome of ['incomplete', 'uncertain', 'view-replaced', 'aborted', 'disabled', 'complete']) {
+  for (const outcome of ['incomplete', 'uncertain', 'view-replaced', 'aborted', 'disabled', 'catalog-unavailable', 'native-unavailable', 'complete']) {
     const session = {}, view = {}; let enabled = true, homebox = 0, electricalPasses = 0;
     const controller = new AbortController();
-    const context = { currentSession: session, currentReadyView: view, topology: {}, sourceElectricalLibrary: {},
-      loadPolicy: async name => name === './offline-library-policy' ? { fillOfflineLibrary: async () => 'Native complete.' }
+    const context = { currentSession: session, currentReadyView: view, topology: {}, sourceElectricalLibrary: {}, pinnedFiles: {},
+      loadPolicy: async name => name === './offline-library-policy' ? { fillOfflineLibrary: async (_owner, _signal, _enabled, stop) => { if (outcome === 'native-unavailable') stop(); return 'Native result.'; } }
         : name === './offline-homebox-policy' ? { fillOfflineHomeboxOriginals: async () => { homebox++; return { message: 'HomeBox complete.' }; } }
           : { fillOfflineElectricalLibraries: async () => {
             if (++electricalPasses === 1) return { complete: true, message: 'Measured.' };
@@ -121,9 +138,9 @@ export async function checkOfflineLibraryPolicy() {
           } },
     };
     const fill = vm.runInNewContext(fillCode + '\nfillDeviceLibrary', context);
-    await fill({ retainCatalog: async () => ({ status: 'ok' }) }, controller.signal, () => enabled);
+    await fill({ retainCatalog: async () => ({ status: outcome === 'catalog-unavailable' ? 'unavailable' : 'ok' }) }, controller.signal, () => enabled);
     assert.equal(homebox, outcome === 'complete' ? 1 : 0, outcome);
   }
-  cases.push('offline-root-homebox-follows-only-complete-current-enabled-electrical-pass');
+  cases.push('offline-root-homebox-follows-only-complete-native-electrical-current-enabled-pass');
   return cases;
 }

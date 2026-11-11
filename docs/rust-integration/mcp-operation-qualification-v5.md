@@ -162,6 +162,11 @@ actual root/reopen logic with synthetic hook/owner boundaries, not MCP execution
 All prior selections and the two sandbox-blocked cases remain. Only this pin is
 refreshed; every operation, historical evidence and qualification state is kept.
 
+The following same-runner reinspection adds two generated inspection-owner and
+manual native-handoff SOURCE selections after `b19e7d91` (80 SOURCE / 1 BUILD /
+7 BROWSER). The backend selected-input module registration adds no operation or
+route. No historical evidence is promoted and every previous selection remains.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor
