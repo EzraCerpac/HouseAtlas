@@ -28,9 +28,12 @@ const selected = process.argv[3];
 assert(CASES.includes(selected), `Select --case ${CASES.join(' | ')}`);
 const phaseStarted = performance.now();
 let phasePrevious = phaseStarted;
+const phaseHistory = [];
 const phase = label => {
   const now = performance.now();
-  console.log(`PHASE ${label} elapsed=${Math.round(now - phaseStarted)}ms since_previous=${Math.round(now - phasePrevious)}ms`);
+  const elapsed = Math.round(now - phaseStarted), delta = Math.round(now - phasePrevious);
+  phaseHistory.push(`${label}:${elapsed}`);
+  console.log(`PHASE ${label} elapsed=${elapsed}ms since_previous=${delta}ms history=${phaseHistory.join(',')}`);
   phasePrevious = now;
 };
 phase('build-start');
@@ -40,13 +43,19 @@ assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspect
 const frontend = fileURLToPath(new URL('../', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-mesh-layer-'));
 const dist = join(scratch, 'dist');
-/** Test-build-only witnesses: exact source guards, no production-file edits.
- * Calls retain original this/arguments/results/errors; hooks run only AFTER the
- * actual preparation/render returned. They do not schedule or draw a frame. */
+/** Test-build-only probe sampling and witnesses: exact source guards, no
+ * production-file edits. Witness hooks run only AFTER actual preparation/render
+ * returns; they do not schedule or draw a frame. */
 const swapWitnessPlugin = {
   name: 'generated-swap-witness', enforce: 'pre',
   transform(code, id) {
     const hooks = [
+      // This browser case checks the five report rows and redraw, not timing
+      // accuracy. Keep the shipped probe unchanged while using enough samples
+      // for both reported percentiles in this synthetic software-GPU build.
+      ['/canonical-ifc/render-probe.ts',
+        'const FRAMES = 40, WARMUP = 4;',
+        'const FRAMES = 10, WARMUP = 2;'],
       ['/canonical-ifc/MeshLayer.tsx',
         'if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);',
         `const refining = scene.render(p.projection, stale.current ? p : null, w, h, shading);
@@ -72,7 +81,7 @@ const swapWitnessPlugin = {
 
 await build({ root: frontend, configFile: false, logLevel: 'silent', plugins: [swapWitnessPlugin, react()], base: './', publicDir: false,
   build: { outDir: dist, rolldownOptions: { input: ['render-bench', 'embedded-png-material-visual'].map(page => join(frontend, `lantern-tests/${page}/index.html`)) } } });
-phase('build-finished');
+phase('build-finished-probe-10-samples-2-warmup');
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript' };
 const server = createServer((request, response) => {
