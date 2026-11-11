@@ -21,6 +21,7 @@ const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fronten
   browser: null, launchFlags: null, webgl: null, checks: [], applicationRequests: [], errors: [] };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 let browser, server, cdp, phase = 'build', exitCode = 0, stderr = '';
+const childEvents = { exit: false, close: false };
 
 class CDP {
   constructor(child) {
@@ -94,6 +95,8 @@ try {
     const flags = ['--headless=new', '--remote-debugging-pipe', `--user-data-dir=${join(scratch, 'profile')}`, 'about:blank'];
     report.launchFlags = flags.map(flag => flag.startsWith('--user-data-dir=') ? '--user-data-dir=<fresh scratch>' : flag);
     browser = spawn(executable, flags, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+    browser.once('exit', () => { childEvents.exit = true; });
+    browser.once('close', () => { childEvents.close = true; });
     browser.stderr.on('data', bytes => { stderr = (stderr + bytes.toString()).slice(-8000); });
     cdp = new CDP(browser);
     await cdp.send('Browser.getVersion');
@@ -579,5 +582,18 @@ try {
   // fit within 1024 ASCII bytes, intact (no slicing). The runner tails stdout +
   // stderr, so emit last on stderr to preserve every existing snapshot field.
   if (report.drawingGroupFailure) console.error(JSON.stringify({ drawingGroupFailure: report.drawingGroupFailure }));
+  if (storedDialogOnly && exitCode !== 0) {
+    // Fixed categories only: do not emit page text, paths, messages or stderr.
+    const status = ['running', 'blocked', 'failed', 'passed-browser-webgl', 'passed-browser-dom-rendering-unverified'].includes(report.status) ? report.status : 'other';
+    const failurePhase = phase === 'build' || phase === 'browser setup' || phase === 'interactions' ? phase
+      : phase.startsWith('stored-dialog-currentness:') ? 'stored-dialog-currentness' : 'other';
+    const name = report.error?.name;
+    const error = name == null ? null : ['AssertionError', 'Error', 'TypeError', 'RangeError'].includes(name) ? name : 'other';
+    const signal = browser?.signalCode ?? null;
+    const childSignal = signal === null || ['SIGTERM', 'SIGKILL', 'SIGINT'].includes(signal) ? signal : 'other';
+    console.error(JSON.stringify({ storedDialogFailure: { status, phase: failurePhase, error,
+      fixtureExitCode: exitCode, cleanup: report.cleanup ?? null, childEvents,
+      childExitCode: browser?.exitCode ?? null, childSignal } }));
+  }
 }
 process.exitCode = exitCode;
