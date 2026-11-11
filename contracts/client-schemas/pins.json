@@ -419,11 +419,13 @@
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_binding_review",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_binding_tombstone",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_create",
+      "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_list",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_replace",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_restore",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_circuit_tombstone",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_create",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_get",
+      "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_list",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_replace",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_restore",
       "urn:houseatlas:agent:stock:3#/$defs/result_atlas_evidence_tombstone",
@@ -478,11 +480,11 @@
       "bytes": 444478
     },
     "agent-exact.schema.json": {
-      "sha256": "d019fb220a09909bd8d397bce013c4dfd1644961af9080d34df476294940b11b",
-      "bytes": 303920
+      "sha256": "413d209484ed2db045c1aaefc1aa0fdfdd3d6eafc41a9529d37579b7070d265f",
+      "bytes": 304966
     },
     "agent-exact-pin.json": {
-      "sha256": "fad1a73d5b78d25df1118b89f8c9efd309c168836e896ba7fb2f2c97f20ab6ee",
+      "sha256": "b851d518297cd457e6196be66dd9e3f050345a0bd113c8fd125df99e1c37e0ba",
       "bytes": 67
     },
     "operation-catalog.json": {

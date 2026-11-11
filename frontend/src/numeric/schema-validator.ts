@@ -7,7 +7,7 @@ import { ExactDecimal, isExactDecimal } from './decimal';
 import type { LosslessJson } from './lossless-json';
 
 /** The only accepted result definitions. Schema and instance numbers never pass through f64. */
-export type StockResultKind = 'geometry' | 'identity' | 'binding' | 'location_semantics' | 'relation' | 'evidence';
+export type StockResultKind = 'geometry' | 'identity' | 'binding' | 'location_semantics' | 'relation' | 'evidence' | 'circuit_list' | 'evidence_list';
 const roots: Record<StockResultKind, string> = {
   geometry: 'result_atlas_geometry_list',
   identity: 'result_atlas_identity_list',
@@ -15,6 +15,8 @@ const roots: Record<StockResultKind, string> = {
   location_semantics: 'result_atlas_location_semantics_list',
   relation: 'result_atlas_relation_list',
   evidence: 'result_atlas_evidence_get',
+  circuit_list: 'result_atlas_circuit_list',
+  evidence_list: 'result_atlas_evidence_list',
 };
 // Closed Atlas write outputs from catalog SHA-256 55be83932373e63e6ef52fe9da75f0d64f1cc7c890963d19a8a77065ddc294e9.
 const mutationRoots: Readonly<Record<string, string>> = Object.freeze({

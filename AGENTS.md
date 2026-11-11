@@ -1,5 +1,17 @@
 # HouseAtlas
 
+Current bounded electrical continuation composes exact d707481f after independent
+source review. Its exact browser subset adds only circuit/evidence list result
+roots; existing definitions and original source pins, including opaque HomeBox
+collection identity, are unchanged. Numeric evidence provenance remains an
+ExactDecimal; the supplied control sends 9007199254740993 as a raw JSON integer
+through the real parser/closed validator/client/owner. No selected review or
+native association is inferred. The existing topology selection is extended,
+not a new runner/lane/workflow: 80 SOURCE / 1 BUILD / 7 BROWSER. All new controls
+remain unrun locally and require exact-head hosted execution. No host/root
+mount, private input, provider/model operation, authority or deployment is added.
+
+
 The follow-up composition preserves selected-input donor #586 `4cf41d52`,
 inspection donor #587 `8584ee97`, manual native-handoff donor #585 `0d18454b`
 and partial electrical reader #584 `9a8e32fc`. The backend module is now
@@ -527,9 +539,13 @@ loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
-The existing topology-read case also exercises a partial electrical record reader
-with synthetic identity and location-semantics records, rechecks and retirement;
-circuit, evidence and electrical review authority remain unavailable.
+The existing topology-read case exercises a partial electrical record reader
+with generated identity, location-semantics, circuit and evidence lists. It checks
+all-four snapshot equality, selected revisions, repeated reads, retirement,
+exact numeric provenance and refusal of withdrawn/disputed/superseded evidence.
+Full record/reference closure and independent electrical-review authority remain
+unavailable; the owner stays unmounted. These supplied controls are not native
+Access revocation, ongoing freshness, a verified trace or device acceptance.
 The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 (#552): the pure network route search over generated topologies, with no DOM,
 browser, native host or source reads. The same list runs

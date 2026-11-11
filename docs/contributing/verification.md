@@ -2089,10 +2089,15 @@ by source room, full ordered anchors, package key and UUID. A visible room
 action appears only while current topology membership confirms that ID in the
 selected building.
 
-The topology read case also exercises the frame-scoped partial electrical record owner
-with generated identity and location-semantics reads, stale pins, retirement and
-explicit refusal of circuit, evidence and electrical review authority. It performs
-no live reads and does not establish electrical acceptance.
+The topology read case also exercises the frame-scoped partial electrical record
+owner with generated identity/location-semantics/circuit/evidence lists, all-four
+snapshot equality, selected revision and withdrawal/refusal/retirement checks.
+Numeric evidence sourceRevision 9007199254740993 passes as an exact raw JSON integer
+through the real lossless decoder. Disputed and superseded evidence also refuse.
+Full record/reference closure and independent electrical-review authority remain
+unavailable; no source equality is promoted to ongoing freshness. The owner stays
+unmounted and does not establish a verified live trace or electrical acceptance.
+These new controls are authored, not executed locally.
 
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,
@@ -4728,3 +4733,15 @@ admission/copy/bake are separately authored controls, not inferred pixel evidenc
 All new pixel controls are NOT RUN by this integration thread. Their added cost
 must pass the unchanged 180-second outer case and existing renderer assertions.
 No test selection, security flag, timeout, budget, release or activation changed.
+
+
+Current bounded electrical continuation composes exact d707481f after independent
+source review. Its exact browser subset adds only circuit/evidence list result
+roots; existing definitions and original source pins, including opaque HomeBox
+collection identity, are unchanged. Numeric evidence provenance remains an
+ExactDecimal; the supplied control sends 9007199254740993 as a raw JSON integer
+through the real parser/closed validator/client/owner. No selected review or
+native association is inferred. The existing topology selection is extended,
+not a new runner/lane/workflow: 80 SOURCE / 1 BUILD / 7 BROWSER. All new controls
+remain unrun locally and require exact-head hosted execution. No host/root
+mount, private input, provider/model operation, authority or deployment is added.

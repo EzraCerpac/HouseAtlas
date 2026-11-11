@@ -4,6 +4,7 @@ import Ajv2020 from '../node_modules/ajv/dist/2020.js';
 import addFormats from '../node_modules/ajv-formats/dist/index.js';
 import atlas from '../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 import agent from '../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
+import electrical from '../../contracts/electrical-data/generated.fixture.json' with { type: 'json' };
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { projectView } from '../src/lantern/adapters/read.ts';
 const { createTopologyClient } = await import(await loadNumericSource('api/topology-client.ts'));
@@ -1903,11 +1904,20 @@ const fixture = {
     "00000000-0000-4000-8000-000000000014"
   ]
 };
+for (const kind of ['circuit', 'evidence']) {
+  fixture.records[kind] = electrical.context.records.filter(row => row.recordType === kind).map(row => ({
+    target: { authority: 'atlas', recordType: kind, recordId: row.recordId },
+    revision: row.revision, lifecycle: row.lifecycle, payload: structuredClone(row.payload),
+  }));
+}
+// Keep the JSON integer token exact before the real lossless response decoder sees it.
+fixture.records.evidence[0].payload.provenance.sourceRevision = JSON.rawJSON('9007199254740993');
 const ajv = new Ajv2020({ strict:true, allErrors:true, allowUnionTypes:true });
 addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent);
 const schemas = { validate(ref, value) { const check=ajv.getSchema(agent.$id+ref); assert(check); assert(check(value), JSON.stringify(check.errors)); } };
 const session = { schemaVersion: 1, actorId: '00000000-0000-4000-8000-000000000802', csrfToken:'synthetic-unused', expiresAt:'2099-01-01T00:00:00Z' };
 const calls = [];
+let electricalFault = null;
 const snapshotSha256 = 'a'.repeat(64); // Shared synthetic positive-fixture comparison metadata.
 const client = createTopologyClient({ schemas, getSessionBinding:()=>({session,scope:fixture.scope}), subscribeSessionBinding:()=>()=>{},
   transport:async (url, init)=>{
@@ -1923,7 +1933,10 @@ const client = createTopologyClient({ schemas, getSessionBinding:()=>({session,s
     if (request.payload.buildingId !== undefined) {assert.equal(kind,'identity');assert.equal(request.payload.buildingId,fixture.members[0]);rows=rows.filter(r=>fixture.members.includes(r.target.recordId));}
     const midpoint=Math.ceil(rows.length/2);const continued=request.payload.cursor!==null;
     if (continued) assert.equal(request.payload.cursor,'opaque+/topology==');
-    const result={schemaVersion:3,commandId:request.commandId,requestId:request.requestId,resolvedScope:fixture.scope,status:'read',replayed:false,
+    if (electricalFault === 'duplicate' && kind === 'circuit') rows = [rows[0], rows[0]];
+    if (electricalFault === 'tombstone' && kind === 'evidence') rows = rows.map(row => ({ ...row, lifecycle:'tombstoned' }));
+    if (electricalFault === 'bad-payload' && kind === 'circuit') rows = rows.map(row => ({ ...row, payload: { ...row.payload, evidenceIds: [] } }));
+    const result={schemaVersion:3,commandId:request.commandId,requestId:electricalFault === 'correlation' && kind === 'circuit' ? fixture.scope.homeId : request.requestId,resolvedScope:fixture.scope,status:'read',replayed:false,
       data:{records:continued?rows.slice(midpoint):rows.slice(0,midpoint),nextCursor:continued?null:'opaque+/topology==',sourceStatus:'current'}};
     return new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json','x-atlas-snapshot-sha256':snapshotSha256}});
   } });
@@ -1953,5 +1966,12 @@ assert.equal(calls.length,10);assert(calls.filter(r=>r.payload.buildingId!==unde
 console.log('PASS bounded positive canonical topology invoke, two-page original IDs/correlation, exact source binding, separate Alpha/Beta names, zero/negative/same-datum elevations, unknown and omitted levels, direct and unassigned members, typed access, archived source without invented availability');
 
 const { electricalRecordOwnerCases } = await import('./electrical-record-owner-healthy.mjs');
-await electricalRecordOwnerCases(client, binding, identity.records[0], semantics.records[0]);
+await electricalRecordOwnerCases(client, binding, identity.records[0], semantics.records[0], fixture.records.circuit[0], fixture.records.evidence[0]);
 console.log('PASS partial electrical record reads, unavailable review authority, stale pins and withdrawal');
+
+for (const [fault, kind] of [['duplicate', 'circuit'], ['tombstone', 'evidence'], ['bad-payload', 'circuit'], ['correlation', 'circuit']]) {
+  electricalFault = fault;
+  assert.equal((await client.listAll(binding, kind, signal)).status, 'unavailable');
+}
+electricalFault = null;
+console.log('PASS electrical native list rejects duplicate, tombstoned, malformed and uncorrelated results');

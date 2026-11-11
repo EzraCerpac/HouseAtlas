@@ -13,6 +13,9 @@ export type DecodedLocationElevation = Exclude<LocationElevation, { status: 'kno
 export type DecodedLocationSemanticsPayload = Omit<LocationSemanticsPayload, 'elevation'> & {
   elevation?: DecodedLocationElevation;
 };
+export type ExactEvidencePayload = Omit<EvidencePayload, 'provenance'> & {
+  provenance: Omit<EvidencePayload['provenance'], 'sourceRevision'> & { sourceRevision: string | ExactDecimal | null };
+};
 export type DecodedEvidencePayload = Omit<EvidencePayload, 'provenance'> & {
   provenance: Omit<EvidencePayload['provenance'], 'sourceRevision'> & {
     sourceRevision: string | null;
@@ -71,4 +74,9 @@ export function decodeEvidenceResult(value: LosslessJson): void {
       provenance.sourceRevision = exact(provenance.sourceRevision).token;
     }
   }
+}
+
+/** Keep evidence provenance numbers exact; only bounded record revisions become numbers. */
+export function decodeElectricalListResult(value: LosslessJson): void {
+  for (const record of records(value)) record.revision = exactStockSafeInteger(record.revision as LosslessJson);
 }

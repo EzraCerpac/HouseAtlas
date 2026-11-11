@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 81012,
-      "sha256": "f663a0e98f8a6c7f2479192ff87ca1c389084c14462bb773a27ea81561596ca5",
+      "bytes": 82122,
+      "sha256": "2b4245a2ef8a7f1ac99d9445bf5b364d9b936a7f2751a7276329c9c51a18e519",
       "owner": "core-integration"
     },
     {
@@ -6034,14 +6034,14 @@
       "path": "contracts/client-schemas/agent-exact-pin.json",
       "mode": "100644",
       "bytes": 67,
-      "sha256": "fad1a73d5b78d25df1118b89f8c9efd309c168836e896ba7fb2f2c97f20ab6ee",
+      "sha256": "b851d518297cd457e6196be66dd9e3f050345a0bd113c8fd125df99e1c37e0ba",
       "owner": "contracts"
     },
     {
       "path": "contracts/client-schemas/agent-exact.schema.json",
       "mode": "100644",
-      "bytes": 303920,
-      "sha256": "d019fb220a09909bd8d397bce013c4dfd1644961af9080d34df476294940b11b",
+      "bytes": 304966,
+      "sha256": "413d209484ed2db045c1aaefc1aa0fdfdd3d6eafc41a9529d37579b7070d265f",
       "owner": "contracts"
     },
     {
@@ -6054,8 +6054,8 @@
     {
       "path": "contracts/client-schemas/pins.json",
       "mode": "100644",
-      "bytes": 34675,
-      "sha256": "5c6e9a66551b8bbe3c0fd2d9083ad83e3f1cd9e8f896f1701e7ad3d937228bb4",
+      "bytes": 34818,
+      "sha256": "b81d5324aab9fad507f16c21fab6305f361ffe45280ca6721bc00b8c92e7945c",
       "owner": "contracts"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 305123,
-      "sha256": "258e17915adb94445def86b65d8e5dbeca1d0fbbf521ed7ad0c666b8e9e71b31",
+      "bytes": 306309,
+      "sha256": "6778cb16805d3a623faecd4d8b096db32cf9202d7f76f0be8de476308262ec7c",
       "owner": "core-integration"
     },
     {
@@ -7685,8 +7685,8 @@
     {
       "path": "frontend/integration/electrical-record-owner.ts",
       "mode": "100644",
-      "bytes": 4864,
-      "sha256": "08c754ff35908e581b1d2d3a49760d8c4455fbfb05eb5493551a15ed68a83efb",
+      "bytes": 5959,
+      "sha256": "1bb2344cb6a6230cebe4f1d9afece7c94f390945492160b6890504e4090da2bc",
       "owner": "web"
     },
     {
@@ -8091,8 +8091,8 @@
     {
       "path": "frontend/lantern-tests/electrical-record-owner-healthy.mjs",
       "mode": "100644",
-      "bytes": 3382,
-      "sha256": "0c4c688b16b8deddcc3ff3a6a8ee342794f5b4510ca06e5b6e9cfdd7f74c26af",
+      "bytes": 4774,
+      "sha256": "0d2eb52675491e6ba2c203dcd2c9200fada57cce0057a33285475be28dc94a4f",
       "owner": "web"
     },
     {
@@ -8721,8 +8721,8 @@
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
       "mode": "100644",
-      "bytes": 67205,
-      "sha256": "7c4082d668332fdb728a2054c9b15f9186271ddc15ae8ea23809ae361d098ead",
+      "bytes": 68747,
+      "sha256": "14fa9aef2c7ef1b2185db5c2c4fb965f3a0fdec1106b5ec2b11fa1888cb56ad2",
       "owner": "web"
     },
     {
@@ -9372,8 +9372,8 @@
     {
       "path": "frontend/src/api/topology-client.ts",
       "mode": "100644",
-      "bytes": 11813,
-      "sha256": "de73e4dc2cc4ab75827c57f2b2e85eb6866ae1400954a4353e63708b683c0104",
+      "bytes": 12136,
+      "sha256": "8809b37481fe94b11073efe4e46734a373cfe6050e52dd511e3a71fe679b3904",
       "owner": "core-integration"
     },
     {
@@ -10786,8 +10786,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 25264,
-      "sha256": "757f2a6334a85be9fc95e3da93aa2f11f0bcb33ec092f5dd31bfaf5dd2108324",
+      "bytes": 25391,
+      "sha256": "27adaff7954e736bc6fccd2a9d11dfd8f4302690f675aef960e023d2d17418eb",
       "owner": "web"
     },
     {
@@ -10800,8 +10800,8 @@
     {
       "path": "frontend/src/numeric/stock-decoded.ts",
       "mode": "100644",
-      "bytes": 3547,
-      "sha256": "606f1c665d0159d7004d463dfb6884868fe974e097a0aaedc2f0535be30569fd",
+      "bytes": 4026,
+      "sha256": "f0f641227eddd3e48e84cc2bb58e603267fe96be110520ebd61a9467464572e5",
       "owner": "web"
     },
     {
