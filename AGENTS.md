@@ -1,5 +1,12 @@
 # HouseAtlas
 
+WebGL phase-marker donor20b4eed4 is composed unchanged: bounded elapsed-time
+markers identify existing build/draw/swap/worker/lighting/material/scalar/lamp
+phases. No sample, shader, assertion, wait, scene count, threshold or budget is
+changed. Markers are diagnostics, not benchmark or pixel results. Actual hosted
+execution must qualify the full candidate with helper custody and settlement
+oracle; no local test, compiler, syntax check, formatter, helper or browser ran.
+
 Settlement oracle donor df277670 is composed after independent source review.
 Its first viewer gate joins page and network rows bijectively by original
 application requestId, requires page EOF/bytes and terminal authorized200 network

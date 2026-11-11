@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 91725,
-      "sha256": "a15cfed15367c44004e7dea62dac369e323c773e2685454482ee92c85a603670",
+      "bytes": 92200,
+      "sha256": "bec153329e327104c89dfc73b88f4ed4514b560bd7c1843fdda1176b79d3d309",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 316215,
-      "sha256": "634d4fd28ef45927ac8d4cf4d09f83843db6333034d627a2be613b33114e1f9f",
+      "bytes": 316691,
+      "sha256": "2ba1f396448d34b68d204f97e597f8daa465d5821256669540a37b7ca8aa9230",
       "owner": "core-integration"
     },
     {
@@ -7342,15 +7342,15 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
       "mode": "100644",
-      "bytes": 232878,
-      "sha256": "5b238561592361a2a373119d930ca826a2f39cfd33b74ad4ebfb7d6c48f82537",
+      "bytes": 233200,
+      "sha256": "55f2b49741e4a2021636cf677d9d8505fb10c6827e530fa118d5ec6c0849e28a",
       "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
       "mode": "100644",
-      "bytes": 16188,
-      "sha256": "b7e82f234ed92468f79fe754ae9eaa268d6857d8fe3fbf799a5d8879e606b7bf",
+      "bytes": 16726,
+      "sha256": "515661204ed573fc0bf1838650359433c072bcbc3edfefc6050df8f1580872ab",
       "owner": "mcp"
     },
     {
@@ -8189,8 +8189,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 30959,
-      "sha256": "e958fdb2b25291fdd059ffa669b12f8eb4414a15a02c087a931504c5268a9581",
+      "bytes": 31969,
+      "sha256": "679dc0639cc211de741706d897e141c113d3054ed01f6f0ac7caa80941392cc9",
       "owner": "web"
     },
     {

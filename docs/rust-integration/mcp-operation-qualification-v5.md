@@ -174,6 +174,14 @@ two authored default-library structural/descriptor controls. No native binding,
 capability, operation/profile or historical execution result is changed. These
 hash updates establish only the reviewed amended source, not current execution.
 
+Two further pins were reinspected after qualified main `f712288f` and helper
+source `0f0dd48c`: the workflow adds only selected Ubuntu-job pinned-helper
+always-cleanup; `healthy_examples.rs` changes only the existing collection-test
+import formatting from `903ad712`. The CI helper is isolated from native MCP
+operation/profile/admission and authority. All other 65 pins, historical evidence,
+operation rows and execution/browser/installed states are unchanged. This source
+reinspection qualifies no new runtime or operational boundary.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor

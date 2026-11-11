@@ -4889,3 +4889,11 @@ They do not exercise observer installation or real browser aborts. These control
 and the actual browser sequence remain NOT RUN locally; exact hosted execution
 must qualify the combined helper, fixture and oracle. No new workflow/lane or
 removed browser case, sandbox flag, timeout or shader/material change.
+
+
+WebGL phase-marker donor20b4eed4 is composed unchanged: bounded elapsed-time
+markers identify existing build/draw/swap/worker/lighting/material/scalar/lamp
+phases. No sample, shader, assertion, wait, scene count, threshold or budget is
+changed. Markers are diagnostics, not benchmark or pixel results. Actual hosted
+execution must qualify the full candidate with helper custody and settlement
+oracle; no local test, compiler, syntax check, formatter, helper or browser ran.

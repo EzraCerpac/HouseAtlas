@@ -3,7 +3,7 @@
   "baseline": {
     "date": "2026-11-10",
     "mainCommit": "d368ca246da9999e7fdba5140a0870500df8a316",
-    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution. Original inventory baseline retained; four changed inputs reinspected after composing main 8a20f596cae36bb8922b16f54d9bfd11a6b2ff56 and exact donor 0138f373f167636f596c79163d74ef00724bd0dd at composition parent 5aad47050919fc653a922864c7158f4c646144b6; see the guide for exact source/evidence boundaries; same runner pin reinspected at composition parent 3dba170d for one generated offline presentation SOURCE registration (78/1/7), with all cases and qualification states preserved; runner reinspection after b19e7d91 adds two generated inspection/manual-handoff SOURCE registrations (80/1/7), preserving all operation and qualification states; after 0183afd6 reinspected exactly three changed inputs for logical HomeBox collection identity amendment (agent schema and native MCP schema/healthy controls), preserving historical evidence and every operation/profile/admission state"
+    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution. Original inventory baseline retained; four changed inputs reinspected after composing main 8a20f596cae36bb8922b16f54d9bfd11a6b2ff56 and exact donor 0138f373f167636f596c79163d74ef00724bd0dd at composition parent 5aad47050919fc653a922864c7158f4c646144b6; see the guide for exact source/evidence boundaries; same runner pin reinspected at composition parent 3dba170d for one generated offline presentation SOURCE registration (78/1/7), with all cases and qualification states preserved; runner reinspection after b19e7d91 adds two generated inspection/manual-handoff SOURCE registrations (80/1/7), preserving all operation and qualification states; after 0183afd6 reinspected exactly three changed inputs for logical HomeBox collection identity amendment (agent schema and native MCP schema/healthy controls), preserving historical evidence and every operation/profile/admission state; two changed pins reinspected after main f712288f and helper source0f0dd48c: workflow adds only selected-job pinned-helper always-cleanup and the native healthy example changes only import formatting from903ad712; CI helper custody is separate from every MCP operation/profile/admission and historical qualification state"
   },
   "boundary": "Reviewed source snapshot and historical evidence index only. Not a runtime allowlist, grant, configured binding, test outcome or operational acceptance. Source digest equality establishes freshness of reviewed inputs, not correctness or execution.",
   "catalogPath": "contracts/stock-wire3/agent/operation-catalog.json",
@@ -629,7 +629,7 @@
     },
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
-      "sha256": "60449355c50b8ad19b7694ea7db348ad02a64e1d93e205e571e45f86bbd03cb4"
+      "sha256": "22264a2031468c066d425b270cd5181c1fba922fde52ffaf9b56326037ecccb7"
     },
     {
       "path": "backend/src/contracts/stock/catalog-generated.rs",
@@ -757,7 +757,7 @@
     },
     {
       "path": "backend/src/transports/mcp/healthy_examples.rs",
-      "sha256": "19c38aa7dbba03eff329f7894b212d0fc6a0f815f7e64fdb4bfeccd63b411759"
+      "sha256": "580d83a82c4052f7ab1bb31e5f76becd137ea14f9bf22e1e11d5e1a36e34b613"
     },
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
