@@ -141,15 +141,19 @@ try {
   await press(`[...document.querySelectorAll('.layer-chip')].find(x=>x.textContent.trim().startsWith('Network'))`);
   await until(`!!document.querySelector('.ua-graph-open')`);
   // The Network key starts collapsed; its graph button exists inside a hidden body.
-  await press(`document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head')`);
-  assert.equal(await evaluate(`document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head').getAttribute('aria-expanded')`), 'true');
-  await press(`document.querySelector('.ua-graph-open')`); await until(`!!document.querySelector('.ua-graph .ung')`);
+  const networkHeader = `document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head')`;
+  const networkBody = `document.getElementById((${networkHeader}).getAttribute('aria-controls'))`;
+  const hostGraphOpen = `(${networkBody})?.querySelector('.ua-graph-open')`;
+  await press(networkHeader);
+  assert.equal(await evaluate(`(${networkHeader}).getAttribute('aria-expanded')`), 'true');
+  await until(`(() => { const body = (${networkBody}), button = (${hostGraphOpen}); if (!body || body.hidden || !button || getComputedStyle(body).display === 'none' || getComputedStyle(body).visibility !== 'visible') return false; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return r.width > 0 && r.height > 0 && button.contains(hit); })()`);
+  await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
   const chooseHostClient = async () => { if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`); await press(hostClient); };
   await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
   await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
   assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
-  await press(`document.querySelector('.ua-graph-open')`); await until(`!!document.querySelector('.ua-graph .ung')`);
+  await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
   await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
   await click('Switch host mode'); await click('Toggle fixture lens');
