@@ -8371,8 +8371,8 @@
     {
       "path": "frontend/lantern-tests/network-trace-mounted/browser.mjs",
       "mode": "100644",
-      "bytes": 16469,
-      "sha256": "e57dc16d8127bc6e0d3cd5ca24d8bc7d81c26f6b435b2f30c9e123eb650b6f8a",
+      "bytes": 17350,
+      "sha256": "1b58ad45fc2a5c34d41c761ad44d0be3a0221be9b7d2930a914f076c6c9638c7",
       "owner": "web"
     },
     {
