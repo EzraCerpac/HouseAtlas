@@ -297,12 +297,8 @@ impl<'a> SelectedInputs<'a> {
         outcome: &crate::ai::InferenceOutcome,
     ) -> Result<ai::SuggestionCompletion> {
         self.recheck(core, p)?;
-        let projected = ai::disclose_completed(
-            outcome,
-            &self.admitted,
-            &self.admitted,
-            &BTreeSet::new(),
-        );
+        let projected =
+            ai::disclose_completed(outcome, &self.admitted, &self.admitted, &BTreeSet::new());
         #[cfg(test)]
         healthy::after_projection(&projected);
         // Keep the entire DTO local until the original native owners recheck.
