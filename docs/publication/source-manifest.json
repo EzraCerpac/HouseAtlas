@@ -13152,8 +13152,8 @@
     {
       "path": "tools/perf/model-interaction/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 5050,
-      "sha256": "bcf2f4e8af2732518b5cdaf159a44d0eaa0942f73b6f43db87ddd6f359eab68e",
+      "bytes": 5335,
+      "sha256": "b67e24a186c17ca089b5c8a1305697d7f9ac14d810aee7c7bd0bb0b573fd6fbb",
       "owner": "core-integration"
     },
     {
