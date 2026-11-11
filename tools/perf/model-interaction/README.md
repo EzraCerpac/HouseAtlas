@@ -10,7 +10,14 @@ Inspect this directory, its imports in `../harness/`, and the selected
 frontend modules before execution. The explicit source loader maps and hashes
 the optional embedded-PNG module when it exists, while retaining compatibility
 with source revisions predating that module. The measured geometry-only load
-does not enable embedded materials. Install public dependencies with scripts,
+does not enable embedded materials. Current appearance-state accounting is
+exported by the already mapped and source-hashed preflight module. Historical
+sources with a separate optional helper retain explicit mapping and hash checks;
+older sources without it remain supported. The trusted harness/contract files
+and immutable pin are unchanged. Geometry-only admission still
+includes the modeled GPU state-table charge on those sources. This does not
+allocate a GPU texture in the CPU measurement or change the `prepared_bytes`
+definition below. Install public dependencies with scripts,
 audit and funding disabled; use a writable disposable npm cache if needed:
 
 ```sh

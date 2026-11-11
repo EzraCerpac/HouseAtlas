@@ -14,13 +14,15 @@
  * prepared and plan inside each index's ordered turn. Refused assets keep their
  * pins and a truthful reason. */
 
+import { addGpuBytes, stateTableBytes } from '../canonical-ifc/glb-preflight';
+
 /** Bytes the prepared mesh holds per drawn triangle: 3 corners × 6 floats × 4. */
 export const PREPARED_BYTES_PER_TRIANGLE = 72;
 
 export interface SiteBudgetLimits {
   /** Declared GLB bytes read across the publication. */
   readonly inputBytes: number;
-  /** Prepared vertex bytes retained across the publication. */
+  /** GPU upload limit for prepared vertices and the combined mesh state table. */
   readonly preparedBytes: number;
   /** Source plan coordinates retained across the publication. */
   readonly planPoints: number;
@@ -30,37 +32,50 @@ export interface SiteBudget {
   /** Reserves declared bytes before a read; returns why it is refused, or null. */
   reserveInput(bytes: number): string | null;
   /** Reserves the prepared scene for `triangles` before loading; returns why it is refused, or null. */
-  reservePrepared(triangles: number): string | null;
+  reservePrepared(triangles: number, instances: number): string | null;
   /** Returns a prepared reservation whose load produced nothing. */
-  releasePrepared(triangles: number): void;
+  releasePrepared(triangles: number, instances: number): void;
   /** Reserves retained plan coordinates; returns why it is refused, or null. */
   reservePlan(points: number): string | null;
-  used(): { readonly inputBytes: number; readonly preparedBytes: number; readonly planPoints: number };
+  used(): { readonly inputBytes: number; readonly preparedBytes: number; readonly gpuBytes: number; readonly planPoints: number };
 }
 
 const mb = (bytes: number) => `${(bytes / 1_000_000).toLocaleString('en', { maximumFractionDigits: 1 })} MB`;
 
 export function createSiteBudget(limits: SiteBudgetLimits): SiteBudget {
-  let inputBytes = 0, preparedBytes = 0, planPoints = 0;
+  for (const limit of [limits.inputBytes, limits.preparedBytes, limits.planPoints]) addGpuBytes(limit);
+  let inputBytes = 0, preparedBytes = 0, instances = 0, planPoints = 0;
   return {
     reserveInput(bytes) {
-      if (inputBytes + bytes > limits.inputBytes)
+      const nextBytes = addGpuBytes(inputBytes, bytes);
+      if (nextBytes > limits.inputBytes)
         return `Not drawn: reading it would exceed this site's ${mb(limits.inputBytes)} model input budget (${mb(bytes)} needed, ${mb(limits.inputBytes - inputBytes)} left)`;
-      inputBytes += bytes; return null;
+      inputBytes = nextBytes; return null;
     },
-    reservePrepared(triangles) {
+    reservePrepared(triangles, count) {
+      if (!Number.isSafeInteger(triangles) || triangles < 0) throw new Error('Invalid triangle count');
       const bytes = triangles * PREPARED_BYTES_PER_TRIANGLE;
-      if (preparedBytes + bytes > limits.preparedBytes)
-        return `Not drawn: its geometry would exceed this site's ${mb(limits.preparedBytes)} scene budget (${mb(bytes)} needed, ${mb(limits.preparedBytes - preparedBytes)} left)`;
-      preparedBytes += bytes; return null;
+      const nextBytes = addGpuBytes(preparedBytes, bytes), nextInstances = addGpuBytes(instances, count);
+      const currentGpu = addGpuBytes(preparedBytes, stateTableBytes(instances));
+      const nextGpu = addGpuBytes(nextBytes, stateTableBytes(nextInstances));
+      if (nextGpu > limits.preparedBytes)
+        return `Not drawn: it would exceed this site's ${mb(limits.preparedBytes)} scene budget (${mb(nextGpu - currentGpu)} needed, ${mb(limits.preparedBytes - currentGpu)} left)`;
+      preparedBytes = nextBytes; instances = nextInstances; return null;
     },
-    releasePrepared(triangles) { preparedBytes = Math.max(0, preparedBytes - triangles * PREPARED_BYTES_PER_TRIANGLE); },
+    releasePrepared(triangles, count) {
+      if (!Number.isSafeInteger(triangles) || triangles < 0) throw new Error('Invalid triangle count');
+      const bytes = triangles * PREPARED_BYTES_PER_TRIANGLE;
+      addGpuBytes(bytes, count);
+      if (bytes > preparedBytes || count > instances) throw new Error('Invalid site budget release');
+      preparedBytes -= bytes; instances -= count;
+    },
     reservePlan(points) {
-      if (planPoints + points > limits.planPoints)
+      const nextPoints = addGpuBytes(planPoints, points);
+      if (nextPoints > limits.planPoints)
         return `Not shown: its ${points.toLocaleString('en')} plan points would exceed this site's ${limits.planPoints.toLocaleString('en')} point budget`;
-      planPoints += points; return null;
+      planPoints = nextPoints; return null;
     },
-    used: () => ({ inputBytes, preparedBytes, planPoints }),
+    used: () => ({ inputBytes, preparedBytes, gpuBytes: addGpuBytes(preparedBytes, stateTableBytes(instances)), planPoints }),
   };
 }
 

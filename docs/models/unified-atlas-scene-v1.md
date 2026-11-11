@@ -515,10 +515,27 @@ indexed attributes and expanded corner attributes in the prepared-byte ledger.
 The renderer keeps the legacy position/flat-normal stream for picking and a
 separate UV/shading-normal/tangent stream for material drawing. GPU accounting
 includes both streams and complete mip chains, deduplicated by image, sampler
-and color role. The tier's prepared and GPU limits (Light 96/64 MiB, Full
+and color role. Plain geometry remains 72 bytes per triangle. Each rendered
+mesh set also has one non-mipmapped appearance-state texture: nine RGBA32F
+texels per drawn primitive instance, with 128 entries per row. Its nonempty
+payload is `18,432 * ceil(instanceCount / 128)` bytes. Count repeated node
+instances, not unique mesh declarations. This charge applies with source
+materials enabled or disabled, once per set; the two CPU state arrays do not
+represent two GPU textures and material accounting does not add a second state
+charge. Combined SiteArtifact rendering rounds the combined instance count
+once, rather than summing separately rounded per-artifact tables.
+
+Normal callers skip empty rendering and charge zero for that absent set.
+Direct `createMeshScene` retains its existing one-row minimum allocation even
+when called with no meshes. Prepared geometry and GPU estimates remain separate;
+the state charge does not relabel prepared geometry bytes as GPU measurements.
+The tier's prepared and GPU limits (Light 96/64 MiB, Full
 640/384 MiB) are in force; the renderer checks its resource ledger before allocating GL resources.
 These are bounded application ledgers, not measurements of total browser,
-driver or process peak memory.
+driver or process peak memory. This state-accounting increment changes no
+transition-overlap policy, retirement timing, shader, fixed render-target or
+viewport/history-target policy. Generated cap controls do not requalify private
+or installed artifacts.
 
 The named generated material positives in the verification guide exercise this
 source path using synthetic assets and a GL call recorder. They do not establish

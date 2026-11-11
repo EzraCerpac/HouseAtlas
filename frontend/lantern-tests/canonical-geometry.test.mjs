@@ -36,6 +36,7 @@ const geometryURL = await sourceURL(`${base}geometry.ts`, 'ts');
 const tonesURL = await sourceURL(`${base}tones.ts`, 'ts');
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
 const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts');
+const { materialGpuResources } = await import(await sourceURL(`${base}gpu-budget.ts`, 'ts', { './glb-preflight': preflightURL }));
 // The pinned three.js GLTFLoader, loaded from the installed package as a browser bundle would.
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
@@ -243,9 +244,24 @@ assert.deepEqual(pivoted.nodes[0].extras, pivotExtras, 'The original extras are 
 const reused = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])], roots: [0, 1, 2],
   nodes: [{ mesh: 0 }, { mesh: 0, translation: [2, 0, 0] }, { mesh: 0, translation: [4, 0, 0] }] }), 'house', live());
 assert.deepEqual(reused.drawn.map(item => [item.nodeIndex, item.meshIndex]), [[0, 0], [1, 0], [2, 0]]);
-assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72 });
+assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72, gpuBytes: 36 * 72 + 18_432 });
 assert.equal(reused.counts.triangles, 36);
 assert.deepEqual(reused.meshes.map(mesh => mesh.bounds.min[0]), [0, 2, 4]);
+
+// A single declaration drawn by 128 and 129 nodes crosses a state table row.
+for (const [count, expectedBytes] of [[128, 129_024], [129, 148_320]]) {
+  const repeatedNodes = Array.from({ length: count }, () => ({ mesh: 0 }));
+  let repeatedAdmission;
+  const repeated = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])],
+    roots: repeatedNodes.map((_, index) => index), nodes: repeatedNodes }), 'repeated', live(), admission => { repeatedAdmission = admission; });
+  assert.equal(repeatedAdmission.work.instances, count);
+  assert.equal(repeatedAdmission.work.triangles, count * 12);
+  assert.equal(repeatedAdmission.work.gpuBytes, expectedBytes);
+  assert.equal(repeated.meshes.length, count);
+  assert.equal(repeated.meshes.reduce((sum, mesh) => sum + mesh.vertices.byteLength, 0), count * 864);
+  assert.equal(repeated.work.gpuBytes, expectedBytes);
+  assert.equal(materialGpuResources(repeated.meshes, false).bytes, expectedBytes);
+}
 
 // Valid opaque core materials on a multi-primitive mesh reused by two nodes.
 // The factors are linear source metadata, independent of names and geometry;

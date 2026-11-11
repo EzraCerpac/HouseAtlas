@@ -107,16 +107,16 @@ export function useSitePublication(port: SiteSourcePort, stage: { readonly curre
     const load = async (asset: SiteAsset, bytes: ArrayBuffer, at: number): Promise<SiteAssetOutcome> => {
       signal.throwIfAborted();
       const keyPrefix = `site${at}`;
-      let reserved = 0;
+      let reserved = { triangles: 0, instances: 0 };
       try {
         const glb = await loadStandardGlb(new Uint8Array(bytes), keyPrefix, signal, admission => {
-          const over = budget.reservePrepared(admission.work.triangles);
+          const over = budget.reservePrepared(admission.work.triangles, admission.work.instances);
           if (over) throw new CapacityRefusal(over);
-          reserved = admission.work.triangles;
+          reserved = { triangles: admission.work.triangles, instances: admission.work.instances };
         });
         return { status: 'drawn', asset, keyPrefix, glb };
       } catch (error) {
-        budget.releasePrepared(reserved);
+        budget.releasePrepared(reserved.triangles, reserved.instances);
         if (error instanceof CapacityRefusal) return { status: 'not-drawn', asset, reason: error.message };
         throw error;
       }

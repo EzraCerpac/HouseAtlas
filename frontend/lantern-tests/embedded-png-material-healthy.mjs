@@ -16,7 +16,8 @@ let h;
 try {
   const entry = join(scratch, 'entry.ts');
   writeFileSync(entry, `export * from ${JSON.stringify(join(frontend, 'lantern-tests/embedded-png-material-fixture.ts'))};\n`
-    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
+    + `export { buildGlb } from ${JSON.stringify(join(frontend, 'lantern-tests/canonical-ifc-visual/standard-glb-sample.ts'))};\n`
+    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS,DETAIL_GLB_LIMITS,stateTableBytes,stateTableRows,addGpuBytes'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
       ['geometry', 'prepareMeshes,makeProjection,sourceMeshColor,pick'], ['gpu-budget', 'materialGpuResources'], ['mesh-appearance', 'writeAppearance,STATE_FLOATS,MeshPass']].map(([file, names]) => `export { ${names} } from ${JSON.stringify(join(frontend, 'src/lantern/canonical-ifc/' + file))};`).join('\n'));
   const built = await build({ root: frontend, configFile: false, logLevel: 'silent',
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
@@ -37,15 +38,48 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
     assert(admitted.scratchBytes <= h.EMBEDDED_PNG_LIMITS.scratch);
   }
 } else if (selected === 'accounting-1024') {
+  assert.deepEqual([0, 1, 128, 129, 20_000].map(h.stateTableBytes), [0, 18_432, 18_432, 36_864, 2_893_824]);
+  assert.equal(h.stateTableRows(0, true), 1);
+  for (const invalid of [-1, .5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => h.stateTableBytes(invalid));
+  assert.throws(() => h.addGpuBytes(Number.MAX_SAFE_INTEGER, 1));
+  // A small shared indexed primitive, drawn by many nodes, reaches the real
+  // tier GPU bounds without materializing the expanded triangle stream.
+  const tierFixture = (instances, triangles) => {
+    const nodes = Array.from({ length: instances }, () => ({ mesh: 0 }));
+    return h.buildGlb({ nodes, roots: nodes.map((_, index) => index),
+      meshes: [{ positions: [0, 0, 1, 1, 0, 1, 0, 1, 1], indices: Array.from({ length: triangles * 3 }, (_, index) => index % 3) }],
+      patch(json) {
+        json.extensionsUsed = ['KHR_materials_specular'];
+        json.materials = [{ extensions: { KHR_materials_specular: { specularFactor: .5 } } }];
+        json.meshes[0].primitives[0].material = 0;
+        json.meshes[0].primitives[0].attributes.NORMAL = 0;
+      } });
+  };
+  for (const [instances, below, above, limits, expectedBelow, expectedAbove] of [
+    [128, 2900, 2920, h.STANDARD_GLB_LIMITS, 66_834_432, 67_295_232],
+    [256, 8700, 8740, h.DETAIL_GLB_LIMITS, 400_932_864, 402_776_064],
+  ]) {
+    const under = h.readGlbContainer(tierFixture(instances, below), limits), underWork = h.preflightGltf(under, limits);
+    assert.equal(underWork.work.instances, instances); assert.equal(underWork.work.triangles, instances * below);
+    assert.equal(h.admitEmbeddedPngMaterials(under, underWork, limits).gpuBytes, expectedBelow);
+    const over = h.readGlbContainer(tierFixture(instances, above), limits), overWork = h.preflightGltf(over, limits);
+    assert.equal(overWork.work.instances, instances); assert.equal(overWork.work.triangles, instances * above);
+    assert(expectedAbove > limits.gpuBytes);
+    assert.throws(() => h.admitEmbeddedPngMaterials(over, overWork, limits), /GPU memory/);
+  }
   const { fixture, loaded } = await load(1024), container = h.readGlbContainer(fixture.bytes);
   const plain = h.preflightGltf(container), plan = h.admitEmbeddedPngMaterials(container, plain);
+  assert.equal(h.preflightGltf(container, { ...h.STANDARD_GLB_LIMITS, gpuBytes: plain.work.gpuBytes }).work.gpuBytes, plain.work.gpuBytes);
+  assert.throws(() => h.preflightGltf(container, { ...h.STANDARD_GLB_LIMITS, gpuBytes: plain.work.gpuBytes - 1 }), /geometry/);
+  assert.equal(h.admitEmbeddedPngMaterials(container, plain, { ...h.STANDARD_GLB_LIMITS, gpuBytes: plan.gpuBytes }).gpuBytes, plan.gpuBytes);
+  assert.throws(() => h.admitEmbeddedPngMaterials(container, plain, { ...h.STANDARD_GLB_LIMITS, gpuBytes: plan.gpuBytes - 1 }), /GPU memory/);
   assert.equal(plan.images.length, 3); assert.equal(plan.rgbaBytes, 12_582_912);
   assert.equal(plan.images.reduce((n, image) => n + image.mipBytes, 0), 16_777_212);
   assert.equal(h.rgbaMipBytes(1024, 1024), 5_592_404);
   assert.equal(plan.attributeBytes, 3 * 36 * 2); assert.equal(plan.expandedAttributeBytes, 3 * 36 * 2);
   assert.equal(plan.preparedBytes, plain.work.outputBytes + plan.attributeBytes + plan.expandedAttributeBytes + plan.encodedBytes + plan.rgbaBytes + plan.scratchBytes);
   assert.equal(loaded.work.outputBytes, plan.preparedBytes);
-  assert.equal(loaded.work.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 16_777_212);
+  assert.equal(loaded.work.gpuBytes, plain.work.gpuBytes + plan.expandedAttributeBytes + 16_777_212);
   assert.equal(h.materialGpuResources(loaded.meshes, true).bytes, loaded.work.gpuBytes);
   assert(plan.encodedBytes <= 4_194_304 && plan.scratchBytes <= 8_388_608 && plan.preparedBytes <= 100_663_296 && plan.gpuBytes <= 67_108_864);
 } else if (selected === 'four-maps-1024') {
@@ -53,7 +87,7 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   const fixture = await h.generatedMaterialGlb(1024, false, 4), container = h.readGlbContainer(fixture.bytes);
   const plain = h.preflightGltf(container), plan = h.admitEmbeddedPngMaterials(container, plain);
   assert.equal(plan.images.length, 4); assert.equal(plan.rgbaBytes, 4 * 4_194_304);
-  assert.equal(plan.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 4 * h.rgbaMipBytes(1024, 1024));
+  assert.equal(plan.gpuBytes, plain.work.gpuBytes + plan.expandedAttributeBytes + 4 * h.rgbaMipBytes(1024, 1024));
   const loaded = await h.loadStandardGlb(fixture.bytes, 'four-maps', signal(), undefined, { embeddedPngMaterials: true });
   assert.equal(h.materialGpuResources(loaded.meshes, true).bytes, loaded.work.gpuBytes);
   assert.throws(() => h.admitEmbeddedPngMaterials(container, plain, { ...h.STANDARD_GLB_LIMITS, gpuBytes: 16 * 1_048_576 }),
@@ -68,7 +102,7 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.strictEqual(m.normalTexture, m.metallicRoughnessTexture);
   assert.notStrictEqual(m.baseColorTexture, m.normalTexture, 'sRGB and data roles require distinct GPU resources');
   assert.equal(h.materialGpuResources(loaded.meshes, true).textures.size, 2);
-  assert.equal(plan.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 2 * h.rgbaMipBytes(3, 5));
+  assert.equal(plan.gpuBytes, plain.work.gpuBytes + plan.expandedAttributeBytes + 2 * h.rgbaMipBytes(3, 5));
 } else if (selected === 'slots') {
   for (const factor of [0, .5, 1]) {
     const scalar = await h.generatedMaterialGlb(3, false, 3, factor);
@@ -114,7 +148,7 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   for (let i = 0; i < plain.meshes.length; i++) { assert.deepEqual(loaded.meshes[i].vertices, plain.meshes[i].vertices); assert.deepEqual(loaded.meshes[i].bounds, plain.meshes[i].bounds); assert.equal(plain.meshes[i].sourceMaterial, undefined); assert.equal(plain.meshes[i].materialVertices, undefined); }
   const projection = h.makeProjection({ yaw: 15, pitch: 35, zoom: 1, panX: 0, panY: 0 }, { min: [0, 0, 0], max: [6, 3, 1] }, { width: 640, height: 480 }, 0);
   for (let x = 10; x < 640; x += 23) for (let y = 10; y < 480; y += 29) assert.deepEqual(h.pick(loaded.meshes, projection, { visibleFloors: 'all', clipY: null }, x, y), h.pick(plain.meshes, projection, { visibleFloors: 'all', clipY: null }, x, y));
-  assert.equal(h.materialGpuResources(plain.meshes, false).bytes, plain.counts.triangles * 72);
+  assert.equal(h.materialGpuResources(plain.meshes, false).bytes, plain.counts.triangles * 72 + 18_432);
 } else if (selected === 'gpu-owner') {
   // One reservation per mesh set: each exact image/colour-role pair once, before any GPU resource exists.
   const { loaded } = await load(3), reservation = h.materialGpuResources(loaded.meshes, true);
@@ -122,6 +156,11 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.deepEqual([...reservation.textures.values()].map(texture => texture.colorRole).sort(), ['data', 'data', 'srgb']);
   assert.equal(reservation.bytes, loaded.work.gpuBytes);
   assert.equal(h.materialGpuResources(loaded.meshes, false).textures.size, 0, 'callers without materials reserve no textures');
+  assert.equal(h.materialGpuResources(loaded.meshes, true, reservation.bytes).bytes, reservation.bytes);
+  assert.throws(() => h.materialGpuResources(loaded.meshes, true, reservation.bytes - 1), /GPU budget/);
+  const withoutMaterials = h.materialGpuResources(loaded.meshes, false);
+  assert.equal(withoutMaterials.bytes, loaded.counts.triangles * 72 + 18_432);
+  assert.equal(h.materialGpuResources([], false).bytes, 0);
 } else {
   // Per-mesh state table read by the shaders: source maps never displace selection or cutaway.
   const { loaded } = await load(3), meshes = loaded.meshes, first = meshes[0];

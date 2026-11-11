@@ -7,12 +7,15 @@ export async function modules(root, observed) {
   const base = 'frontend/src/lantern/canonical-ifc/';
   const compile = (path, replacements) => loadSource(root, path, observed, replacements);
   const geometryUrl = await compile(base + 'geometry.ts');
-  const preflightUrl = await compile(base + 'glb-preflight.ts');
+  const statePath = base + 'mesh-state-table.ts';
+  const stateUrl = existsSync(resolve(root, statePath)) ? await compile(statePath) : null;
+  const stateImports = stateUrl ? { './mesh-state-table': stateUrl } : {};
+  const preflightUrl = await compile(base + 'glb-preflight.ts', stateImports);
   // Map and hash the optional dynamic import without enabling materials in
   // the measured geometry-only load. Older source revisions lack this file.
   const embeddedPath = base + 'embedded-png-material.ts';
   const embeddedUrl = existsSync(resolve(root, embeddedPath))
-    ? await compile(embeddedPath, { './glb-preflight': preflightUrl }) : null;
+    ? await compile(embeddedPath, { './glb-preflight': preflightUrl, ...stateImports }) : null;
   // Meshopt expansion, likewise mapped where the source has it; generated inputs are plain.
   const meshoptPath = base + 'glb-meshopt.ts';
   const meshoptUrl = existsSync(resolve(root, meshoptPath)) ? await compile(meshoptPath, { './glb-preflight': preflightUrl,

@@ -3762,7 +3762,7 @@ native/provider behavior, canonical HTTP binding or live service recovery.
 Inspect `frontend/lantern-tests/embedded-png-material-healthy.mjs`, its generated
 fixture and React hook seam, and the production loader, preflight, decoder,
 geometry and MeshLayer imports before execution. Use Node 26.10.0 and the
-unchanged locked frontend dependencies. Select one ordinary generated positive
+unchanged locked frontend dependencies. Select one approved generated case
 per invocation:
 
 ```sh
@@ -3785,12 +3785,48 @@ production imports into an owned temporary module and removes it afterward.
 Its React hook seam and GL recorder exercise MeshLayer effects without a DOM,
 real React mount, browser, native provider or household input.
 
+The existing `accounting-1024` selection additionally authors state-table
+checks for 0/1/128/129/20,000 instances, invalid counts and safe addition. One
+128-entry row costs 18,432 bytes; a skipped empty set costs zero, while direct
+scene creation retains its existing minimum row. Plain and material accounting
+charge the same single table. `canonical-geometry.test.mjs --healthy` loads
+one mesh declaration through 128 and 129 nodes and compares admitted, extracted
+and reserved counts/bytes across that row boundary. The existing site-publication
+check rounds the combined set once and checks that refused releases preserve
+the reservation and a valid final release returns prepared/GPU ledgers to zero.
+These are ledger controls, not evidence of GPU deallocation or transition peaks.
+The shared state-accounting exports are defined in `glb-preflight.ts`, which
+the unchanged immutable performance harness already maps. The separate helper
+leaf is removed; all 20 trusted harness/contract files match the existing pin.
+Standalone provenance checks hash the current preflight and retain guarded
+optional-helper support for historical sources. This repairs import compatibility
+without changing measurements, policies or selections; actual final-head hosted
+results remain required. No queued run is counted as a pass.
+
+Generated zero-texture material artifacts in `accounting-1024` straddle the
+unchanged configured caps. These are authored admission totals, not measured
+allocations, and still require exact-head hosted execution:
+
+| Tier GPU cap | Admitted total (bytes) | Refused total (bytes) |
+| --- | ---: | ---: |
+| Overview, 64 MiB | 66,834,432 (274,432 below) | 67,295,232 (186,368 above) |
+| Detail, 384 MiB | 400,932,864 (1,720,320 below) | 402,776,064 (122,880 above) |
+
+The Detail fixture uses exactly 256 scalar instances. Existing geometry,
+prepared-byte and scalar limits remain; refusal is checked at GPU material
+admission. Tiny injected-cap checks remain distinct from these configured-cap
+artifact controls. The existing default backend library tests and complete
+model-bake test command also exercise the accounting source paths; no CI
+command, selection or deadline is added. Prepared geometry stays separate from
+GPU reporting. Private/installed artifacts, actual allocation/runtime behavior,
+fixed targets and aggregate transition-overlap policy are not qualified here.
+
 The GL recorder reports successful shader compilation/linking and records
 resource calls; it does not execute shaders or measure real GPU output.
 Generated CPU/accounting assertions are not private-candidate, installed,
 rendering or device acceptance, nor total browser/driver peak-memory evidence.
 The separate lifecycle cancellation/reselection runner remains in the
-separately reviewed regression lane; these commands do not release it or any
+separately reviewed regression lane; these commands do not release it or other
 fault, denial, replay, expiry, concurrency or target controls.
 
 ## Named generated native-place search positive

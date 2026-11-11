@@ -62,19 +62,42 @@ const { createSyntheticSitePort, SYNTHETIC_SITE_PIN } = await import(await sourc
 // Site scene budget: small arithmetic over shared limits, reserved in
 // publication order, with bounded reads and one load at a time.
 {
-  const { createSiteBudget, createTurns, planPoints, runLimited, PREPARED_BYTES_PER_TRIANGLE } = await import(await sourceURL('../src/lantern/site-artifacts/site-budget.ts'));
+  const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
+  const { createSiteBudget, createTurns, planPoints, runLimited, PREPARED_BYTES_PER_TRIANGLE } = await import(await sourceURL('../src/lantern/site-artifacts/site-budget.ts', { '../canonical-ifc/glb-preflight': preflightURL }));
   assert.equal(PREPARED_BYTES_PER_TRIANGLE, 72);
-  const budget = createSiteBudget({ inputBytes: 1000, preparedBytes: 72 * 10, planPoints: 5 });
+  const budget = createSiteBudget({ inputBytes: 1000, preparedBytes: 18_432 + 72 * 10, planPoints: 5 });
   assert.equal(budget.reserveInput(600), null);
   assert.equal(budget.reserveInput(400), null);
   assert.match(budget.reserveInput(1), /input budget/);
-  assert.equal(budget.reservePrepared(6), null);
-  assert.match(budget.reservePrepared(5), /scene budget/);
-  assert.equal(budget.reservePrepared(4), null, 'a later smaller asset still fits');
-  budget.releasePrepared(4);
-  assert.deepEqual(budget.used(), { inputBytes: 1000, preparedBytes: 72 * 6, planPoints: 0 });
+  assert.equal(budget.reservePrepared(6, 64), null);
+  assert.match(budget.reservePrepared(5, 64), /scene budget/);
+  assert.equal(budget.reservePrepared(4, 64), null, 'a later smaller asset still fits');
+  budget.releasePrepared(4, 64);
+  assert.deepEqual(budget.used(), { inputBytes: 1000, preparedBytes: 72 * 6, gpuBytes: 18_432 + 72 * 6, planPoints: 0 });
+  const rows = createSiteBudget({ inputBytes: 0, preparedBytes: 36_864, planPoints: 0 });
+  assert.equal(rows.reservePrepared(0, 64), null); assert.equal(rows.reservePrepared(0, 64), null);
+  assert.equal(rows.used().gpuBytes, 18_432);
+  assert.equal(rows.reservePrepared(0, 1), null); assert.equal(rows.used().gpuBytes, 36_864);
+  rows.releasePrepared(0, 1); assert.equal(rows.used().gpuBytes, 18_432);
+  assert.throws(() => rows.reservePrepared(0, -1));
+  assert.throws(() => rows.reservePrepared(.5, 1));
+  assert.throws(() => rows.reservePrepared(0, Number.MAX_SAFE_INTEGER + 1));
+  const exact = createSiteBudget({ inputBytes: 0, preparedBytes: 18_432 + 72, planPoints: 0 });
+  assert.equal(exact.reservePrepared(1, 1), null);
+  assert.equal(exact.used().gpuBytes, 18_432 + 72);
+  const short = createSiteBudget({ inputBytes: 0, preparedBytes: 18_432 + 71, planPoints: 0 });
+  assert.match(short.reservePrepared(1, 1), /scene budget/);
+  assert.equal(short.used().gpuBytes, 0, 'a refused reservation changes neither count');
   assert.equal(budget.reservePlan(5), null);
   assert.match(budget.reservePlan(1), /point budget/);
+
+  const beforeInvalidRelease = budget.used();
+  for (const [triangles, instances] of [[7, 64], [6, 65], [-1, 0], [0, -1]]) {
+    assert.throws(() => budget.releasePrepared(triangles, instances));
+    assert.deepEqual(budget.used(), beforeInvalidRelease, 'a refused release leaves the entire reservation unchanged');
+  }
+  budget.releasePrepared(6, 64);
+  assert.deepEqual(budget.used(), { inputBytes: 1000, preparedBytes: 0, gpuBytes: 0, planPoints: 5 });
 
   let running = 0, peak = 0;
   const order = [];
