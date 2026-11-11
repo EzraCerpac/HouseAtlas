@@ -87,11 +87,13 @@ export interface EmbeddedImage { readonly key: number; readonly width: number; r
 export interface EmbeddedTexture { readonly key: string; readonly image: EmbeddedImage; readonly colorRole: 'srgb' | 'data' }
 export interface EmbeddedMaterial {
   readonly baseColor: SourceBaseColor; readonly metallic: number; readonly roughness: number; readonly doubleSided: boolean;
+  readonly specular?: number; readonly scalarOnly?: boolean; readonly hasSpecular?: boolean; readonly shadingAttributes?: boolean;
   readonly baseColorTexture?: EmbeddedTexture; readonly normalTexture?: EmbeddedTexture; readonly metallicRoughnessTexture?: EmbeddedTexture;
 }
 interface TexturePin { readonly image: number; readonly role: 'srgb' | 'data'; readonly key: string }
 interface MaterialPin {
   readonly baseColor: SourceBaseColor; readonly metallic: number; readonly roughness: number; readonly doubleSided: boolean;
+  readonly specular: number; readonly scalarOnly: boolean; readonly hasSpecular: boolean; readonly shadingAttributes?: boolean;
   readonly baseColorTexture?: TexturePin; readonly normalTexture?: TexturePin; readonly metallicRoughnessTexture?: TexturePin;
 }
 export interface EmbeddedMaterialPlan {
@@ -136,20 +138,23 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
     need(material.occlusionTexture === undefined && material.emissiveTexture === undefined, 'Unsupported texture slot');
     // Untextured materials retain legacy admission and opaque rendering,
     // including core BLEND materials. The new alpha rules apply only to maps.
-    if (!baseColorTexture && !normalTexture && !metallicRoughnessTexture) return null;
+    const scalarOnly = !baseColorTexture && !normalTexture && !metallicRoughnessTexture;
+    const extension = material.extensions === undefined ? undefined : row(row(material.extensions).KHR_materials_specular);
+    if (scalarOnly && !extension) return null;
     for (const [key] of Object.entries(material)) if (key.endsWith('Texture')) need(key === 'normalTexture', 'Unsupported texture slot');
     for (const [key] of Object.entries(pbr)) if (key.endsWith('Texture')) need(['baseColorTexture', 'metallicRoughnessTexture'].includes(key), 'Unsupported texture slot');
-    need((material.alphaMode ?? 'OPAQUE') === 'OPAQUE' && (material.doubleSided === undefined || typeof material.doubleSided === 'boolean'), 'Only opaque core materials are supported');
-    need(material.emissiveFactor === undefined || Array.isArray(material.emissiveFactor) && material.emissiveFactor.length === 3 && material.emissiveFactor.every(v => v === 0), 'Emissive materials are outside the profile');
+    need((scalarOnly || (material.alphaMode ?? 'OPAQUE') === 'OPAQUE') && (material.doubleSided === undefined || typeof material.doubleSided === 'boolean'), 'Only opaque textured materials are supported');
+    need(scalarOnly || material.emissiveFactor === undefined || Array.isArray(material.emissiveFactor) && material.emissiveFactor.length === 3 && material.emissiveFactor.every(v => v === 0), 'Emissive materials are outside the profile');
     if (normalTexture) need((row(material.normalTexture).scale ?? 1) === 1, 'Only normalScale 1 is supported');
     const rawColor = pbr.baseColorFactor ?? [1, 1, 1, 1]; need(Array.isArray(rawColor) && rawColor.length === 4, 'Invalid base colour factor');
     const baseColor = Object.freeze(rawColor.map(v => factor(v, 1))) as unknown as SourceBaseColor;
-    need(baseColor[3] === 1, 'Textured alpha factor must equal 1');
+    need(scalarOnly || baseColor[3] === 1, 'Textured alpha factor must equal 1');
     return { baseColor, metallic: factor(pbr.metallicFactor, 1), roughness: factor(pbr.roughnessFactor, 1), doubleSided: material.doubleSided === true,
+      specular: factor(extension?.specularFactor, 1), scalarOnly, hasSpecular: extension !== undefined,
       ...(baseColorTexture ? { baseColorTexture } : {}), ...(normalTexture ? { normalTexture } : {}), ...(metallicRoughnessTexture ? { metallicRoughnessTexture } : {}) };
   });
   const accessors = list(json.accessors), primitives = new Map<string, MaterialPin>();
-  let attributeBytes = 0, expandedAttributeBytes = 0;
+  let attributeBytes = 0, expandedAttributeBytes = 0, scalarInstances = 0;
   const usedTextures = new Map<string, TexturePin>();
   const attribute = (raw: unknown, size: number, vertices: number, kind: string) => {
     const a = accessors[at(raw, accessors.length)]!;
@@ -173,6 +178,17 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
       if (primitive.material === undefined) return;
       const material = materials[at(primitive.material, materials.length)]; if (!material) return;
       const attrs = row(primitive.attributes), position = accessors[at(attrs.POSITION, accessors.length)]!, vertices = whole(position.count);
+      if (material.scalarOnly) {
+        need(++scalarInstances <= 256, 'Model has more than 256 scalar material instances');
+        need(Object.keys(attrs).every(key => key === 'POSITION' || key === 'NORMAL'), 'Unsupported scalar material attribute');
+        const shadingAttributes = attrs.NORMAL !== undefined;
+        if (shadingAttributes) {
+          attribute(attrs.NORMAL, 3, vertices, 'normal');
+          const indices = primitive.indices === undefined ? vertices : whole(accessors[at(primitive.indices, accessors.length)]!.count);
+          attributeBytes += vertices * 20; expandedAttributeBytes += indices * 36;
+        }
+        primitives.set(`${node.meshIndex}/${primitiveIndex}`, { ...material, shadingAttributes }); return;
+      }
       attribute(attrs.NORMAL, 3, vertices, 'normal'); attribute(attrs.TEXCOORD_0, 2, vertices, 'UV');
       if (material.normalTexture) attribute(attrs.TANGENT, 4, vertices, 'tangent');
       const indices = primitive.indices === undefined ? vertices : whole(accessors[at(primitive.indices, accessors.length)]!.count);
@@ -185,9 +201,9 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
   const textureGpuBytes = [...usedTextures.values()].reduce((n, pin) => n + images[pin.image]!.mipBytes, 0);
   const gpuBytes = admission.work.triangles * 72 + expandedAttributeBytes + textureGpuBytes;
   const textureBytes = encodedBytes + rgbaBytes + scratchBytes;
-  need(preparedBytes <= limits.outputBytes, `Textured model needs ${mib(preparedBytes)} MiB prepared (${images.length} textures ${mib(textureBytes)} MiB,`
+  need(preparedBytes <= limits.outputBytes, `Model needs ${mib(preparedBytes)} MiB prepared (${images.length} textures ${mib(textureBytes)} MiB,`
     + ` geometry ${mib(preparedBytes - textureBytes)} MiB); this quality tier allows ${mib(limits.outputBytes)} MiB`);
-  need(gpuBytes <= limits.gpuBytes, `Textured model needs ${mib(gpuBytes)} MiB of GPU memory (${usedTextures.size} texture resources ${mib(textureGpuBytes)} MiB,`
+  need(gpuBytes <= limits.gpuBytes, `Model needs ${mib(gpuBytes)} MiB of GPU memory (${usedTextures.size} texture resources ${mib(textureGpuBytes)} MiB,`
     + ` geometry ${mib(gpuBytes - textureGpuBytes)} MiB); this quality tier allows ${mib(limits.gpuBytes)} MiB`);
   return { images, primitives, encodedBytes, rgbaBytes, scratchBytes, attributeBytes, expandedAttributeBytes, preparedBytes, gpuBytes };
 }
@@ -239,7 +255,8 @@ export async function decodeEmbeddedMaterials(plan: EmbeddedMaterialPlan, signal
   const resources = new Map<string, EmbeddedTexture>();
   const texture = (pin: TexturePin): EmbeddedTexture => { let found = resources.get(pin.key); if (!found) { found = { key: pin.key, image: images[pin.image]!, colorRole: pin.role }; resources.set(pin.key, found); } return found; };
   const materials = new Map<string, EmbeddedMaterial>();
-  for (const [key, pin] of plan.primitives) materials.set(key, { baseColor: pin.baseColor, metallic: pin.metallic, roughness: pin.roughness, doubleSided: pin.doubleSided,
+  for (const [key, pin] of plan.primitives) materials.set(key, { baseColor: pin.baseColor, metallic: pin.metallic, roughness: pin.roughness, doubleSided: pin.doubleSided, specular: pin.specular, scalarOnly: pin.scalarOnly, hasSpecular: pin.hasSpecular,
+    ...(pin.shadingAttributes !== undefined ? { shadingAttributes: pin.shadingAttributes } : {}),
     ...(pin.baseColorTexture ? { baseColorTexture: texture(pin.baseColorTexture) } : {}), ...(pin.normalTexture ? { normalTexture: texture(pin.normalTexture) } : {}),
     ...(pin.metallicRoughnessTexture ? { metallicRoughnessTexture: texture(pin.metallicRoughnessTexture) } : {}) });
   signal.throwIfAborted(); return materials;

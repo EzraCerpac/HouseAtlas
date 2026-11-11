@@ -81,7 +81,10 @@ export async function compressGlb(plainBytes, { companion = null, locked = new S
   if (!(grid > 0) || !Number.isFinite(grid)) throw new Error('The snapping grid must be a positive number of metres');
   await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
   const { json: source, bin } = readGlb(plainBytes);
-  if ((source.buffers ?? []).length !== 1 || source.extensionsUsed?.length) throw new Error('Only a plain single-buffer GLB can be compressed');
+  const used = source.extensionsUsed ?? [], hasSpecular = (source.materials ?? []).some(material => material.extensions?.KHR_materials_specular !== undefined);
+  if ((source.buffers ?? []).length !== 1 || !Array.isArray(used) || used.length > 1
+    || used.some(name => name !== 'KHR_materials_specular') || hasSpecular !== used.includes('KHR_materials_specular')
+    || source.extensionsRequired !== undefined) throw new Error('Only a plain single-buffer GLB can be compressed');
   const json = structuredClone(source), instances = meshInstances(json);
   const worlds = new Map([...instances.values()].flat().map(({ nodeIndex, world }) => [nodeIndex, world]));
   const bounded = slotBounds(companion, worlds), sole = soleUses(json);
@@ -166,7 +169,7 @@ export async function compressGlb(plainBytes, { companion = null, locked = new S
   let at = 0;
   for (const part of out) { outBin.set(part, at); at += pad(part.byteLength); }
   json.buffers = [{ byteLength: binLength }, { byteLength: fallbackLength, extensions: { [MESHOPT]: { fallback: true } } }];
-  json.extensionsUsed = [MESHOPT]; json.extensionsRequired = [MESHOPT];
+  json.extensionsUsed = [...(source.extensionsUsed ?? []), MESHOPT]; json.extensionsRequired = [MESHOPT];
   const glb = writeGlb(json, outBin);
   return { glb, report: { codec: MESHOPT, plainBytes: plainBytes.byteLength, bytes: glb.byteLength, ratio: Number((glb.byteLength / plainBytes.byteLength).toFixed(4)),
     decodedBufferBytes: json.bufferViews.reduce((sum, view) => sum + pad(view.byteLength), 0),

@@ -36,7 +36,8 @@ export async function expandMeshoptGlb(bytes: Uint8Array, limits: GlbLimits = ST
   const { json, bin } = readGlbContainer(bytes, limits);
   if (!usesMeshopt(json)) return bytes;
   const used = json.extensionsUsed as unknown[], required = json.extensionsRequired;
-  need(used.length === 1 && Array.isArray(required) && required.length === 1 && required[0] === MESHOPT, 'Only meshopt compression is supported');
+  need(used.length <= 2 && new Set(used).size === used.length && used.every(name => name === MESHOPT || name === 'KHR_materials_specular')
+    && Array.isArray(required) && required.length === 1 && required[0] === MESHOPT, 'Only meshopt compression is supported');
   need(bin !== null, 'A compressed GLB needs its BIN chunk');
   const buffers = json.buffers;
   need(Array.isArray(buffers) && buffers.length === 2 && buffers.every(isRow), 'A compressed GLB has one GLB buffer and one fallback buffer');
@@ -92,7 +93,7 @@ export async function expandMeshoptGlb(bytes: Uint8Array, limits: GlbLimits = ST
     return offset;
   });
   const { extensionsUsed: _used, extensionsRequired: _required, ...rest } = json;
-  return writePlainGlb({ ...rest, buffers: [{ byteLength: out.byteLength }],
+  return writePlainGlb({ ...rest, ...(used.includes('KHR_materials_specular') ? { extensionsUsed: ['KHR_materials_specular'] } : {}), buffers: [{ byteLength: out.byteLength }],
     bufferViews: (views as Row[]).map(({ extensions: _extensions, ...view }, index) => ({ ...view, buffer: 0, byteOffset: placed[index] })) }, out);
 }
 

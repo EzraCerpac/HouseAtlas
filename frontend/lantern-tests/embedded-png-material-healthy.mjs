@@ -70,6 +70,28 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.equal(h.materialGpuResources(loaded.meshes, true).textures.size, 2);
   assert.equal(plan.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 2 * h.rgbaMipBytes(3, 5));
 } else if (selected === 'slots') {
+  for (const factor of [0, .5, 1]) {
+    const scalar = await h.generatedMaterialGlb(3, false, 3, factor);
+    const result = await h.loadStandardGlb(scalar.bytes, 'scalar', signal(), undefined, { embeddedPngMaterials: true });
+    assert.equal(result.meshes[0].sourceMaterial.specular, factor);
+    assert.equal(result.meshes[1].sourceMaterial.specular, factor);
+    assert.equal(result.meshes[1].sourceMaterial.scalarOnly, true);
+    assert.equal(result.meshes[1].sourceMaterial.shadingAttributes, true);
+    assert.equal(result.meshes[1].materialVertices.byteLength, 108);
+    assert.equal(h.materialGpuResources(result.meshes, true).bytes, result.work.gpuBytes);
+  }
+  const flat = await h.generatedMaterialGlb(3, false, 3, .5, true);
+  const flatLoaded = await h.loadStandardGlb(flat.bytes, 'flat-scalar', signal(), undefined, { embeddedPngMaterials: true });
+  assert.equal(flatLoaded.meshes[1].sourceMaterial.specular, .5);
+  assert.equal(flatLoaded.meshes[1].materialVertices, undefined);
+  const container = h.readGlbContainer(flat.bytes);
+  for (const count of [256, 257]) {
+    const json = { ...container.json, nodes: Array.from({ length: count }, () => ({ mesh: 0 })),
+      scenes: [{ nodes: Array.from({ length: count }, (_, index) => index) }] };
+    const candidate = { ...container, json }, admission = h.preflightGltf(candidate);
+    if (count === 256) assert.doesNotThrow(() => h.admitEmbeddedPngMaterials(candidate, admission));
+    else assert.throws(() => h.admitEmbeddedPngMaterials(candidate, admission), /more than 256 scalar material instances/);
+  }
   const { fixture, loaded } = await load(3);
   assert.equal(loaded.meshes.length, 4);
   const first = loaded.meshes[0], material = first.sourceMaterial;

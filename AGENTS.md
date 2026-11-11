@@ -1128,3 +1128,24 @@ core, capture and performance passed; frontend and both combined source gates
 failed. Their accessible annotations expose only exit codes. Log/artifact
 downloads remain stopped after Forbidden; no failure cause is invented and no
 assertion, sandbox, budget, workflow or permission is weakened.
+
+
+Prepared scalar specular source composition preserves exact #589 `9acac8c6`
+on the b19e7d91 donor base without dropping later integration. The optional,
+material-local finite scalar in [0,1] survives bake/compression, backend/frontend
+admission, copied materials and opaque/glass shaders; unsupported texture/color
+properties, required declarations and misplaced extensions remain refused.
+Scalar-bearing primitives retain geometry/normals during bake. Existing bounded
+compression snapping/reordering is unchanged, not byte-identical export.
+
+Independent backend/bake and frontend/shader source reviews found no actionable
+defect. This does not qualify pixels or private source fidelity. The existing
+writer retains the two pixel fixture/assertion files; its first metal comparison
+needs a visible-surface witness before equality can count as meaningful evidence.
+Pixel controls are not included in this exact source composition. Existing 80
+SOURCE / 1 BUILD / 7 BROWSER selections and 22 top-level bake tests remain unchanged;
+source controls extend their existing selections. No new lane, security setting,
+assertion removal, budget/deadline increase, private bake, release or deployment.
+Restored renderer yields and all later suggestion/collection changes are kept.
+The source/frontend/loopback1 failures at c1710cea remain unclassified because
+accessible annotations contain only exit codes and denied downloads stay stopped.

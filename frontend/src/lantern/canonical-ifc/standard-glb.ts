@@ -87,6 +87,8 @@ export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, sign
     signal.throwIfAborted();
   }
   const plainAdmission = preflightGltf(container, limits);
+  if (!materialReader && Array.isArray(container.json.extensionsUsed) && container.json.extensionsUsed.includes('KHR_materials_specular'))
+    throw new GlbFormatError('preflight', 'This model needs material rendering');
   let plan = materialReader?.admitEmbeddedPngMaterials(container, plainAdmission, limits);
   const admission: GlbAdmission = plan ? { ...plainAdmission, work: { ...plainAdmission.work,
     outputBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes } } : plainAdmission;
@@ -166,15 +168,15 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: G
       const sourceMaterial = materials?.get(`${reference?.meshes}/${reference?.primitives}`);
       const sourceBaseColor = sourceMaterial?.baseColor ?? primitiveBaseColor(json, reference?.meshes ?? null, reference?.primitives ?? null);
       let sourceAttributes: MeshInput['sourceAttributes'];
-      if (sourceMaterial) {
+      if (sourceMaterial && (!sourceMaterial.scalarOnly || sourceMaterial.shadingAttributes)) {
         const uv = mesh.geometry.getAttribute('uv'), normal = mesh.geometry.getAttribute('normal'), tangent = mesh.geometry.getAttribute('tangent');
-        if (!uv || !normal || uv.itemSize !== 2 || normal.itemSize !== 3 || uv.count !== items || normal.count !== items
+        if ((!sourceMaterial.scalarOnly && (!uv || uv.itemSize !== 2 || uv.count !== items)) || !normal || normal.itemSize !== 3 || normal.count !== items
           || sourceMaterial.normalTexture && (!tangent || tangent.itemSize !== 4 || tangent.count !== items)
           || !Number.isFinite(world.determinant()) || world.determinant() === 0) throw new GlbFormatError('load', 'Required source shading attributes unavailable');
         const uvs = new Float32Array(items * 2), normals = new Float32Array(items * 3), tangents = sourceMaterial.normalTexture ? new Float32Array(items * 4) : null;
         const normalMatrix = new Matrix3().getNormalMatrix(world), linear = new Matrix3().setFromMatrix4(world), n = new Vector3(), t = new Vector3();
         for (let i = 0; i < items; i++) {
-          uvs[i * 2] = uv.getX(i); uvs[i * 2 + 1] = uv.getY(i);
+          if (uv && !sourceMaterial.scalarOnly) { uvs[i * 2] = uv.getX(i); uvs[i * 2 + 1] = uv.getY(i); }
           n.fromBufferAttribute(normal, i).applyMatrix3(normalMatrix);
           if (!(n.lengthSq() > 0) || !Number.isFinite(n.lengthSq())) throw new GlbFormatError('load', 'Required source normal has no direction');
           n.normalize(); normals[i * 3] = n.x; normals[i * 3 + 1] = n.y; normals[i * 3 + 2] = n.z;
@@ -196,7 +198,7 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: G
       const sourceGlow = sourceNight === 'emitter' ? primitiveGlow(json, reference?.meshes ?? null, reference?.primitives ?? null) : undefined;
       inputs.push({ meshKey, floorId: null, occurrenceId: null, positions, indices, ...(sourceBaseColor ? { sourceBaseColor } : {}),
         ...(sourceNight ? { sourceNight } : {}), ...(sourceGlow ? { sourceGlow } : {}), ...(sourceGlass ? { sourceGlass } : {}), ...(sourceRoughness !== undefined ? { sourceRoughness } : {}),
-        ...(sourceMaterial && sourceAttributes ? { sourceMaterial, sourceAttributes } : {}) });
+        ...(sourceMaterial ? { sourceMaterial } : {}), ...(sourceAttributes ? { sourceAttributes } : {}) });
       drawn.push({ meshKey, nodeIndex, meshIndex: reference?.meshes ?? null, primitiveIndex: reference?.primitives ?? null });
     } catch (error) { failure = error instanceof GlbFormatError ? error : new GlbFormatError('load', 'A drawn primitive could not be read'); }
   });
