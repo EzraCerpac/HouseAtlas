@@ -38,6 +38,22 @@ export async function electricalRecordOwnerCases(client, binding, identity, sema
   assert.equal(resolveElectricalRecordClosure([pins[0]], { ...pools, identities: [oversized] }), null);
   let notices = 0; owner.subscribe(() => { notices++; });
   withdrawn(); assert.equal(notices, 1); assert.equal((await owner.read()).status, 'retired');
+  let visited = 0, reads = 0;
+  const tooMany = new Proxy(Array(10001), { get(target, key, receiver) {
+    if (typeof key === 'string' && /^(0|[1-9][0-9]*)$/.test(key)) { visited++; throw new Error('oversized pin visited'); }
+    return Reflect.get(target, key, receiver);
+  } });
+  const countingClient = { ...client, async listAll(...args) { reads++; return client.listAll(...args); } };
+  const oversizedOwner = make({ pins: tooMany, client: countingClient });
+  assert.equal(visited, 0);
+  assert.equal((await oversizedOwner.read()).status, 'unavailable');
+  assert.equal((await oversizedOwner.read()).status, 'retired');
+  assert.equal(visited, 0); assert.equal(reads, 0);
+  const copiedPin = { ...pins[0] };
+  const copiedOwner = make({ pins: [copiedPin] });
+  copiedPin.revision++;
+  assert.equal((await copiedOwner.read()).status, 'partial');
+  copiedOwner.retire();
   const stale = make({ pins: [{ ...pins[0], revision: pins[0].revision + 1 }] });
   assert.equal((await stale.read()).status, 'unavailable');
   assert.equal((await stale.read()).status, 'retired');
@@ -60,16 +76,19 @@ export async function electricalRecordOwnerCases(client, binding, identity, sema
   assert.equal((await changed.read()).status, 'unavailable');
   assert.equal((await changed.read()).status, 'retired');
   for (const status of ['withdrawn', 'disputed', 'superseded']) {
-    const withheldClient = { ...client, async listAll(...args) {
-      const value = await client.listAll(...args);
-      if (args[1] !== 'evidence' || value.status !== 'ready') return value;
-      return { ...value, records: value.records.map(row => !dependencyIds.has(row.target.recordId) ? row :
-        { ...row, payload: { ...row.payload, provenance: { ...row.payload.provenance,
-          uncertainty: { status, explanation: null } } } }) };
-    } };
-    const withheld = make({ client: withheldClient, pins: pins.slice(0, 3) });
-    assert.equal((await withheld.read()).status, 'unavailable');
-    assert.equal((await withheld.read()).status, 'retired');
+    for (const rootOnly of [true, false]) {
+      const withheldClient = { ...client, async listAll(...args) {
+        const value = await client.listAll(...args);
+        if (args[1] !== 'evidence' || value.status !== 'ready') return value;
+        return { ...value, records: value.records.map(row =>
+          !(rootOnly ? row.target.recordId === evidence.target.recordId : dependencyIds.has(row.target.recordId)) ? row :
+            { ...row, payload: { ...row.payload, provenance: { ...row.payload.provenance,
+              uncertainty: { status, explanation: null } } } }) };
+      } };
+      const withheld = make({ client: withheldClient, pins: rootOnly ? [pins[3]] : pins.slice(0, 3) });
+      assert.equal((await withheld.read()).status, 'unavailable');
+      assert.equal((await withheld.read()).status, 'retired');
+    }
   }
   const mismatchClient = { ...client, async listAll(...args) {
     const value = await client.listAll(...args);

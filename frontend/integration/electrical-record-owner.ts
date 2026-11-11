@@ -17,7 +17,8 @@ export function createElectricalRecordOwner(options: {
   readonly subscribeDependencies: (retire: () => void) => () => void;
 }) {
   const { client, binding, frameSignal } = options;
-  const pins = options.pins.map(pin => ({ ...pin }));
+  const withinPinLimit = options.pins.length <= 10000;
+  const pins = withinPinLimit ? options.pins.map(pin => ({ ...pin })) : [];
   let retired = false, generation = 0;
   const listeners = new Set<() => void>();
   const controller = new AbortController();
@@ -29,7 +30,7 @@ export function createElectricalRecordOwner(options: {
     listeners.clear();
     frameSignal.removeEventListener('abort', retire);
   };
-  const valid = pins.length <= 10000 && pins.every(pin => {
+  const valid = withinPinLimit && pins.every(pin => {
     if (!['identity', 'location-semantics', 'circuit', 'evidence'].includes(pin.recordType) || !pin.recordId ||
       !Number.isSafeInteger(pin.revision) || pin.revision < 1) return false;
     return true;
