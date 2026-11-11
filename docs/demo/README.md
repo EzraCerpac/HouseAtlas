@@ -86,7 +86,7 @@ The list also includes **Synthetic outline export**;
 **Load more** shows the out-of-date **Synthetic elevation tile**.
 These documents, their dates, licences and source details are fictional.
 They do not establish a building, floor or room placement.
-The existing media artifact does not capture this Library view;
+The media artifact includes the list and qualified-preview detail;
 the example uses an in-page synthetic reader, not a live document source.
 
 ### Starting state
@@ -158,6 +158,8 @@ receipt it writes:
 | `example-house-state.png` | The direct link above: Stairs on the upper floor, in Plan. |
 | `example-inventory-list.png` | Fictional belongings in the unplaced list. |
 | `example-inventory-detail.png` | The reading lamp's read-only detail and source hierarchy. |
+| `example-documents-list.png` | The fictional source Documents list in Library. |
+| `example-documents-detail.png` | The survey's qualified preview and source details. |
 | `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
 | `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
 
@@ -194,7 +196,9 @@ Before the screenshot the same run:
   including its stale source hierarchy, unreviewed placement and disabled edit;
 - opens the direct link above and checks its building, floor, room, room part
   and Plan; chooses 3D, opens Upkeep, returns to the Atlas and checks that 3D
-  and the room remain (the reopened read carries a new start array).
+  and the room remain (the reopened read carries a new start array);
+- opens the synthetic Documents list and survey detail, checking the loaded
+  qualified preview, fictional source and licence.
 
 `capture.json` records the example entry, file hashes, the `lantern-tests`
 diagnostics, the storage results, the isolation and Back entry URL, the Back
