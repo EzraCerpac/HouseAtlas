@@ -196,6 +196,7 @@ test('bakes to the budget with one shared error and locked footprints', async ()
   // The installed viewer's own preflight admits the overview.
   const work = await admitInViewer(result.glb);
   assert.equal(work.triangles, after);
+  assert.equal(work.gpuBytes, work.triangles * 72 + 18_432);
 });
 
 test('keeps a master that already fits as authored and drops what nothing reads', async () => {

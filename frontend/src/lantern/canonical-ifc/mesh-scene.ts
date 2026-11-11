@@ -18,9 +18,10 @@ import type { EmbeddedTexture } from './embedded-png-material';
 import type { SceneBuildObservation } from './scene-build-observation';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
+import { STATE_ROW_ENTRIES, stateTableRows } from './mesh-state-table';
 
 /** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
-const ROW = 128;
+const ROW = STATE_ROW_ENTRIES;
 type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B = Node<'bool'>;
 
 /** What the view draws while the rest is prepared, in the order it is prepared. The
@@ -182,7 +183,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     internals._animation?.stop();
     const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
 
-    const rows = Math.max(1, Math.ceil(meshes.length / ROW));
+    const rows = stateTableRows(meshes.length, true);
     const table = new Float32Array(rows * ROW * STATE_FLOATS);
     const state = new DataTexture(table, ROW * STATE_TEXELS, rows, RGBAFormat, FloatType);
     owned.push(state); state.magFilter = state.minFilter = NearestFilter; state.generateMipmaps = false; state.flipY = false; state.colorSpace = NoColorSpace;

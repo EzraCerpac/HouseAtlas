@@ -259,7 +259,9 @@ impl Work {
             + self.materials.scratch_bytes
     }
     fn gpu_bytes(&self) -> usize {
-        self.indices * 24 + self.expanded_attributes + self.materials.mip_bytes
+        // Instance and geometry maxima above bound these products and sums.
+        let state = self.instances.div_ceil(128) * 18_432;
+        self.indices * 24 + self.expanded_attributes + self.materials.mip_bytes + state
     }
     pub(super) fn complete(&self, gltf: &Value) -> Result<(), String> {
         // Decline unused declarations: the frontend validates every accessor,
@@ -852,7 +854,10 @@ mod material_healthy {
         let (work, triangles) = geometry(&glb);
         let (old, old_triangles) = geometry(&legacy);
         assert_eq!(triangles, old_triangles);
-        assert_eq!((old.prepared_bytes(), old.gpu_bytes()), (9852, 7200));
+        assert_eq!(
+            (old.prepared_bytes(), old.gpu_bytes()),
+            (9852, 7200 + 18_432)
+        );
         assert_eq!((work.instances, work.vertices, work.indices), (6, 121, 300));
         assert_eq!(
             (
@@ -872,7 +877,10 @@ mod material_healthy {
             }
         );
         assert_eq!(work.expanded_attributes, 10_800);
-        assert_eq!((work.prepared_bytes(), work.gpu_bytes()), (prepared, gpu));
+        assert_eq!(
+            (work.prepared_bytes(), work.gpu_bytes()),
+            (prepared, gpu + 18_432)
+        );
     }
     #[test]
     fn rgb8_three_maps() {
@@ -1185,6 +1193,32 @@ mod detail_tier {
     }
     #[test]
     fn detail_budget_admits_what_the_overview_refuses() {
+        let mut instances = Work::new(Default::default(), OVERVIEW);
+        assert_eq!(instances.gpu_bytes(), 0);
+        for count in 1..=20_000 {
+            assert!(instances.primitive(3, 3, 0, 0).is_ok());
+            match count {
+                1 | 128 => assert_eq!(instances.gpu_bytes(), count * 72 + 18_432),
+                129 => assert_eq!(instances.gpu_bytes(), count * 72 + 36_864),
+                20_000 => assert_eq!(instances.gpu_bytes(), count * 72 + 2_893_824),
+                _ => {}
+            }
+        }
+        let exact = Limits {
+            gpu_bytes: 18_432 + 72,
+            ..OVERVIEW
+        };
+        let mut fits = Work::new(Default::default(), exact);
+        assert!(fits.primitive(3, 3, 0, 0).is_ok());
+        assert_eq!(fits.gpu_bytes(), 18_432 + 72);
+        let mut over = Work::new(
+            Default::default(),
+            Limits {
+                gpu_bytes: exact.gpu_bytes - 1,
+                ..exact
+            },
+        );
+        assert!(over.primitive(3, 3, 0, 0).is_err());
         let triangles = 700_000;
         let mut overview = Work::new(Default::default(), OVERVIEW);
         assert!(overview.primitive(triangles, triangles * 3, 0, 0).is_err());

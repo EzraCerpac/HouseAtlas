@@ -1,5 +1,6 @@
 import { GlbFormatError, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
 import type { SourceBaseColor } from './geometry';
+import { addGpuBytes, stateTableBytes } from './mesh-state-table';
 
 /** Frozen houseatlas.embedded-png-material.v1. No browser image decoder, URL,
  * canvas colour management or ImageBitmap enters this path. PNG samples remain
@@ -199,7 +200,7 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
   }
   const preparedBytes = admission.work.outputBytes + attributeBytes + expandedAttributeBytes + encodedBytes + rgbaBytes + scratchBytes;
   const textureGpuBytes = [...usedTextures.values()].reduce((n, pin) => n + images[pin.image]!.mipBytes, 0);
-  const gpuBytes = admission.work.triangles * 72 + expandedAttributeBytes + textureGpuBytes;
+  const gpuBytes = addGpuBytes(admission.work.triangles * 72, stateTableBytes(admission.work.instances), expandedAttributeBytes, textureGpuBytes);
   const textureBytes = encodedBytes + rgbaBytes + scratchBytes;
   need(preparedBytes <= limits.outputBytes, `Model needs ${mib(preparedBytes)} MiB prepared (${images.length} textures ${mib(textureBytes)} MiB,`
     + ` geometry ${mib(preparedBytes - textureBytes)} MiB); this quality tier allows ${mib(limits.outputBytes)} MiB`);

@@ -35,7 +35,8 @@ const modelURL = await sourceURL(`${base}model.ts`, 'ts');
 const geometryURL = await sourceURL(`${base}geometry.ts`, 'ts');
 const tonesURL = await sourceURL(`${base}tones.ts`, 'ts');
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
-const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts');
+const stateURL = await sourceURL(`${base}mesh-state-table.ts`, 'ts');
+const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts', { './mesh-state-table': stateURL });
 // The pinned three.js GLTFLoader, loaded from the installed package as a browser bundle would.
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
@@ -243,7 +244,7 @@ assert.deepEqual(pivoted.nodes[0].extras, pivotExtras, 'The original extras are 
 const reused = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])], roots: [0, 1, 2],
   nodes: [{ mesh: 0 }, { mesh: 0, translation: [2, 0, 0] }, { mesh: 0, translation: [4, 0, 0] }] }), 'house', live());
 assert.deepEqual(reused.drawn.map(item => [item.nodeIndex, item.meshIndex]), [[0, 0], [1, 0], [2, 0]]);
-assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72 });
+assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72, gpuBytes: 36 * 72 + 18_432 });
 assert.equal(reused.counts.triangles, 36);
 assert.deepEqual(reused.meshes.map(mesh => mesh.bounds.min[0]), [0, 2, 4]);
 

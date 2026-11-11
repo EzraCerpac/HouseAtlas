@@ -21,9 +21,10 @@ async function load() {
     for (const [specifier, url] of Object.entries(replacements)) code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
     return dataURL(code);
   };
-  const preflightURL = await source('src/lantern/canonical-ifc/glb-preflight.ts');
+  const stateURL = await source('src/lantern/canonical-ifc/mesh-state-table.ts');
+  const preflightURL = await source('src/lantern/canonical-ifc/glb-preflight.ts', { './mesh-state-table': stateURL });
   const preflight = await import(preflightURL);
-  const materialURL = await source('src/lantern/canonical-ifc/embedded-png-material.ts', { './glb-preflight': preflightURL });
+  const materialURL = await source('src/lantern/canonical-ifc/embedded-png-material.ts', { './glb-preflight': preflightURL, './mesh-state-table': stateURL });
   const material = await import(materialURL);
   const geometryURL = await source('src/lantern/canonical-ifc/geometry.ts');
   const meshoptURL = await source('src/lantern/canonical-ifc/glb-meshopt.ts', { './glb-preflight': preflightURL,

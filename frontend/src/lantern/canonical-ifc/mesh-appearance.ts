@@ -1,5 +1,7 @@
 import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh } from './geometry';
 import { FLAT_SKY, type SkyLight } from './sky-light';
+import { STATE_FLOATS } from './mesh-state-table';
+export { STATE_FLOATS, STATE_TEXELS } from './mesh-state-table';
 
 /** Presentation inputs shared by every MeshLayer caller. Geometry never changes here. */
 export interface AppearanceInput {
@@ -149,13 +151,10 @@ const tones = (palette: Partial<MeshPalette> | undefined) => {
 export const MeshPass = Object.freeze({ None: 0, Reference: 1, Unbound: 2, Bound: 3, Glass: 4 } as const);
 export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 
-/** Texels (RGBA float) per mesh in the state table read by the shaders. */
-export const STATE_TEXELS = 9;
-/** Floats per mesh in the state table. Layout, by texel:
+/** State-table layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
  * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim, room, glassOpacity
  * 7 shelter, keepTone, glassFrost, emitter · 8 lampColor.rgb, fades */
-export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
 export const MAX_LAMPS = 16;

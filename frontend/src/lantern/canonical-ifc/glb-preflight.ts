@@ -8,6 +8,8 @@
  * fetched or resolved by path. Node names are labels and extras are kept as
  * opaque producer data; no room, floor or native binding is inferred. */
 
+import { addGpuBytes, stateTableBytes } from './mesh-state-table';
+
 export interface GlbLimits {
   readonly bytes: number; readonly jsonBytes: number; readonly nodes: number; readonly primitives: number;
   readonly triangles: number; readonly vertices: number; readonly depth: number; readonly coordinate: number;
@@ -278,7 +280,10 @@ export function preflightGltf({ json, bin }: GlbContainer, limits = STANDARD_GLB
   for (const root of roots) visit(index(root, nodes.length, 'Scene node'), null, 0);
   const triangles = indices / 3, outputBytes = vertices * 12 + indices * 4 + triangles * 72;
   need(outputBytes <= limits.outputBytes, 'preflight', 'Too much geometry for the preview');
+  need(Number.isSafeInteger(limits.gpuBytes) && limits.gpuBytes >= 0, 'preflight', 'Invalid GPU budget');
+  const gpuBytes = addGpuBytes(triangles * 72, stateTableBytes(instances));
+  need(gpuBytes <= limits.gpuBytes, 'preflight', 'Too much geometry for the preview');
   return { generator: label(asset.generator), copyright: label(asset.copyright), assetExtras: asset.extras ?? null,
     nodes: facts, declaredNodes: nodes.length, declaredMeshes: meshWork.length,
-    work: { instances, vertices, triangles, outputBytes } };
+    work: { instances, vertices, triangles, outputBytes, gpuBytes } };
 }
