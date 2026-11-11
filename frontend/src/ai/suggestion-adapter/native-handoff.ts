@@ -49,6 +49,19 @@ const unavailable: NativeHandoffSnapshot = Object.freeze({ phase: 'unavailable',
 const retired: NativeHandoffSnapshot = Object.freeze({ phase: 'retired', message: 'Native handoff cleared.', rows: empty });
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Canonical maintenance maxima (controller.validateMaintenanceValues): title
+ * 256 UTF-8 bytes, conditional interval 1024, <=16 conditions of <=512 each.
+ * LF, TAB, quote and backslash take two JSON units per byte; other controls and
+ * surrogates refuse. The largest conditional interval exceeds periodic (six
+ * digits, usage-hours) and unknown. Empty strings retain all quotes/separators.
+ * Count the original baseline exactly: currently null in admitted sessions,
+ * otherwise the existing source-display bound applies, without truncation. */
+function maintenanceHandoffTextLimit(baselineDate: string | null): number {
+  return JSON.stringify({ title: '', interval: { kind: 'conditional', condition: '' },
+    conditions: Array(16).fill(''), urgency: 'review-soon', baselineDate, dueDate: null }).length
+    + 2 * (256 + 1024 + 16 * 512);
+}
+
 /** Call only from the existing session owner's onIntent with the controller's
  * current sent snapshot and its selected bindings. Keeps deliberate edits as
  * review text; never maps category/tag text to IDs or intervals to due dates.
@@ -66,12 +79,12 @@ export function createNativeHandoff(intent: SuggestionReviewIntent,
     || !same(intent.candidateKeys, snapshot.candidateKeys)) throw new TypeError('Unbound native handoff');
 
   const requested: { key: string; label: string; value: string; edited: boolean;
-    binding: SelectionBinding; nativeIntent: 'edit' | 'maintenance' }[] = [];
+    binding: SelectionBinding; nativeIntent: 'edit' | 'maintenance'; textLimit: number }[] = [];
   const add = (key: string, kind: string, label: string, value: string, edited: boolean,
-    nativeIntent: 'edit' | 'maintenance' = 'edit') => {
+    nativeIntent: 'edit' | 'maintenance' = 'edit', textLimit = 16384) => {
     const binding = selections[key];
     if (!binding || binding.kind !== kind || requested.some(row => row.key === key)) throw new TypeError('Unbound native selection');
-    requested.push({ key, label, value, edited, binding: Object.freeze({ ...binding }), nativeIntent });
+    requested.push({ key, label, value, edited, binding: Object.freeze({ ...binding }), nativeIntent, textLimit });
   };
   for (const field of intent.fields) {
     const original = view.fields.find(f => f.key === field.key);
@@ -104,10 +117,11 @@ export function createNativeHandoff(intent: SuggestionReviewIntent,
       throw new TypeError('Changed maintenance binding');
     add(task.key, 'maintenance-task', original.targetLabel,
       JSON.stringify({ title: task.title, interval: task.interval, conditions: task.conditions, urgency: task.urgency,
-        baselineDate: original.baselineDate, dueDate: null }), task.editedFields.length > 0, 'maintenance');
+        baselineDate: original.baselineDate, dueDate: null }), task.editedFields.length > 0, 'maintenance',
+      maintenanceHandoffTextLimit(original.baselineDate));
   }
   if (!requested.length || requested.length > 64 || requested.length !== Object.keys(selections).length
-    || requested.some(row => row.value.length > 16384)) throw new TypeError('Invalid native selection size');
+    || requested.some(row => row.value.length > row.textLimit)) throw new TypeError('Invalid native selection size');
 
   const current = owner.current();
   const initial = current ? Object.freeze({ context: current.context, accountKey: current.accountKey,

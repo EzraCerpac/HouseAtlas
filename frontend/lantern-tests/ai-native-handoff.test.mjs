@@ -11,6 +11,7 @@ const source = load('../src/ai/suggestion-adapter/native-handoff.ts');
 const code = source.replace("'../../app/model'", JSON.stringify(model));
 assert.notEqual(code, source);
 const { createNativeHandoff } = await import(moduleUrl(code));
+const { createSuggestionReviewController, validateMaintenanceValues } = await import(moduleUrl(load('../src/ai/suggestion-review/controller.ts')));
 const scope = { workspaceId: 'fictional-workspace', homeId: 'fictional-home' };
 const key = { sourceInstanceId: 'generated-source', collectionId: 'generated-collection', sourceKind: 'homebox-entity', externalId: 'generated-item' };
 const nativeHref = 'https://inventory.example.invalid/item/generated-item/edit';
@@ -37,6 +38,22 @@ function fixture() {
   return { entry, intent, snapshot, selections, owner, checks,
     current: () => current, change(next) { current = next; for (const cb of [...listeners]) cb(); },
     check(fn) { check = fn; }, create() { return createNativeHandoff(intent, selections, snapshot, owner); } };
+}
+function maintenanceFixture(values, baselineDate = null) {
+  const f = fixture(), target = 'subject1', taskKey = 'maintenance:0:' + target;
+  const original = { key: taskKey, targetKey: target, targetLabel: 'Generated filter', ...values,
+    baselineDate, reason: 'Generated review only', uncertainty: 'Unknown', evidenceKeys: ['e1'] };
+  Object.assign(f.snapshot.view, { kind: 'maintenance', title: 'Generated maintenance', fields: [],
+    sources: [{ key: 'e1', label: 'Generated manual', recordVersion: 'exact-v1', sourceDate: null, retrievedAt: null,
+      page: null, section: null, excerpt: 'Generated source text', freshness: 'snapshot-current', original: 'available' }],
+    maintenance: [original], uncertainty: [], uncalibratedScore: null });
+  f.snapshot.fields = []; f.intent.fields = [];
+  f.intent.maintenance = [{ key: taskKey, targetKey: target, ...values, editedFields: [] }];
+  f.snapshot.maintenance = [{ ...f.intent.maintenance[0], selected: true, valid: true,
+    interval: values.interval.kind === 'periodic' ? { ...values.interval, every: String(values.interval.every) } : values.interval }];
+  f.entry.nativeLinks[0].intent = 'maintenance';
+  f.selections = { [taskKey]: { kind: 'maintenance-task', inputRef: target, taskIndex: 0 } };
+  return f;
 }
 test('manual review keeps exact selected edits with only the owned verified link', async () => {
   const f = fixture();
@@ -152,4 +169,72 @@ test('maintenance intervals remain manual review text with unknown due date', as
   const value = JSON.parse(h.getSnapshot().rows[0].value);
   assert.deepEqual(value.interval, interval); assert.equal(value.baselineDate, null); assert.equal(value.dueDate, null);
   h.dispose();
+});
+test('escape-heavy conditions survive the actual once-consumed controller handoff', async () => {
+  const values = { title: 'Review filter', interval: { kind: 'unknown' }, urgency: 'unknown',
+    conditions: Array.from({ length: 16 }, (_, i) => String.fromCharCode(65 + i) + '\n'.repeat(511)) };
+  validateMaintenanceValues(values);
+  const f = maintenanceFixture(values); let deliveries = 0, handoff;
+  const controller = createSuggestionReviewController(f.snapshot.view, {
+    current: f.owner.current, subscribe: f.owner.subscribe, recheck: async () => 'current', inspectSource: async () => {},
+    onIntent(intent) {
+      deliveries++;
+      handoff = createNativeHandoff(intent, f.selections, controller.getSnapshot(), f.owner);
+      return handoff.ready;
+    },
+  });
+  controller.selectMaintenanceTask(f.intent.maintenance[0].key, true);
+  await controller.decide('accept-for-review');
+  assert.equal(deliveries, 1);
+  assert.equal(controller.getSnapshot().phase, 'sent', 'consumed intent must not become handoff-unconfirmed');
+  assert.equal(handoff.getSnapshot().phase, 'ready');
+  const text = handoff.getSnapshot().rows[0].value;
+  assert(text.length > 16384, 'regression exceeds the former arbitrary bound');
+  assert.deepEqual(JSON.parse(text), { title: values.title, interval: values.interval, conditions: values.conditions,
+    urgency: values.urgency, baselineDate: null, dueDate: null });
+  await controller.decide('accept-for-review'); assert.equal(deliveries, 1);
+  handoff.dispose(); controller.dispose();
+});
+test('canonical escaped maxima reach the derived maintenance boundary without truncation', async () => {
+  // Every byte escapes to two units, including non-whitespace quote/backslash.
+  const escapes = '"\\\n\t';
+  const values = { title: escapes.repeat(64), interval: { kind: 'conditional', condition: escapes.repeat(256) },
+    conditions: Array.from({ length: 16 }, () => escapes.repeat(128)), urgency: 'review-soon' };
+  validateMaintenanceValues(values);
+  const f = maintenanceFixture(values);
+  const h = createNativeHandoff(f.intent, f.selections, f.snapshot, f.owner); await h.ready;
+  assert.equal(h.getSnapshot().phase, 'ready');
+  const text = h.getSnapshot().rows[0].value;
+  // 183 structure/enum/null/quote units + twice (256 + 1024 + 16*512).
+  assert.equal(text.length, 19127);
+  assert.deepEqual(JSON.parse(text), { ...values, baselineDate: null, dueDate: null });
+  h.dispose();
+  for (const change of [
+    task => { task.title += 'x'; },
+    task => { task.interval.condition += 'x'; },
+    task => { task.conditions[0] += 'x'; },
+  ]) {
+    const over = structuredClone(values); change(over);
+    assert.throws(() => validateMaintenanceValues(over), 'one raw byte beyond a canonical maximum refuses');
+    const invalid = maintenanceFixture(over);
+    assert.throws(() => createNativeHandoff(invalid.intent, invalid.selections, invalid.snapshot, invalid.owner),
+      /Invalid native selection size/, 'one escaped-output unit above the derived bound still refuses');
+  }
+});
+test('maintenance sizing preserves other interval shapes and the exact original baseline', async () => {
+  for (const interval of [{ kind: 'unknown' }, { kind: 'periodic', every: 100000, unit: 'usage-hours' }]) {
+    const values = { title: '"'.repeat(256), interval, conditions: Array(16).fill('\\'.repeat(512)), urgency: 'review-soon' };
+    validateMaintenanceValues(values);
+    // The local view permits original baseline text; do not normalize it or
+    // expand its existing display admission. Canonical sessions supply null.
+    const baselineDate = '\u0000'.repeat(4096);
+    const f = maintenanceFixture(values, baselineDate);
+    const h = createNativeHandoff(f.intent, f.selections, f.snapshot, f.owner); await h.ready;
+    assert.equal(h.getSnapshot().phase, 'ready');
+    assert.deepEqual(JSON.parse(h.getSnapshot().rows[0].value), { ...values, baselineDate, dueDate: null });
+    h.dispose();
+  }
+  const f = fixture(), oversized = 'x'.repeat(16385);
+  f.intent.fields[0].value = oversized; f.snapshot.fields[0].value = oversized;
+  assert.throws(() => f.create(), /Invalid native selection size/, 'non-maintenance budget is unchanged');
 });
