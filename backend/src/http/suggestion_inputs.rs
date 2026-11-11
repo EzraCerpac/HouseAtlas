@@ -286,6 +286,29 @@ impl<'a> SelectedInputs<'a> {
         self.recheck(core, p)?;
         Ok(&self.admitted)
     }
+    /// Project a borrowed terminal outcome only at fresh native boundaries.
+    /// Retained text/metadata bindings do not establish original-byte availability.
+    /// On source failure the caller retains the unchanged outcome and its usage.
+    /// These checks are not an atomic transaction or continuing disclosure authority.
+    pub fn disclose_completed(
+        &self,
+        core: &Core,
+        p: &RequestPrincipal,
+        outcome: &crate::ai::InferenceOutcome,
+    ) -> Result<ai::SuggestionCompletion> {
+        self.recheck(core, p)?;
+        let projected = ai::disclose_completed(
+            outcome,
+            &self.admitted,
+            &self.admitted,
+            &BTreeSet::new(),
+        );
+        #[cfg(test)]
+        healthy::after_projection(&projected);
+        // Keep the entire DTO local until the original native owners recheck.
+        self.recheck(core, p)?;
+        Ok(projected)
+    }
     pub fn inspection(
         &self,
         core: &Core,
