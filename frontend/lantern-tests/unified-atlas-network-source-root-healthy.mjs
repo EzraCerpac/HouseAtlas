@@ -166,7 +166,7 @@ const traceOf = (graph, linkIds = ['up']) => ({ graphKey: graph.key, data: graph
   deviceOrder: new Map(), segmentIds: new Set() });
 {
   let current = null;
-  const publish = (graph, trace) => { current = publishStageTrace(current, graph.key, trace); };
+  const publish = (graph, trace) => { current = publishStageTrace(current, graph.key, graph.data, trace); };
   // Current owner and graph.
   const first = traceOf(graphA); publish(graphA, first);
   assert.equal(currentStageTrace(current, [graphA, graphB], true), first);
@@ -176,6 +176,8 @@ const traceOf = (graph, linkIds = ['up']) => ({ graphKey: graph.key, data: graph
   assert.equal(currentStageTrace(current, [graphA], true), again);
   // Replacement under the same key with new data: retired at once, before the graph republishes.
   assert.equal(currentStageTrace(current, [graphA2], true), null);
+  const replacement = traceOf(graphA2); publish(graphA2, replacement); publish(graphA, null);
+  assert.equal(current, replacement, 'late withdrawal cannot clear same-key replacement data');
   // Replacement by another graph whose route arrives before the departing graph's delayed cleanup.
   const second = traceOf(graphB); publish(graphB, second); publish(graphA, null);
   assert.equal(current, second, 'a late cleanup never clears a newer graph\'s route');

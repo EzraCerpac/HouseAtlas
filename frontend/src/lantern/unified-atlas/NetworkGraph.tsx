@@ -246,7 +246,7 @@ function LineSample({ tone }: { readonly tone: EdgeTone }) {
 /** What the stage needs to light the same route between rooms. */
 export interface StageTrace {
   readonly graphKey: string;
-  /** The exact graph data this route was traced from; the stage drops it once the graph's data changes. */
+  /** The exact graph data this route was traced from, for host validation. */
   readonly data: NetworkOverlayData;
   /** Source link IDs in order from the chosen device to the root. */
   readonly linkIds: readonly string[];
@@ -260,7 +260,7 @@ export interface StageTrace {
 export function NetworkGraph({ graph, onTrace }: {
   readonly graph: DocumentaryNetworkGraph;
   /** Called with the chosen device's route to the root, or null when none is shown. */
-  readonly onTrace?: ((graphKey: string, trace: StageTrace | null) => void) | undefined;
+  readonly onTrace?: ((graphKey: string, trace: StageTrace | null, data: NetworkOverlayData) => void) | undefined;
 }) {
   const { data } = graph;
   const built = useMemo(() => buildGraph(data), [data]);
@@ -296,10 +296,9 @@ export function NetworkGraph({ graph, onTrace }: {
       deviceOrder: new Map(sources.flatMap((node, at) => node?.kind === 'device' ? [[node.sourceId, at] as const] : [])),
       segmentIds: new Set(sources.flatMap(node => node?.endpoint?.kind === 'segment' ? [node.sourceId] : [])) };
   }, [trace, built, graph.key, data]);
-  // Published and withdrawn before paint, so a replaced or closed graph's route
-  // is never drawn on a frame after it has gone.
-  useLayoutEffect(() => { onTrace?.(graph.key, stageTrace); }, [onTrace, graph.key, stageTrace]);
-  useLayoutEffect(() => () => onTrace?.(graph.key, null), [onTrace, graph.key]);
+  // Publish and withdraw in layout effects; the host must validate during render.
+  useLayoutEffect(() => { onTrace?.(graph.key, stageTrace, data); }, [onTrace, graph.key, stageTrace, data]);
+  useLayoutEffect(() => () => onTrace?.(graph.key, null, data), [onTrace, graph.key, data]);
 
   // A graph wider than its panel says so, and its frame fades at the side
   // that still has branches, until the reader scrolls there.

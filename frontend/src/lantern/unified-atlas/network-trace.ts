@@ -111,11 +111,10 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
   return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: certain.includes(false), certain, reachable };
 }
 
-/** Where a graph's published route goes: a route replaces the current one; a
- * graph withdrawing its own route (null) clears only a route from that graph, so
- * a late cleanup from a departing graph never clears a newer graph's route. */
-export const publishStageTrace = <T extends { readonly graphKey: string }>(current: T | null, graphKey: string, trace: T | null): T | null =>
-  trace ?? (current?.graphKey === graphKey ? null : current);
+/** Withdrawal clears only the same graph key and data identity. Distinct
+ * owners sharing both identities are not distinguished by this contract. */
+export const publishStageTrace = <T extends { readonly graphKey: string; readonly data: object }>(current: T | null, graphKey: string, data: object, trace: T | null): T | null =>
+  trace ?? (current?.graphKey === graphKey && current.data === data ? null : current);
 
 /** The published route only while its own graph is still shown with the exact
  * data it was traced from. Checked during render, so a replaced, removed, hidden
