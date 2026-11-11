@@ -5,6 +5,7 @@
  *
  *   --case webgl2   no WebGPU adapter, so three.js uses its WebGL2 backend
  *   --case webgl2-probe  full WebGL2 probe and its material successor
+ *   --case lamp-glass  generated translucent and opaque lamp controls
  *   --case webgpu   WebGPU on SwiftShader Vulkan (needs a Chromium that offers it)
  *   --case bench    prints CPU time and GPU API calls per frame while the camera
  *                   turns, then per step while the lighting time is scrubbed by
@@ -22,7 +23,7 @@ import { inflateSync } from 'node:zlib';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const CASES = ['webgl2', 'webgl2-probe', 'webgpu', 'bench'];
+const CASES = ['webgl2', 'webgl2-probe', 'lamp-glass', 'webgpu', 'bench'];
 assert.equal(process.argv.length, 4, `Select --case ${CASES.join(' | ')}`);
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3];
@@ -53,8 +54,10 @@ const swapWitnessPlugin = {
     const hooks = [
       ['/canonical-ifc/MeshLayer.tsx',
         'if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);',
-        `const refining = scene.render(p.projection, stale.current ? p : null, w, h, shading);
+        `const applied = stale.current ? p : null;
+        const refining = scene.render(p.projection, applied, w, h, shading);
         (globalThis as unknown as { __swapRender?: (canvas: HTMLCanvasElement, shading: number) => void }).__swapRender?.(element, shading);
+        ${selected === 'lamp-glass' ? '(globalThis as unknown as { __lampRender?: (canvas: HTMLCanvasElement, shading: number, applied: typeof p | null) => void }).__lampRender?.(element, shading, applied);' : ''}
         if (refining) schedule(true);`],
       ['/canonical-ifc/mesh-scene.ts',
         'await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, nextEffectSlice, signal);',
@@ -178,7 +181,7 @@ try {
     await send('Page.navigate', { url: origin + path }); await loaded;
   };
   const shot = async () => decodePng(Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-  const expected = selected === 'webgl2' || selected === 'webgl2-probe' ? 'webgl2' : 'webgpu';
+  const expected = selected === 'webgl2' || selected === 'webgl2-probe' || selected === 'lamp-glass' ? 'webgl2' : 'webgpu';
 
   const checkProbe = async () => {
     phase('render-probe-start');
@@ -218,6 +221,57 @@ try {
       await open(`/lantern-tests/render-bench/index.html?frames=30&scrub=${scrub}`, 390, 844, ['Emulation.setCPUThrottlingRate', { rate: 4 }]);
       console.log(JSON.stringify(await poll('window.benchDone', 240_000, 'Scrub benchmark did not finish')));
     }
+  } else if (selected === 'lamp-glass') {
+    phase('lamp-glass-start');
+    await open('/lantern-tests/embedded-png-material-visual/index.html?lamp-glass', 1400, 900);
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Lamp glass samples did not draw');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    const targets = await evaluate(`[...document.querySelectorAll('[data-glass-lamp]')].map(section => { const r = section.querySelector('canvas').getBoundingClientRect(); return { label: section.dataset.glassLamp, box: [r.x, r.y, r.width, r.height], marker: section.dataset.marker.split(',').map(Number), front: section.dataset.front.split(',').map(Number), back: section.dataset.back.split(',').map(Number) }; })`);
+    assert.deepEqual(targets.map(target => target.label), ['glass-day', 'opaque-day', 'glass-night', 'opaque-night']);
+    const rendered = async (marker, emission) => poll(`[...document.querySelectorAll('[data-glass-lamp] canvas')].length === 4 && [...document.querySelectorAll('[data-glass-lamp] canvas')].every(c => c.dataset.lampRendered === '${marker}:${emission}')`, 30_000, `Lamp canvases did not settle at marker=${marker}, emission=${emission}`);
+    const toggle = async (button, marker, emission) => {
+      await evaluate(`[...document.querySelectorAll('[data-glass-lamp] canvas')].forEach(c => delete c.dataset.lampRendered); document.querySelector('#${button}').click()`);
+      await poll(`document.querySelector('#${button}').getAttribute('aria-pressed') === '${button === 'lamp-marker' ? marker : emission}'`, 10_000, `${button} did not change`);
+      await rendered(marker, emission);
+    };
+    await rendered(true, true);
+    const withMarker = await shot();
+    await toggle('lamp-marker', false, true);
+    const withoutMarker = await shot();
+    const pixel = (capture, target, key) => {
+      const [x, y, w, h] = target.box, [px, py] = target[key]; let rgb = [0, 0, 0];
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const at = ((Math.round(y + py * h / 300) + dy) * capture.width + Math.round(x + px * w / 320) + dx) * 3;
+        for (let channel = 0; channel < 3; channel++) rgb[channel] += capture.pixels[at + channel];
+      }
+      return rgb.map(value => value / 81);
+    };
+    const markerDelta = target => pixel(withMarker, target, 'marker')[2] - pixel(withoutMarker, target, 'marker')[2];
+    const [glassDay, opaqueDay, glassNight, opaqueNight] = targets;
+    const visibleDay = markerDelta(glassDay), visibleNight = Math.abs(markerDelta(glassNight));
+    // Ten levels distinguishes a visible blue marker from quantization; the
+    // opaque control and night fill must suppress that same causal difference.
+    assert(visibleDay > 10, `Daytime glass did not reveal the marker: ${visibleDay}`);
+    assert(Math.abs(markerDelta(opaqueDay)) < 3 && Math.abs(markerDelta(opaqueNight)) < 3, 'Opaque emitter revealed its rear marker');
+    assert(visibleNight < visibleDay - 5, `Night glass did not fill in: day=${visibleDay}, night=${visibleNight}`);
+    assert(visibleNight < 3, `Night glow left visible marker contrast: ${visibleNight}`);
+    await toggle('lamp-emission', false, false);
+    const unlit = await shot();
+    const glow = pixel(withoutMarker, glassNight, 'marker')[0] - pixel(unlit, glassNight, 'marker')[0];
+    const front = pixel(withoutMarker, glassNight, 'front')[0] - pixel(unlit, glassNight, 'front')[0];
+    const back = pixel(withoutMarker, glassNight, 'back')[0] - pixel(unlit, glassNight, 'back')[0];
+    // Five levels is above screenshot quantization; the rear receiver is the
+    // counterfactual outside the generated one-sided emitter's beam.
+    assert(glow > 5, `Glass shade did not glow: ${glow}`);
+    assert(front > 5 && front > back + 3, `Glass emitter did not illuminate along its beam: front=${front}, back=${back}`);
+    await toggle('lamp-marker', true, false);
+    const unlitWithMarker = await shot();
+    const unlitContrast = Math.abs(pixel(unlitWithMarker, glassNight, 'marker')[2] - pixel(unlit, glassNight, 'marker')[2]);
+    assert(unlitContrast > visibleNight + 5, `Night glow did not suppress same-hour marker contrast: on=${visibleNight}, off=${unlitContrast}`);
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    phase('lamp-glass-finished');
+    console.log(`PASS lamp-glass: day marker ${visibleDay}, night marker on/off ${visibleNight}/${unlitContrast}, glow ${glow}, beam ${front}/${back}; generated software-GPU preparation only, historical live-owner review remains deferred`);
   } else if (selected === 'webgl2-probe') {
     await checkProbe();
     await checkMaterialSamples();
