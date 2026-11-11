@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 100585,
-      "sha256": "3f249460aaa7710b8653ca3c6eddd9a67965c6bd2222f889d29d6ae3caf35af0",
+      "bytes": 101521,
+      "sha256": "cd47341da3532b2a9e5d753d41910cb541e595d3b559cdfac6148ff00b71832b",
       "owner": "core-integration"
     },
     {
@@ -2855,15 +2855,15 @@
     {
       "path": "backend/src/http/suggestion_inputs.rs",
       "mode": "100644",
-      "bytes": 25656,
-      "sha256": "79c64093bd17638641fe253ecdf0e231de0b5dc3becfc2c092f6b3f7e98b0d56",
+      "bytes": 26533,
+      "sha256": "d4c86fd65df137368e1cdf4abc4669c40e9f4835960e8fd01aef4fbc81476f73",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/suggestion_inputs_healthy.rs",
       "mode": "100644",
-      "bytes": 24653,
-      "sha256": "864db61cc82114ccd9c8a329f13db87a3e48c2f6e1e1074abed4f55ea9b18a9e",
+      "bytes": 42097,
+      "sha256": "e1a1d03f78379367d8f37c3e82cd611bfddb60190bdff91195124f2a21238f24",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 328053,
-      "sha256": "cc91f036ccdb5c94a04b36fe233597ce942b49dc8027b422594fe96165268d0e",
+      "bytes": 329728,
+      "sha256": "a46b1b18489bb50927e4c2853698b3e21550336346973ece129f3e24c3212777",
       "owner": "core-integration"
     },
     {

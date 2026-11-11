@@ -13,6 +13,18 @@ use std::{
     sync::{Arc, Mutex},
 };
 type Result<T, E = Failure> = std::result::Result<T, E>;
+type ProjectionHook = Box<dyn FnOnce(&ai::SuggestionCompletion)>;
+std::thread_local! {
+    static AFTER_PROJECTION: std::cell::RefCell<Option<ProjectionHook>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+pub(super) fn after_projection(projected: &ai::SuggestionCompletion) {
+    let hook = AFTER_PROJECTION.with(|slot| slot.borrow_mut().take());
+    if let Some(hook) = hook {
+        hook(projected);
+    }
+}
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
@@ -676,5 +688,445 @@ fn actual_other_home_actor_cannot_replace_original_principal() -> Result<(), Fai
         SelectedInputs::capture(&fixture.core, &other, selection(501)),
         Err(InputError::Changed)
     ));
+    Ok(())
+}
+
+// Supplied terminal DATA only, never a provider/model result or a new corpus.
+fn observed_usage() -> crate::ai::Usage {
+    crate::ai::Usage {
+        input_tokens: Some(17),
+        output_tokens: None,
+        total_tokens: None,
+    }
+}
+fn supplied_proposal(selected: &SelectedInputs<'_>, result: Value) -> Value {
+    let input = selected.admitted.input();
+    let claims: Vec<_> = input.sources.iter().enumerate().map(|(index, source)| {
+        let evidence = source.evidence.iter()
+            .find(|e| e.basis == ai::EvidenceBasis::RecordAssertion)
+            .or_else(|| source.evidence.first()).unwrap();
+        json!({"claimRef":format!("claim-{index}"),"sourceRef":source.input_ref,
+            "evidenceRefs":[evidence.evidence_ref],"text":evidence.excerpt,"uncertainty":"tentative"})
+    }).collect();
+    let subject = input
+        .sources
+        .iter()
+        .find(|source| source.role == ai::InputRole::Subject)
+        .unwrap();
+    json!({"schemaVersion":1,"contextPin":selected.admitted.context_pin(),
+        "subjectRef":subject.input_ref,"claims":claims,
+        "missingEvidence":["Original content extraction and physical verification are absent."],
+        "result":result})
+}
+fn supplied_terminal(proposal: &Value) -> crate::ai::InferenceOutcome {
+    crate::ai::InferenceOutcome::Completed {
+        output: vec![
+            json!({"type":"message","role":"assistant","status":"completed",
+            "content":[{"type":"output_text","text":serde_json::to_string(proposal).unwrap()}]}),
+        ],
+        usage: observed_usage(),
+    }
+}
+fn inventory_result() -> Value {
+    json!({"kind":"inventory","changes":[{"field":"category","value":"equipment",
+        "support":{"claimRefs":["claim-0"],"rationale":"Supplied structural review only.","uncertainty":"tentative"}}],"duplicates":[]})
+}
+fn original_fixture() -> Result<Fixture, Failure> {
+    Fixture::prepare(|directory| prepare_snapshot(directory, lifecycle::fixture()?))
+}
+fn original_selection() -> SelectionRequest {
+    let mut request = selection(501);
+    request.selections[0].selector = Selector::Entity {
+        source_instance_id: id(10),
+        collection_id: "synthetic-collection-a".into(),
+        entity_id: id(501),
+    };
+    request
+}
+fn edit_cached_input(path: &Path, delete: bool) -> Result<(), Failure> {
+    let db = rusqlite::Connection::open(path)?;
+    if delete {
+        assert_eq!(
+            db.execute(
+                "DELETE FROM projections WHERE json_extract(body,'$.entity.id')=?1",
+                [id(501)]
+            )?,
+            1
+        );
+    } else {
+        let (rowid, body): (i64, String) = db.query_row(
+            "SELECT rowid,body FROM projections WHERE json_extract(body,'$.entity.id')=?1",
+            [id(501)],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let mut body: Value = serde_json::from_str(&body)?;
+        body["entity"]["description"] = json!("Changed synthetic assertion");
+        assert_eq!(
+            db.execute(
+                "UPDATE projections SET body=?1 WHERE rowid=?2",
+                rusqlite::params![serde_json::to_string(&body)?, rowid]
+            )?,
+            1
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn authenticated_completion_keeps_exact_opaque_evidence_without_original_authority()
+-> Result<(), Failure> {
+    let fixture = original_fixture()?;
+    let p = fixture.principal()?;
+    let selected = SelectedInputs::capture(&fixture.core, &p, original_selection()).unwrap();
+    let proposal = supplied_proposal(&selected, inventory_result());
+    let outcome = supplied_terminal(&proposal);
+    let before = format!("{outcome:?}");
+    let completion = selected
+        .disclose_completed(&fixture.core, &p, &outcome)
+        .unwrap();
+    assert_eq!(completion.usage, observed_usage());
+    let disclosure = completion.review.unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["contextPin"], selected.admitted.context_pin());
+    assert_eq!(wire["view"]["fields"][0]["proposed"], "equipment");
+    let source = &selected.admitted.input().sources[0];
+    let evidence = source
+        .evidence
+        .iter()
+        .find(|e| e.excerpt == "Synthetic mobile item")
+        .unwrap();
+    let card = wire["view"]["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|card| card["key"] == evidence.evidence_ref)
+        .unwrap();
+    assert_eq!(card["excerpt"], evidence.excerpt);
+    assert_eq!(card["recordVersion"], source.version);
+    assert_eq!(card["sourceDate"], json!(source.source_date));
+    assert_eq!(card["retrievedAt"], source.retrieved_at);
+    assert_eq!(
+        wire["inspections"][&evidence.evidence_ref],
+        json!({"inputRef":source.input_ref,
+        "version":source.version,"evidenceRef":evidence.evidence_ref,"location":{"kind":"record"}})
+    );
+    assert!(
+        wire["view"]["sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|card| card["original"] == "unavailable")
+    );
+    let binding = selected
+        .inspection(
+            &fixture.core,
+            &p,
+            &source.input_ref,
+            &source.version,
+            Some(&evidence.evidence_ref),
+            Some(&ai::EvidenceLocation::Record),
+        )
+        .unwrap();
+    assert_eq!(binding.text.as_deref(), Some(evidence.excerpt.as_str()));
+    assert!(
+        matches!(&binding.target, InspectionTarget::CachedEntity { collection_id, .. }
+        if collection_id == "synthetic-collection-a")
+    );
+    assert_eq!(format!("{outcome:?}"), before);
+    Ok(())
+}
+
+#[test]
+fn authenticated_completion_refuses_changed_deleted_and_revoked_native_inputs()
+-> Result<(), Failure> {
+    for change in ["changed", "deleted", "source-revoked", "session-revoked"] {
+        let fixture = original_fixture()?;
+        let p = fixture.principal()?;
+        let selected = SelectedInputs::capture(&fixture.core, &p, original_selection()).unwrap();
+        let outcome = supplied_terminal(&supplied_proposal(&selected, inventory_result()));
+        let before = format!("{outcome:?}");
+        match change {
+            "changed" | "deleted" => edit_cached_input(
+                &fixture._scratch.path().join("fixture/atlas.sqlite"),
+                change == "deleted",
+            )?,
+            "source-revoked" => fixture.core.access.lock().unwrap().set_source_enabled(
+                &a::SourcePartition {
+                    workspace_id: a::CanonicalId::parse(id(1))?,
+                    home_id: a::CanonicalId::parse(id(2))?,
+                    source_instance_id: a::CanonicalId::parse(id(10))?,
+                    collection_id: "synthetic-collection-a".into(),
+                },
+                false,
+            )?,
+            "session-revoked" => fixture
+                .core
+                .access
+                .lock()
+                .unwrap()
+                .revoke_user_sessions(&a::CanonicalId::parse(id(4))?)?,
+            _ => unreachable!(),
+        }
+        assert!(matches!(
+            selected.disclose_completed(&fixture.core, &p, &outcome),
+            Err(InputError::Changed)
+        ));
+        assert_eq!(format!("{outcome:?}"), before);
+    }
+    Ok(())
+}
+
+#[test]
+fn authenticated_completion_holds_projected_dto_until_second_native_recheck() -> Result<(), Failure>
+{
+    let fixture = original_fixture()?;
+    let p = fixture.principal()?;
+    let selected = SelectedInputs::capture(&fixture.core, &p, original_selection()).unwrap();
+    let outcome = supplied_terminal(&supplied_proposal(&selected, inventory_result()));
+    let path = fixture._scratch.path().join("fixture/atlas.sqlite");
+    let called = std::rc::Rc::new(std::cell::Cell::new(false));
+    let observed = called.clone();
+    AFTER_PROJECTION.with(|slot| {
+        assert!(
+            slot.borrow_mut()
+                .replace(Box::new(move |projected| {
+                    assert!(projected.review.is_ok());
+                    edit_cached_input(&path, true).unwrap();
+                    observed.set(true);
+                }))
+                .is_none()
+        );
+    });
+    assert!(matches!(
+        selected.disclose_completed(&fixture.core, &p, &outcome),
+        Err(InputError::Changed)
+    ));
+    assert!(called.get());
+    AFTER_PROJECTION.with(|slot| assert!(slot.borrow().is_none()));
+    Ok(())
+}
+
+#[test]
+fn authenticated_completion_rejects_wrong_pin_and_other_capture_without_rebasing()
+-> Result<(), Failure> {
+    let fixture = original_fixture()?;
+    let p = fixture.principal()?;
+    let selected = SelectedInputs::capture(&fixture.core, &p, original_selection()).unwrap();
+    let mut wrong = supplied_proposal(&selected, inventory_result());
+    wrong["contextPin"] = json!("0".repeat(64));
+    let second_p = fixture.principal()?;
+    let second = SelectedInputs::capture(&fixture.core, &second_p, original_selection()).unwrap();
+    assert_ne!(
+        selected.admitted.context_pin(),
+        second.admitted.context_pin()
+    );
+    for proposal in [wrong, supplied_proposal(&second, inventory_result())] {
+        let outcome = supplied_terminal(&proposal);
+        let completion = selected
+            .disclose_completed(&fixture.core, &p, &outcome)
+            .unwrap();
+        assert_eq!(completion.usage, observed_usage());
+        assert_eq!(
+            completion.review.unwrap_err(),
+            ai::CompletionRejection::Validation(ai::SuggestionError::ContextChanged)
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn authenticated_completion_preserves_terminal_rejections_usage_and_borrowed_outcome()
+-> Result<(), Failure> {
+    use crate::ai::{AiError, InferenceOutcome, ProviderDiagnostic};
+    let fixture = original_fixture()?;
+    let p = fixture.principal()?;
+    let selected = SelectedInputs::capture(&fixture.core, &p, original_selection()).unwrap();
+    let diagnostic = ProviderDiagnostic {
+        http_status: Some(429),
+        code: Some("synthetic-limit".into()),
+        parameter: None,
+        request_id: None,
+    };
+    for usage in [observed_usage(), crate::ai::Usage::default()] {
+        let cases = [
+            (
+                InferenceOutcome::Cancelled { usage },
+                ai::CompletionRejection::Cancelled,
+            ),
+            (
+                InferenceOutcome::Stopped { usage },
+                ai::CompletionRejection::Stopped,
+            ),
+            (
+                InferenceOutcome::Unresolved {
+                    usage,
+                    reason: AiError::ProviderUnavailable,
+                    diagnostic: diagnostic.clone(),
+                },
+                ai::CompletionRejection::Unresolved,
+            ),
+            (
+                InferenceOutcome::Failed {
+                    usage,
+                    reason: AiError::UsageLimitReached,
+                    diagnostic: diagnostic.clone(),
+                },
+                ai::CompletionRejection::Failed,
+            ),
+            (
+                InferenceOutcome::Completed {
+                    usage,
+                    output: vec![
+                        json!({"type":"message","role":"assistant","status":"completed",
+                "content":[{"type":"refusal","refusal":"Synthetic refusal"}]}),
+                    ],
+                },
+                ai::CompletionRejection::Refused,
+            ),
+            (
+                InferenceOutcome::Completed {
+                    usage,
+                    output: vec![],
+                },
+                ai::CompletionRejection::InvalidEnvelope,
+            ),
+            (
+                InferenceOutcome::Completed {
+                    usage,
+                    output: vec![
+                        json!({"type":"message","role":"assistant","status":"completed",
+                "content":[{"type":"output_text","text":"Not JSON"}]}),
+                    ],
+                },
+                ai::CompletionRejection::Validation(ai::SuggestionError::InvalidOutput),
+            ),
+        ];
+        for (outcome, rejection) in cases {
+            let before = format!("{outcome:?}");
+            let completion = selected
+                .disclose_completed(&fixture.core, &p, &outcome)
+                .unwrap();
+            assert_eq!(completion.usage, usage);
+            assert_eq!(completion.review.unwrap_err(), rejection);
+            assert_eq!(format!("{outcome:?}"), before);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn authenticated_document_metadata_and_document_assertions_do_not_become_content()
+-> Result<(), Failure> {
+    for metadata_only in [false, true] {
+        let mut snapshot = lifecycle::fixture()?;
+        let record_id = if metadata_only {
+            let extra =
+                lifecycle::fixture_with_profile(crate::config::FixtureProfile::GeometryMetadata)?;
+            let asset = extra["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|record| record["recordType"] == "asset")
+                .unwrap()
+                .clone();
+            // Preserve actual missing metadata; no staged bytes or extraction exist.
+            let record_id = asset["recordId"].as_str().unwrap().to_owned();
+            snapshot["records"].as_array_mut().unwrap().push(asset);
+            record_id
+        } else {
+            let evidence = snapshot["records"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|record| record["recordType"] == "evidence")
+                .unwrap();
+            evidence["payload"]["provenance"]["evidenceBasis"] = json!("document");
+            evidence["recordId"].as_str().unwrap().to_owned()
+        };
+        let fixture = Fixture::prepare(|directory| prepare_snapshot(directory, snapshot))?;
+        let p = fixture.principal()?;
+        let request = SelectionRequest {
+            feature: Feature::Document,
+            selections: vec![
+                Selection {
+                    role: Role::Subject,
+                    selector: if metadata_only {
+                        Selector::Asset { record_id }
+                    } else {
+                        Selector::Evidence { record_id }
+                    },
+                },
+                Selection {
+                    role: Role::Candidate,
+                    selector: original_selection().selections.remove(0).selector,
+                },
+            ],
+        };
+        let selected = SelectedInputs::capture(&fixture.core, &p, request).unwrap();
+        assert_eq!(
+            selected.admitted.input().sources[0].kind,
+            ai::CandidateKind::Document
+        );
+        assert!(
+            selected.admitted.input().sources[0]
+                .evidence
+                .iter()
+                .all(|e| e.basis != ai::EvidenceBasis::Content)
+        );
+        let support = json!({"claimRefs":["claim-0","claim-1"],"rationale":"Supplied document proposal.","uncertainty":"tentative"});
+        for result in [
+            json!({"kind":"document","classification":{"category":"manual","support":support},"links":[]}),
+            json!({"kind":"document","classification":null,"links":[{"candidateRef":"input-1","support":support}]}),
+        ] {
+            let outcome = supplied_terminal(&supplied_proposal(&selected, result));
+            let completion = selected
+                .disclose_completed(&fixture.core, &p, &outcome)
+                .unwrap();
+            assert_eq!(completion.usage, observed_usage());
+            let expected = if metadata_only {
+                ai::SuggestionError::ContextUnavailable
+            } else {
+                ai::SuggestionError::MissingSupport
+            };
+            assert_eq!(
+                completion.review.unwrap_err(),
+                ai::CompletionRejection::Validation(expected)
+            );
+        }
+        let outcome = supplied_terminal(&supplied_proposal(
+            &selected,
+            json!({"kind":"document","classification":null,"links":[]}),
+        ));
+        let completion = selected
+            .disclose_completed(&fixture.core, &p, &outcome)
+            .unwrap();
+        if metadata_only {
+            assert_eq!(
+                completion.review.unwrap_err(),
+                ai::CompletionRejection::Validation(ai::SuggestionError::ContextUnavailable)
+            );
+        } else {
+            let review = completion.review.unwrap();
+            assert!(
+                review.value()["view"]["fields"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                review.value()["view"]["candidates"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                review.value()["view"]["sources"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|card| card["original"] == "unavailable")
+            );
+        }
+    }
     Ok(())
 }
