@@ -6649,8 +6649,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 12476,
-      "sha256": "e8359971dc037316c900d976612d96469c376c5196f073f14ff326a48ee0791f",
+      "bytes": 15057,
+      "sha256": "4f0b79d39f71856ac5d088bad6084e805eacd9d70863f782c003943d16b65ca2",
       "owner": "web"
     },
     {
@@ -7664,8 +7664,15 @@
     {
       "path": "frontend/example/app.tsx",
       "mode": "100644",
-      "bytes": 4914,
-      "sha256": "956f5234a2a7935cc486064d7eed026f5b4334e9589218a1aa94f32e9aa864d6",
+      "bytes": 4778,
+      "sha256": "c291655c9a3680e2ed37e1bb500745cd4e6edfe6e82957e3388e1c723e035a3b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/household.ts",
+      "mode": "100644",
+      "bytes": 5677,
+      "sha256": "5fc1a4ac5e85887ee3e5d25c88cb120175842148834a69e799bc89faa54ad036",
       "owner": "web"
     },
     {
@@ -7692,8 +7699,8 @@
     {
       "path": "frontend/example/tsconfig.json",
       "mode": "100644",
-      "bytes": 142,
-      "sha256": "a9640dfc540bdcd5e02e641c74de49ef3b7a3c0256897c28b05ec3633bcf8ced",
+      "bytes": 160,
+      "sha256": "78d9e2a6f422f931304e3322e9ea710cacc1f6cb95ccc674096ed03a82cc172d",
       "owner": "web"
     },
     {
@@ -10618,8 +10625,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 121751,
-      "sha256": "18539921bdda9c4764a7c33631ff7c8514f92ae5da0bc7ee6aef98880e29f04c",
+      "bytes": 122278,
+      "sha256": "e634d5eaaf60f206e35a72ffbf1fabe7e88b162989f4cefb0ac07287ad9508bc",
       "owner": "web"
     },
     {
@@ -10758,8 +10765,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 12975,
-      "sha256": "599e8e5810da1183af0ad4ed8dec2b85f826df89ee30f00fb593e305dac476ab",
+      "bytes": 13278,
+      "sha256": "d425d8bf47544094b9c1ffca9b49cc0fcb4c3037084e0c2e36ed2d035059830c",
       "owner": "web"
     },
     {
@@ -13313,8 +13320,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 59537,
-      "sha256": "485b96fe5b22987246a74464a8ff3bb1f1f6d61455e33a5ea4ab1c6a9ad8fb9d",
+      "bytes": 62972,
+      "sha256": "6035fe8c77e52b266b2167e92a46e0402e9f48b5fc9c38050fb67e6ceda8176c",
       "owner": "web"
     },
     {

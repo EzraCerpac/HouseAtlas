@@ -667,6 +667,39 @@ try {
   if (backPath === 'back navigation reload') assert.deepEqual([back.pageshows, back.navigationType], [[false], 'back_forward']);
   await production.goto(`${exampleOrigin}/away.html`, { waitUntil: 'load' });
   assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
+  // Named starting states from the URL, each on a fresh load (no remembered view).
+  const stateFacts = page => page.evaluate(() => {
+    const names = selector => [...document.querySelectorAll(selector)].map(node => node.textContent.trim());
+    return { building: names('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name'), floor: names('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name'),
+      view: names('.ua-tools .seg button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
+      room: document.querySelector('.ua-inspector.is-room h2')?.textContent.trim() ?? null,
+      roomFloor: document.querySelector('.ua-room-floor')?.textContent.trim() ?? null };
+  });
+  const stateEntry = '/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan';
+  await production.goto(`${exampleOrigin}${stateEntry}`, { waitUntil: 'load' });
+  assert.equal(await production.title(), exampleTitle);
+  await production.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const direct = await stateFacts(production);
+  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
+    'A direct link opens its named building, floor, room and view');
+  await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
+  // A mismatched floor and room and an unknown view are each ignored; the building applies.
+  const ignoredEntry = '/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways';
+  await production.goto(`${exampleOrigin}${ignoredEntry}`, { waitUntil: 'load' });
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  const ignored = await stateFacts(production);
+  assert.deepEqual(ignored, { building: ['Synthetic house'], floor: ['All floors'], view: ['3D'], plan: false, room: null, roomFloor: null },
+    'Unknown and mismatched values leave the view as it opens');
+  // Home records derived from the same publication, from a stale HomeBox copy.
+  await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: /^Rooms & places/ }).click();
+  const placesLens = production.locator('section.atlas-lens.is-places');
+  await placesLens.locator('.ledger-name').first().waitFor();
+  const home = await placesLens.evaluate(node => ({ places: [...node.querySelectorAll('.ledger-name')].map(row => row.textContent.trim()),
+    flags: [...new Set([...node.querySelectorAll('.ledger-flag')].map(row => row.textContent.trim()))] }));
+  for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Studio', 'Gallery'])
+    assert(home.places.includes(name), `Home lists ${name} from the Atlas publication`);
+  assert(home.flags.includes('Source: present; cache: stale'), 'Home shows its HomeBox copy as stale');
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
   await exampleBrowser.close();
@@ -676,6 +709,8 @@ try {
     entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
+    states: { direct: { entry: stateEntry, screenshot: 'example-house-state.png', ...direct }, ignored: { entry: ignoredEntry, ...ignored }, home,
+      rememberedOverride: 'not reachable by a link: the remembered view is per document, so every link load starts without one' },
     production: {
       build: 'npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example',
       preIsolationUse: [],
@@ -688,11 +723,11 @@ try {
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-tour.webm'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation and storage sentinels; no provider/native acceptance');
+  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
   clearTimeout(exampleDeadline);
