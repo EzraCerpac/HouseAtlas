@@ -2089,6 +2089,11 @@ by source room, full ordered anchors, package key and UUID. A visible room
 action appears only while current topology membership confirms that ID in the
 selected building.
 
+The topology read case also exercises the frame-scoped partial electrical record owner
+with generated identity and location-semantics reads, stale pins, retirement and
+explicit refusal of circuit, evidence and electrical review authority. It performs
+no live reads and does not establish electrical acceptance.
+
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,
 pagination, exact binding joins, recorded elevation datums and unknown access.
