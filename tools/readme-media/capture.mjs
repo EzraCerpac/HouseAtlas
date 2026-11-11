@@ -1,10 +1,11 @@
 /** Public synthetic presentation only. No native server, household input or provider. */
 import assert from 'node:assert/strict';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, stat, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 
 assert.equal(process.version, 'v26.10.0');
@@ -35,7 +36,9 @@ function countDraws(counter) {
   wrap(globalThis.GPURenderPassEncoder?.prototype, ['draw', 'drawIndexed']);
 }
 const errors = [], requests = [];
-let browser, server, exampleDeadline;
+let browser, server, exampleDeadline, productionDeadline, staticServer, navigationBrowser;
+const temporary = [];
+const stopAll = () => { server?.kill('SIGTERM'); staticServer?.close(); void browser?.close(); void navigationBrowser?.close(); };
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
 try {
   // CI enables Vite's colored URLs even on pipes. Keep the readiness URL plain.
@@ -439,38 +442,46 @@ try {
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
-  // Shipped example house (frontend/example): one screenshot and one short
-  // scripted video tour. It runs after the receipt above is complete, under
-  // its own bound, so the existing capture keeps its unchanged 90 seconds.
+  // Example house (frontend/example) on the Vite dev server: one screenshot and
+  // one short scripted video tour. It runs after the receipt above is complete,
+  // under its own bound, so the existing capture keeps its unchanged 90 seconds.
   clearTimeout(deadline);
-  exampleDeadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 40_000);
+  exampleDeadline = setTimeout(stopAll, 40_000);
+  const exampleStarted = Date.now();
+  const exampleTitle = 'Synthetic example house · HouseAtlas';
+  // The example readiness used by every example check: label, Atlas section,
+  // fresh 3D draw and the house opened through ?building=.
+  const exampleReady = async (page, counter) => {
+    assert.equal(await page.title(), exampleTitle);
+    await page.getByRole('button', { name: 'Home: Synthetic example house. Choose home.', exact: true }).waitFor();
+    assert.equal(await page.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
+    const stage = page.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
+    await stage.waitFor();
+    const drawn = await page.waitForFunction(name => window[name] > 0 ? 'drawn'
+      : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false, counter);
+    assert.equal(await drawn.jsonValue(), 'drawn', 'The example house must draw in 3D');
+    await stage.getByRole('list', { name: 'Floors of Synthetic house' }).waitFor();
+    assert.equal(await stage.getByRole('list', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).getAttribute('aria-pressed'), 'true');
+    return stage;
+  };
   const exampleEntry = '/example/index.html?building=syn-building-house';
   const videoDirectory = await mkdtemp(join(tmpdir(), 'houseatlas-example-video-'));
+  temporary.push(videoDirectory);
   const tourContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
     colorScheme: 'light', serviceWorkers: 'block', recordVideo: { dir: videoDirectory, size: { width: 1280, height: 800 } } });
-  await tourContext.route('**/*', route => {
+  const guard = (context, owned) => context.route('**/*', route => {
     requests.push(route.request().url());
-    if (new URL(route.request().url()).origin === origin) return route.continue();
+    if (new URL(route.request().url()).origin === owned) return route.continue();
     errors.push(`External browser request: ${route.request().url()}`);
     return route.abort();
   });
+  await guard(tourContext, origin);
   const tour = await tourContext.newPage();
   tour.on('pageerror', error => errors.push(error.message));
   await tour.addInitScript(countDraws, 'syntheticAtlasDrawCalls');
   await tour.goto(`${origin}${exampleEntry}`, { waitUntil: 'networkidle' });
   await tour.evaluate(() => document.fonts.ready);
-  assert.equal(await tour.title(), 'Synthetic example house · HouseAtlas');
-  await tour.getByRole('button', { name: 'Home: Synthetic example house. Choose home.', exact: true }).waitFor();
-  assert.equal(await tour.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
-  const tourShell = tour.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
-  await tourShell.waitFor();
-  const tourDraw = await tour.waitForFunction(() => window.syntheticAtlasDrawCalls > 0 ? 'drawn'
-    : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
-  assert.equal(await tourDraw.jsonValue(), 'drawn', 'The example house must draw in 3D before capture');
-  // ?building= opens on the generated house without a click.
-  const tourLadder = tourShell.getByRole('list', { name: 'Floors of Synthetic house' });
-  await tourLadder.waitFor();
-  assert.equal(await tourShell.getByRole('list', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).getAttribute('aria-pressed'), 'true');
+  const tourShell = await exampleReady(tour, 'syntheticAtlasDrawCalls');
   await frames(tour);
   await tour.screenshot({ path: resolve(output, 'example-house.png'), animations: 'disabled' });
   const pause = () => tour.waitForTimeout(800);
@@ -495,21 +506,156 @@ try {
   const tourVideo = tour.video();
   await tourContext.close();
   await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
-  await rm(videoDirectory, { recursive: true, force: true });
+  const tourMs = Date.now() - exampleStarted;
+
+  // Production-mode checks, separately bounded: a type check of the example
+  // sources, then a production-mode bundle of the example page alone (the
+  // fixture-root `vite build example`; the app's own build does not include
+  // it) served from a temporary folder by an owned loopback server with the
+  // Rust host's exact-path, file-type, size and cache-header rules.
+  clearTimeout(exampleDeadline);
+  productionDeadline = setTimeout(stopAll, 60_000);
+  const productionStarted = Date.now();
+  const frontend = resolve(root, 'frontend');
+  const typescript = JSON.parse(await readFile(resolve(frontend, 'node_modules/typescript/package.json'), 'utf8'));
+  const typecheck = spawnSync(process.execPath, [resolve(frontend, 'node_modules/typescript', typescript.bin.tsc), '-p', 'example/tsconfig.json', '--noEmit', '--pretty', 'false'],
+    { cwd: frontend, encoding: 'utf8', timeout: 30_000 });
+  assert.equal(typecheck.error, undefined, 'The pinned TypeScript compiler must run');
+  const diagnostics = `${typecheck.stdout}\n${typecheck.stderr}`.split('\n').filter(line => /error TS\d+/.test(line));
+  assert.deepEqual(diagnostics.filter(line => !/^[^\s(]+\(\d+,\d+\): error TS\d+/.test(line)), [], 'Every compiler diagnostic names a file');
+  assert(typecheck.status === 0 || diagnostics.length > 0, `The compiler failed without diagnostics: ${typecheck.stderr}`);
+  const exampleDiagnostics = diagnostics.filter(line => line.startsWith('example/'));
+  const fixtureDiagnostics = diagnostics.filter(line => !line.startsWith('example/'));
+  if (fixtureDiagnostics.length) console.log(`Type diagnostics outside frontend/example (recorded, not failed):\n${fixtureDiagnostics.join('\n')}`);
+  assert.deepEqual(exampleDiagnostics, [], 'frontend/example sources must type-check');
+  const built = await mkdtemp(join(tmpdir(), 'houseatlas-example-build-'));
+  temporary.push(built);
+  await new Promise((done, reject) => {
+    const child = spawn(process.execPath, [resolve(frontend, 'node_modules/vite/bin/vite.js'), 'build', 'example', '--config', 'vite.config.ts', '--outDir', built, '--emptyOutDir', '--logLevel', 'warn'],
+      { cwd: frontend, env: { ...process.env, NO_COLOR: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
+    let log = '';
+    child.stderr.on('data', data => { log += data; });
+    child.once('error', reject);
+    child.once('exit', code => code === 0 ? done() : reject(new Error(`Example production build failed (${code}): ${log}`)));
+  });
+  const types = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', woff2: 'font/woff2', webmanifest: 'application/manifest+json', png: 'image/png' };
+  const files = new Map();
+  const collect = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name), key = '/' + relative(built, path).split(sep).join('/');
+      assert(!entry.isSymbolicLink(), `Built output contains a symlink: ${key}`);
+      if (entry.isDirectory()) { await collect(path); continue; }
+      assert(types[entry.name.split('.').at(-1)], `The Rust host refuses this built file type: ${key}`);
+      assert((await stat(path)).size <= 4_000_000, `The Rust host refuses this built file size: ${key}`);
+      files.set(key === '/index.html' ? '/example/index.html' : key, path);
+    }
+  };
+  await collect(built);
+  assert(files.has('/example/index.html'), 'The example production build emits its page');
+  // One synthetic same-origin page to seed storage and to navigate away to.
+  const away = '<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Away</title></head><body><p>Synthetic navigation target</p></body></html>';
+  staticServer = createServer((request, response) => {
+    const path = new URL(request.url, 'http://127.0.0.1').pathname;
+    const headers = path.startsWith('/assets/') && !path.slice(8).includes('/')
+      ? { 'cache-control': 'public, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' }
+      : { 'cache-control': 'private, no-store', pragma: 'no-cache', 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin' };
+    if (request.method !== 'GET' || path.includes('%') || (path !== '/away.html' && !files.has(path))) { response.writeHead(404, headers).end(); return; }
+    const body = path === '/away.html' ? Promise.resolve(away) : readFile(files.get(path));
+    body.then(bytes => response.writeHead(200, { ...headers, 'content-type': types[path.split('.').at(-1)] }).end(bytes),
+      () => response.writeHead(500, headers).end());
+  });
+  await new Promise(done => staticServer.listen(0, '127.0.0.1', done));
+  const productionOrigin = `http://127.0.0.1:${staticServer.address().port}`;
+  // A separate browser without Playwright's default back/forward-cache switch,
+  // so the capture records which Back path Chromium actually takes.
+  navigationBrowser = await chromium.launch({ ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+  const productionContext = await navigationBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
+    colorScheme: 'light', reducedMotion: 'reduce', serviceWorkers: 'block' });
+  await guard(productionContext, productionOrigin);
+  const production = await productionContext.newPage();
+  production.on('pageerror', error => errors.push(error.message));
+  await production.addInitScript(countDraws, 'exampleProductionDrawCalls');
+  // Draws are counted afresh after the page is hidden or restored.
+  await production.addInitScript(() => {
+    window.examplePageshows = [];
+    addEventListener('pagehide', () => { window.exampleProductionDrawCalls = 0; });
+    addEventListener('pageshow', event => { window.examplePageshows.push(event.persisted); if (event.persisted) window.exampleProductionDrawCalls = 0; });
+  });
+  // Synthetic same-origin sentinels the example must neither read nor change,
+  // including one row in the real outbox database.
+  const sentinel = { key: 'houseatlas-synthetic-sentinel', value: 'synthetic-sentinel-value' };
+  const outboxRows = (key, write) => new Promise((done, reject) => {
+    const request = indexedDB.open('houseatlas-outbox-v1', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('entries', { keyPath: 'id' });
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result, tx = db.transaction('entries', write ? 'readwrite' : 'readonly'), store = tx.objectStore('entries');
+      if (write) store.put({ id: key, seq: 1, kind: 'synthetic-sentinel', value: write });
+      const all = store.getAll();
+      tx.oncomplete = () => { db.close(); done(all.result); };
+      tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  });
+  const readSentinels = () => production.evaluate(async ({ key, rows }) => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key),
+    cookie: document.cookie, outbox: await new Function('return ' + rows)()(key, null) }), { key: sentinel.key, rows: outboxRows.toString() });
+  await production.goto(`${productionOrigin}/away.html`, { waitUntil: 'load' });
+  await production.evaluate(async ({ key, value, rows }) => {
+    localStorage.setItem(key, value); sessionStorage.setItem(key, value);
+    document.cookie = `${key}=${value}; path=/; SameSite=Strict`;
+    await new Function('return ' + rows)()(key, value);
+  }, { ...sentinel, rows: outboxRows.toString() });
+  const seeded = await readSentinels();
+  assert.deepEqual([seeded.local, seeded.session, seeded.cookie, seeded.outbox.length], [sentinel.value, sentinel.value, `${sentinel.key}=${sentinel.value}`, 1]);
+  await production.goto(`${productionOrigin}${exampleEntry}`, { waitUntil: 'load' });
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  const exampleRealm = await production.evaluate(key => ({ local: localStorage.getItem(key), session: sessionStorage.getItem(key), cookie: document.cookie,
+    indexedDB: typeof indexedDB, caches: typeof caches, broadcastChannel: typeof BroadcastChannel, locks: typeof navigator.locks }), sentinel.key);
+  assert.deepEqual(exampleRealm, { local: null, session: null, cookie: '', indexedDB: 'undefined', caches: 'undefined', broadcastChannel: 'undefined', locks: 'undefined' },
+    'Script on the example page sees none of the origin storage');
+  // Back/Forward: leave for another owned page, check the sentinels, go back.
+  await production.goto(`${productionOrigin}/away.html`, { waitUntil: 'load' });
+  assert.deepEqual(await readSentinels(), seeded, 'The example left origin storage unchanged');
+  await production.goBack({ waitUntil: 'commit' });
+  await production.waitForFunction(() => document.readyState === 'complete' && window.examplePageshows?.length > 0);
+  await exampleReady(production, 'exampleProductionDrawCalls');
+  const back = await production.evaluate(() => ({ pageshows: window.examplePageshows, navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null }));
+  const backPath = back.pageshows.at(-1) === true ? 'back-forward-cache restore' : 'back navigation reload';
+  if (backPath === 'back navigation reload') assert.deepEqual([back.pageshows, back.navigationType], [[false], 'back_forward']);
+  await production.goto(`${productionOrigin}/away.html`, { waitUntil: 'load' });
+  assert.deepEqual(await readSentinels(), seeded, 'Origin storage is still unchanged after Back');
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+  await productionContext.close();
+  await navigationBrowser.close();
+  await new Promise(done => staticServer.close(done));
+  const productionMs = Date.now() - productionStarted;
   const exampleHouse = {
-    entry: exampleEntry, renderer: 'shipped frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
+    entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
-    scope: ['Generated fictional data only', 'Video is a review aid: browser timing varies; no pixel or timing evidence'],
+    production: {
+      build: 'vite build example --config vite.config.ts (fixture-root production mode, temporary output); not the app build, which does not include the example',
+      served: 'owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host',
+      files: files.size,
+      typecheck: { config: 'frontend/example/tsconfig.json', exampleDiagnostics: 0, otherDiagnostics: fixtureDiagnostics.length },
+      storage: { seeded: ['localStorage', 'sessionStorage', 'script-visible cookie', 'houseatlas-outbox-v1 row'], exampleRealm, unchangedAfterLeaving: true, unchangedAfterBack: true },
+      back: { path: backPath, ...back },
+    },
+    durationsMs: { tour: tourMs, production: productionMs },
+    scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
+      'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
     artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-tour.webm'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house screenshot and tour video; no provider/native acceptance');
+  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house screenshot, tour video, type check, production-mode build, Back navigation and storage sentinels; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
   clearTimeout(exampleDeadline);
+  clearTimeout(productionDeadline);
   await browser?.close();
+  await navigationBrowser?.close();
+  staticServer?.close();
+  await Promise.all(temporary.map(path => rm(path, { recursive: true, force: true })));
   if (server && server.exitCode === null) {
     const stopped = new Promise(done => server.once('exit', done));
     server.kill('SIGTERM');

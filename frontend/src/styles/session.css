@@ -22,9 +22,6 @@
 .session-form button {
   justify-self: start;
 }
-.access-example {
-  margin: 24px 0 0;
-}
 .session-error:empty {
   display: none;
 }

@@ -6551,8 +6551,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 9549,
-      "sha256": "b1c8cac4b79d87bde7f86c0bfa3d5eb9ad0b56c7d2ec470f3d9557dd100c40a6",
+      "bytes": 11433,
+      "sha256": "9d740c489ae61cc74682e09b6932864436f257223c2658ab2776a6da9c4ea81d",
       "owner": "web"
     },
     {
@@ -7412,8 +7412,8 @@
     {
       "path": "frontend/build/offline-shell-plugin.mjs",
       "mode": "100644",
-      "bytes": 3984,
-      "sha256": "abbb448fd4ba1e2f460e4514a4fc8c0a23c522cb712461af62b9eb6ec49d10be",
+      "bytes": 3845,
+      "sha256": "c405c39f2ee7189cb4be153a214ae4855a3257c29631bcfbadfad3e846f74af0",
       "owner": "web"
     },
     {
@@ -7566,15 +7566,22 @@
     {
       "path": "frontend/example/isolation.ts",
       "mode": "100644",
-      "bytes": 1124,
-      "sha256": "818ec1f9be4b7d94a0def89f8e3c32e58f5070d3f8222fa5d1e4082b252ef229",
+      "bytes": 1902,
+      "sha256": "c8a128f9772b4ebb944f91ca410b497c2091df4500e367c22b85a4f1a5854b19",
       "owner": "web"
     },
     {
       "path": "frontend/example/main.tsx",
       "mode": "100644",
-      "bytes": 4529,
-      "sha256": "db84afbf1e998e77e3afe6c3ff2699e3ed3cbad576e23128fd194fbf8a8a41f6",
+      "bytes": 5166,
+      "sha256": "74f31c06902b7562049bca02631750865672b3177cc2d333ca8635a5f8df04f9",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/tsconfig.json",
+      "mode": "100644",
+      "bytes": 109,
+      "sha256": "2042828ba7fedfe9ff8fd416e95eb90adc18f67f9308ab3de17117f339d3ccc4",
       "owner": "web"
     },
     {
@@ -9120,8 +9127,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 19723,
-      "sha256": "b913ea781fe0822b7613a118d1c8f1c6d8286a125cf5532e15f69438a17a0e0a",
+      "bytes": 19433,
+      "sha256": "380cab0feb3c3f3dfdfa16a76a571190a37ef51074e8ded2b84bf6f9b12f80a3",
       "owner": "web"
     },
     {
@@ -10681,8 +10688,8 @@
     {
       "path": "frontend/src/styles/session.css",
       "mode": "100644",
-      "bytes": 638,
-      "sha256": "41f4ea280ff2a849b5ebae05963a4c0725bcaf12e5565255dbe31157efac434f",
+      "bytes": 598,
+      "sha256": "d186d9a1bdedfcc163b5273c388356528e725ba1eb155e9e99df2d0bfff558f8",
       "owner": "web"
     },
     {
@@ -12809,8 +12816,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 44711,
-      "sha256": "066008fe70787335242e51f630ef203a625b9e296a6cd126048007288845f287",
+      "bytes": 56185,
+      "sha256": "e2657f0e86ac5352de3fde0ebb9c0b33b0f32e252f90da1c4e3eb2e69b8db5fe",
       "owner": "web"
     },
     {

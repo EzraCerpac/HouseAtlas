@@ -53,30 +53,41 @@ tour below; it is a review aid, not timing or pixel evidence.
 
 ## Example house
 
-The production build ships one fictional example house at
-`/example/index.html` (source: `frontend/example/`). The signed-out screen
-links to it as **Synthetic example house**; signed-in views do not.
-It mounts the actual `LanternHost` and `UnifiedAtlas` against the same
-generated two-building publication as the unified Atlas images above, plus
-the synthetic Documents, site and core-read fixtures. Every label, identifier,
-coordinate and date is invented. The home name, shown on every screen, is
-*Synthetic example house*.
+`frontend/example/` is one fictional example house for showing features,
+changes and fixes in PRs. It mounts the actual `LanternHost` and
+`UnifiedAtlas` against the same generated two-building publication as the
+unified Atlas images above, plus the synthetic Documents, site and core-read
+fixtures. Every label, identifier, coordinate and date is invented. The home
+name, shown on every screen, is *Synthetic example house*.
 
-The page uses no session, cookie, native transport, provider or account, and
-never falls back to or mixes with a real Home. Before the app loads it refuses
-every `fetch` locally and replaces `localStorage`, `sessionStorage`,
-IndexedDB and Cache Storage, so the real app's outbox, saved Atlas copies,
-caches and preferences on the same origin are neither read nor changed.
-Nothing is kept after the tab closes, and it is not available offline.
+Open it from the Vite dev server at `/example/index.html` (for example
+`npm --prefix frontend exec vite -- --host 127.0.0.1`). It is not in the
+production build and the app does not link to it: as a third build entry it
+moved shared code out of the app's startup file into extra startup chunks,
+and the startup JavaScript budget has no headroom (see
+[CI performance](../ci-performance.md)). Shipping it needs a separate
+build pass and a budget decision for any sign-in link.
 
 `?building=syn-building-house` or `?building=syn-building-studio` opens the
 Atlas on that generated building; an unknown ID is ignored. View, floor and
-room selection have no URL parameters yet; choose them in the page.
+room have no URL parameters; choose them in the page.
+
+The page shares the app's origin and is not a browser sandbox. Before any app
+module runs it replaces, for script on the page only, `fetch` (every request
+is refused locally), `localStorage`, `sessionStorage`, IndexedDB, Cache
+Storage, `BroadcastChannel`, `navigator.locks` and `document.cookie`. No
+session credentials are used for application-data reads, the app modules on
+the page neither read nor change the real app's outbox, Atlas caches or
+preferences, and changes made in the example are not persisted. The browser
+still sends the origin's cookies with requests for the page's own scripts and
+styles. It is not available offline. After Back/Forward it shows the house
+again: a page restored from the back/forward cache mounts a fresh tree.
 
 ### Screenshots and video for a pull request
 
 Any PR touching `frontend/**`, `docs/demo/**` or `tools/readme-media/**` runs
-the **Synthetic README media** workflow. Besides the images above it writes:
+the **Synthetic README media** workflow. After the existing captures and their
+receipt it writes:
 
 | File | Content |
 | --- | --- |
@@ -85,17 +96,38 @@ the **Synthetic README media** workflow. Besides the images above it writes:
 
 Open the PR's **Checks** tab, choose the **Synthetic README media** run and
 download the `synthetic-readme-media-<head SHA>` artifact (kept seven days).
-`capture.json` records the example entry and the SHA-256 of both files. Attach
-or drag the PNG or WebM into the PR description to show a change; do not
-commit them. To show a different state, extend the tour in
+Attach or drag the PNG or WebM into the PR description to show a change; do
+not commit them. To show a different state, extend the tour in
 `tools/readme-media/capture.mjs`.
 
-The example runs after the existing capture and its receipt checks, under its
-own 40-second bound; the existing 90-second bound is unchanged. It does not
-show inventory editing, HomeBox or Network sources, native documents, saved or
-offline copies, sign-in, iPhone, PWA or device behavior. Its Home records
+The same run then, under a separate bound:
+
+- type-checks `frontend/example/` with `frontend/example/tsconfig.json` and the
+  pinned compiler; diagnostics in the imported `lantern-tests` fixtures are
+  logged and counted, not failed;
+- builds the example alone in production mode (`vite build example`, the
+  fixture-root form) into a temporary folder and serves it from an owned
+  loopback server applying the Rust host's path, file-type, size and
+  cache-header rules;
+- seeds synthetic `localStorage`, `sessionStorage`, cookie and outbox-database
+  sentinels on that origin, opens the example, checks that its script sees
+  none of them, leaves for another owned page, goes Back, waits for a fresh
+  3D draw, and checks the sentinels are unchanged.
+
+`capture.json` records the example entry, file hashes, compiler diagnostic
+counts, the storage results, the Back path Chromium took (back/forward-cache
+restore or reload; both pages are served `no-store`, like the Rust host) and
+informational durations. The tour has a 40-second bound and the production
+checks a 60-second bound; the existing 90-second bound is unchanged.
+
+These checks do not establish: the app's production build or the Rust host
+serving the page (it is not shipped); coexistence with an existing browser
+profile or an active service worker (the context is clean and service workers
+are blocked); iPhone, PWA, offline or device behavior; inventory editing,
+HomeBox or Network sources, native documents or sign-in. Its Home records
 (the core-read fixture's *Alpha* building) and its Atlas buildings are two
-separate generated fixtures, not one coherent household.
+separate generated fixtures, not one coherent household. This first slice
+does not complete the feature coverage tracked in #591.
 
 ## Reproduce
 

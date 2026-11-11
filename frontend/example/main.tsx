@@ -1,14 +1,15 @@
-/** Shipped SYNTHETIC example house: the actual LanternHost and unified Atlas
- * over the generated fictional publication used by the capture fixtures.
- * Every record, label, identifier and coordinate is invented. No session,
- * cookie, native transport, provider or account is used; all reads are
- * in-page fakes (see ./isolation). It never falls back to, or mixes with, a
- * real Home.
+/** SYNTHETIC example house: the actual LanternHost and unified Atlas over
+ * the generated fictional publication used by the capture fixtures. Every
+ * record, label, identifier and coordinate is invented. Application reads are
+ * in-page fakes; no session credentials, native transport, provider or
+ * account are used (see ./isolation). It never falls back to, or mixes with,
+ * a real Home. Served by the Vite dev server; not in the production build.
  *
  * `?building=<id>` opens the Atlas on one generated building
  * (`syn-building-house` or `syn-building-studio`); an unknown ID is ignored. */
 import './isolation';
-import { createRoot } from 'react-dom/client';
+import type { ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { LanternHost } from '../src/lantern/Host';
 import type { ReadyView } from '../src/app/types';
 import type { SourceModelPort } from '../src/lantern/source-ports';
@@ -62,9 +63,20 @@ async function sourceModels(): Promise<SourceModelPort> {
   };
 }
 
-const root = createRoot(document.getElementById('root')!);
-void sourceModels().then(models => root.render(<LanternHost view={view}
-  actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
-  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
-error => root.render(<p role="alert">{error instanceof Error ? error.message : 'The example house could not start.'}</p>));
-window.addEventListener('pagehide', () => root.unmount(), { once: true });
+// pagehide unmounts the tree, so its effects release the WebGL/WebGPU
+// renderer, GLB workers and readers while the page is hidden; a page restored
+// from the back/forward cache mounts a fresh tree instead of staying blank.
+const element = document.getElementById('root')!;
+let root: Root | null = null;
+function mount() {
+  const current = createRoot(element);
+  root = current;
+  const render = (node: ReactNode) => { if (root === current) current.render(node); };
+  void sourceModels().then(models => render(<LanternHost view={view}
+    actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
+    nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
+  error => render(<p role="alert">{error instanceof Error ? error.message : 'The example house could not start.'}</p>));
+}
+mount();
+window.addEventListener('pagehide', () => { root?.unmount(); root = null; });
+window.addEventListener('pageshow', event => { if (event.persisted && root === null) mount(); });
