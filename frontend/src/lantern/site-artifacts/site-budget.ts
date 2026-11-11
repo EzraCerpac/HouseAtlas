@@ -14,7 +14,7 @@
  * prepared and plan inside each index's ordered turn. Refused assets keep their
  * pins and a truthful reason. */
 
-import { addGpuBytes, stateTableBytes } from '../canonical-ifc/mesh-state-table';
+import { addGpuBytes, stateTableBytes } from '../canonical-ifc/glb-preflight';
 
 /** Bytes the prepared mesh holds per drawn triangle: 3 corners × 6 floats × 4. */
 export const PREPARED_BYTES_PER_TRIANGLE = 72;

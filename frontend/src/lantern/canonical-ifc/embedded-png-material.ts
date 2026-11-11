@@ -1,6 +1,5 @@
-import { GlbFormatError, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
+import { addGpuBytes, GlbFormatError, STANDARD_GLB_LIMITS, stateTableBytes, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
 import type { SourceBaseColor } from './geometry';
-import { addGpuBytes, stateTableBytes } from './mesh-state-table';
 
 /** Frozen houseatlas.embedded-png-material.v1. No browser image decoder, URL,
  * canvas colour management or ImageBitmap enters this path. PNG samples remain

@@ -1,6 +1,6 @@
 import type { PreparedMesh } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
-import { addGpuBytes, stateTableBytes } from './mesh-state-table';
+import { addGpuBytes, stateTableBytes } from './glb-preflight';
 
 /** Explicit renderer bounds: drawing-buffer pixels and uploaded vertex bytes. */
 export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024,

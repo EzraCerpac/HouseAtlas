@@ -32,8 +32,8 @@ const daylightURL = await sourceURL('../src/lantern/unified-atlas/daylight.ts', 
 const { daylightAt, modelDirection, resolveSunPlace, stageBackdrop, stageColors, STAGE_GLOW_AT, STAGE_GLOW_RADII } = await import(daylightURL);
 const { FLAT_SKY, LUMA } = await import(skyURL);
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const stateURL = await sourceURL('../src/lantern/canonical-ifc/mesh-state-table.ts');
-const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL, './sky-light': skyURL, './mesh-state-table': stateURL }));
+const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
+const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL, './sky-light': skyURL, './glb-preflight': preflightURL }));
 const { isGlass, prepareMeshes, primitiveGlass, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);

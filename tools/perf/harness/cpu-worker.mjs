@@ -53,13 +53,11 @@ if (process.version !== 'v26.10.0' || process.env.NODE_ENV !== 'production') {
     unavailable(glbIds, 'unsupported', 'feature-not-present');
   else try {
     const geometryUrl = await compile(base + 'geometry.ts');
-    const stateImports = present(base + 'mesh-state-table.ts')
-      ? { './mesh-state-table': await compile(base + 'mesh-state-table.ts') } : {};
-    const preflight = await compile(base + 'glb-preflight.ts', stateImports);
+    const preflight = await compile(base + 'glb-preflight.ts');
     // Older sources have no material module. New sources still require an
     // explicit mapping through the same strict compiler; measurements opt out.
     const materialImports = present(base + 'embedded-png-material.ts')
-      ? { './embedded-png-material': await compile(base + 'embedded-png-material.ts', { './glb-preflight': preflight, ...stateImports }) } : {};
+      ? { './embedded-png-material': await compile(base + 'embedded-png-material.ts', { './glb-preflight': preflight }) } : {};
     // Meshopt expansion, mapped the same way where the source has it.
     const meshoptImports = present(base + 'glb-meshopt.ts')
       ? { './glb-meshopt': await compile(base + 'glb-meshopt.ts', { './glb-preflight': preflight,

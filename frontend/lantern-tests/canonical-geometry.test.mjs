@@ -35,9 +35,8 @@ const modelURL = await sourceURL(`${base}model.ts`, 'ts');
 const geometryURL = await sourceURL(`${base}geometry.ts`, 'ts');
 const tonesURL = await sourceURL(`${base}tones.ts`, 'ts');
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
-const stateURL = await sourceURL(`${base}mesh-state-table.ts`, 'ts');
-const { materialGpuResources } = await import(await sourceURL(`${base}gpu-budget.ts`, 'ts', { './mesh-state-table': stateURL }));
-const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts', { './mesh-state-table': stateURL });
+const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts');
+const { materialGpuResources } = await import(await sourceURL(`${base}gpu-budget.ts`, 'ts', { './glb-preflight': preflightURL }));
 // The pinned three.js GLTFLoader, loaded from the installed package as a browser bundle would.
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;

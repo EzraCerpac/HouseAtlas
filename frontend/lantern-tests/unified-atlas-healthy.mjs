@@ -37,8 +37,7 @@ const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoa
 const pointersURL = await sourceURL('../src/lantern/canonical-ifc/stage-pointers.ts');
 const labelsURL = await sourceURL('../src/lantern/unified-atlas/labels.ts');
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const stateURL = await sourceURL('../src/lantern/canonical-ifc/mesh-state-table.ts');
-const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts', { './mesh-state-table': stateURL });
+const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
 const standardURL = await sourceURL('../src/lantern/canonical-ifc/standard-glb.ts', { three: threeURL,
   'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL, './geometry': geometryURL, './glb-preflight': preflightURL });
 const typesURL = await sourceURL('../src/lantern/unified-atlas/types.ts');

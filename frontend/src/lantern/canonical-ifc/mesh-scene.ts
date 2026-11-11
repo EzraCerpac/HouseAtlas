@@ -18,7 +18,7 @@ import type { EmbeddedTexture } from './embedded-png-material';
 import type { SceneBuildObservation } from './scene-build-observation';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
-import { STATE_ROW_ENTRIES, stateTableRows } from './mesh-state-table';
+import { STATE_ROW_ENTRIES, stateTableRows } from './glb-preflight';
 
 /** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
 const ROW = STATE_ROW_ENTRIES;

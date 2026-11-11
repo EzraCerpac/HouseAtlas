@@ -1,7 +1,7 @@
 import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh } from './geometry';
 import { FLAT_SKY, type SkyLight } from './sky-light';
-import { STATE_FLOATS } from './mesh-state-table';
-export { STATE_FLOATS, STATE_TEXELS } from './mesh-state-table';
+import { STATE_FLOATS } from './glb-preflight';
+export { STATE_FLOATS, STATE_TEXELS } from './glb-preflight';
 
 /** Presentation inputs shared by every MeshLayer caller. Geometry never changes here. */
 export interface AppearanceInput {

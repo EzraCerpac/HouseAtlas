@@ -62,8 +62,8 @@ const { createSyntheticSitePort, SYNTHETIC_SITE_PIN } = await import(await sourc
 // Site scene budget: small arithmetic over shared limits, reserved in
 // publication order, with bounded reads and one load at a time.
 {
-  const stateURL = await sourceURL('../src/lantern/canonical-ifc/mesh-state-table.ts');
-  const { createSiteBudget, createTurns, planPoints, runLimited, PREPARED_BYTES_PER_TRIANGLE } = await import(await sourceURL('../src/lantern/site-artifacts/site-budget.ts', { '../canonical-ifc/mesh-state-table': stateURL }));
+  const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
+  const { createSiteBudget, createTurns, planPoints, runLimited, PREPARED_BYTES_PER_TRIANGLE } = await import(await sourceURL('../src/lantern/site-artifacts/site-budget.ts', { '../canonical-ifc/glb-preflight': preflightURL }));
   assert.equal(PREPARED_BYTES_PER_TRIANGLE, 72);
   const budget = createSiteBudget({ inputBytes: 1000, preparedBytes: 18_432 + 72 * 10, planPoints: 5 });
   assert.equal(budget.reserveInput(600), null);

@@ -22,6 +22,8 @@ test('generated GLB retains drawn transforms and unbound meshes', async () => {
   assert(glb.meshes.every(mesh => mesh.occurrenceId === null && mesh.floorId === null));
   const optional = ['embedded-png-material.ts', 'glb-meshopt.ts', 'mesh-state-table.ts'].filter(name => existsSync(join(root, 'frontend/src/lantern/canonical-ifc', name)));
   assert.equal(observed.size, 4 + optional.length);
+  const preflightPath = 'frontend/src/lantern/canonical-ifc/glb-preflight.ts';
+  assert.equal(observed.get(preflightPath), sha256(readFileSync(join(root, preflightPath))), 'Preflight is included in source provenance');
   if (optional.includes('mesh-state-table.ts')) {
     const path = 'frontend/src/lantern/canonical-ifc/mesh-state-table.ts';
     assert.equal(observed.get(path), sha256(readFileSync(join(root, path))), 'State table helper is included in source provenance');
