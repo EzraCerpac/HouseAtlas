@@ -75,6 +75,7 @@ const BROWSER = [
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2', 'webgl2-probe', 'lamp-glass']),
   node('unified-atlas-plan-wheel-browser.mjs'),
   node('unified-atlas-regression/browser.mjs', '--electrical'),
+  node('unified-atlas-regression/browser.mjs', '--stored-dialog-currentness'),
   node('network-trace-mounted/browser.mjs'),
   ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],
 ];
