@@ -65,6 +65,14 @@ try {
     // A fixture root keeps the public offline-shell plugin from replacing this
     // explicit fixture input with the production live/saved shell entries.
     await build({ root: join(frontend, 'lantern-tests/unified-atlas-regression'), configFile: join(frontend, 'vite.config.ts'), logLevel: 'error',
+      plugins: [{ name: 'generated-mounted-electrical-entry', apply: 'build', transformIndexHtml: {
+        order: 'pre', handler(html, context) {
+          if (context.filename !== join(frontend, 'lantern-tests/unified-atlas-regression/electrical-trace.html')) return html;
+          // Only this explicit test build reaches the actual projector's
+          // package-local dependencies; unrelated dev HTML scans stay inert.
+          return { html, tags: [{ tag: 'script', attrs: { type: 'module', src: './mounted-electrical-trace.tsx' }, injectTo: 'body' }] };
+        },
+      } }],
       publicDir: false, build: { target: 'esnext', outDir: join(scratch, 'dist'), emptyOutDir: true,
         rolldownOptions: { input: [join(frontend, 'lantern-tests/unified-atlas-regression/index.html'),
           ...(storedDialogOnly ? [] : [join(frontend, 'lantern-tests/unified-atlas-regression/electrical-trace.html')])] } } });
