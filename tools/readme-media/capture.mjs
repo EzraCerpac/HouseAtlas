@@ -601,7 +601,7 @@ try {
   await tour.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan'));
   examplePhase('tour plan ready; electrical starting');
   await tourShell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Electrical', exact: true }).click();
-  await tourShell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).waitFor();
+  await tourShell.getByRole('button', { name: 'Hall: 1 electrical record', exact: true }).waitFor();
   examplePhase('tour electrical ready');
   await pause();
   examplePhase('tour 3D starting');
