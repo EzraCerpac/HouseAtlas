@@ -91,6 +91,14 @@ const { createSyntheticSitePort, SYNTHETIC_SITE_PIN } = await import(await sourc
   assert.equal(budget.reservePlan(5), null);
   assert.match(budget.reservePlan(1), /point budget/);
 
+  const beforeInvalidRelease = budget.used();
+  for (const [triangles, instances] of [[7, 64], [6, 65], [-1, 0], [0, -1]]) {
+    assert.throws(() => budget.releasePrepared(triangles, instances));
+    assert.deepEqual(budget.used(), beforeInvalidRelease, 'a refused release leaves the entire reservation unchanged');
+  }
+  budget.releasePrepared(6, 64);
+  assert.deepEqual(budget.used(), { inputBytes: 1000, preparedBytes: 0, gpuBytes: 0, planPoints: 5 });
+
   let running = 0, peak = 0;
   const order = [];
   const turns = createTurns(5);

@@ -16,7 +16,8 @@ let h;
 try {
   const entry = join(scratch, 'entry.ts');
   writeFileSync(entry, `export * from ${JSON.stringify(join(frontend, 'lantern-tests/embedded-png-material-fixture.ts'))};\n`
-    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
+    + `export { buildGlb } from ${JSON.stringify(join(frontend, 'lantern-tests/canonical-ifc-visual/standard-glb-sample.ts'))};\n`
+    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS,DETAIL_GLB_LIMITS'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
       ['geometry', 'prepareMeshes,makeProjection,sourceMeshColor,pick'], ['gpu-budget', 'materialGpuResources'], ['mesh-state-table', 'stateTableBytes,stateTableRows,addGpuBytes'], ['mesh-appearance', 'writeAppearance,STATE_FLOATS,MeshPass']].map(([file, names]) => `export { ${names} } from ${JSON.stringify(join(frontend, 'src/lantern/canonical-ifc/' + file))};`).join('\n'));
   const built = await build({ root: frontend, configFile: false, logLevel: 'silent',
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
@@ -41,6 +42,31 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.equal(h.stateTableRows(0, true), 1);
   for (const invalid of [-1, .5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => h.stateTableBytes(invalid));
   assert.throws(() => h.addGpuBytes(Number.MAX_SAFE_INTEGER, 1));
+  // A small shared indexed primitive, drawn by many nodes, reaches the real
+  // tier GPU bounds without materializing the expanded triangle stream.
+  const tierFixture = (instances, triangles) => {
+    const nodes = Array.from({ length: instances }, () => ({ mesh: 0 }));
+    return h.buildGlb({ nodes, roots: nodes.map((_, index) => index),
+      meshes: [{ positions: [0, 0, 1, 1, 0, 1, 0, 1, 1], indices: Array.from({ length: triangles * 3 }, (_, index) => index % 3) }],
+      patch(json) {
+        json.extensionsUsed = ['KHR_materials_specular'];
+        json.materials = [{ extensions: { KHR_materials_specular: { specularFactor: .5 } } }];
+        json.meshes[0].primitives[0].material = 0;
+        json.meshes[0].primitives[0].attributes.NORMAL = 0;
+      } });
+  };
+  for (const [instances, below, above, limits, expectedBelow, expectedAbove] of [
+    [128, 2900, 2920, h.STANDARD_GLB_LIMITS, 66_834_432, 67_295_232],
+    [256, 8700, 8740, h.DETAIL_GLB_LIMITS, 400_932_864, 402_776_064],
+  ]) {
+    const under = h.readGlbContainer(tierFixture(instances, below), limits), underWork = h.preflightGltf(under, limits);
+    assert.equal(underWork.work.instances, instances); assert.equal(underWork.work.triangles, instances * below);
+    assert.equal(h.admitEmbeddedPngMaterials(under, underWork, limits).gpuBytes, expectedBelow);
+    const over = h.readGlbContainer(tierFixture(instances, above), limits), overWork = h.preflightGltf(over, limits);
+    assert.equal(overWork.work.instances, instances); assert.equal(overWork.work.triangles, instances * above);
+    assert(expectedAbove > limits.gpuBytes);
+    assert.throws(() => h.admitEmbeddedPngMaterials(over, overWork, limits), /GPU memory/);
+  }
   const { fixture, loaded } = await load(1024), container = h.readGlbContainer(fixture.bytes);
   const plain = h.preflightGltf(container), plan = h.admitEmbeddedPngMaterials(container, plain);
   assert.equal(h.preflightGltf(container, { ...h.STANDARD_GLB_LIMITS, gpuBytes: plain.work.gpuBytes }).work.gpuBytes, plain.work.gpuBytes);
