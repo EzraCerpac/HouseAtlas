@@ -1,5 +1,21 @@
 # HouseAtlas
 
+The full WebGL2 render probe is now a separate required `webgl2-probe`
+selection alongside `webgl2`: 80 SOURCE / 1 BUILD / 8 BROWSER (89 total).
+Each entry retains the existing 180000 ms limit. The probe keeps all five
+workloads and their four warm-up plus forty measured frames (220 renders),
+report/backend/dimension/output and resumed-drawing assertions, followed by
+all existing ordinary-material assertions in a fresh tab in the same browser.
+The ordinary WebGL2 entry retains every other swap, relighting, material,
+glass, scalar and lamp sample/assertion. Opt-in webgpu/bench remain unchanged.
+This changes accumulated process/GPU/cache history; the successor-material
+control witnesses teardown/reuse but does not establish identical history or a
+timing guarantee. No workflow/infrastructure, sampling override, assertion or
+budget reduction is introduced. Earlier seven-browser counts below describe
+prior candidates. Both required cases and all existing gates need hosted
+exact-head qualification; no local tests/build/compiler/syntax/formatter or
+browser ran. Held sampling-override donor6c75809b is excluded.
+
 WebGL phase-marker donor20b4eed4 is composed unchanged: bounded elapsed-time
 markers identify existing build/draw/swap/worker/lighting/material/scalar/lamp
 phases. No sample, shader, assertion, wait, scene count, threshold or budget is

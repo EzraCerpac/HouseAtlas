@@ -72,7 +72,7 @@ const SOURCE = [
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
   ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network', 'live-launch']),
-  ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
+  ...cases('mesh-layer-browser.mjs', '--case', ['webgl2', 'webgl2-probe']),
   node('unified-atlas-plan-wheel-browser.mjs'),
   node('unified-atlas-regression/browser.mjs', '--electrical'),
   ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],

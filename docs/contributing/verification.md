@@ -727,7 +727,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 80 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 80 source, 1 build, 8 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1032,7 +1032,7 @@ admitted base-colour, normal and roughness maps have a visible effect when
 materials are enabled; two differently tinted, fully frosted glass primitives
 composite in the same order when their source array is reversed; and the
 foreground tint reverses when the camera views them from the opposite side.
-These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
+These glass cases stay inside the `webgl2`/`webgpu` selections. They cover
 separately authored primitives, not intersecting or disconnected panes inside
 one primitive; the rendering limitation is stated in the scene contract.
 
@@ -1066,8 +1066,9 @@ shader, without additional browser infrastructure or per-lamp occlusion claims.
 The existing CPU daylight cases retain aiming, visibility, clipping, merging
 and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
 
-The same selections open the generated house with `?render-probe` (the
-on-device speed check, `render-probe.ts`) and check that its report lists all
+The required `webgl2-probe` and opt-in `webgpu` selections open the generated
+house with `?render-probe` (the on-device speed check, `render-probe.ts`) and
+check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
 triangles, contact shading) and that the view redraws afterwards.
 
@@ -1123,13 +1124,15 @@ controls, not device emulation or performance evidence. It adds no ordinary
 runner selection and does not establish the owner's preferred live appearance.
 
 ```sh
-node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # required swaps/materials
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2-probe # required full probe + material successor
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
 node frontend/lantern-tests/mesh-layer-browser.mjs --case bench    # prints per-frame CPU time and calls
 ```
 
-`webgl2` offers no WebGPU adapter, so three.js uses its WebGL2 backend; it is in
-the healthy suite. `webgpu` enables WebGPU on SwiftShader Vulkan. Full Chrome's
+`webgl2` and `webgl2-probe` offer no WebGPU adapter, so three.js uses its WebGL2
+backend; both are required in the healthy suite. `webgpu` enables WebGPU on
+SwiftShader Vulkan. Full Chrome's
 `--headless=new` draws it but leaves it out of screenshots, so run it with
 Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
 CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
@@ -4897,3 +4900,20 @@ phases. No sample, shader, assertion, wait, scene count, threshold or budget is
 changed. Markers are diagnostics, not benchmark or pixel results. Actual hosted
 execution must qualify the full candidate with helper custody and settlement
 oracle; no local test, compiler, syntax check, formatter, helper or browser ran.
+
+
+The full WebGL2 render probe is now a separate required `webgl2-probe`
+selection alongside `webgl2`: 80 SOURCE / 1 BUILD / 8 BROWSER (89 total).
+Each entry retains the existing 180000 ms limit. The probe keeps all five
+workloads and their four warm-up plus forty measured frames (220 renders),
+report/backend/dimension/output and resumed-drawing assertions, followed by
+all existing ordinary-material assertions in a fresh tab in the same browser.
+The ordinary WebGL2 entry retains every other swap, relighting, material,
+glass, scalar and lamp sample/assertion. Opt-in webgpu/bench remain unchanged.
+This changes accumulated process/GPU/cache history; the successor-material
+control witnesses teardown/reuse but does not establish identical history or a
+timing guarantee. No workflow/infrastructure, sampling override, assertion or
+budget reduction is introduced. Earlier seven-browser counts elsewhere describe
+prior candidates. Both required cases and all existing gates need hosted
+exact-head qualification; no local tests/build/compiler/syntax/formatter or
+browser ran. Held sampling-override donor6c75809b is excluded.
