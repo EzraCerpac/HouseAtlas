@@ -448,6 +448,11 @@ try {
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
+  // The earlier capture is complete. Release its pages and renderer before
+  // starting a second browser for the example; retain the version for the receipt.
+  const browserVersion = browser.version();
+  await browser.close();
+  browser = undefined;
   // Example house: the real `npm --prefix frontend run build` output (the app
   // build, then the example's own pass into dist/example), served by an owned
   // loopback server with the Rust host's path, file-type, size and
@@ -752,7 +757,7 @@ try {
     artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
   console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
 } catch (error) {
   if (errors.length) console.error('Captured page errors or external requests:', errors);
