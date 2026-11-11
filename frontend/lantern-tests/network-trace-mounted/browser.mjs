@@ -140,6 +140,9 @@ try {
   await until(`!!document.querySelector('.ua-room-btn')`);
   await press(`[...document.querySelectorAll('.layer-chip')].find(x=>x.textContent.trim().startsWith('Network'))`);
   await until(`!!document.querySelector('.ua-graph-open')`);
+  // The Network key starts collapsed; its graph button exists inside a hidden body.
+  await press(`document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head')`);
+  assert.equal(await evaluate(`document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head').getAttribute('aria-expanded')`), 'true');
   await press(`document.querySelector('.ua-graph-open')`); await until(`!!document.querySelector('.ua-graph .ung')`);
   const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
   const chooseHostClient = async () => { if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`); await press(hostClient); };
