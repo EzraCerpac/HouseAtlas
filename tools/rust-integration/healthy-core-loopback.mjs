@@ -37,40 +37,197 @@ const nativeReads = new Map();
 // original values and hold entries weakly by Response/stream/reader; no assertion or wait reads it.
 // It observes this test browser only and establishes nothing about production behavior.
 const pageReadObserver = `(() => { try {
-  const log = globalThis.__houseatlasReadLog = [], responses = new WeakMap(), streams = new WeakMap(), readers = new WeakMap();
+  // Settlement evidence, not only diagnostics: terminal flags are uncapped; the event list stays bounded.
+  const state = { document: String(performance.timeOrigin) + ':' + Math.random().toString(36).slice(2), phase: null, overflow: false, unsupported: 0, entries: [] };
+  const responses = new WeakMap(), streams = new WeakMap(), readers = new WeakMap();
   let sequence = 0;
+  globalThis.__houseatlasReadLog = {
+    begin(phase) { state.phase = String(phase); state.overflow = false; state.unsupported = 0; state.entries = []; return { document: state.document, phase: state.phase }; },
+    snapshot() { return { document: state.document, phase: state.phase, overflow: state.overflow, unsupported: state.unsupported, entries: state.entries.map(entry => ({ ...entry, events: entry.events.slice() })) }; },
+  };
   const note = (entry, name) => { try { if (entry && entry.events.length < 14) entry.events.push(++sequence + ':' + name + '@' + Math.round(performance.now())); } catch {} };
+  // A cancellation or abort after positive EOF cannot undo a completed read; before EOF it is terminal.
+  const interrupt = (entry, flag) => { try { if (entry && !entry.done) entry[flag] = true; } catch {} };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = function (...args) {
     const result = originalFetch.apply(this, args);
     try {
-      const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href);
-      const method = String(args[1]?.method ?? (typeof args[0] === 'string' ? 'GET' : args[0].method)).toUpperCase();
-      if (method === 'GET' && url.pathname.endsWith('/invoke') && log.length < 48) {
-        let commandId = null; try { commandId = String(JSON.parse(url.searchParams.get('request')).commandId).slice(0, 64); } catch {}
-        const entry = { commandId, events: [] }; log.push(entry); note(entry, 'fetch');
-        const signal = args[1]?.signal;
-        if (signal) signal.addEventListener('abort', () => note(entry, 'signal-abort:' + String(signal.reason?.status ?? signal.reason?.name ?? 'unknown').slice(0, 24)), { once: true });
-        result.then(response => { responses.set(response, entry); note(entry, 'headers:' + response.status); }, error => note(entry, 'fetch-reject:' + String(error?.name).slice(0, 24)));
+      const plain = typeof args[0] === 'string' || args[0] instanceof URL;
+      const url = new URL(plain ? String(args[0]) : args[0].url, location.href);
+      const method = String(args[1]?.method ?? (plain ? 'GET' : args[0].method)).toUpperCase();
+      if (method === 'GET' && url.pathname.endsWith('/invoke')) {
+        if (state.entries.length >= 48) state.overflow = true;
+        else {
+          let commandId = null, requestId = null;
+          try {
+            const envelope = JSON.parse(url.searchParams.get('request'));
+            commandId = String(envelope.commandId).slice(0, 64);
+            if (typeof envelope.requestId === 'string' && envelope.requestId.length > 0 && envelope.requestId.length <= 64) requestId = envelope.requestId;
+          } catch {}
+          const entry = { phase: state.phase, commandId, requestId, status: null, readers: 0, bytes: 0, done: false, abort: false, cancel: false, reject: false, events: [] };
+          state.entries.push(entry); note(entry, 'fetch');
+          const signal = args[1]?.signal ?? (plain ? undefined : args[0].signal);
+          if (signal) signal.addEventListener('abort', () => { interrupt(entry, 'abort'); note(entry, 'signal-abort:' + String(signal.reason?.status ?? signal.reason?.name ?? 'unknown').slice(0, 24)); }, { once: true });
+          result.then(response => { responses.set(response, entry); entry.status = response.status; note(entry, 'headers:' + response.status); },
+            error => { interrupt(entry, 'reject'); note(entry, 'fetch-reject:' + String(error?.name).slice(0, 24)); });
+        }
       }
-    } catch {}
+    } catch { state.unsupported += 1; }
     return result;
   };
   const body = Object.getOwnPropertyDescriptor(Response.prototype, 'body');
   Object.defineProperty(Response.prototype, 'body', { ...body, get() { const stream = body.get.call(this); try { const entry = responses.get(this); if (entry && stream) streams.set(stream, entry); } catch {} return stream; } });
   const getReader = ReadableStream.prototype.getReader;
-  ReadableStream.prototype.getReader = function (...args) { const reader = getReader.apply(this, args); try { const entry = streams.get(this); if (entry) { readers.set(reader, entry); note(entry, 'reader'); } } catch {} return reader; };
+  ReadableStream.prototype.getReader = function (...args) { const reader = getReader.apply(this, args); try { const entry = streams.get(this); if (entry) { readers.set(reader, entry); entry.readers += 1; note(entry, 'reader'); } } catch {} return reader; };
   const streamCancel = ReadableStream.prototype.cancel;
-  ReadableStream.prototype.cancel = function (...args) { try { note(streams.get(this), 'stream-cancel'); } catch {} return streamCancel.apply(this, args); };
+  ReadableStream.prototype.cancel = function (...args) { try { const entry = streams.get(this); interrupt(entry, 'cancel'); note(entry, 'stream-cancel'); } catch {} return streamCancel.apply(this, args); };
   const read = ReadableStreamDefaultReader.prototype.read;
   ReadableStreamDefaultReader.prototype.read = function (...args) {
     const result = read.apply(this, args);
-    try { const entry = readers.get(this); if (entry) result.then(part => note(entry, part.done ? 'read-done' : 'read-bytes:' + part.value?.byteLength), error => note(entry, 'read-reject:' + String(error?.name).slice(0, 24))); } catch {}
+    try {
+      const entry = readers.get(this);
+      if (entry) result.then(part => {
+        if (part.done) { entry.done = true; note(entry, 'read-done'); }
+        else { entry.bytes += Number(part.value?.byteLength ?? 0); note(entry, 'read-bytes:' + part.value?.byteLength); }
+      }, error => { interrupt(entry, 'reject'); note(entry, 'read-reject:' + String(error?.name).slice(0, 24)); });
+    } catch {}
     return result;
   };
   const readerCancel = ReadableStreamDefaultReader.prototype.cancel;
-  ReadableStreamDefaultReader.prototype.cancel = function (...args) { try { note(readers.get(this), 'reader-cancel'); } catch {} return readerCancel.apply(this, args); };
+  ReadableStreamDefaultReader.prototype.cancel = function (...args) { try { const entry = readers.get(this); interrupt(entry, 'cancel'); note(entry, 'reader-cancel'); } catch {} return readerCancel.apply(this, args); };
 } catch {} })()`;
+const viewerCommands = ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list'];
+const viewerReadyExpression = "document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'";
+const applicationRequestId = url => {
+  try { const id = JSON.parse(url.searchParams.get('request')).requestId; return typeof id === 'string' && id.length > 0 && id.length <= 64 ? id : null; } catch { return null; }
+};
+const noteResponseHeaders = (read, response) => {
+  const header = name => { const found = Object.entries(response?.headers ?? {}).find(([key]) => key.toLowerCase() === name); return found ? String(found[1]) : null; };
+  read.contentLength = header('content-length'); read.contentEncoding = header('content-encoding');
+};
+// Pure settlement oracle. Network rows and page entries are joined one-to-one by
+// the application requestId the production client already places in each read
+// envelope. A read counts as consumed only on positive page EOF with matching
+// bytes; a browser-reported ERR_ABORTED is tolerated solely for such a read.
+// Byte equality or a missing cancellation alone never passes. `fatal` verdicts
+// cannot recover; other refusals may still resolve before the unchanged timeout.
+const judgeViewerReads = (rows, snap, expected, current) => {
+  const fatal = reason => ({ ok: false, fatal: true, reason }), wait = reason => ({ ok: false, fatal: false, reason });
+  if (!snap || !Array.isArray(snap.entries)) return fatal('page read record unavailable');
+  if (typeof expected.document !== 'string' || snap.document !== expected.document) return fatal('document replaced');
+  if (typeof expected.phase !== 'string' || snap.phase !== expected.phase || snap.entries.some(entry => entry.phase !== expected.phase)) return fatal('page read record from another phase');
+  if (snap.overflow) return fatal('page read record overflow');
+  if (snap.unsupported) return fatal('unsupported page read input');
+  const known = id => typeof id === 'string' && id.length > 0;
+  if (!rows.every(row => known(row.requestId)) || !snap.entries.every(entry => known(entry.requestId))) return fatal('missing application requestId');
+  const pages = new Map(snap.entries.map(entry => [entry.requestId, entry]));
+  if (pages.size !== snap.entries.length || new Set(rows.map(row => row.requestId)).size !== rows.length) return fatal('duplicate application requestId');
+  if (rows.length !== pages.size || !rows.every(row => pages.has(row.requestId))) return wait('page and network requestId sets differ');
+  if (rows.some(row => pages.get(row.requestId).commandId !== row.commandId)) return fatal('requestId maps to another command');
+  if (rows.some(row => !viewerCommands.includes(row.commandId))) return fatal('unexpected viewer command');
+  if (rows.length < 4) return wait('fewer than four viewer reads');
+  if (!rows.every(row => row.finished)) return wait('network read not terminal');
+  if (!snap.entries.every(entry => entry.done || entry.abort || entry.cancel || entry.reject)) return wait('page read without EOF or terminal failure');
+  // Unchanged protection: every row has authorized 200 headers, and an old row
+  // may fail only by cancellation after those headers.
+  if (!rows.every(row => row.status === 200 && (!row.failed || (row.canceled && row.authorizedBeforeCancellation)))) return fatal('read without authorized 200 headers or with a non-cancel failure');
+  const consumed = row => {
+    const entry = pages.get(row.requestId);
+    return entry.status === 200 && entry.readers === 1 && entry.done === true && !entry.abort && !entry.cancel && !entry.reject
+      && Number.isSafeInteger(entry.bytes) && entry.bytes === row.bodyBytes
+      && (row.contentEncoding !== null || row.contentLength === null || Number(row.contentLength) === entry.bytes)
+      && (!row.failed || row.errorText === 'net::ERR_ABORTED');
+  };
+  const counts = viewerCommands.map(commandId => rows.filter(row => row.commandId === commandId).length);
+  if (counts.some(count => count === 0)) return wait('expected viewer command not yet read');
+  if (counts.some(count => count !== counts[0])) return wait('viewer command counts not balanced');
+  for (const commandId of viewerCommands) {
+    const reads = rows.filter(row => row.commandId === commandId);
+    if (!(current ? consumed(reads[reads.length - 1]) : reads.some(consumed))) return wait('no successfully consumed ' + (current ? 'current ' : '') + 'read of ' + commandId);
+  }
+  if (current && snap.ready !== true) return wait('validated ready status absent');
+  return { ok: true, fatal: false, reason: 'settled' };
+};
+// Deterministic controls for the oracle above, run in process before any
+// browser work. They exercise the verdicts on synthetic records; they do not
+// induce real browser aborts and do not exercise the page observer itself.
+const verifyViewerReadOracle = () => {
+  const expected = { document: 'control-document', phase: 'control-phase' };
+  const round = (prefix, rows, entries) => viewerCommands.forEach((commandId, index) => {
+    const requestId = prefix + index, bytes = 100 + index;
+    rows.push({ commandId, requestId, status: 200, finished: true, failed: false, canceled: false, authorizedBeforeCancellation: false,
+      bodyBytes: bytes, contentLength: String(bytes), contentEncoding: null, errorText: null });
+    entries.push({ phase: expected.phase, commandId, requestId, status: 200, readers: 1, bytes, done: true, abort: false, cancel: false, reject: false });
+  });
+  const check = (label, mutate, outcome, current = true) => {
+    const rows = [], entries = []; round('control-', rows, entries);
+    const snap = { ...expected, overflow: false, unsupported: 0, ready: true, entries };
+    mutate(rows, entries, snap);
+    const verdict = judgeViewerReads(rows, snap, expected, current);
+    assert.deepEqual([verdict.ok, verdict.fatal, verdict.reason], outcome, 'Viewer read oracle control: ' + label);
+  };
+  const aborted = row => Object.assign(row, { failed: true, canceled: true, authorizedBeforeCancellation: true, errorText: 'net::ERR_ABORTED' });
+  const unconsumed = [false, false, 'no successfully consumed current read of atlas.identity.list'];
+  const oldRule = [false, true, 'read without authorized 200 headers or with a non-cancel failure'];
+  check('healthy', () => {}, [true, false, 'settled']);
+  check('reported abort after correlated EOF', rows => aborted(rows[1]), [true, false, 'settled']);
+  check('superseded cancelled round before a consumed round', (rows, entries) => {
+    const oldRows = [], oldEntries = []; round('old-', oldRows, oldEntries);
+    oldRows.forEach(row => { aborted(row); row.bodyBytes = 10; });
+    oldEntries.forEach(entry => Object.assign(entry, { done: false, cancel: true, bytes: 10 }));
+    rows.unshift(...oldRows); entries.unshift(...oldEntries);
+  }, [true, false, 'settled']);
+  check('pre-header abort', (rows, entries) => {
+    Object.assign(rows[1], { status: null, failed: true, canceled: true, authorizedBeforeCancellation: false, bodyBytes: 0, contentLength: null, errorText: 'net::ERR_ABORTED' });
+    Object.assign(entries[1], { status: null, readers: 0, bytes: 0, done: false, abort: true, reject: true });
+  }, oldRule);
+  check('mid-body cancel with matching partial bytes', (rows, entries) => {
+    aborted(rows[1]); rows[1].bodyBytes = 40; Object.assign(entries[1], { bytes: 40, done: false, cancel: true });
+  }, unconsumed);
+  check('mid-body abort with full bytes and no EOF', (rows, entries) => {
+    aborted(rows[1]); Object.assign(entries[1], { done: false, abort: true, reject: true });
+  }, unconsumed);
+  check('missing EOF', (rows, entries) => { entries[1].done = false; }, [false, false, 'page read without EOF or terminal failure']);
+  check('missing EOF behind a reported abort with matching bytes', (rows, entries) => { aborted(rows[1]); entries[1].done = false; },
+    [false, false, 'page read without EOF or terminal failure']);
+  check('page bytes short of network bytes', (rows, entries) => { entries[1].bytes -= 1; }, unconsumed);
+  check('body short of its Content-Length', (rows, entries) => { rows[1].bodyBytes -= 1; entries[1].bytes -= 1; }, unconsumed);
+  check('second reader on one body', (rows, entries) => { entries[1].readers = 2; }, unconsumed);
+  check('page entry from another phase', (rows, entries) => { entries[1].phase = 'earlier-phase'; }, [false, true, 'page read record from another phase']);
+  check('page record reset by another phase', (rows, entries, snap) => { snap.phase = 'later-phase'; }, [false, true, 'page read record from another phase']);
+  check('network read absent from the page record', (rows, entries) => { entries.splice(1, 1); }, [false, false, 'page and network requestId sets differ']);
+  check('page read absent from the network record', rows => { rows.splice(1, 1); }, [false, false, 'page and network requestId sets differ']);
+  check('duplicate requestId', (rows, entries) => { entries[1].requestId = entries[0].requestId; }, [false, true, 'duplicate application requestId']);
+  check('mismatched requestId', (rows, entries) => { entries[1].requestId = 'control-other'; }, [false, false, 'page and network requestId sets differ']);
+  check('missing requestId', (rows, entries) => { entries[1].requestId = null; }, [false, true, 'missing application requestId']);
+  check('requestId joined to another command', (rows, entries) => {
+    const first = entries[0].requestId; entries[0].requestId = entries[1].requestId; entries[1].requestId = first;
+  }, [false, true, 'requestId maps to another command']);
+  check('document replacement', (rows, entries, snap) => { snap.document = 'replacement-document'; }, [false, true, 'document replaced']);
+  check('page record unavailable', (rows, entries, snap) => { snap.entries = null; }, [false, true, 'page read record unavailable']);
+  check('non-200 response', (rows, entries) => { rows[1].status = 403; entries[1].status = 403; }, oldRule);
+  check('transport failure after EOF', rows => Object.assign(rows[1], { failed: true, canceled: false, errorText: 'net::ERR_FAILED' }), oldRule);
+  check('cancelled with another error after EOF', rows => { aborted(rows[1]); rows[1].errorText = 'net::ERR_CONNECTION_RESET'; }, unconsumed);
+  check('network read not terminal', rows => { rows[1].finished = false; }, [false, false, 'network read not terminal']);
+  check('unbalanced command counts', (rows, entries) => {
+    rows.push({ ...rows[1], requestId: 'control-extra' }); entries.push({ ...entries[1], requestId: 'control-extra' });
+  }, [false, false, 'viewer command counts not balanced']);
+  check('unexpected command', (rows, entries) => { rows[1].commandId = 'atlas.other.list'; entries[1].commandId = 'atlas.other.list'; }, [false, true, 'unexpected viewer command']);
+  check('ready status absent', (rows, entries, snap) => { snap.ready = false; }, [false, false, 'validated ready status absent']);
+  check('page record overflow', (rows, entries, snap) => { snap.overflow = true; }, [false, true, 'page read record overflow']);
+  check('unsupported page read input', (rows, entries, snap) => { snap.unsupported = 1; }, [false, true, 'unsupported page read input']);
+  check('current read cancelled while an older one was consumed', (rows, entries) => {
+    const newRows = [], newEntries = []; round('new-', newRows, newEntries);
+    aborted(newRows[1]); newRows[1].bodyBytes = 40; Object.assign(newEntries[1], { bytes: 40, done: false, cancel: true });
+    rows.push(...newRows); entries.push(...newEntries);
+  }, unconsumed);
+  check('later cancelled round after navigation keeps an earlier consumed read', (rows, entries) => {
+    const newRows = [], newEntries = []; round('new-', newRows, newEntries);
+    aborted(newRows[1]); newRows[1].bodyBytes = 40; Object.assign(newEntries[1], { bytes: 40, done: false, cancel: true });
+    rows.push(...newRows); entries.push(...newEntries);
+  }, [true, false, 'settled'], false);
+};
+verifyViewerReadOracle();
 let readEventSequence = 0;
 const observeRead = (read, event, params) => {
   if (!read?.diagnostic) return;
@@ -108,6 +265,7 @@ class Pipe {
           const url = new URL(message.params.request.url);
           if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
+            requestId: applicationRequestId(url), bodyBytes: 0, contentLength: null, contentEncoding: null, errorText: null,
             status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
             diagnostic: { order: [++readEventSequence + ':request'] },
           });
@@ -115,7 +273,7 @@ class Pipe {
         else if (message.method === 'Network.responseReceived') {
           const response = message.params.response;
           const read = nativeReads.get(message.params.requestId);
-          if (read) { read.status = response.status; observeRead(read, 'response', message.params); }
+          if (read) { read.status = response.status; observeRead(read, 'response', message.params); noteResponseHeaders(read, message.params.response); }
           responses.push({ url: response.url, status: response.status,
             requestPhase: requestPhases.get(message.params.requestId) ?? 'unknown', responsePhase: phase });
           requestPhases.delete(message.params.requestId);
@@ -125,7 +283,11 @@ class Pipe {
             nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status,
               snapshot: Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null });
         }
-        else if (message.method === 'Network.dataReceived') observeRead(nativeReads.get(message.params.requestId), 'data', message.params);
+        else if (message.method === 'Network.dataReceived') {
+          const read = nativeReads.get(message.params.requestId);
+          if (read) read.bodyBytes += Number(message.params.dataLength);
+          observeRead(read, 'data', message.params);
+        }
         else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
           const read = nativeReads.get(message.params.requestId);
           if (read) {
@@ -135,6 +297,7 @@ class Pipe {
               read.failed = true;
               read.canceled = message.params.canceled === true;
               read.authorizedBeforeCancellation = read.status === 200;
+              read.errorText = String(message.params.errorText ?? '');
             }
           }
         }
@@ -168,7 +331,7 @@ try {
   const send = (method, params) => cdp.send(method, params, sessionId);
   await send('Network.enable'); await send('Page.enable'); await send('Runtime.enable');
   // Diagnostic only; a refused installation leaves the flow unchanged.
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: pageReadObserver }).catch(() => undefined);
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: pageReadObserver });
   const split = cookie.indexOf('=');
   const installed = await send('Network.setCookie', { name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin, path: '/', secure: true, httpOnly: true, sameSite: 'Strict' });
   assert.equal(installed.success, true, 'Browser receives the actual issued Secure cookie');
@@ -178,23 +341,33 @@ try {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
-  const settleViewerReads = async () => {
+  const viewerRead = { document: null, phase: null };
+  // Reset the page record at the same boundary as network tracking, before the login is initiated.
+  const beginViewerReadPhase = async () => {
+    const token = 'viewer-login:' + Date.now();
+    const begun = JSON.parse(await evaluate(`(() => { const log = globalThis.__houseatlasReadLog; return JSON.stringify(log && typeof log.begin === 'function' ? log.begin(${JSON.stringify(token)}) : null); })()`));
+    assert(begun && typeof begun.document === 'string' && begun.phase === token, 'Page read observer installed before viewer login');
+    viewerRead.document = begun.document; viewerRead.phase = token;
+  };
+  const settleViewerReads = async (current = false) => {
     const rows = () => [...nativeReads.values()].filter(read => read.phase === 'viewer-login');
     const describe = () => JSON.stringify({ total: rows().length, reads: rows().slice(0, 32)
-      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation, diagnostic }) =>
-        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation, diagnostic })) });
+      .map(({ commandId, requestId, status, finished, failed, canceled, authorizedBeforeCancellation, bodyBytes, errorText, diagnostic }) =>
+        ({ commandId, requestId, status, finished, failed, canceled, authorizedBeforeCancellation, bodyBytes, errorText, diagnostic })) });
+    let snap = null, verdict = { ok: false, fatal: false, reason: 'not evaluated' }, last = null;
     try {
-      // A replacement-read gap is possible after cancellation; wait for a successful
-      // read of each command. Rows span viewer-login, not the latest binding epoch.
-      const completed = commandId => rows().some(read => read.commandId === commandId && read.status === 200 && read.finished && !read.failed);
-      await until(() => rows().length >= 4 && rows().every(read => read.finished)
-        && ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list'].every(completed),
-        'Every viewer native read settled before session replacement');
+      // Settled only when two consecutive same-document snapshots agree on an accepted
+      // verdict. `current` requires the latest read of each command and the ready status.
+      await until(async () => {
+        snap = JSON.parse(await evaluate(`(() => { const log = globalThis.__houseatlasReadLog; return JSON.stringify(log && typeof log.snapshot === 'function' ? { ...log.snapshot(), ready: Boolean(${viewerReadyExpression}) } : null); })()`));
+        verdict = judgeViewerReads(rows(), snap, viewerRead, current);
+        if (verdict.fatal) throw new Error('Viewer read oracle rejected');
+        const signature = verdict.ok ? JSON.stringify([snap.document, snap.phase, snap.entries.map(entry => [entry.requestId, entry.status, entry.bytes, entry.done]),
+          rows().map(read => [read.requestId, read.finished, read.failed, read.bodyBytes])]) : null;
+        const stable = signature !== null && signature === last; last = signature; return stable;
+      }, 'Every viewer native read settled before session replacement');
     } catch (error) {
-      // Diagnostic only: append the page's own bounded record to the unchanged timeout failure.
-      let page = 'unavailable';
-      try { page = String(await evaluate('JSON.stringify(globalThis.__houseatlasReadLog ?? null)')).slice(0, 6000); } catch { /* keep the original failure */ }
-      throw new Error(error.message + ': ' + describe() + ' page=' + page);
+      throw new Error(error.message + ': ' + verdict.reason + ': ' + describe() + ' page=' + JSON.stringify(snap).slice(0, 6000));
     }
     // An old body may be canceled only AFTER its actual authorized200 headers.
     // That settles traffic; it does not count as successfully read content.
@@ -204,8 +377,8 @@ try {
     for (const read of rows()) counts.set(read.commandId, (counts.get(read.commandId) ?? 0) + 1);
     assert.deepEqual([...counts.keys()].sort(), ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list']);
     assert([...counts.values()].every(count => count === counts.get('atlas.identity.list')), 'Observed viewer topology command counts remain balanced');
-    assert([...counts.keys()].every(commandId => rows().some(read => read.commandId === commandId
-      && read.status === 200 && read.finished && !read.failed)), 'Each topology command has a fully completed successful read: ' + describe());
+    const settled = judgeViewerReads(rows(), snap, viewerRead, current);
+    assert(settled.ok, 'Each topology command has a successfully consumed read: ' + settled.reason + ': ' + describe());
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {
@@ -342,12 +515,13 @@ try {
   assert.equal(await evaluate('document.activeElement?.id'), 'atlas-username');
   // The component stays mounted while signed out. No unauthenticated session
   // request or rejected request is made between successful logout and login.
+  await beginViewerReadPhase();
   phase = 'viewer-login';
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
   await until(async () => await evaluate("document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Viewer topology ready before session replacement');
-  await settleViewerReads();
+  await settleViewerReads(true);
   await openAtlasTools();
   await settleViewerReads();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
