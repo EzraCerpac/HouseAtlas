@@ -4,6 +4,7 @@
  * Generated geometry only: no backend, session, household data or device.
  *
  *   --case webgl2   no WebGPU adapter, so three.js uses its WebGL2 backend
+ *   --case webgl2-probe  full WebGL2 probe and its material successor
  *   --case webgpu   WebGPU on SwiftShader Vulkan (needs a Chromium that offers it)
  *   --case bench    prints CPU time and GPU API calls per frame while the camera
  *                   turns, then per step while the lighting time is scrubbed by
@@ -21,16 +22,19 @@ import { inflateSync } from 'node:zlib';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const CASES = ['webgl2', 'webgpu', 'bench'];
+const CASES = ['webgl2', 'webgl2-probe', 'webgpu', 'bench'];
 assert.equal(process.argv.length, 4, `Select --case ${CASES.join(' | ')}`);
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3];
 assert(CASES.includes(selected), `Select --case ${CASES.join(' | ')}`);
 const phaseStarted = performance.now();
 let phasePrevious = phaseStarted;
+const phaseHistory = [];
 const phase = label => {
   const now = performance.now();
-  console.log(`PHASE ${label} elapsed=${Math.round(now - phaseStarted)}ms since_previous=${Math.round(now - phasePrevious)}ms`);
+  const elapsed = Math.round(now - phaseStarted), delta = Math.round(now - phasePrevious);
+  phaseHistory.push(`${label}:${elapsed}`);
+  console.log(`PHASE ${label} elapsed=${elapsed}ms since_previous=${delta}ms history=${phaseHistory.join(',')}`);
   phasePrevious = now;
 };
 phase('build-start');
@@ -174,7 +178,38 @@ try {
     await send('Page.navigate', { url: origin + path }); await loaded;
   };
   const shot = async () => decodePng(Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-  const expected = selected === 'webgl2' ? 'webgl2' : 'webgpu';
+  const expected = selected === 'webgl2' || selected === 'webgl2-probe' ? 'webgl2' : 'webgpu';
+
+  const checkProbe = async () => {
+    phase('render-probe-start');
+    await open('/lantern-tests/render-bench/index.html?frames=0&pieces=200&render-probe', 480, 480);
+    const report = await poll(`document.querySelector('[aria-label="3D speed check"] pre')?.textContent`, 240_000, 'The speed check did not report');
+    for (const row of ['As drawn', '¼ of the pixels', '½ of the triangles', '¼ of the triangles', 'Contact shading']) assert.match(report, new RegExp(`${row} +\\d+\\.\\d ms +\\d+\\.\\d ms`), report);
+    assert.match(report, new RegExp(`^${expected} · 480 × 480 px`, 'm'), report);
+    await poll(`window.lastDrawn > Number(document.querySelector('[aria-label="3D speed check"]').dataset.shownAt)`, 30_000, 'The view did not redraw after the speed check');
+    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure during the speed check');
+    console.log(report);
+    phase('render-probe-finished');
+  };
+  const checkMaterialSamples = async () => {
+    phase('material-samples-start');
+    await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Material samples did not draw');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    await new Promise(done => setTimeout(done, 500));
+    const samples = await shot(), boxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round); })`);
+    const centre = ([x, y, w, h]) => { const at = ((y + Math.round(h * .62)) * samples.width + x + Math.round(w * .38)) * 3; return [...samples.pixels.subarray(at, at + 3)]; };
+    const [, selectedTone, , ghost] = boxes.map(centre);
+    assert(selectedTone[0] > 200 && selectedTone[1] > 150 && selectedTone[2] < 130, `Selected sample is not lantern-toned: ${selectedTone}`);
+    assert(Math.max(...ghost) - Math.min(...ghost) < 12 && ghost[0] > 200, `Ghost sample is not a faint veil: ${ghost}`);
+    const [x, y, w, h] = boxes[0], tones = new Set();
+    for (let dy = 0; dy < 20; dy++) for (let dx = 0; dx < 20; dx++) {
+      const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
+    }
+    assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
+    phase('material-samples-finished');
+  };
 
   if (selected === 'bench') {
     await open('/lantern-tests/render-bench/index.html?frames=60', 390, 844, ['Emulation.setCPUThrottlingRate', { rate: 4 }]);
@@ -183,6 +218,10 @@ try {
       await open(`/lantern-tests/render-bench/index.html?frames=30&scrub=${scrub}`, 390, 844, ['Emulation.setCPUThrottlingRate', { rate: 4 }]);
       console.log(JSON.stringify(await poll('window.benchDone', 240_000, 'Scrub benchmark did not finish')));
     }
+  } else if (selected === 'webgl2-probe') {
+    await checkProbe();
+    await checkMaterialSamples();
+    console.log('PASS webgl2-probe: full render probe and material successor; software GPU only, not device proof');
   } else {
     // 1. A generated house: drawn, selection visible, a handful of GPU calls per frame however many primitives.
     phase('house-start');
@@ -283,36 +322,12 @@ try {
     phase('relighting-finished');
 
     // The on-device speed check: once the model is shown it times every case, reports them, and drawing resumes.
-    phase('render-probe-start');
-    await open('/lantern-tests/render-bench/index.html?frames=0&pieces=200&render-probe', 480, 480);
-    const report = await poll(`document.querySelector('[aria-label="3D speed check"] pre')?.textContent`, 240_000, 'The speed check did not report');
-    for (const row of ['As drawn', '¼ of the pixels', '½ of the triangles', '¼ of the triangles', 'Contact shading']) assert.match(report, new RegExp(`${row} +\\d+\\.\\d ms +\\d+\\.\\d ms`), report);
-    assert.match(report, new RegExp(`^${expected} · 480 × 480 px`, 'm'), report);
-    await poll(`window.lastDrawn > Number(document.querySelector('[aria-label="3D speed check"]').dataset.shownAt)`, 30_000, 'The view did not redraw after the speed check');
-    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure during the speed check');
-    console.log(report);
-    phase('render-probe-finished');
+    if (selected === 'webgpu') await checkProbe();
 
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
-    phase('material-samples-start');
-    await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
-    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Material samples did not draw');
-    assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
-    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
-    await new Promise(done => setTimeout(done, 500));
-    const samples = await shot(), boxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round); })`);
-    const centre = ([x, y, w, h]) => { const at = ((y + Math.round(h * .62)) * samples.width + x + Math.round(w * .38)) * 3; return [...samples.pixels.subarray(at, at + 3)]; };
-    const [, selectedTone, , ghost] = boxes.map(centre);
-    assert(selectedTone[0] > 200 && selectedTone[1] > 150 && selectedTone[2] < 130, `Selected sample is not lantern-toned: ${selectedTone}`);
-    assert(Math.max(...ghost) - Math.min(...ghost) < 12 && ghost[0] > 200, `Ghost sample is not a faint veil: ${ghost}`);
-    const [x, y, w, h] = boxes[0], tones = new Set();
-    for (let dy = 0; dy < 20; dy++) for (let dx = 0; dx < 20; dx++) {
-      const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
-    }
-    assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
+    await checkMaterialSamples();
     // The same generated material entry also exercises the glass shader. The
     // two source orders must agree, while orbiting reverses the foreground tint.
-    phase('material-samples-finished');
     phase('glass-samples-start');
     await open('/lantern-tests/embedded-png-material-visual/index.html?glass', 1400, 900);
     await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4 && !document.querySelector('.cifc-stage-fade')`, 120_000, 'Glass samples did not draw');

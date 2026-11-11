@@ -8189,8 +8189,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 31969,
-      "sha256": "679dc0639cc211de741706d897e141c113d3054ed01f6f0ac7caa80941392cc9",
+      "bytes": 32627,
+      "sha256": "d424f668b2b777226934ed5dadf7665532ae2db3f479181c746739a3687f0672",
       "owner": "web"
     },
     {
