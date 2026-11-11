@@ -54,7 +54,8 @@ import './unified-atlas.css';
 
 /** A stored copy on screen while its fresh read is still running or has failed in transport. */
 export interface StoredCopy { readonly storedAt: string; readonly refresh: 'pending' | 'failed' | 'held' }
-type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy }
+type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy;
+    readonly start?: UnifiedAtlasRead['start'] | undefined }
   | { readonly status: 'failed'; readonly reason: AtlasReadFailure }
   /** Downloads wait for the user and nothing is stored on this device yet. */
   | { readonly status: 'held' };
@@ -87,6 +88,8 @@ const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
   // remount this same admitted source and discard the selected room/floor.
   return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
+// Explicit starting views already applied in this tab; each applies once.
+const started = new WeakSet<object>();
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
   while (memory.size > MEMORY_ENTRIES) memory.delete(memory.keys().next().value!);
@@ -234,7 +237,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
           && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
-        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
+        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId, start: read.start };
         storedCopy.current = null;
         refused.current = null;
       } catch (error) {
@@ -317,7 +320,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
   const stageDetail: StageDetail | null = full?.light === outcome.model ? { model: full.model, failed: full.failed } : null;
   // Same scene, so the same view-state key: the Full model takes over the Light stage in place.
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
+  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId} start={outcome.start}
     otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})}
     {...(stageDetail ? { detail: stageDetail, keepLight } : {})} />;
 }
@@ -486,9 +489,9 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+function AtlasStage({ model: lighter, port, selection, entryBuildingId, start, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
-  readonly stored?: StoredCopy; readonly retry?: () => void;
+  readonly start?: UnifiedAtlasRead['start'] | undefined; readonly stored?: StoredCopy; readonly retry?: () => void;
   /** The Full tier for this Light model; a 3D failure while it applies goes back to Light through `keepLight`. */
   readonly detail?: StageDetail; readonly keepLight?: () => void }) {
   // The model on screen owns the stage; see stageTier.
@@ -502,8 +505,14 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const archive = environment.archive;
   const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
-  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
-    entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId)));
+  const [state, setState] = useState<AtlasViewState>(() => {
+    const base = memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
+      entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
+    // An explicit start wins over the remembered view, once.
+    if (!start || started.has(start)) return base;
+    started.add(start);
+    return start.reduce((value, action) => atlasReducer(model, value, action), base);
+  });
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);

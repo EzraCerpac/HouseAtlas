@@ -169,6 +169,10 @@ export interface UnifiedAtlasRead {
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */
   readonly entryBuildingId?: string | null;
+  /** Optional explicit starting view: Atlas actions applied in order, over the
+   * remembered or entry view, when this read's stage first mounts. Each array
+   * applies at most once per tab; an action the scene refuses changes nothing. */
+  readonly start?: readonly import('./scene').AtlasAction[];
   /** SHA-256 of the exact scene envelope, when the reader has it; equal
    * digests and model bytes let a fresh read confirm a stored copy in place. */
   readonly envelopeSha256?: string;
