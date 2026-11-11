@@ -329,15 +329,19 @@ try {
       assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
       await new Promise(done => setTimeout(done, 500));
       const capture = await shot(), scalarBoxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })`);
-      const mean = ([x, y, w, h]) => {
+      const mean = ([x, y, w, h], u = .5, v = .5) => {
         let sum = 0;
         for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
-          const at = ((Math.round(y + h / 2) + dy) * capture.width + Math.round(x + w / 2) + dx) * 3;
+          const at = ((Math.round(y + h * v) + dy) * capture.width + Math.round(x + w * u) + dx) * 3;
           sum += capture.pixels[at] + capture.pixels[at + 1] + capture.pixels[at + 2];
         }
         return sum / (169 * 3);
       };
-      const [zero, half, one, legacy] = scalarBoxes.map(mean);
+      const [zero, half, one, legacy] = scalarBoxes.map(box => mean(box));
+      for (const [index, box] of scalarBoxes.entries()) {
+        const surface = mean(box), clear = mean(box, .03, .03);
+        assert(Math.abs(surface - clear) > 2, `${mode}: sample ${index} has no visible surface (${surface}, background ${clear})`);
+      }
       if (mode !== 'mixed') assert(Math.abs(one - legacy) < 2, `${mode}: scalar one differs from shader fallback (${one}, ${legacy})`);
       if (mode === 'metal' || mode === 'glass-metal') {
         assert(Math.max(zero, half, one) - Math.min(zero, half, one) < 2, `Metal changed with dielectric strength: ${zero}, ${half}, ${one}`);
