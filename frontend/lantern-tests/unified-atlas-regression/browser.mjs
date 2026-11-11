@@ -153,13 +153,22 @@ try {
     const stackRow = (list, text) => `Array.from(document.querySelectorAll(${JSON.stringify(`${list} button`)})).find(b=>b.querySelector('.ua-rung-name')?.textContent.trim()===${JSON.stringify(text)})`;
     const roomButton = (floor, label) => `(()=>{const section=Array.from(document.querySelectorAll('.ua-rooms section')).find(s=>s.getAttribute('aria-label')===${JSON.stringify(floor)});
       return section&&Array.from(section.querySelectorAll('button')).find(b=>b.querySelector('span').textContent===${JSON.stringify(label)});})()`;
-    const click = async expression => {
+    const presentation = `(()=>{
+      const dt=Array.from(document.querySelectorAll('dt')).find(row=>row.textContent.trim()==='Overlay source');
+      const value=dt?.nextElementSibling?.tagName==='DD'?dt.nextElementSibling.textContent.trim():null;
+      const allowed=['available','stored-copy','loading','not-loaded','saved-documentary-snapshot','source-unavailable','current-source-unavailable','selection-changed','no-native-building-link'];
+      const stored=document.querySelector('[aria-label="Electrical layer"] .ua-key-stored');
+      const busy=stored?.getAttribute('aria-busy');
+      return {reason:value===null?'missing':allowed.includes(value)?value:'other',stored:!!stored,busy:busy==='true'?true:busy==='false'?false:null};
+    })()`;
+    const click = async (expression, observe = false) => {
       const point = await evaluate(`(()=>{const b=(${expression});if(!b||b.disabled)throw Error('Missing/enabled target: '+${JSON.stringify(expression)});
-        b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height};})()`);
+        b.scrollIntoView({block:'center'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height${observe ? `,presentation:${presentation}` : ''}};})()`);
       assert(point.w > 0 && point.h > 0, `Visible click target: ${expression}`);
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, x: point.x, y: point.y });
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, x: point.x, y: point.y });
       await wait(50);
+      return point.presentation;
     };
     const key = async (key, code, number, modifiers = 0) => {
       await send('Input.dispatchKeyEvent', { type: key === 'Enter' ? 'keyDown' : 'rawKeyDown', key, code, windowsVirtualKeyCode: number, modifiers,
@@ -416,7 +425,7 @@ try {
       await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Hall'));
       const symbol = `Array.from(document.querySelectorAll('.ua-doc')).find(row=>row.querySelector('.ua-doc-label')?.textContent==='Generated hall symbol')`;
       if (!await evaluate(`(${symbol}).open`)) await click(`(${symbol}).querySelector('summary')`);
-      await click(button('.ua-doc button', 'Show drawing group'));
+      const before = await click(button('.ua-doc button', 'Show drawing group'), true);
       const observed = await evaluate(`(()=>{
         const layer=Array.from(document.querySelectorAll('.layer-bar button')).find(b=>b.textContent.trim()==='Electrical');
         const key=document.querySelector('[aria-label="Electrical layer"]');
@@ -429,10 +438,10 @@ try {
           inspector:!!document.querySelector('[aria-label="Historic drawing group"]'),
           electricalPressed:layer?.getAttribute('aria-pressed') ?? null,
           room:room==='Hall'?'Hall':room==null?'none':'other',
-          source:{ keyPresent:!!key, stored:!!key?.querySelector('.ua-key-stored'), coverage } };
+          source:{ keyPresent:!!key, stored:!!key?.querySelector('.ua-key-stored'), coverage }, presentation:${presentation} };
       })()`);
       if (observed.highlights !== 2) report.drawingGroupFailure = { invocation,
-        expected: { highlights: 2, inspector: true, electricalPressed: 'true', room: 'Hall', source: 'documentary records available, possibly stored' }, observed };
+        expected: { highlights: 2, inspector: true, electricalPressed: 'true', room: 'Hall', source: 'documentary records available, possibly stored' }, before, observed };
       assert.equal(observed.highlights, 2);
     };
     await check('drawing group retires on clear room, layer off, source invalidation and publication owner replacement', async () => {
