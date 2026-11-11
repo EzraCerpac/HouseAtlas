@@ -22,6 +22,9 @@ fn prepare_local(directory: &Path) -> Result<Core, Failure> {
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
     let directory = fs::canonicalize(directory)?;
     let mut fixture = lifecycle::fixture()?;
+    // Existing stock wire3 and AdmittedSnapshot target validation still require
+    // UUID HomeBox collections. Keep this adaptation only for those downstream
+    // checks; the opaque-selector regression below uses the original fixture.
     fn rebind(value: &mut Value) -> usize {
         match value {
             Value::Object(fields) => {
@@ -226,6 +229,82 @@ fn bounded_selectors_refuse_authority_duplicates_and_missing_subject() {
     assert_eq!(request.validate(), Err(InputError::InvalidSelection));
     request.selections = vec![request.selections[0].clone(); MAX_SELECTORS + 1];
     assert_eq!(request.validate(), Err(InputError::LimitExceeded));
+}
+
+#[test]
+fn opaque_collection_selector_preserves_original_registration_identity() -> Result<(), Failure> {
+    let fixture = lifecycle::fixture()?;
+    let registration: crate::providers::homebox::read::SourceRegistration =
+        serde_json::from_value(fixture["sources"][0].clone())?;
+    let collection_id = registration.scope().collection_id;
+    assert_eq!(collection_id, "synthetic-collection-a");
+    for kind in ["entity", "location"] {
+        let raw = json!({"feature":"inventory","selections":[{"role":"subject","selector":{
+            "kind":kind,"sourceInstanceId":id(10),"collectionId":collection_id,"entityId":id(501)}}]});
+        let request = SelectionRequest::parse(&serde_json::to_vec(&raw)?)
+            .expect("original opaque collection is a valid selector");
+        match &request.selections[0].selector {
+            Selector::Entity {
+                collection_id: actual,
+                ..
+            }
+            | Selector::Location {
+                collection_id: actual,
+                ..
+            } => assert_eq!(actual, &collection_id),
+            _ => panic!("wrong selector kind"),
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn collection_scalar_boundaries_preserve_text_without_relaxing_uuid_fields() {
+    for collection_id in [
+        "x".into(),
+        " ".into(),
+        "opaque:collection/é".into(),
+        "界".repeat(4096),
+    ] {
+        for location in [false, true] {
+            let mut request = selection(501);
+            request.selections[0].selector = if location {
+                Selector::Location {
+                    source_instance_id: id(10),
+                    collection_id: collection_id.clone(),
+                    entity_id: id(501),
+                }
+            } else {
+                Selector::Entity {
+                    source_instance_id: id(10),
+                    collection_id: collection_id.clone(),
+                    entity_id: id(501),
+                }
+            };
+            assert_eq!(request.validate(), Ok(()));
+        }
+    }
+    for collection_id in [String::new(), "x".repeat(4097), "界".repeat(4097)] {
+        let mut request = selection(501);
+        request.selections[0].selector = Selector::Entity {
+            source_instance_id: id(10),
+            collection_id,
+            entity_id: id(501),
+        };
+        assert_eq!(request.validate(), Err(InputError::InvalidSelection));
+    }
+    for (source_instance_id, entity_id) in [
+        ("opaque-source".into(), id(501)),
+        (id(10), "opaque-entity".into()),
+    ] {
+        let mut request = selection(501);
+        request.selections[0].selector = Selector::Entity {
+            source_instance_id,
+            collection_id: "synthetic-collection-a".into(),
+            entity_id,
+        };
+        assert_eq!(request.validate(), Err(InputError::InvalidSelection));
+    }
 }
 #[test]
 fn cached_input_and_exact_inspection_keep_observation_semantics_without_refresh()
