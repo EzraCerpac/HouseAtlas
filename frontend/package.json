@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "vite build",
+    "build": "vite build && vite build --config example/vite.config.ts",
     "check:backend-frontend-compat": "node lantern-tests/check-backend-frontend-compat.mjs"
   },
   "dependencies": {

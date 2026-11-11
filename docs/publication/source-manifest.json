@@ -6558,8 +6558,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 6972,
-      "sha256": "90455dce68b189fff5779dad0cad4e95d1112ce6347cf5257dce63268a987dd9",
+      "bytes": 12476,
+      "sha256": "e8359971dc037316c900d976612d96469c376c5196f073f14ff326a48ee0791f",
       "owner": "web"
     },
     {
@@ -7562,6 +7562,48 @@
       "bytes": 6773,
       "sha256": "bca6c906f423f9286b007defee4a536132243b830eca008908591d62fa4b212a",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/example/app.tsx",
+      "mode": "100644",
+      "bytes": 4914,
+      "sha256": "956f5234a2a7935cc486064d7eed026f5b4334e9589218a1aa94f32e9aa864d6",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/index.html",
+      "mode": "100644",
+      "bytes": 425,
+      "sha256": "617a5f426ff22ba74a66d78baf97867b98178558679218366d5ff5c8d897e195",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/isolation.ts",
+      "mode": "100644",
+      "bytes": 1902,
+      "sha256": "c8a128f9772b4ebb944f91ca410b497c2091df4500e367c22b85a4f1a5854b19",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/main.tsx",
+      "mode": "100644",
+      "bytes": 278,
+      "sha256": "f875347f6f97879bdbd92e20b41c66038c6d68074caac263262a7bccb00292ea",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/tsconfig.json",
+      "mode": "100644",
+      "bytes": 142,
+      "sha256": "a9640dfc540bdcd5e02e641c74de49ef3b7a3c0256897c28b05ec3633bcf8ced",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/example/vite.config.ts",
+      "mode": "100644",
+      "bytes": 2216,
+      "sha256": "fa5197126b5b213776695cd5971b9b5aa47f6f9502f1e68dbe94f9578fa64aef",
+      "owner": "web"
     },
     {
       "path": "frontend/index.html",
@@ -8763,8 +8805,8 @@
     {
       "path": "frontend/package.json",
       "mode": "100644",
-      "bytes": 805,
-      "sha256": "02de178dbbe323d5fa7907a6d91aecfd185c2c1850e7dfc34e5426ddd3012729",
+      "bytes": 851,
+      "sha256": "bd1ed7dfc1bd4ad202a3efc6655a36d372aa7ae110b848d971f6c4c4db900b43",
       "owner": "core-integration"
     },
     {
@@ -9106,8 +9148,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 19433,
-      "sha256": "380cab0feb3c3f3dfdfa16a76a571190a37ef51074e8ded2b84bf6f9b12f80a3",
+      "bytes": 19498,
+      "sha256": "a70675e77aae44abfc99c6a10181c887a4a4c56b9b557dec2f6f5365f25530d9",
       "owner": "web"
     },
     {
@@ -12795,8 +12837,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 39680,
-      "sha256": "9562944804cfc798598090e164e128c7d81d49d69e123f81ec4ba18a707bb128",
+      "bytes": 59537,
+      "sha256": "485b96fe5b22987246a74464a8ff3bb1f1f6d61455e33a5ea4ab1c6a9ad8fb9d",
       "owner": "web"
     },
     {

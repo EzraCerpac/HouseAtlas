@@ -48,8 +48,98 @@ The stale HomeBox cache and absence of reviewed geometry are part of the
 separate browsing fixture.
 These screenshots establish presentation of the named synthetic views only;
 they establish no live integration, native authority, floorplan, physical device,
-security, pilot or deployment acceptance. The optional video is omitted: the
-static views and reproducible capture provide the verified scope.
+security, pilot or deployment acceptance. The only video is the example house
+tour below; it is a review aid, not timing or pixel evidence.
+
+## Example house
+
+`frontend/example/` is one fictional example house for showing features,
+changes and fixes in PRs. It mounts the actual `LanternHost` and
+`UnifiedAtlas` against the same generated two-building publication as the
+unified Atlas images above, plus the synthetic Documents, site and core-read
+fixtures. Every label, identifier, coordinate and date is invented. The home
+name, shown on every screen, is *Synthetic example house*.
+
+`npm --prefix frontend run build` ships it: after the app's own build, a
+second pass, `vite build --config example/vite.config.ts`, writes only
+`dist/example/`. The app's inputs, chunks and startup files stay as they were,
+and nothing from the example enters the app's precache or service worker. The
+signed-out screen links to it as **Example house**. The Rust host serves
+`dist/example/index.html` at exactly `/example/index.html` to signed-out
+browsers too; `/example/` alone is not mapped. The Vite dev server serves the
+same page at the same path.
+
+`?building=syn-building-house` or `?building=syn-building-studio` opens the
+Atlas on that generated building; an unknown ID is ignored. View, floor and
+room have no URL parameters; choose them in the page.
+
+The page shares the app's origin and is not a browser sandbox. Its entry
+module first runs `isolation.ts` and only then loads the app, so before any
+app module runs it replaces, for script in the page's own realm, `fetch`
+(every request is refused locally), `localStorage`, `sessionStorage`,
+IndexedDB, Cache Storage, `BroadcastChannel`, `navigator.locks` and
+`document.cookie`. Workers have their own realm and are not covered. No
+session credentials are used for application-data reads, the app modules on
+the page neither read nor change the real app's outbox, Atlas caches or
+preferences, and changes made in the example are not persisted. The browser
+still sends the origin's cookies with requests for the page's own scripts and
+styles. It is not available offline. After Back/Forward it shows the house
+again: a page restored from the back/forward cache mounts a fresh tree.
+
+### Screenshots and video for a pull request
+
+Any PR touching `frontend/**`, `docs/demo/**` or `tools/readme-media/**` runs
+the **Synthetic README media** workflow. After the existing captures and their
+receipt it writes:
+
+| File | Content |
+| --- | --- |
+| `example-house.png` | The example page at 1280 × 800, opened with `?building=syn-building-house`, after its first 3D draw. |
+| `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
+| `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
+
+Open the PR's **Checks** tab, choose the **Synthetic README media** run and
+download the `synthetic-readme-media-<head SHA>` artifact (kept seven days).
+Attach or drag the PNG or WebM into the PR description to show a change; do
+not commit them. To show a different state, extend the tour in
+`tools/readme-media/capture.mjs`.
+
+Before the screenshot the same run:
+
+- type-checks `frontend/example/` (including its Vite config) with
+  `frontend/example/tsconfig.json` and the pinned compiler. The example
+  sources and the app modules they import must type-check under this config;
+  diagnostics in the imported `lantern-tests` fixtures are logged and recorded,
+  not failed, so those fixtures are not established type-safe;
+- runs `npm --prefix frontend run build` (the app and the example pass) and
+  serves all of `frontend/dist` from an owned loopback server applying the
+  Rust host's path, file-type, size and cache-header rules; the screenshot,
+  tour and checks below use that built page;
+- checks that the app's startup files load nothing from `dist/example/`, that
+  the link ships in them, and that the offline shell lists nothing from the
+  example;
+- checks that no page script used a replaced global before isolation ran;
+- seeds synthetic `localStorage`, `sessionStorage`, cookie and outbox-database
+  sentinels on that origin, opens the example, checks that its script sees
+  none of them, leaves for another owned page, goes Back, waits for a fresh
+  3D draw, and checks the sentinels are unchanged.
+
+`capture.json` records the example entry, file hashes, the `lantern-tests`
+diagnostics, the storage results, the Back path Chromium took (back/forward-cache
+restore or reload; both pages are served `no-store`, like the Rust host, so a
+reload is likely) and informational durations. The example adds one phase after the existing
+capture, with its own 60-second bound; the existing 90-second bound is
+unchanged, so the script can take up to 150 seconds in all.
+
+These checks do not establish: the Rust host itself serving the page (the
+loopback server applies its rules); real cross-tab or service-worker isolation (the sentinels sample
+storage and the replaced globals only); coexistence with an existing browser
+profile or an active service worker (the context is clean and service workers
+are blocked); worker realms; iPhone, PWA, offline or device behavior;
+inventory editing, HomeBox or Network sources, native documents or sign-in.
+Its Home records (the core-read fixture's *Alpha* building) and its Atlas
+buildings are two separate generated fixtures, not one coherent household.
+This first slice does not complete the feature coverage tracked in #591.
 
 ## Reproduce
 
@@ -100,7 +190,7 @@ browser qualification. It supplies no TLS exception or trust modification.
 The **Synthetic README media** GitHub Actions workflow runs manually and on
 scoped README/demo/frontend/contract changes. It uses read-only repository
 permissions, exact action pins, ephemeral dependency/browser caches and no
-secrets or retained checkout credentials. It uploads screenshots and the receipt
-for seven days; it never writes a commit, recursively triggers itself, deploys
-or changes the ordinary check workflows. CI artifacts are for review; the
+secrets or retained checkout credentials. It uploads screenshots, the example
+house tour video and the receipt for seven days; it never writes a commit,
+recursively triggers itself, deploys or changes the ordinary check workflows. CI artifacts are for review; the
 README uses the checked-in, pixel-reviewed captures.
