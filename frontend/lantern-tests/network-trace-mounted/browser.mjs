@@ -150,7 +150,35 @@ try {
   await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
   const chooseHostClient = async () => { if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`); await press(hostClient); };
-  await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  if (!await evaluate(`!!(${devices})?.open`)) await press(`(${devices})?.querySelector(':scope > summary')`);
+  assert.equal(await evaluate(`!!document.querySelector('.ua-stage .ua-net-trace')`), false, 'no trace exists before host input');
+  const hostRequestsBefore = requests.length;
+  // Observe the actual Atlas stage DOM, armed before trusted input. The event's
+  // timestamp and performance.now() share this document's time origin. The
+  // mutation callback is a conservative observation of the DOM commit, not paint.
+  await evaluate(`window.__hostTraceFrame = new Promise(resolve => {
+    const stage = document.querySelector('.ua-stage'), target = (${hostClient});
+    if (!stage || !target || !window.__hostTraceReads) throw Error('host witness unavailable');
+    let inputAt = null, observedAt = null, initialReads = null, trusted = false;
+    const observer = new MutationObserver(() => { if (inputAt !== null && observedAt === null && stage.querySelector('.ua-net-trace')) observedAt = performance.now(); });
+    observer.observe(stage, { subtree: true, childList: true, attributes: true });
+    target.addEventListener('click', event => {
+      trusted = event.isTrusted; inputAt = event.timeStamp; initialReads = { ...window.__hostTraceReads };
+      requestAnimationFrame(() => { const frame = { trusted, inputAt, observedAt, paths: stage.querySelectorAll('.ua-net-trace').length,
+        before: initialReads, after: { ...window.__hostTraceReads } }; observer.disconnect(); resolve(frame); });
+    }, { once: true, capture: true });
+  }); true`);
+  await press(hostClient);
+  const hostFrame = await evaluate(`window.__hostTraceFrame`);
+  assert.equal(hostFrame.trusted, true, 'host input is a trusted browser click');
+  assert.equal(hostFrame.paths, 1, 'actual Atlas stage has the trace at the first animation callback');
+  assert(Number.isFinite(hostFrame.inputAt) && Number.isFinite(hostFrame.observedAt), 'input and stage DOM commit observation have timestamps');
+  assert(hostFrame.observedAt >= hostFrame.inputAt && hostFrame.observedAt - hostFrame.inputAt <= 1000 / 60,
+    `stage DOM observation exceeds one 60 Hz reference frame: ${JSON.stringify(hostFrame)}`);
+  assert(hostFrame.before.port > 0 && hostFrame.before.transport > 0 && hostFrame.before.documentary > 0, 'fixture read counters are exercised');
+  assert.deepEqual(hostFrame.after, hostFrame.before, 'no fixture source-owner or transport read through the first callback');
+  assert.equal(requests.length, hostRequestsBefore, 'no observed browser request through the host first callback');
+  await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
   await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
   assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
   await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);

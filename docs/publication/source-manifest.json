@@ -8371,8 +8371,8 @@
     {
       "path": "frontend/lantern-tests/network-trace-mounted/browser.mjs",
       "mode": "100644",
-      "bytes": 17350,
-      "sha256": "1b58ad45fc2a5c34d41c761ad44d0be3a0221be9b7d2930a914f076c6c9638c7",
+      "bytes": 19905,
+      "sha256": "f58e1cb44736895d7eeb32f173cd8ea5090cf089dd59997792d3a0957ebf5403",
       "owner": "web"
     },
     {
@@ -8392,8 +8392,8 @@
     {
       "path": "frontend/lantern-tests/network-trace-mounted/host.tsx",
       "mode": "100644",
-      "bytes": 4563,
-      "sha256": "a512a05b99e085b4271a6453066cb68690cfb6cde2d438b97424e8d934b9bd10",
+      "bytes": 4859,
+      "sha256": "2731e7cf7bc5d6cbf233d8bf3bafd289a6e89036bcb1c0a8531137495b52f2b9",
       "owner": "web"
     },
     {
