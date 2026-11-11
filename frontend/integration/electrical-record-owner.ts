@@ -1,27 +1,23 @@
-import type { TopologyBinding, TopologyClient, TopologyRecord } from '../src/api/topology-client';
+import type { TopologyBinding, TopologyClient } from '../src/api/topology-client';
 
-type Kind = 'identity' | 'location-semantics' | 'circuit' | 'evidence';
-type Pin = { readonly recordType: Kind; readonly recordId: string; readonly revision: number };
-type RecordSet = { readonly identities: readonly TopologyRecord<'identity'>[];
-  readonly semantics: readonly TopologyRecord<'location-semantics'>[];
-  readonly circuits: readonly TopologyRecord<'circuit'>[]; readonly evidence: readonly TopologyRecord<'evidence'>[] };
-type Result = { readonly status: 'partial'; readonly records: RecordSet; readonly snapshotSha256: string;
-  readonly unavailable: readonly ['electrical-record-closure', 'electrical-review-verifier'] }
+import { resolveElectricalRecordClosure, type ElectricalRecordPin, type ElectricalRecordPools } from './electrical-record-closure.ts';
+
+type Result = { readonly status: 'partial'; readonly records: ElectricalRecordPools; readonly snapshotSha256: string;
+  readonly unavailable: readonly ['canonical-records', 'electrical-projector', 'electrical-review-verifier', 'evidence-assets', 'supersession', 'external-sources'] }
   | { readonly status: 'unavailable' | 'retired' };
 
 /** A frame-scoped partial reader. No result is an electrical assertion or review.
- * Every disclosure reads all four canonical lists again; a prior result is never a cache.
+ * Every disclosure reads all four Stock lists again; a prior result is never a cache.
  * The caller must retire the owner on frame, source, or review withdrawal. */
 export function createElectricalRecordOwner(options: {
   readonly client: TopologyClient;
   readonly binding: TopologyBinding;
-  readonly pins: readonly Pin[];
+  readonly pins: readonly ElectricalRecordPin[];
   readonly frameSignal: AbortSignal;
   readonly subscribeDependencies: (retire: () => void) => () => void;
 }) {
   const { client, binding, frameSignal } = options;
   const pins = options.pins.map(pin => ({ ...pin }));
-  const keys = new Set<string>();
   let retired = false, generation = 0;
   const listeners = new Set<() => void>();
   const controller = new AbortController();
@@ -34,10 +30,9 @@ export function createElectricalRecordOwner(options: {
     frameSignal.removeEventListener('abort', retire);
   };
   const valid = pins.length <= 10000 && pins.every(pin => {
-    const key = `${pin.recordType}:${pin.recordId}`;
     if (!['identity', 'location-semantics', 'circuit', 'evidence'].includes(pin.recordType) || !pin.recordId ||
-      !Number.isSafeInteger(pin.revision) || pin.revision < 1 || keys.has(key)) return false;
-    keys.add(key); return true;
+      !Number.isSafeInteger(pin.revision) || pin.revision < 1) return false;
+    return true;
   });
   const stopBinding = client.subscribe(() => { if (client.getBinding() !== binding) retire(); });
   const stopDependencies = options.subscribeDependencies(retire);
@@ -63,25 +58,12 @@ export function createElectricalRecordOwner(options: {
         identities.sourceStatus !== 'current' || semantics.sourceStatus !== 'current' || circuits.sourceStatus !== 'current' || evidence.sourceStatus !== 'current' ||
         identities.snapshotSha256 !== semantics.snapshotSha256 || identities.snapshotSha256 !== circuits.snapshotSha256 ||
         identities.snapshotSha256 !== evidence.snapshotSha256) { retire(); return { status: 'unavailable' }; }
-      const selected = <K extends Kind>(kind: K, rows: readonly TopologyRecord<K>[]) => {
-        const wanted = pins.filter(pin => pin.recordType === kind);
-        return wanted.map(pin => rows.find(row => row.target.recordId === pin.recordId && row.revision === pin.revision));
-      };
-      const foundIdentities = selected('identity', identities.records);
-      const foundSemantics = selected('location-semantics', semantics.records);
-      const foundCircuits = selected('circuit', circuits.records);
-      const foundEvidence = selected('evidence', evidence.records);
-      if (foundCircuits.some(row => !row) || foundEvidence.some(row => !row || ['disputed', 'withdrawn', 'superseded'].includes(row.payload.provenance.uncertainty.status)) || foundIdentities.some(row => !row) || foundSemantics.some(row => !row)) {
-        retire(); return { status: 'unavailable' };
-      }
-      // Schema-validated records from the native client; selected arrays contain no missing rows.
-      return { status: 'partial', records: {
-        identities: foundIdentities.filter((row): row is TopologyRecord<'identity'> => row !== undefined),
-        semantics: foundSemantics.filter((row): row is TopologyRecord<'location-semantics'> => row !== undefined),
-        circuits: foundCircuits.filter((row): row is TopologyRecord<'circuit'> => row !== undefined),
-        evidence: foundEvidence.filter((row): row is TopologyRecord<'evidence'> => row !== undefined),
-      }, snapshotSha256: identities.snapshotSha256,
-      unavailable: ['electrical-record-closure', 'electrical-review-verifier'] };
+      const records = resolveElectricalRecordClosure(pins, {
+        identities: identities.records, semantics: semantics.records, circuits: circuits.records, evidence: evidence.records,
+      });
+      if (!records) { retire(); return { status: 'unavailable' }; }
+      return { status: 'partial', records, snapshotSha256: identities.snapshotSha256,
+        unavailable: ['canonical-records', 'electrical-projector', 'electrical-review-verifier', 'evidence-assets', 'supersession', 'external-sources'] };
     } catch {
       if (retired) return { status: 'retired' };
       if (own !== generation) return { status: 'unavailable' };

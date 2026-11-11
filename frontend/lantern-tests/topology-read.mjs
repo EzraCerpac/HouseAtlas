@@ -1910,6 +1910,15 @@ for (const kind of ['circuit', 'evidence']) {
     revision: row.revision, lifecycle: row.lifecycle, payload: structuredClone(row.payload),
   }));
 }
+// Generated supporting evidence for the existing synthetic topology and circuits.
+const evidenceIds = new Set(fixture.records.evidence.map(row => row.target.recordId));
+for (const kind of ['identity', 'location-semantics', 'circuit']) {
+  for (const row of fixture.records[kind]) for (const id of row.payload.evidenceIds) {
+    if (evidenceIds.has(id)) continue;
+    const evidence = structuredClone(fixture.records.evidence[0]);
+    evidence.target.recordId = id; fixture.records.evidence.push(evidence); evidenceIds.add(id);
+  }
+}
 // Keep the JSON integer token exact before the real lossless response decoder sees it.
 fixture.records.evidence[0].payload.provenance.sourceRevision = JSON.rawJSON('9007199254740993');
 const ajv = new Ajv2020({ strict:true, allErrors:true, allowUnionTypes:true });
