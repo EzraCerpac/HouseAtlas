@@ -92,27 +92,33 @@ For example,
 opens the upper-floor part of the Stairs in Plan.
 
 - Explicit parameters win. They are applied in the order building, floor,
-  room, view, over the view the tab remembers, else the view the Atlas opens
-  on. A building drops the remembered floor and room; a floor drops the
-  remembered room. Remembered values are kept only for absent parameters.
+  room, view, over the view the scene would otherwise open with; absent
+  parameters keep its values. A building drops the floor and room; a floor
+  drops the room.
 - Each unknown or mismatched value is ignored on its own and the others still
   apply: a floor outside the named building, a room with no selectable part
   on the named floor (or, without a floor, in the named building), or any
   other `view`. A room on several floors opens on the named floor's part,
   else its first selectable part.
-- They apply once per mount, to the first Atlas view of its publication.
-  Later choices and reopening the Atlas do not reapply them. A back/forward
-  restore mounts the page afresh, with no remembered view, and applies them
-  again, as a reload does.
+- They apply only to the first view of the page's publication that the tab
+  shows. Later choices, closing and reopening the Atlas, and reads after
+  that view do not reapply them. A back/forward restore mounts the page
+  afresh, as a new scene with no remembered view, and applies them again, as
+  a reload does.
 
-The tab remembers views only within one loaded page, so a link always starts
-without one; the override of a remembered view is not reachable from a link.
+The tab remembers a scene's view only once that scene's first view has
+committed, and remembers it only within one loaded page. A start applies only
+before that, so it never meets a remembered view of its own scene: a link
+always opens as named, and from then on the remembered view wins.
 
 Production sources supply no starting state, so the app opens as before. The
-example passes these values to the Atlas as ordinary Atlas actions on its
-read (`UnifiedAtlasRead.start`); the Atlas applies each array once and
-refuses any action the scene does not allow. That code lives in the Atlas's
-lazily loaded chunk and in types, not in the app's startup files.
+example passes these values to the Atlas as ordinary Atlas actions on each
+read (`UnifiedAtlasRead.start`), refused one by one where the scene does not
+allow them. The Atlas applies a start only to a scene's first committed view
+(`createStartLedger`): the stage's first render reads it, and only a mounted
+stage records the scene as begun. A stored copy shown first is that view, so
+a start on the later fresh read of the same scene is dropped, never applied
+on reopen. Which array carries it does not matter.
 
 The page shares the app's origin and is not a browser sandbox. Its entry
 module first runs `isolation.ts` and only then loads the app, so before any
@@ -166,7 +172,8 @@ Before the screenshot the same run:
   none of them, leaves for another owned page, goes Back, waits for a fresh
   3D draw, and checks the sentinels are unchanged;
 - opens the direct link above and checks its building, floor, room, room part
-  and Plan; opens a link with a mismatched floor and room and an unknown view
+  and Plan; chooses 3D, opens Upkeep, returns to the Atlas and checks that 3D
+  and the room remain (the reopened read carries a new start array); opens a link with a mismatched floor and room and an unknown view
   and checks only its building applied; then checks that Rooms & places lists
   the publication's buildings, floors and rooms with a stale HomeBox cache.
 
@@ -183,9 +190,11 @@ storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
 inventory editing, HomeBox or Network sources, native documents or sign-in.
-The starting-state checks use fresh loads only; the override of a remembered
-view and not reapplying after reopening the Atlas are not exercised. The
-example's coverage of #591 is not complete.
+The starting-state checks use fresh reads only: the example has no stored
+copy, so a stored copy shown first is covered only by the pure ledger
+controls in `frontend/lantern-tests/unified-atlas-start-healthy.mjs`, which
+mount no React tree and are not yet on the healthy runner list. The example's
+coverage of #591 is not complete.
 
 ## Reproduce
 

@@ -7,7 +7,7 @@
  * Loaded only by ./main after ./isolation has run.
  *
  * `building`, `floor`, `room` and `view` URL parameters name the Atlas
- * starting view once per mount (./household exampleStart). */
+ * starting view (./household exampleStart; rule in docs/demo/README.md). */
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { LanternHost } from '../src/lantern/Host';
@@ -35,8 +35,6 @@ const sourceDocuments: SourceDocumentsPort = {
  * home name is the persistent label on every screen of the shell. */
 async function example() {
   const generated = await buildSyntheticAtlas(scope);
-  // Applied by the Atlas once, to its first view of this mount's publication.
-  const named = exampleStart(generated.companion, new URLSearchParams(location.search));
   const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, SYNTHETIC_ATLAS.revision);
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
     envelopeBytes: composed.envelopeBytes, href: composed.href, glb: generated.glb, sha256: composed.sha256,
@@ -51,7 +49,9 @@ async function example() {
       async read(requested, signal) {
         const read = await readUnifiedAtlas({ selection: requested, signal,
           origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
-        return named.length === 0 ? read : { ...read, start: named };
+        // A new array on every read: the Atlas applies a start once per scene, never per array.
+        const start = exampleStart(generated.companion, new URLSearchParams(location.search));
+        return start.length === 0 ? read : { ...read, start };
       } },
   };
   return { view: exampleHomeView(generated.companion), models };

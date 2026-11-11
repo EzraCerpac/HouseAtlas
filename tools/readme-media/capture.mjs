@@ -684,6 +684,18 @@ try {
   assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
     'A direct link opens its named building, floor, room and view');
   await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
+  // A later choice survives closing and reopening the Atlas: the reopened
+  // stage's fresh read carries a new start array for the same scene.
+  const section = name => production.locator('nav.navrail').getByRole('button', { name, exact: true }).click();
+  await production.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await production.waitForFunction(() => !document.querySelector('.ua-shell.is-plan'));
+  await section('Upkeep');
+  await production.waitForFunction(() => !document.querySelector('section.ua-shell'));
+  await section('Atlas');
+  await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
+  await frames(production);
+  const reopened = await stateFacts(production);
+  assert.deepEqual(reopened, { ...direct, view: ['3D'], plan: false }, 'Reopening the Atlas keeps the later choice; the start is not reapplied');
   // A mismatched floor and room and an unknown view are each ignored; the building applies.
   const ignoredEntry = '/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways';
   await production.goto(`${exampleOrigin}${ignoredEntry}`, { waitUntil: 'load' });
@@ -709,8 +721,10 @@ try {
     entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
-    states: { direct: { entry: stateEntry, screenshot: 'example-house-state.png', ...direct }, ignored: { entry: ignoredEntry, ...ignored }, home,
-      rememberedOverride: 'not reachable by a link: the remembered view is per document, so every link load starts without one' },
+    states: { direct: { entry: stateEntry, screenshot: 'example-house-state.png', ...direct },
+      reopened: { after: ['3D chosen', 'Upkeep', 'Atlas'], ...reopened }, ignored: { entry: ignoredEntry, ...ignored }, home,
+      rememberedOverride: 'not reachable by a link: the remembered view is per document, so every link load starts without one',
+      storedFirst: 'not exercised: the example has no stored-copy route' },
     production: {
       build: 'npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example',
       preIsolationUse: [],
