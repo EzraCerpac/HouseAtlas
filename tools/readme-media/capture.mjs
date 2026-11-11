@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 assert.equal(process.version, 'v26.10.0');
@@ -34,7 +35,7 @@ function countDraws(counter) {
   wrap(globalThis.GPURenderPassEncoder?.prototype, ['draw', 'drawIndexed']);
 }
 const errors = [], requests = [];
-let browser, server;
+let browser, server, exampleDeadline;
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
 try {
   // CI enables Vite's colored URLs even on pipes. Keep the readiness URL plain.
@@ -438,10 +439,76 @@ try {
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone; no provider/native acceptance');
+  // Shipped example house (frontend/example): one screenshot and one short
+  // scripted video tour. It runs after the receipt above is complete, under
+  // its own bound, so the existing capture keeps its unchanged 90 seconds.
+  clearTimeout(deadline);
+  exampleDeadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 40_000);
+  const exampleEntry = '/example/index.html?building=syn-building-house';
+  const videoDirectory = await mkdtemp(join(tmpdir(), 'houseatlas-example-video-'));
+  const tourContext = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC',
+    colorScheme: 'light', serviceWorkers: 'block', recordVideo: { dir: videoDirectory, size: { width: 1280, height: 800 } } });
+  await tourContext.route('**/*', route => {
+    requests.push(route.request().url());
+    if (new URL(route.request().url()).origin === origin) return route.continue();
+    errors.push(`External browser request: ${route.request().url()}`);
+    return route.abort();
+  });
+  const tour = await tourContext.newPage();
+  tour.on('pageerror', error => errors.push(error.message));
+  await tour.addInitScript(countDraws, 'syntheticAtlasDrawCalls');
+  await tour.goto(`${origin}${exampleEntry}`, { waitUntil: 'networkidle' });
+  await tour.evaluate(() => document.fonts.ready);
+  assert.equal(await tour.title(), 'Synthetic example house · HouseAtlas');
+  await tour.getByRole('button', { name: 'Home: Synthetic example house. Choose home.', exact: true }).waitFor();
+  assert.equal(await tour.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
+  const tourShell = tour.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
+  await tourShell.waitFor();
+  const tourDraw = await tour.waitForFunction(() => window.syntheticAtlasDrawCalls > 0 ? 'drawn'
+    : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
+  assert.equal(await tourDraw.jsonValue(), 'drawn', 'The example house must draw in 3D before capture');
+  // ?building= opens on the generated house without a click.
+  const tourLadder = tourShell.getByRole('list', { name: 'Floors of Synthetic house' });
+  await tourLadder.waitFor();
+  assert.equal(await tourShell.getByRole('list', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).getAttribute('aria-pressed'), 'true');
+  await frames(tour);
+  await tour.screenshot({ path: resolve(output, 'example-house.png'), animations: 'disabled' });
+  const pause = () => tour.waitForTimeout(800);
+  await pause();
+  const tourRooms = tourShell.getByRole('complementary', { name: 'Rooms' });
+  const tourShowRooms = tourRooms.getByRole('button', { name: 'Show rooms', exact: true });
+  if (await tourShowRooms.isVisible()) await tourShowRooms.click();
+  await tourRooms.getByRole('button', { name: 'Living room', exact: true }).click();
+  await tourShell.getByRole('heading', { level: 2, name: 'Living room', exact: true }).waitFor();
+  await pause();
+  await tourShell.getByRole('button', { name: 'Spread floors', exact: true }).click();
+  await pause();
+  await tourShell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: 'Plan', exact: true }).click();
+  await tour.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan'));
+  await tourShell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Electrical', exact: true }).click();
+  await tourShell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).waitFor();
+  await pause();
+  await tourShell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await tour.waitForFunction(() => !document.querySelector('.ua-viewport canvas.cifc-canvas').hidden);
+  await pause();
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+  const tourVideo = tour.video();
+  await tourContext.close();
+  await tourVideo.saveAs(resolve(output, 'example-house-tour.webm'));
+  await rm(videoDirectory, { recursive: true, force: true });
+  const exampleHouse = {
+    entry: exampleEntry, renderer: 'shipped frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
+    viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
+    tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
+    scope: ['Generated fictional data only', 'Video is a review aid: browser timing varies; no pixel or timing evidence'],
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-tour.webm'].map(async name =>
+      [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
+  };
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
+  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house screenshot and tour video; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
+  clearTimeout(exampleDeadline);
   await browser?.close();
   if (server && server.exitCode === null) {
     const stopped = new Promise(done => server.once('exit', done));

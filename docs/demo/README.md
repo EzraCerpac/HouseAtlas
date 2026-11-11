@@ -48,8 +48,54 @@ The stale HomeBox cache and absence of reviewed geometry are part of the
 separate browsing fixture.
 These screenshots establish presentation of the named synthetic views only;
 they establish no live integration, native authority, floorplan, physical device,
-security, pilot or deployment acceptance. The optional video is omitted: the
-static views and reproducible capture provide the verified scope.
+security, pilot or deployment acceptance. The only video is the example house
+tour below; it is a review aid, not timing or pixel evidence.
+
+## Example house
+
+The production build ships one fictional example house at
+`/example/index.html` (source: `frontend/example/`). The signed-out screen
+links to it as **Synthetic example house**; signed-in views do not.
+It mounts the actual `LanternHost` and `UnifiedAtlas` against the same
+generated two-building publication as the unified Atlas images above, plus
+the synthetic Documents, site and core-read fixtures. Every label, identifier,
+coordinate and date is invented. The home name, shown on every screen, is
+*Synthetic example house*.
+
+The page uses no session, cookie, native transport, provider or account, and
+never falls back to or mixes with a real Home. Before the app loads it refuses
+every `fetch` locally and replaces `localStorage`, `sessionStorage`,
+IndexedDB and Cache Storage, so the real app's outbox, saved Atlas copies,
+caches and preferences on the same origin are neither read nor changed.
+Nothing is kept after the tab closes, and it is not available offline.
+
+`?building=syn-building-house` or `?building=syn-building-studio` opens the
+Atlas on that generated building; an unknown ID is ignored. View, floor and
+room selection have no URL parameters yet; choose them in the page.
+
+### Screenshots and video for a pull request
+
+Any PR touching `frontend/**`, `docs/demo/**` or `tools/readme-media/**` runs
+the **Synthetic README media** workflow. Besides the images above it writes:
+
+| File | Content |
+| --- | --- |
+| `example-house.png` | The example page at 1280 × 800, opened with `?building=syn-building-house`, after its first 3D draw. |
+| `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
+
+Open the PR's **Checks** tab, choose the **Synthetic README media** run and
+download the `synthetic-readme-media-<head SHA>` artifact (kept seven days).
+`capture.json` records the example entry and the SHA-256 of both files. Attach
+or drag the PNG or WebM into the PR description to show a change; do not
+commit them. To show a different state, extend the tour in
+`tools/readme-media/capture.mjs`.
+
+The example runs after the existing capture and its receipt checks, under its
+own 40-second bound; the existing 90-second bound is unchanged. It does not
+show inventory editing, HomeBox or Network sources, native documents, saved or
+offline copies, sign-in, iPhone, PWA or device behavior. Its Home records
+(the core-read fixture's *Alpha* building) and its Atlas buildings are two
+separate generated fixtures, not one coherent household.
 
 ## Reproduce
 
@@ -100,7 +146,7 @@ browser qualification. It supplies no TLS exception or trust modification.
 The **Synthetic README media** GitHub Actions workflow runs manually and on
 scoped README/demo/frontend/contract changes. It uses read-only repository
 permissions, exact action pins, ephemeral dependency/browser caches and no
-secrets or retained checkout credentials. It uploads screenshots and the receipt
-for seven days; it never writes a commit, recursively triggers itself, deploys
-or changes the ordinary check workflows. CI artifacts are for review; the
+secrets or retained checkout credentials. It uploads screenshots, the example
+house tour video and the receipt for seven days; it never writes a commit,
+recursively triggers itself, deploys or changes the ordinary check workflows. CI artifacts are for review; the
 README uses the checked-in, pixel-reviewed captures.

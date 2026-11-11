@@ -14,6 +14,8 @@ export function offlineShellPlugin() {
       if (resolve(config.root ?? process.cwd()) !== frontendRoot) return;
       return { build: { rolldownOptions: { input: {
         live: join(frontendRoot, 'index.html'), saved: join(frontendRoot, 'saved/index.html'),
+        // The synthetic example house: a separate page; no live or saved data.
+        example: join(frontendRoot, 'example/index.html'),
       } } } };
     },
     configResolved(config) {

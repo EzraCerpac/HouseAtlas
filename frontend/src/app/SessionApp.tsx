@@ -441,6 +441,14 @@ function SessionPanel({
     </>
   );
 }
+/** The shipped synthetic example page; it never opens or reads a real Home. */
+function ExampleHouseLink() {
+  return (
+    <p className="access-example">
+      <a href="/example/index.html">Synthetic example house</a>
+    </p>
+  );
+}
 function OpenHomePanel({ openHome }: { openHome: () => void }) {
   const button = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
@@ -453,6 +461,7 @@ function OpenHomePanel({ openHome }: { openHome: () => void }) {
           Open Home
         </button>
       </div>
+      <ExampleHouseLink />
     </SessionPanel>
   );
 }
@@ -535,6 +544,7 @@ function SignInForm({
           {error}
         </p>
       </form>
+      <ExampleHouseLink />
     </SessionPanel>
   );
 }
