@@ -3978,6 +3978,18 @@ node frontend/lantern-tests/unified-atlas-daylight-healthy.mjs
 
 It does not mount React, a browser or a GPU, and uses no household location.
 
+The additional #339 generated CPU controls exercise the actual
+`writeAppearance` descriptor output with distinguishable capped/ranked lamps,
+hiding, whole/partial clipping, per-mesh clip-boundary overrides, display lift
+and restored eligibility. Before each of eight calls they poison the receiver's
+room/shelter cells and immediately require explicit `[1, 1]`, preventing stale
+table values from satisfying the check. They also check retained self-emission
+marks and unchanged fixed global lighting inputs. The existing SOURCE command
+and all prior assertions and deadlines remain; no selection or workflow is
+added. These controls are authored and await exact-head hosted execution. They
+do not establish persistent GPU slots, rendered fallback, room readiness or
+occurrence completeness, and do not complete #339.
+
 ## Named generated WebMCP batch-discovery check
 
 `frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles

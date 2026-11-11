@@ -1,5 +1,18 @@
 # HouseAtlas
 
+The existing required `unified-atlas-daylight-healthy.mjs` SOURCE check adds
+generated CPU controls for lamp descriptor ranking/capping, hiding, whole and
+partial clipping, clip-boundary overrides, display lift and reappearance.
+Each of eight states poisons the receiver cells before the actual
+`writeAppearance` call and immediately requires room/shelter flags `[1, 1]`.
+The controls also retain self-emission marks and fixed global lighting inputs.
+No new runner selection is added: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total),
+with all existing assertions and 180000 ms entry limits unchanged. Source and
+metadata inspection are not execution; exact-head hosted qualification remains
+required. This CPU-only slice does not qualify GPU slots, rendered fallback,
+readiness or occurrence completeness and does not complete #339. Production
+renderer/schema/allocation code, workflows and sandbox setup remain unchanged.
+
 The required SOURCE list adds `example-combined-overlays-healthy.mjs`:
 83 SOURCE / 1 BUILD / 11 BROWSER (95 total). All previous entries and
 180000 ms per-entry limits remain, including the explicit stored-dialog case.
