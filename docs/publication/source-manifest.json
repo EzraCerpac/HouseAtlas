@@ -6649,8 +6649,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 16351,
-      "sha256": "cc45025d6046deee16ff726d384f3a7251bda2c3c241995c6f52d74f81b1cc50",
+      "bytes": 17671,
+      "sha256": "1fd12c6aa201740b0148d0e9f85f7f9d93ef8c0d964b98555de94672a21fb606",
       "owner": "web"
     },
     {
@@ -7664,8 +7664,8 @@
     {
       "path": "frontend/example/app.tsx",
       "mode": "100644",
-      "bytes": 4809,
-      "sha256": "42411a53d9c9e836d411d406b623e229109e5f16bddf983d79de0b9488bb2dda",
+      "bytes": 4970,
+      "sha256": "6d374661b5522c2b35e5acdb5300f1760a4514fce5693681e708a809cd460d7d",
       "owner": "web"
     },
     {
