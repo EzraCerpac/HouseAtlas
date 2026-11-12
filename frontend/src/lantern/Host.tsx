@@ -7,6 +7,7 @@ import type { ReadyView } from '../app/types';
 import type { ModelContextPort } from '../webmcp/ports';
 import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
 import type { PinnedFileClient } from '../api/pinned-file-client';
+import type { HomeboxOriginalsPort } from './homebox-originals/types';
 import type { NetworkRelationsClient } from '../api/network-relations-client';
 import { projectView } from './adapters/read';
 import { StoreProvider } from './state/store';
@@ -42,11 +43,13 @@ class OptionalToolBoundary extends Component<{ readonly children: ReactNode }, {
 }
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition, offlineStorage }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, homeboxOriginals, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition, offlineStorage }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
   pinnedFiles?: PinnedFileClient;
+  /** Optional verified-copy action; ordinary issued-URL downloads remain separate. */
+  homeboxOriginals?: HomeboxOriginalsPort;
   /** Optional saved Network relations reader; each page is an explicit user read. */
   networkRelations?: NetworkRelationsClient;
   /** Optional reviewed Atlas topology reader, scoped independently of source parentage. */
@@ -128,7 +131,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
     setArchive({ view, session, included });
   } }), [view, session, includeArchived]);
-  const ports = useMemo(() => ({ ...actions, offlineStorage, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations, houseAcquisition, offlineStorage]);
+  const ports = useMemo(() => ({ ...actions, offlineStorage, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
