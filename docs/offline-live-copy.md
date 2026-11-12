@@ -185,8 +185,15 @@ scope and opaque collection spelling. Reserved-unsent claims can release only on
 proven non-dispatch. In-flight, sent-success, definitive sent refusal and unknown
 outcomes remain spent after close, quota failure or frame release; a fresh request
 ID does not reset them. A definitive HTTP refusal does not prove no provider I/O.
-Competing acquisitions report busy. Previously held originals remain explicitly
-historical, never a silent substitute for a new verified read.
+Compatible readers join the existing acquisition or reborrow that exact
+observation, with a distinct opaque handle for each reader.
+Released bytes are recovered only through the stored full pin and verified bytes;
+missing local bytes never start another provider read.
+This is the same earlier capture, not newly current HomeBox content.
+Historical copy selection remains separate and explicit.
+The claim lifetime is one retention owner and actual sign-in allocation in this
+page; a canonical session refresh, another document or reload can require a fresh
+authorized read even when the server session is unchanged.
 
 Explicit read-and-keep ignores the bulk-fill preference. Its one storage attempt
 owns a separate controller and borrow and can finish after ordinary UI close.
@@ -194,16 +201,97 @@ It uses the existing ten-second storage bound, acknowledged/unknown completion,
 aggregate budget and LRU; the UI signal cannot cancel that storage borrow.
 Actual session/view/source retirement or expiry does cancel it. The combined
 predicate is captured by `bindHome` through the store transaction, alongside
-existing epoch and registration high-water checks. The policy passes its existing
-`sourceCurrent` predicate to bulk retention; no scheduling limit changes.
+existing epoch and registration high-water checks.
+The genuine session/view/source witness is separate from bulk signal/preference
+interests.
+Bulk-created storage remains bulk-cancellable;
+explicit-created storage remains independent of ordinary UI close.
+A reader cannot adopt running storage with incompatible cancellation ownership.
+There is no SAVE promotion or second storage attempt.
 
 Quota/local-storage failure can leave the already-verified same-byte save usable
 while current. Integrity or retirement withdraws the frame. Unknown write
 acknowledgment permits local reconciliation only: compare the exact observation,
 registration, digest, length and remaining pin facts and verify the held bytes.
-An older association match or a missing row while a write may still finish is
-unresolved, never rollback or permission to replay a read/write. Reconciliation
-does not mint new observation facts or acquire bytes again.
+An association-only status never establishes this exact capture.
+A missing row while a write may still finish is unresolved,
+never rollback or permission to replay a read/write.
+A different observation is an integrity refusal, including identical bytes under
+a changed observation pin.
+When native transaction settlement cannot be proved after an unknown outcome,
+the pipeline stays quarantined and reconciliation reports unavailable.
+The settled public outcome never changes after late completion.
+Reconciliation does not mint new facts or acquire bytes again.
+
+### Bounded same-observation admission
+
+The instance-local owner admits at most 256 claims, eight readers and 32
+interests, with four interests per reader and eight per observation.
+Spent claims are never evicted to create capacity.
+Claims partition their private string payload into 20 KiB key/ref, 40 KiB pin
+and 4 KiB binding allowances;
+the aggregate 16 MiB budget also charges separately copied reader scopes.
+Escaped key lengths, UTF-16 and UTF-8 payload are metered before construction.
+Source-valid selectors can still exceed this conservative admission budget.
+Subscribers retain the unsubscribe API;
+a second distinct callback is refused with a typed resource error.
+
+One pipeline covers discovery and preparation as well as acquisition, storage
+and exact-held rehydration.
+There is no work queue.
+Two shared observations reserve at most 20 MiB of resident bytes;
+last-interest cleanup releases owned Blob references.
+Waiters and frames share one private immutable receipt and one storage attempt.
+After dispatched work begins aborting, a new join cannot resurrect it.
+Underlying uncertain work remains charged rather than being replaced after its
+public deadline.
+Cancelled waiters leave the bounded notification set without attaching callbacks
+to pending shared work.
+A later conclusive owner return can release that work reservation;
+it cannot change the settled public unknown or trigger storage or delivery.
+
+The pipeline reserves 128 MiB of application-owned transient byte/text payload.
+Its 2 MiB metadata scratch accounts for at most 1,650 KiB of named request,
+form-encoding, URL, facts, discovery, identity and admitted-row representations;
+398 KiB is unused reserve.
+Compact cursor inventory is limited to 8 MiB within that reservation.
+The source construction schedule charges at most 74 MiB for stored-view
+validation, 24 MiB for sequential catalog preparation, 40 MiB for acquisition,
+40 MiB for retention and 84 MiB for rehydration.
+These are application payload reservations, not measured peaks, GC limits or RSS.
+JSON object overhead, native work and browser/IndexedDB-delivered allocations are
+outside this guarantee.
+Caller-owned inputs and earlier native/electrical passes are outside this
+HomeBox pipeline envelope too.
+Allocation correspondence and new controls remain unrun until exact-head hosted
+qualification.
+
+Original bodies use one preallocated 10 MiB accumulator, and pinned-source JSON
+uses its existing response-byte allowance without retaining a chunk list.
+Empty chunks add no retained descriptors.
+An oversized chunk can be delivered by the browser before it is rejected;
+the owner does not copy it into the accumulator.
+Metadata uses transactional cursor visits rather than `getAll`.
+Each admitted row has at most 64 KiB key/field payload;
+metadata scans stop at 2,056 rows and control cleanup at 2,057 rows.
+A single oversized browser-delivered row remains possible before admission.
+LRU key ordering, registration high-water marks, transaction completion and
+incomplete-clear semantics remain intact.
+
+HomeBox preparation uses bounded walks with at most 2,056 entries and 2,056
+attachments, instead of retained candidate/installed arrays.
+Catalogs are decoded sequentially and folded into checked scalar totals.
+A bound-home exact-pin read validates stored view integrity without returning a
+`readLast` snapshot to the live caller.
+Resource or legacy-schema overflow stops the pass with no completeness claim.
+The final post-hash transaction checks full pin, epoch, scope, kind, digest and
+length;
+the later membership check is a separate witness, not one atomic provider lease.
+Existing LRU timestamp touches remain permitted.
+The 10 MiB original, 250 MiB store, 32-read pass, 80% automatic threshold and
+ten-second storage deadlines are unchanged.
+Both primary issued-URL actions remain unchanged;
+their same-byte retention, compound storage and device acceptance remain open.
 
 The reader schedules retirement against the captured real session expiry and
 rechecks original application bindings. `refreshHomeboxOriginals` consumes actual

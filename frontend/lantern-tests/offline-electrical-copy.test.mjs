@@ -14,6 +14,7 @@ const adapterCode = stripTypeScriptTypes(readFileSync(new URL('../integration/li
   .replace(/(['"])\.\.\/src\/offline\/live-copy-indexeddb\1/g, JSON.stringify(dataModule(backendCode)));
 assert(!/^\s*import(?:\s|['"])/m.test(adapterCode.replace(/^import .* from .*;$/gm, '')));
 const { createLiveCopyOwner, validElectricalPin } = await import(dataModule(ownerCode));
+const { admitJson } = await import(dataModule(ownerCode));
 const { createLiveCopyRetention } = await import(dataModule(adapterCode));
 const uuid = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const scope = { workspaceId: uuid(1), homeId: uuid(2) };
@@ -30,7 +31,13 @@ function memory() {
         const next = structuredClone(tables);
         const result = await work({
           get: async (table, key) => structuredClone(next.get(table).get(key)),
-          list: async table => [...next.get(table)].map(([key, value]) => ({ key, value: structuredClone(value) })),
+          async scan(table, maxRows, visit) {
+            let count = 0;
+            for (const key of [...next.get(table).keys()].sort()) {
+              if (++count > maxRows) throw Object.assign(Error('Generated scan capacity'), { name: 'OfflineResourceLimit' });
+              await visit(key, structuredClone(next.get(table).get(key)));
+            }
+          },
           put: async (table, key, value) => { next.get(table).set(key, structuredClone(value)); },
           remove: async (table, key) => { next.get(table).delete(key); },
           empty: async table => { next.get(table).clear(); },
@@ -511,7 +518,7 @@ test('retained HomeBox original stays in its own namespace, opens only by its me
       assetRevision: 1, bytes: pdf.length, sha256: pdfSha, contentType: 'application/pdf' }, signal())).status, 'missing');
     const stored = JSON.stringify([...f.backend.tables().get('metadata').values()]);
     assert(!stored.includes(f.server.calls[0].requestId), 'request IDs are not persisted');
-    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain', 'a sent association is not read again this session');
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'ok', 'the exact held observation reopens without a new read/write');
     assert.equal(f.server.calls.length, 1);
     assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(50)), signal())).status, 'missing', 'only associations listed by the live view');
     assert.equal(f.server.calls.length, 1);
@@ -544,8 +551,9 @@ test('explicit HomeBox frame saves and retains identical immutable bytes with on
     const stored = await f.owner.read.readHomeboxDocument(await readCopy(f.owner), result.value, signal());
     assert.equal(stored.status, 'ok'); assert.deepEqual(new Uint8Array(await stored.value.arrayBuffer()), pdf);
     assert.equal(f.server.calls.length, 1);
-    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
-    assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'retired', 'an unbound legacy caller cannot adopt this source witness');
+    const again = await reader.open(ref(), signal()); assert.equal(again.status, 'ok');
+    assert.notEqual(again.frame, opened.frame); assert.equal(reader.getBlob(again.frame), blob); reader.release(again.frame);
     assert.equal(reader.getBlob({}), null); assert.equal(reader.retain({}).status, 'retired');
     const foreign = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view));
     assert.equal(foreign.status, 'ok'); assert.equal(foreign.value.getBlob(opened.frame), null); foreign.value.dispose();
@@ -561,10 +569,12 @@ test('explicit opens and automatic fill cannot duplicate in-flight, unknown or r
   const reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
   try {
     const pending = reader.open(ref(), signal()); await sent;
-    assert.deepEqual(await reader.open(ref(), signal()), { status: 'busy' });
-    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
-    finish(); const opened = await pending; assert.equal(opened.status, 'ok');
-    reader.release(opened.frame); assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    const joined = reader.open(ref(), signal());
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'retired', 'cross-witness work is not attached');
+    finish(); const opened = await pending, other = await joined; assert.equal(opened.status, 'ok'); assert.equal(other.status, 'ok');
+    assert.equal(reader.getBlob(opened.frame), reader.getBlob(other.frame));
+    reader.release(opened.frame); reader.release(other.frame);
+    assert.deepEqual(await reader.open(ref(), signal()), { status: 'unavailable', reason: 'held-missing' });
     assert.equal(f.server.calls.length, 1);
   } finally { finish(); reader.dispose(); f.owner.close(); }
   for (const [respond, outcome, first] of [
@@ -596,12 +606,13 @@ test('HomeBox quota failure leaves the same-byte save usable but never releases 
     const attempt = reader.retain(opened.frame); assert.equal(attempt.status, 'ok');
     assert.equal((await attempt.value.result).status, 'quota');
     assert.deepEqual(new Uint8Array(await reader.getBlob(opened.frame).arrayBuffer()), pdf);
-    assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    const again = await reader.open(ref(), signal()); assert.equal(again.status, 'ok');
+    assert.equal(reader.retain(again.frame).value, attempt.value, 'quota never creates a second storage attempt'); reader.release(again.frame);
     assert.equal(f.server.calls.length, 1);
   } finally { reader.dispose(); f.owner.close(); }
 });
 
-test('HomeBox unknown write reconciles exact observation and bytes, never an older association or missing row', async () => {
+test('HomeBox backend unknown quarantines work; exact held reads compare observation and bytes independently', async () => {
   const f = await homeboxSetup(), reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
   const transaction = f.backend.transaction.bind(f.backend); let uncertain = true;
   try {
@@ -615,20 +626,69 @@ test('HomeBox unknown write reconciles exact observation and bytes, never an old
       return result;
     };
     const attempt = reader.retain(opened.frame).value;
-    assert.equal((await attempt.result).status, 'uncertain');
+    const unknown = await attempt.result; assert.equal(unknown.status, 'uncertain');
+    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unavailable' }, 'unproven native settlement keeps the pipeline charged');
     const row = [...f.backend.tables().get('metadata')].find(([, row]) => row.kind === 'homebox-document');
     const exact = structuredClone(row[1]);
+    const verifier = createLiveCopyOwner(f.backend);
+    const admitted = await verifier.observeActor(f.session.actorId, () => true); assert.equal(admitted.status, 'ok');
+    const bound = verifier.bindHome(admitted.value, scope, () => true); assert.equal(bound.status, 'ok');
+    try {
     f.backend.tables().get('metadata').set(row[0], { ...exact, pin: { ...exact.pin, observationId: uuid(99) } });
-    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unresolved' }, 'older observation is not this write');
+    assert.equal((await verifier.readHomeboxObservation(bound.value, exact.pin, signal())).status, 'integrity', 'another observation is not this write');
     f.backend.tables().get('metadata').delete(row[0]);
-    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unresolved' }, 'missing does not prove rollback');
+    assert.equal((await verifier.readHomeboxObservation(bound.value, exact.pin, signal())).status, 'missing');
+    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unavailable' }, 'missing does not prove rollback or release quarantine');
     f.backend.tables().get('metadata').set(row[0], exact);
-    assert.equal((await attempt.reconcile(signal())).status, 'held');
+    const held = await verifier.readHomeboxObservation(bound.value, exact.pin, signal()); assert.equal(held.status, 'ok');
+    assert.deepEqual(new Uint8Array(await held.value.arrayBuffer()), pdf);
     assert.equal(f.server.calls.length, 1); assert.equal(reader.retain(opened.frame).value, attempt);
     const bytes = f.backend.tables().get('bytes').get(row[0]); new Uint8Array(bytes)[0] ^= 1;
-    assert.equal((await attempt.reconcile(signal())).status, 'integrity');
-    assert.equal(reader.getBlob(opened.frame), null);
+    assert.equal((await verifier.readHomeboxObservation(bound.value, exact.pin, signal())).status, 'integrity');
+    assert.equal(await attempt.result, unknown, 'late/local observations never change the settled public outcome');
+    } finally { verifier.close(); }
   } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox public storage timeout stays unknown until late work settles without replay or a hidden pipeline release', async () => {
+  for (const mode of ['explicit', 'bulk']) {
+    const f = await homeboxSetup(transport(), homeboxView([42, 43].map(n => ({ attachmentId: uuid(n), byteSize: String(pdf.length) }))));
+    const source = currentPinnedFiles(f.state.view), reader = f.owner.createHomeboxOriginalReader(f.state.view, source).value;
+    const transaction = f.backend.transaction.bind(f.backend), realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+    let resume, reached, deadline, attempt;
+    const gate = new Promise(resolve => { resume = resolve; }), boundary = new Promise(resolve => { reached = resolve; });
+    try {
+      globalThis.setTimeout = (callback, milliseconds, ...args) => milliseconds === 10000
+        ? (deadline = () => callback(...args), -1) : realSet(callback, milliseconds, ...args);
+      globalThis.clearTimeout = token => { if (token !== -1) realClear(token); };
+      f.backend.transaction = (write, work) => transaction(write, async tx => {
+        if (write) return work({ ...tx, async put(table, key, value) {
+          if (table === 'bytes' && key.includes('homebox-document')) { reached(); await gate; }
+          return tx.put(table, key, value);
+        } });
+        return work(tx);
+      });
+      let pending;
+      if (mode === 'explicit') {
+        const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+        attempt = reader.retain(opened.frame).value; pending = attempt.result;
+      } else pending = fillOfflineHomeboxOriginals({ owner: f.owner, view: f.state.view, pinnedFiles: source,
+        current: () => true, enabled: () => true, signal: signal() });
+      await boundary; assert.equal(typeof deadline, 'function'); deadline();
+      const unknown = await pending;
+      if (mode === 'explicit') assert.equal(unknown.status, 'uncertain');
+      else { assert.equal(unknown.complete, false); assert.match(unknown.message, /uncertain/); }
+      assert.equal((await reader.open(ref(uuid(43)), signal())).status, 'resource', 'public timeout alone never frees underlying work');
+      resume(); await new Promise(resolve => setImmediate(resolve));
+      const next = await reader.open(ref(uuid(43)), signal()); assert.equal(next.status, 'ok');
+      reader.release(next.frame); assert.equal(f.server.calls.length, 2);
+      if (attempt) {
+        assert.equal(await attempt.result, unknown, 'late conclusive settlement cannot mutate the public unknown');
+        assert.equal((await attempt.reconcile(signal())).status, 'unresolved');
+      }
+      assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0);
+    } finally { resume(); reader.dispose(); f.owner.close(); globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear; }
+  }
 });
 
 test('HomeBox storage survives UI close but original source/view predicates reach the actual transaction', async () => {
@@ -696,7 +756,7 @@ test('HomeBox clear synchronously withdraws reader/UI authority and cancels stor
     assert.equal((await f.owner.observe(f.session, () => f.state.session === f.session)).status, 'ok');
     assert.equal((await f.owner.capture(f.state.view, signal())).status, 'ok');
     replacement = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
-    assert.deepEqual(await replacement.open(ref(), signal()), { status: 'spent', outcome: 'success' }, 'clear does not release a sent claim');
+    assert.equal((await replacement.open(ref(), signal())).status, 'retired', 'clear does not release or freshen a sent claim');
     assert.equal(f.server.calls.length, 1, 'neither clear nor a replacement reader re-acquires');
   } finally { resume(); replacement?.dispose(); reader.dispose(); f.owner.close(); }
 });
@@ -738,6 +798,246 @@ test('HomeBox frame owns a timer for actual captured session expiry, not a produ
     assert.equal(reader.getBlob(opened.frame), null); assert.equal(reader.retain(opened.frame).status, 'retired');
     assert(notifications > 0); assert.equal(f.server.calls.length, 1);
   } finally { reader?.dispose(); f.owner.close(); Date.now = realNow; globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear; }
+});
+
+test('HomeBox preflight counts escaped keys, UTF-16, UTF-8 and canonical numeric spellings before allocation', () => {
+  for (const value of [{ 'quoted"key': '\0\n/ +%😀é', n: 1e20, zero: -0 }, ['\ud800', '\udfff', 1e-7, null, true],
+    { nested: { 'é': ['α', 4096, '4.096e3'] } }]) {
+    const measured = admitJson(value, 65536), canonical = JSON.stringify(value);
+    assert.equal(measured.utf16, canonical.length); assert.equal(measured.utf8, new TextEncoder().encode(canonical).length);
+  }
+  let getterReads = 0;
+  const accessor = Object.defineProperty({}, 'value', { enumerable: true, get() { getterReads++; return 'never-copy'; } });
+  assert.throws(() => admitJson(accessor, 65536)); assert.equal(getterReads, 0);
+  for (const collection of [' /+%*=~', 'étage/α', '😀', '\ud800']) {
+    const built = reader.homeboxOriginalRequest(scope, ref(uuid(42), collection), uuid(999)); assert(built);
+    const parsed = new URL(built.url, 'https://generated.invalid');
+    assert.equal(parsed.searchParams.get('request'), JSON.stringify(built.request));
+    assert(built.url.length <= 32904); assert(parsed.search.length - 1 <= 32768);
+  }
+  assert.equal(reader.homeboxOriginalRequest(scope, ref(uuid(42), '\0'.repeat(4096)), uuid(999)), null);
+});
+
+test('HomeBox bulk-only cancellation is not promoted by an explicit join; explicit storage still survives close', async () => {
+  for (const mode of ['bulk', 'explicit']) {
+    const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+    const ui = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+    const transaction = f.backend.transaction.bind(f.backend); let resume, reached, enabled = true;
+    const gate = new Promise(resolve => { resume = resolve; }), boundary = new Promise(resolve => { reached = resolve; });
+    let pending;
+    try {
+      f.backend.transaction = (write, work) => transaction(write, async tx => {
+        if (write) {
+          // Gate only original writes, not preparation's view LRU touches.
+          return work({ ...tx, async put(table, key, value) {
+            if (table === 'bytes' && key.includes('homebox-document')) { reached(); await gate; }
+            return tx.put(table, key, value);
+          } });
+        }
+        return work(tx);
+      });
+      if (mode === 'bulk') pending = fillOfflineHomeboxOriginals({ owner: f.owner, view: f.state.view, pinnedFiles: sources,
+        current: () => true, enabled: () => enabled, signal: signal() });
+      else {
+        const opened = await ui.open(ref(), signal()); assert.equal(opened.status, 'ok');
+        pending = ui.retain(opened.frame).value.result;
+      }
+      await boundary;
+      if (mode === 'bulk') {
+        assert.deepEqual(await ui.join(ref(), signal()), { status: 'unavailable', reason: 'cancellation-ownership' });
+      } else {
+        ui.dispose();
+        const bulk = await fillOfflineHomeboxOriginals({ owner: f.owner, view: f.state.view, pinnedFiles: sources,
+          current: () => true, enabled: () => true, signal: signal() });
+        assert.equal(bulk.complete, false); assert.match(bulk.message, /resource/);
+      }
+      enabled = false; resume();
+      const result = await pending;
+      if (mode === 'bulk') {
+        assert.equal(result.complete, false);
+        assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0);
+      } else assert.equal(result.status, 'ok');
+      assert.equal(f.server.calls.length, 1, mode);
+    } finally { resume(); ui.dispose(); f.owner.close(); }
+  }
+});
+
+test('HomeBox completed fill and concurrent exact-held reborrow share one observation and one storage attempt', async () => {
+  const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+  let first, second;
+  try {
+    const filled = await fillOfflineHomeboxOriginals({ owner: f.owner, view: f.state.view, pinnedFiles: sources,
+      current: () => true, enabled: () => true, signal: signal() });
+    assert.equal(filled.complete, true); assert.equal(f.server.calls.length, 1);
+    first = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+    second = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+    const [a, b] = await Promise.all([first.join(ref(), signal()), second.open(ref(), signal())]);
+    assert.equal(a.status, 'ok'); assert.equal(b.status, 'ok');
+    assert.notEqual(a.frame, b.frame); assert.equal(first.getBlob(b.frame), null);
+    assert.equal(first.getBlob(a.frame), second.getBlob(b.frame));
+    const attempt = first.retain(a.frame); assert.equal(attempt.status, 'ok');
+    assert.equal(second.retain(b.frame).value, attempt.value); assert.equal((await attempt.value.result).status, 'ok');
+    first.release(a.frame); assert.equal(first.getBlob(a.frame), null); assert(second.getBlob(b.frame));
+    second.release(b.frame);
+    const reopened = await first.join(ref(), signal()); assert.equal(reopened.status, 'ok'); assert.equal(reopened.backing, 'exact-held');
+    assert.equal(first.retain(reopened.frame).value, attempt.value); assert.equal(f.server.calls.length, 1);
+    first.release(reopened.frame);
+  } finally { first?.dispose(); second?.dispose(); f.owner.close(); }
+});
+
+test('HomeBox exact-held final transaction refuses same bytes replaced by another full pin during hashing', async () => {
+  const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+  const transaction = f.backend.transaction.bind(f.backend); let replaced = false;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    assert.equal((await reader.retain(opened.frame).value.result).status, 'ok'); reader.release(opened.frame);
+    f.backend.transaction = async (write, work) => {
+      let selected = null;
+      const result = await transaction(write, tx => work({ ...tx, get(table, key) {
+        if (table === 'bytes' && key.includes('homebox-document')) selected = key;
+        return tx.get(table, key);
+      } }));
+      if (selected && !replaced) {
+        replaced = true; const row = f.backend.tables().get('metadata').get(selected);
+        f.backend.tables().get('metadata').set(selected, { ...row, pin: { ...row.pin, observationId: uuid(99) } });
+      }
+      return result;
+    };
+    assert.equal((await reader.join(ref(), signal())).status, 'integrity');
+    assert.equal(replaced, true); assert.equal(f.server.calls.length, 1);
+    assert.equal(reader.getBlob(opened.frame), null);
+  } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox reader, interest, subscriber and resident capacity refusals precede further dispatch', async () => {
+  const f = await homeboxSetup(transport(), homeboxView([42, 43, 44].map(n => ({ attachmentId: uuid(n), byteSize: String(pdf.length) }))));
+  const sources = currentPinnedFiles(f.state.view), readers = [];
+  try {
+    for (let i = 0; i < 8; i++) { const made = f.owner.createHomeboxOriginalReader(f.state.view, sources); assert.equal(made.status, 'ok'); readers.push(made.value); }
+    assert.equal(f.owner.createHomeboxOriginalReader(f.state.view, sources).status, 'resource');
+    const reader = readers[0], unsubscribe = reader.subscribe(() => {});
+    assert.throws(() => reader.subscribe(() => {}), error => error.status === 'resource' && error.resource === 'subscribers'); unsubscribe();
+    const first = await reader.open(ref(), signal()), second = await reader.open(ref(uuid(43)), signal());
+    assert.equal(first.status, 'ok'); assert.equal(second.status, 'ok');
+    assert.equal((await reader.open(ref(uuid(44)), signal())).status, 'resource'); assert.equal(f.server.calls.length, 2);
+    const same = await reader.join(ref(), signal()); assert.equal(same.status, 'ok');
+    const fourth = await reader.join(ref(), signal()); assert.equal(fourth.status, 'ok');
+    assert.equal((await reader.join(ref(), signal())).status, 'resource', 'four interests per reader');
+    assert.equal(reader.getBlob(first.frame), reader.getBlob(same.frame));
+    reader.release(first.frame); reader.release(same.frame); reader.release(fourth.frame);
+    const third = await reader.open(ref(uuid(44)), signal()); assert.equal(third.status, 'ok'); assert.equal(f.server.calls.length, 3);
+    reader.release(third.frame);
+    assert.deepEqual(await reader.join(ref(), signal()), { status: 'unavailable', reason: 'held-missing' });
+    assert.equal(f.server.calls.length, 3, 'missing local bytes never acquire again');
+    reader.release(second.frame);
+  } finally { for (const reader of readers) reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox claim/key capacity is finite and spent refusals are never evicted', async () => {
+  const f = await homeboxSetup(transport(() => new Response('generated refusal', { status: 503 })),
+    homeboxView(Array.from({ length: 257 }, (_, i) => ({ attachmentId: uuid(1000 + i), byteSize: String(pdf.length) }))));
+  const sources = currentPinnedFiles(f.state.view), reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+  try {
+    for (let i = 0; i < 255; i++) assert.equal((await reader.open(ref(uuid(1000 + i)), signal())).status, 'unavailable');
+    assert.equal((await reader.open(ref(uuid(1255)), signal())).status, 'resource', 'reader scope is also charged against the full 16 MiB');
+    assert.equal(f.server.calls.length, 255);
+    assert.deepEqual(await reader.join(ref(uuid(1000)), signal()), { status: 'spent', outcome: 'definitive-refusal' });
+    reader.dispose();
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(1255)), signal())).status, 'unavailable');
+    assert.equal(f.server.calls.length, 256, 'the final claim fits only after reader scope release');
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(1256)), signal())).status, 'resource');
+  } finally { reader.dispose(); f.owner.close(); }
+  const collection = 'x'.repeat(4096), g = await homeboxSetup(transport(), homeboxView(undefined, collection));
+  const source = currentPinnedFiles(g.state.view), other = g.owner.createHomeboxOriginalReader(g.state.view, source).value;
+  try {
+    assert.equal((await other.open(ref(uuid(42), collection), signal())).status, 'resource');
+    assert.equal(source.calls.length, 0, 'full duplicated key/ref budget precedes discovery/encoding'); assert.equal(g.server.calls.length, 0);
+  } finally { other.dispose(); g.owner.close(); }
+});
+
+test('HomeBox one pipeline includes reader discovery and original stream fragmentation retains no chunk list', async () => {
+  const f = await homeboxSetup(transport(), homeboxView([42, 43].map(n => ({ attachmentId: uuid(n), byteSize: String(pdf.length) }))));
+  let resume, started;
+  const gate = new Promise(resolve => { resume = resolve; }), reached = new Promise(resolve => { started = resolve; });
+  const sources = currentPinnedFiles(f.state.view, async () => { started(); await gate; return { schemaVersion: 1, scope,
+    revision: 'generated', installedSources: [{ ...scope, key: { ...f.state.view.entries[0].source } }] }; });
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+  try {
+    const pending = reader.open(ref(), signal()); await reached;
+    assert.equal((await reader.open(ref(uuid(43)), signal())).status, 'resource');
+    assert.equal(sources.calls.length, 1); assert.equal(f.server.calls.length, 0);
+    resume(); const opened = await pending; assert.equal(opened.status, 'ok'); reader.release(opened.frame);
+    assert.equal(f.server.calls.length, 1);
+  } finally { resume(); reader.dispose(); f.owner.close(); }
+  const streamed = transport(request => ({ body: new ReadableStream({ start(controller) {
+    for (let i = 0; i < 256; i++) controller.enqueue(new Uint8Array());
+    for (const byte of pdf) controller.enqueue(new Uint8Array([byte])); controller.close();
+  } }), facts: facts(request) }));
+  const originalReader = await import(dataModule(readerCode));
+  const original = await originalReader.readHomeboxOriginal({ scope, ref: ref(), signal: signal(), transport: streamed.fetch });
+  assert.equal(original.status, 'ok'); assert.deepEqual(new Uint8Array(original.bytes), pdf);
+});
+
+test('HomeBox cancelled waiters detach while a live join remains; final dispatched abort never resurrects delivery', async () => {
+  let resume, started;
+  const gate = new Promise(resolve => { resume = resolve; }), reached = new Promise(resolve => { started = resolve; });
+  const f = await homeboxSetup(transport(async request => { started(); await gate; return { facts: facts(request) }; }),
+    homeboxView([42, 43].map(n => ({ attachmentId: uuid(n), byteSize: String(pdf.length) }))));
+  const source = currentPinnedFiles(f.state.view), reader = f.owner.createHomeboxOriginalReader(f.state.view, source).value;
+  const first = new AbortController();
+  try {
+    const original = reader.open(ref(), first.signal); await reached;
+    for (let i = 0; i < 64; i++) {
+      const cancelled = new AbortController(), joined = reader.join(ref(), cancelled.signal);
+      cancelled.abort(); assert.equal((await joined).status, 'aborted');
+    }
+    assert.equal(source.calls.length, 1); assert.equal(f.server.calls.length, 1);
+    first.abort(); assert.equal((await original).status, 'aborted');
+    assert.equal((await reader.join(ref(), signal())).status, 'settling');
+    assert.equal((await reader.open(ref(uuid(43)), signal())).status, 'resource', 'underlying work still owns its pipeline');
+    resume(); await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(await reader.join(ref(), signal()), { status: 'spent', outcome: 'unknown' });
+    assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0);
+    assert.equal(f.server.calls.length, 1, 'late success delivers no frame or storage and never freshens the claim');
+  } finally { resume(); reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox view and stored-row capacity refusals stop before discovery or another original', async () => {
+  const view = homeboxView(Array.from({ length: 1029 }, (_, i) => ({ attachmentId: uuid(1000 + i), byteSize: String(pdf.length) })));
+  view.entries.push({ ...view.entries[0], key: 'generated-second-entry',
+    attachments: view.entries[0].attachments.slice(0, 1028) });
+  const f = await homeboxSetup(transport(), view), source = currentPinnedFiles(view);
+  const reader = f.owner.createHomeboxOriginalReader(view, source).value;
+  try {
+    assert.equal((await reader.open(ref(uuid(1000)), signal())).status, 'resource');
+    const fill = await fillOfflineHomeboxOriginals({ owner: f.owner, view, pinnedFiles: source,
+      current: () => true, enabled: () => true, signal: signal() });
+    assert.equal(fill.complete, false); assert.match(fill.message, /resource/);
+    assert.equal(source.calls.length, 0); assert.equal(f.server.calls.length, 0);
+    const metadata = f.backend.tables().get('metadata'), row = [...metadata.values()][0];
+    for (let i = 0; i < 2056; i++) metadata.set(`generated-row-${String(i).padStart(4, '0')}`, structuredClone(row));
+    assert.equal((await f.owner.storage.status(signal())).status, 'resource');
+    assert.equal(metadata.size, 2057, 'capacity refusal leaves pre-existing rows untouched');
+  } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox owner refuses oversized timestamp payload before pin cloning or durable writes', async () => {
+  const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+  let verifier;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    const attempt = reader.retain(opened.frame).value, kept = await attempt.result; assert.equal(kept.status, 'ok');
+    verifier = createLiveCopyOwner(f.backend);
+    const actor = await verifier.observeActor(f.session.actorId, () => true); assert.equal(actor.status, 'ok');
+    const home = verifier.bindHome(actor.value, scope, () => true); assert.equal(home.status, 'ok');
+    const before = structuredClone(f.backend.tables());
+    const pin = { ...kept.value, beforeRetrievedAt: '2026-11-10T00:00:00.' + '0'.repeat(40960) + 'Z' };
+    assert.equal((await verifier.keepHomeboxDocument(home.value, pin, pdf.slice().buffer, signal())).status, 'resource');
+    assert.deepEqual(f.backend.tables(), before); assert.equal(f.server.calls.length, 1);
+    assert.equal(reader.retain(opened.frame).value, attempt, 'a local admission refusal never grants another storage attempt');
+  } finally { verifier?.close(); reader.dispose(); f.owner.close(); }
 });
 
 test('session replacement during the read, withdrawn or re-associated attachments and account change retire HomeBox bytes', async () => {
@@ -815,8 +1115,10 @@ test('automatic HomeBox pass rechecks enablement, view retirement and abort afte
     let enabled = true, current = true, retains = 0, resolveStatus, startedStatus;
     const pending = new Promise(resolve => { resolveStatus = resolve; });
     const started = new Promise(resolve => { startedStatus = resolve; });
-    const owner = { ...f.owner, read: { ...f.owner.read, homeboxStatus: async () => { startedStatus(); return pending; } },
-      retainHomeboxOriginal: async () => { retains++; return { status: 'ok' }; } };
+    const owner = { ...f.owner, withHomeboxFillPass(view, sources, signal, current, enabled, work) {
+      return f.owner.withHomeboxFillPass(view, sources, signal, current, enabled, pass => work({ ...pass,
+        status: async () => { startedStatus(); return pending; }, retain: async () => { retains++; return { status: 'ok' }; } }));
+    } };
     try {
       const pass = fillOfflineHomeboxOriginals({ owner, view: f.state.view, pinnedFiles: currentPinnedFiles(f.state.view), current: () => current, enabled: () => enabled, signal: controller.signal });
       await started;
@@ -935,7 +1237,7 @@ test('concurrent HomeBox retains for one session and association send exactly on
   try {
     const both = Promise.all([f.owner.retainHomeboxOriginal(ref(), signal()), f.owner.retainHomeboxOriginal(ref(), signal())]);
     await new Promise(resolve => setTimeout(resolve, 10)); release();
-    assert.deepEqual((await both).map(result => result.status).sort(), ['ok', 'uncertain']);
+    assert.deepEqual((await both).map(result => result.status).sort(), ['ok', 'unavailable'], 'a distinct bulk cancellation owner cannot adopt the running write');
     assert.equal(f.server.calls.length, 1);
     const aborted = new AbortController(); aborted.abort();
     assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(60)), aborted.signal)).status, 'missing');

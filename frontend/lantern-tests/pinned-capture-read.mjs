@@ -97,6 +97,32 @@ assert.deepEqual(events, [
 ]);
 console.log('PASS synthetic pinned discovery, exact six-field v3/v4 capture and one availability observation each');
 
+// The production bounded accumulator must accept fragmented/empty delivery without keeping a chunk list.
+for (const invalid of [false, true]) {
+  let calls = 0;
+  const fragmented = createPinnedFileClient({ getSessionBinding: () => ({ session, scope }), subscribeSessionBinding: () => () => {},
+    transport: async () => {
+      calls++;
+      const bytes = new TextEncoder().encode(JSON.stringify(invalid ? { ...discovery, unexpected: true } : discovery));
+      return new Response(new ReadableStream({ start(controller) {
+        for (let i = 0; i < 256; i++) controller.enqueue(new Uint8Array());
+        for (let i = 0; i < bytes.length; i++) controller.enqueue(bytes.subarray(i, i + 1));
+        controller.close();
+      } }), { headers: { 'Content-Type': 'application/json' } });
+    } });
+  const identity = fragmented.getBindingIdentity();
+  if (invalid) await assert.rejects(fragmented.discover(identity, new AbortController().signal));
+  else assert.deepEqual((await fragmented.discover(identity, new AbortController().signal)).installedSources, sources);
+  assert.equal(calls, 1, 'malformed/fragmented discovery never retries');
+}
+let oversizedCancelled = false;
+const oversizedDiscovery = createPinnedFileClient({ getSessionBinding: () => ({ session, scope }), subscribeSessionBinding: () => () => {},
+  transport: async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(65537)); }, cancel() { oversizedCancelled = true; },
+  })) });
+await assert.rejects(oversizedDiscovery.discover(oversizedDiscovery.getBindingIdentity(), new AbortController().signal));
+assert.equal(oversizedCancelled, true, 'oversized delivered chunk is refused before an accumulator copy');
+
 // Actual additive action source, generated hook/JSX and reader boundaries only.
 // This is not a React/DOM mount, user download or ordinary-anchor retention control.
 const actionKey = Symbol.for('houseatlas.homebox-original-action.generated');
