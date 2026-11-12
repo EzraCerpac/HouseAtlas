@@ -526,8 +526,12 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const storedPin = async () => {
           const row = await backend.transaction(false, async tx => { await fence(tx, b); return tx.get<Row>('metadata', key); });
           check(b, signal); if (!row) return null;
-          admitMetadata(key, row); need(row.kind === 'homebox-document' && row.pin, 'integrity');
-          return Object.freeze({ ...(row.pin as OfflineHomeboxPinV1) });
+          admitMetadata(key, row);
+          need(row.epoch === b.epoch && sameScope(row.scope, b.scope) && row.kind === 'homebox-document' && row.pin, 'integrity');
+          const pin = row.pin as OfflineHomeboxPinV1;
+          need(pin.source === ref.source && pin.sourceInstanceId === ref.sourceInstanceId && pin.collectionId === ref.collectionId
+            && pin.entityId === ref.entityId && pin.attachmentId === ref.attachmentId, 'integrity');
+          return Object.freeze({ ...pin });
         };
         const pin = await storedPin();
         if (!pin) return { availability: 'not-held' as const, bytes: null };

@@ -1289,6 +1289,37 @@ test('a HomeBox row stored under another association key never reports or opens 
   } finally { f.owner.close(); }
 });
 
+test('automatic HomeBox status binds the requested association, epoch and scope before following a valid stored pin', async () => {
+  for (const defect of ['association', 'epoch', 'scope']) {
+    const f = await homeboxSetup(transport(), homeboxView([42, 43].map(n => ({ attachmentId: uuid(n), byteSize: String(pdf.length) }))));
+    const sources = currentPinnedFiles(f.state.view);
+    try {
+      assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'ok');
+      if (defect !== 'association') assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(42)), signal())).status, 'ok');
+      let validB;
+      const checked = await f.owner.withHomeboxFillPass(f.state.view, sources, signal(), () => true, () => true, async pass => {
+        validB = await pass.status(ref(uuid(43)));
+        return { message: 'Generated valid B status', complete: validB.status === 'ok' && validB.value.availability === 'held' };
+      });
+      assert.equal(checked.status, 'ok'); assert.equal(checked.value.complete, true);
+      assert.equal(validB.status, 'ok'); assert.equal(validB.value.availability, 'held', 'B has valid bytes and current membership');
+      const metadata = f.backend.tables().get('metadata'), bytes = f.backend.tables().get('bytes');
+      const [keyB, rowB] = [...metadata].find(([, row]) => row.kind === 'homebox-document' && row.pin.attachmentId === uuid(43));
+      const keyA = keyB.replace(uuid(43), uuid(42));
+      const wrong = structuredClone(defect === 'association' ? rowB : metadata.get(keyA));
+      if (defect === 'epoch') wrong.epoch = uuid(99);
+      if (defect === 'scope') wrong.scope = { ...scope, homeId: uuid(99) };
+      metadata.set(keyA, wrong); bytes.set(keyA, bytes.get(keyB).slice(0));
+      const filled = await fillOfflineHomeboxOriginals({ owner: f.owner, view: f.state.view, pinnedFiles: sources,
+        current: () => true, enabled: () => true, signal: signal() });
+      assert.equal(filled.complete, false, defect); assert.match(filled.message, /stopped \(integrity\)/, defect);
+      assert(!filled.message.includes('2 HomeBox files on this device'), defect);
+      assert.equal(f.server.calls.length, defect === 'association' ? 1 : 2, 'status refusal never acquires a fallback original');
+      assert.equal(f.owner.homeboxSent(ref(uuid(42))), defect !== 'association', 'status refusal never changes the existing A claim');
+    } finally { f.owner.close(); }
+  }
+});
+
 // Borrowed native Document originals: an existing verified lease is the only byte source.
 async function borrowedDocumentSetup({ catalog = true } = {}) {
   const base = memory(), session = { actorId: 'generated-borrower', expiresAt: '2099-01-01T00:00:00Z' };
