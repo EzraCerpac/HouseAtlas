@@ -136,7 +136,11 @@ impl Fixture {
             &body,
             "mcp288-evidence-read-controls",
         )?;
-        let cookie = login.set_cookie().split(';').next().ok_or("Missing cookie")?;
+        let cookie = login
+            .set_cookie()
+            .split(';')
+            .next()
+            .ok_or("Missing cookie")?;
         let principal = access.authorize(
             &a::RequestEvidence {
                 method: a::Method::Get,
