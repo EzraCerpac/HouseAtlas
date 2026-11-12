@@ -136,7 +136,7 @@ fn main() -> Result<(), Failure> {
         scope: projection.scope.clone(),
         key: projection.source.clone(),
     };
-    let admission = planning::read_admission(&mut core, &principal, &home, &source)
+    let admission = planning::read_admission(&core, &principal, &home, &source)
         .map_err(|error| format!("Healthy place admission failed: {error}"))?;
     assert_eq!(admission["canReplaceClassification"], true);
     assert_eq!(admission["maximumReasonCodePoints"], 1024);
@@ -180,7 +180,7 @@ fn main() -> Result<(), Failure> {
         })
         .ok_or("Missing original identity guard")?
         .expected_revision;
-    let selection = planning::resolve(&mut core, &principal, &home, &metadata)
+    let selection = planning::resolve(&core, &principal, &home, &metadata)
         .map_err(|error| format!("Healthy canonical resolution failed: {error}"))?;
     assert!(std::ptr::eq(selection.metadata(), &metadata));
     assert_eq!(selection.source(), Some(&source));
