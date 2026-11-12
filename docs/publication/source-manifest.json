@@ -1161,8 +1161,8 @@
     {
       "path": "backend/src/ai/runner.rs",
       "mode": "100644",
-      "bytes": 21755,
-      "sha256": "b884db0d17a1e43581ef2cc36c47bee0781f875ab420b83804f464b91b8a80e1",
+      "bytes": 22035,
+      "sha256": "8706aca13f55d2fa9e0e2d29275995f2be777a712de048e59f790898338cd021",
       "owner": "ai"
     },
     {
