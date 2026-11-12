@@ -446,4 +446,153 @@ mod tests {
         assert_eq!(table_counts(&access_path), access_before);
         assert_eq!(table_counts(&native_path), native_before);
     }
+
+    /// One borrowed Viewer invocation and canonical disclosure over generated state.
+    #[tokio::test]
+    async fn borrowed_mcp_viewer_identity_get_preserves_canonical_disclosure() {
+        use crate::{app::RequestPrincipal, contracts::stock as wire};
+
+        let temporary = tempfile::Builder::new()
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let directory = temporary.path().join("fixture");
+        let core = crate::lifecycle::prepare(&directory, ORIGIN).unwrap();
+        let scope = crate::app::access_scope(&core.home.scope).unwrap();
+        let principal = {
+            let receipt: Value =
+                serde_json::from_slice(&fs::read(directory.join("smoke-session.json")).unwrap())
+                    .unwrap();
+            let login_body = serde_json::to_vec(receipt.get("login").unwrap()).unwrap();
+            let mut access = core.access.lock().unwrap();
+            let login = access
+                .login(
+                    &request_evidence(None),
+                    &login_body,
+                    "synthetic-borrowed-viewer-disclosure",
+                )
+                .unwrap();
+            let cookie = login.set_cookie().split(';').next().unwrap().to_owned();
+            access
+                .authorize(&request_evidence(Some(&cookie)), &scope, a::Action::Read)
+                .unwrap()
+        };
+        assert_eq!(principal.role(), a::Role::Viewer);
+        assert_eq!(principal.actor_id(), &id(5));
+        assert_eq!(principal.scope(), &scope);
+        assert_eq!(scope.workspace_id, id(1));
+        assert_eq!(scope.home_id, id(2));
+
+        // Login and GET authorization precede these cardinality observations.
+        let access_path = directory.join("access.sqlite");
+        let native_path = directory.join("atlas.sqlite");
+        let access_before = table_counts(&access_path);
+        let native_before = table_counts(&native_path);
+        let (adapter, mut session) = mcp::bind_read(&core, principal.clone()).await.unwrap();
+        let initialized = adapter
+            .handle(
+                &mut session,
+                &serde_json::to_vec(&json!({
+                    "jsonrpc":"2.0", "id":1, "method":"initialize", "params":{
+                        "protocolVersion":native_mcp::PROTOCOL_VERSION, "capabilities":{},
+                        "clientInfo":{"name":"Synthetic borrowed Viewer", "version":"1"}
+                    }
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        let initialized: Value = serde_json::from_slice(&initialized).unwrap();
+        assert_eq!(initialized["jsonrpc"], "2.0");
+        assert_eq!(initialized["id"], 1);
+        assert!(initialized.get("error").is_none());
+        assert_eq!(
+            initialized["result"]["protocolVersion"],
+            native_mcp::PROTOCOL_VERSION
+        );
+        assert!(
+            adapter
+                .handle(
+                    &mut session,
+                    &serde_json::to_vec(&json!({
+                        "jsonrpc":"2.0", "method":"notifications/initialized"
+                    }))
+                    .unwrap()
+                )
+                .await
+                .is_none()
+        );
+        assert_eq!(session.state(), native_mcp::SessionState::Ready);
+
+        let context = json!(core.home.scope);
+        let target = json!({
+            "authority":"atlas", "recordType":"identity", "recordId":id(200).as_str()
+        });
+        let request = json!({
+            "schemaVersion":3, "commandId":"atlas.identity.get", "requestId":id(289001).as_str(),
+            "context":context, "target":target, "payload":{}
+        });
+        let validation = wire::StockValidation::new().unwrap();
+        let parsed = wire::StockRequest::parse(&validation, request.clone()).unwrap();
+        let response = adapter
+            .handle(
+                &mut session,
+                &serde_json::to_vec(&json!({
+                    "jsonrpc":"2.0", "id":2, "method":"tools/call",
+                    "params":{"name":"atlas_records", "arguments":request}
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        let response: Value = serde_json::from_slice(&response).unwrap();
+        assert_eq!(response["jsonrpc"], "2.0");
+        assert_eq!(response["id"], 2);
+        assert!(response.get("error").is_none());
+        let result = &response["result"];
+        assert_eq!(result["isError"], false);
+        let structured = result.get("structuredContent").unwrap();
+        assert!(structured.is_object());
+        let content = result["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1);
+        assert_eq!(content[0]["type"], "text");
+        let text: Value = serde_json::from_str(content[0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(&text, structured);
+        wire::StockResponse::parse(&validation, &parsed, structured.clone(), &[]).unwrap();
+
+        let native = stock_dispatch::execute(
+            &core,
+            &RequestPrincipal::new(principal.clone()),
+            request.clone(),
+        )
+        .unwrap();
+        assert!(native.children.is_empty());
+        wire::StockResponse::parse(&validation, &parsed, native.wire.clone(), &native.children)
+            .unwrap();
+        assert_eq!(structured, &native.wire);
+        assert_eq!(structured["schemaVersion"], 3);
+        assert_eq!(structured["requestId"], request["requestId"]);
+        assert_eq!(structured["commandId"], "atlas.identity.get");
+        assert_eq!(structured["resolvedScope"], context);
+        assert_eq!(structured["status"], "read");
+        assert_eq!(structured["replayed"], false);
+        assert_eq!(structured["data"]["sourceStatus"], "current");
+        assert_eq!(structured["data"]["nextCursor"], Value::Null);
+        assert_eq!(
+            structured["data"]["records"],
+            json!([{
+                "target":target, "revision":1, "lifecycle":"active",
+                "payload":{"kind":"location", "evidenceIds":[id(100).as_str()]}
+            }])
+        );
+        // Equal counts establish cardinality only, not an absence of writes.
+        assert_eq!(table_counts(&access_path), access_before);
+        assert_eq!(table_counts(&native_path), native_before);
+        session.close();
+        drop(session);
+        drop(adapter);
+        drop(principal);
+        drop(core);
+        drop(temporary);
+    }
 }

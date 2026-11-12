@@ -2449,8 +2449,8 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 17762,
-      "sha256": "6fd1883bc32a4c13795fcc9c8f6ac79129f8154285dd15c719a3fa2297290aa3",
+      "bytes": 24272,
+      "sha256": "068dead197adacb9c4ced102d74b3909b51ff21c6e1f6f1d6e46eba2ee11c51f",
       "owner": "core-integration"
     },
     {
