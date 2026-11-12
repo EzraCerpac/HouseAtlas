@@ -168,8 +168,26 @@ is one bounded automatic pass: at most 32 reads, only files whose view size hint
 is a known integer up to 10 MiB, held files skipped, and an uncertain/retired/
 aborted result stops the pass. Size hints schedule work; they never admit bytes.
 It refuses the pass when native, electrical and HomeBox sizes together exceed 80%
-of the budget. Mounting it in the live host is a separate integration step; until
-then HomeBox files are held only through explicit `retainHomeboxOriginal` calls.
+of the budget. The live host already loads this policy lazily after the native
+and electrical passes complete, while the captured session/view remains current
+and automatic keeping is enabled. Existing authenticated pinned-source discovery
+must select the exact current source/entity before a HomeBox original read.
+Incomplete passes and uncertain outcomes stop the sequence; cached attachment
+metadata alone grants no download authority.
+
+Settings separately summarizes HomeBox stored-file size hints from the retained
+view, excluding external links and other source kinds. These are optional reported
+sizes, not measured retained bytes, current provider availability or a complete
+HomeBox catalog. Exact nonnegative integer hints (including zero) are summed only
+within safe integer range. A known hint above 10 MiB remains known and is counted
+separately; display parsing does not change the automatic policy's stricter token
+rules or make a file eligible. Numerically equal hints for an exact association
+deduplicate; any conflicting or unknown duplicate leaves that association unknown.
+An overflowing combined sum is unavailable without changing known file counts.
+A successfully read empty view is distinct from unavailable view coverage. Owner
+replacement, refresh, abort or failed view reads clear the displayed summary; late
+completions cannot restore the replaced owner/request. The existing measured held
+bytes, budget and explicit persistence controls remain separate.
 
 Not established: mounted producer authorization/revocation/provider failure,
 real IndexedDB, browser rendering, installed HomeBox or device acceptance. Files

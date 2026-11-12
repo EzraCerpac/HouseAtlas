@@ -1,5 +1,20 @@
 # HouseAtlas
 
+## HomeBox captured size-hint display
+
+The existing required `offline-electrical-copy.test.mjs` source entry covers
+four pure hint-summary cases and one synthetic-hook Settings lifecycle case.
+The existing `offline-launch-browser.mjs --case live-launch` adds a generated
+Settings display assertion. No command, selection or deadline is added or removed;
+inventory remains 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
+Exact bytes from captured metadata are hints, distinct from measured retained
+bytes, current provider availability and complete catalog size. Unknown, empty,
+unavailable, conflicting duplicate and overflow states remain explicit.
+These authored controls are not local execution or device acceptance. Existing
+exact-head source/frontend/browser and startup raw/gzip budgets must qualify
+the composed candidate. Fill limits, mounting and persistence authority remain
+unchanged; the compound PDF-storage and real-iPhone acceptance stays open.
+
 ## Immutable Core read preparation
 
 Existing HTTP read/admission helpers and their preparation closures borrow

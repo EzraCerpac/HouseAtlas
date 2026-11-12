@@ -1,5 +1,16 @@
 # HouseAtlas
 
+Offline Settings displays exact HomeBox captured size hints separately from
+measured retained bytes and storage budget. Exact association identity, numeric
+deduplication, conflicting/unknown duplicates, overflow and unavailable/empty
+coverage stay explicit; hints never grant download authority or catalog completeness.
+Existing `offline-electrical-copy.test.mjs` adds four pure controls and one
+synthetic-hook Settings lifecycle control; the existing live-launch case adds
+one generated display assertion. All prior assertions and deadlines remain.
+No new selection is needed: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
+Controls are authored and unrun until exact-head hosted qualification. Mounting,
+fill limits, storage policy, provider authority and device deferral are unchanged.
+
 Immutable Core read preparation narrows only existing HTTP read/admission
 parameters, closure bounds and necessary caller borrows from `&mut Core` to
 `&Core`. The same Core mutex guards, original authorization/release checks

@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { OfflineReadPort, OfflineStoragePort, OfflineStorageStatus } from './live-copy-types';
 import { ExactDecimal } from '../numeric/decimal';
 import { keepLibrary, setKeepLibrary, subscribeKeepLibrary } from './library-preference';
+import { summarizeHomeboxSizeHints, type HomeboxSizeHints } from './homebox-size-hints';
 
 export interface OfflineStorageControls {
   readonly read: OfflineReadPort; readonly storage: OfflineStoragePort;
@@ -11,29 +12,51 @@ export interface OfflineStorageControls {
 export const storageSize = (bytes: number) => bytes < 1024 ? `${bytes} bytes`
   : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 
+interface SettingsReadings {
+  readonly controls: OfflineStorageControls; readonly signal: AbortSignal;
+  readonly status: OfflineStorageStatus | null;
+  readonly library: { bytes: number; complete: boolean } | null;
+  readonly electricalBytes: number | null;
+  readonly homebox: HomeboxSizeHints | null;
+}
+
 export function OfflineStorageSettings({ controls }: { controls: OfflineStorageControls }) {
   const enabled = useSyncExternalStore(subscribeKeepLibrary, keepLibrary, () => true);
-  const [status, setStatus] = useState<OfflineStorageStatus | null>(null);
-  const [library, setLibrary] = useState<{ bytes: number; complete: boolean } | null>(null);
-  const [electricalBytes, setElectricalBytes] = useState<number | null>(null);
+  const [readings, setReadings] = useState<SettingsReadings | null>(null);
+  // Props can change before effect cleanup: never render the previous owner's values.
+  const displayed = readings?.controls === controls && !readings.signal.aborted ? readings : null;
+  const status = displayed?.status ?? null, library = displayed?.library ?? null;
+  const electricalBytes = displayed?.electricalBytes ?? null, homebox = displayed?.homebox ?? null;
   const [message, setMessage] = useState<string | null>(null), [busy, setBusy] = useState(false);
   useEffect(() => {
-    let request: AbortController | null = null;
+    let request: AbortController | null = null, active = true;
     const refresh = () => {
+      if (!active) return;
       request?.abort(); request = new AbortController(); const signal = request.signal;
-      void controls.storage.status(signal).then(result => { if (!signal.aborted) setStatus(result.status === 'ok' ? result.value : null); });
+      const current = () => active && request?.signal === signal && !signal.aborted;
+      setReadings({ controls, signal, status: null, library: null, electricalBytes: null, homebox: null });
+      const publish = (patch: Partial<SettingsReadings>) => {
+        if (current()) setReadings(previous => current() && previous?.controls === controls && previous.signal === signal
+          ? { ...previous, ...patch } : previous);
+      };
+      void controls.storage.status(signal).then(result => publish({ status: result.status === 'ok' ? result.value : null }),
+        () => publish({ status: null }));
       void controls.read.readLast(signal).then(async copy => {
-        const result = copy.status === 'ok' ? await controls.read.readCatalog(copy.value.handle, signal) : null;
-        const electrical = copy.status === 'ok' ? await controls.read.readElectricalCatalog(copy.value.handle, signal) : null;
-        if (!signal.aborted) setElectricalBytes(electrical?.status === 'ok' ? electrical.value.buildings.reduce((total, building) => total + building.documents.reduce((sum, document) => sum + (ExactDecimal.parse(document.pin.byteSize).toSafeInteger() ?? 0), 0), 0) : null);
-        if (!signal.aborted) setLibrary(result?.status === 'ok' ? {
-          bytes: result.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0),
-          complete: result.value.completeness === 'captured-complete',
-        } : null);
-      });
+        if (!current() || copy.status !== 'ok') return;
+        publish({ homebox: summarizeHomeboxSizeHints(copy.value.snapshot.data) });
+        const result = await controls.read.readCatalog(copy.value.handle, signal).catch(() => null);
+        if (!current()) return;
+        const electrical = await controls.read.readElectricalCatalog(copy.value.handle, signal).catch(() => null);
+        if (!current()) return;
+        publish({ electricalBytes: electrical?.status === 'ok' ? electrical.value.buildings.reduce((total, building) => total + building.documents.reduce((sum, document) => sum + (ExactDecimal.parse(document.pin.byteSize).toSafeInteger() ?? 0), 0), 0) : null,
+          library: result?.status === 'ok' ? {
+            bytes: result.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0),
+            complete: result.value.completeness === 'captured-complete',
+          } : null });
+      }).catch(() => publish({ homebox: null, library: null, electricalBytes: null }));
     };
     const stop = controls.read.subscribe(refresh); refresh();
-    return () => { stop(); request?.abort(); };
+    return () => { active = false; stop(); request?.abort(); };
   }, [controls]);
   const [attempt] = useState(() => ({ controller: null as AbortController | null, persistence: null as AbortController | null }));
   useEffect(() => () => { attempt.controller?.abort(); attempt.persistence?.abort(); }, [attempt]);
@@ -50,6 +73,9 @@ export function OfflineStorageSettings({ controls }: { controls: OfflineStorageC
       else { attempt.controller?.abort(); setBusy(false); setMessage('Automatic library downloads are off. Held files remain on this device.'); }
     }} /> Keep Library files on this device</label>
     <p className="setting-static">{library ? `${library.complete ? 'Documents' : 'Some documents'}: ${storageSize(library.bytes)}.` : 'Document sizes are unavailable.'} {electricalBytes !== null ? `Electrical PDFs read so far: ${storageSize(electricalBytes)}.` : 'Electrical PDF sizes are unavailable.'} HomeBox PDFs marked “On this device” in Library can open offline. Downloading missing files requires a connection.</p>
+    <p className="setting-static">{homebox ? homebox.files === 0 ? 'No HomeBox files listed in this held view.'
+      : `HomeBox files listed in this held view: ${homebox.files}. Size hints: ${homebox.knownSizes === 0 ? 'unavailable' : homebox.hintBytes === null ? 'combined size unavailable' : `${homebox.hintBytes} bytes`} across ${homebox.knownSizes} ${homebox.knownSizes === 1 ? 'file' : 'files'}; ${homebox.unknownSizes} sizes unknown. ${homebox.aboveAutomaticLimit} above the 10 MiB automatic-download limit.`
+      : 'HomeBox size hints are unavailable.'} These are reported sizes, not bytes stored here. Full HomeBox library size is unknown.</p>
     <p className="setting-static">{status ? `${status.documents} files held · ${storageSize(status.bytes)} of ${storageSize(status.budgetBytes)} soft budget. Storage persistence: ${status.persistence}.` : 'Device storage status is unavailable.'}</p>
     {controls.fillLibrary ? <button type="button" className="btn" disabled={busy} onClick={() => void fill()}>Keep library now</button>
       : <p className="setting-static">Open live to download missing files. This preference applies on the next live read.</p>}
