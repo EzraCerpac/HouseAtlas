@@ -2673,8 +2673,8 @@
     {
       "path": "backend/src/http/operation_events.rs",
       "mode": "100644",
-      "bytes": 29651,
-      "sha256": "51cc7d50f6fb462734dfce87d7bbcff80a7e7f941e602cb375c061291bbcfbd1",
+      "bytes": 29627,
+      "sha256": "1688356db2c0a30fe4f9ecdca7778957b938f4a1d99cc27d8dc3ec767eec962c",
       "owner": "core-integration"
     },
     {
