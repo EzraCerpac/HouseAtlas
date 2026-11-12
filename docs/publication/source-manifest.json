@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 105133,
-      "sha256": "043b0d3929fe2ce69ed2e1bf9c413edd3bad73bdef0470d6cb048872554d960a",
+      "bytes": 106236,
+      "sha256": "2a4161c0578014ad5e87a214df7ad60aaf6e4c02c285aabdb584f30b3c676e7f",
       "owner": "core-integration"
     },
     {
@@ -5821,6 +5821,13 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/evidence_read_controls.rs",
+      "mode": "100644",
+      "bytes": 30829,
+      "sha256": "f6dc721d7d1410b10aa9f13e788140e3bc3763a5839095b1d56d88c5ca8de367",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/healthy_bindings_reconciliation.rs",
       "mode": "100644",
       "bytes": 14276,
@@ -5851,8 +5858,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
       "mode": "100644",
-      "bytes": 14321,
-      "sha256": "474109a15c4d7f5c65ce47425aaf96362c19ae3b4479b70a18d0d9be59234208",
+      "bytes": 17565,
+      "sha256": "961f49abc59dd238e0f5f4dd433c3497aae8a12881a3cf29574b3f82e36afe5d",
       "owner": "mcp"
     },
     {
@@ -5865,8 +5872,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29999,
-      "sha256": "e22b05dc44b8c48741ea41165fa10791da0b098d8eba27b76de3fb920bc321d8",
+      "bytes": 30066,
+      "sha256": "b8bf879832f4812f2a89621bcee7570726f8b4e72aee7298174edd330248405b",
       "owner": "mcp"
     },
     {
@@ -6614,8 +6621,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 334750,
-      "sha256": "7983afff98db664d5015b4424ddc4263673b7b23a7cba61320cf7150f24fc5c8",
+      "bytes": 336632,
+      "sha256": "1c6a4816d376a6968e68615b7e35740b04b107a0b085951067354787154547dc",
       "owner": "core-integration"
     },
     {
