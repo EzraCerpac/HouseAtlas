@@ -13516,8 +13516,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_canonical_upload_plan.rs",
       "mode": "100644",
-      "bytes": 11930,
-      "sha256": "e7620c300603fcb98a0e8b003160d364d648591e3aa075c80106d28d63f8e045",
+      "bytes": 11922,
+      "sha256": "e304fb45b82b60064c7197918d2c94b55e015416887aecdb36ab0deb9e2c57a6",
       "owner": "core-integration"
     },
     {
