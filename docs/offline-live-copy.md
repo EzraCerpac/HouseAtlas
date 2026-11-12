@@ -163,6 +163,55 @@ the response. A sent association is claimed synchronously for that session
 allocation (an unsent claim is released) and is not read again automatically, even with a fresh `requestId`; an unknown outcome
 reports `uncertain`. Nothing about sent requests is persisted.
 
+### Additive verified-copy foundation
+
+The optional `homeboxOriginals` port creates an actual owned reader only after
+the host's lazy retention owner is available and its original live allocations
+still match. The separate RealPreview action reads one verified copy through the
+existing offline-original route. Both issued-URL original/pinned-copy actions
+remain unchanged: this foundation does not retain their bytes or complete
+ordinary opened-file retention. That later normal-path integration remains open.
+
+The reader admits opaque frames in private custody: copied/frozen ref and pin,
+original application binding, and an immutable Blob. Foreign, fabricated and
+released UI handles cannot open or retain bytes. Download/save and retention use
+the same Blob; retention makes no second original request. Only measured PDF
+bytes enter the existing PDF viewer; other types get an inert binary save.
+An object URL lives until UI close, replacement or retirement, not merely until
+its first click. Bytes already exposed to the browser cannot be recalled.
+
+Automatic fill and explicit reads share session/exact-association claims, including
+scope and opaque collection spelling. Reserved-unsent claims can release only on
+proven non-dispatch. In-flight, sent-success, definitive sent refusal and unknown
+outcomes remain spent after close, quota failure or frame release; a fresh request
+ID does not reset them. A definitive HTTP refusal does not prove no provider I/O.
+Competing acquisitions report busy. Previously held originals remain explicitly
+historical, never a silent substitute for a new verified read.
+
+Explicit read-and-keep ignores the bulk-fill preference. Its one storage attempt
+owns a separate controller and borrow and can finish after ordinary UI close.
+It uses the existing ten-second storage bound, acknowledged/unknown completion,
+aggregate budget and LRU; the UI signal cannot cancel that storage borrow.
+Actual session/view/source retirement or expiry does cancel it. The combined
+predicate is captured by `bindHome` through the store transaction, alongside
+existing epoch and registration high-water checks. The policy passes its existing
+`sourceCurrent` predicate to bulk retention; no scheduling limit changes.
+
+Quota/local-storage failure can leave the already-verified same-byte save usable
+while current. Integrity or retirement withdraws the frame. Unknown write
+acknowledgment permits local reconciliation only: compare the exact observation,
+registration, digest, length and remaining pin facts and verify the held bytes.
+An older association match or a missing row while a write may still finish is
+unresolved, never rollback or permission to replay a read/write. Reconciliation
+does not mint new observation facts or acquire bytes again.
+
+The reader schedules retirement against the captured real session expiry and
+rechecks original application bindings. `refreshHomeboxOriginals` consumes actual
+host change notifications; it invents no source subscription or provider lease.
+This is source-authored preparation. Generated owner and action controls remain
+unrun until composed-head hosted qualification; private/provider/device and the
+compound PDF-storage criteria remain separate and open.
+
 [`offline-homebox-policy.ts`](../frontend/integration/offline-homebox-policy.ts)
 is one bounded automatic pass: at most 32 reads, only files whose view size hint
 is a known integer up to 10 MiB, held files skipped, and an uncertain/retired/

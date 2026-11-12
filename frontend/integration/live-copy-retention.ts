@@ -6,6 +6,8 @@ import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame, SourceDo
 import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
 import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, validHomeboxRef, listsAttachment, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
+import type { HomeboxOriginalFrame, HomeboxOriginalReader, HomeboxOriginalOpenResult, HomeboxOriginalSource,
+  HomeboxRetentionAttempt, HomeboxRetentionReconciliation } from '../src/lantern/homebox-originals/types';
 
 type State = { readonly session: AtlasSessionInfo | null; readonly view: ReadyView | null };
 /** Stable data-only host owner. No UI, network at construction, authority recovery or outbox configuration. */
@@ -25,8 +27,8 @@ export function createLiveCopyRetention(options: {
     ...(options.storage ? { storage: options.storage } : {}),
     changed: () => channel?.postMessage('changed'),
   });
-  if (channel) channel.onmessage = () => owner.refreshCopies();
-  const recheckCopies = () => owner.refreshCopies();
+  if (channel) channel.onmessage = () => { owner.refreshCopies(); refreshHomeboxOriginals(); };
+  const recheckCopies = () => { owner.refreshCopies(); refreshHomeboxOriginals(); };
   options.events?.addEventListener('focus', recheckCopies); options.events?.addEventListener('visibilitychange', recheckCopies);
   const outcomeListeners = new Set<() => void>();
   let actor: LiveCopyActor | null = null, observed: AtlasSessionInfo | null = null, generation = 0;
@@ -34,6 +36,7 @@ export function createLiveCopyRetention(options: {
   const remember = <T>(result: OfflineResult<T>): OfflineResult<T> => { lastResult = result; for (const cb of [...outcomeListeners]) { try { cb(); } catch { /* outcome remains available */ } } return result; };
   async function observe(session: AtlasSessionInfo | null, current: () => boolean) {
     const attempt = ++generation; actor = null; observed = null;
+    refreshHomeboxOriginals();
     const result = await owner.observeActor(session?.actorId ?? null, () => attempt === generation && current());
     if (result.status === 'ok' && attempt === generation && current()) { actor = result.value; observed = session; }
     return remember(result);
@@ -53,8 +56,220 @@ export function createLiveCopyRetention(options: {
   }
   // Sent HomeBox reads per actual session allocation. Any sent outcome (including unknown) is never repeated
   // automatically for that association, even with a fresh requestId; nothing here persists.
-  const homeboxSent = new WeakMap<AtlasSessionInfo, Set<string>>();
-  const homeboxKey = (ref: OfflineHomeboxAttachmentRefV1) => JSON.stringify([ref.sourceInstanceId, ref.collectionId, ref.entityId, ref.attachmentId]);
+  type Claim = { state: 'reserved-unsent' | 'in-flight' | 'sent-success' | 'definitive-refusal' | 'sent-unknown' };
+  const homeboxSent = new WeakMap<AtlasSessionInfo, Map<string, Claim>>();
+  const homeboxKey = (scope: ReadyView['scope'], ref: OfflineHomeboxAttachmentRefV1) => JSON.stringify([
+    scope.workspaceId, scope.homeId, ref.sourceInstanceId, ref.collectionId, ref.entityId, ref.attachmentId]);
+  const safeCurrent = (current: () => boolean) => { try { return current(); } catch { return false; } };
+  const lifetimes = new Set<{ current(): boolean; stop(): void }>();
+  function refreshHomeboxOriginals() {
+    for (const life of [...lifetimes]) if (!safeCurrent(life.current)) life.stop();
+  }
+  // Actual session expiry only; no producer snapshot window or provider-membership lease.
+  function track(current: () => boolean, expiry: number, stop: () => void): () => void {
+    let timer: ReturnType<typeof setTimeout> | undefined, ended = false;
+    const remove = () => { if (timer !== undefined) clearTimeout(timer); lifetimes.delete(life); };
+    const life = { current, stop() { if (!ended) { ended = true; remove(); stop(); } } };
+    const arm = () => {
+      if (!safeCurrent(current)) { life.stop(); return; }
+      timer = setTimeout(arm, Math.min(2_147_483_647, Math.max(1, expiry - Date.now())));
+    };
+    lifetimes.add(life); arm();
+    return () => { ended = true; remove(); };
+  }
+  interface FrameRecord {
+    readonly frame: HomeboxOriginalFrame; readonly reader: object;
+    readonly ref: Readonly<OfflineHomeboxAttachmentRefV1>; readonly pin: Readonly<OfflineHomeboxPinV1>;
+    readonly binding: Readonly<{ session: AtlasSessionInfo; view: ReadyView; actorId: string;
+      scope: Readonly<ReadyView['scope']>; actor: LiveCopyActor; current: () => boolean }>;
+    readonly notify: () => void;
+    readonly stopTracking: () => void;
+    blob: Blob | null; ui: boolean; storage: boolean; retired: boolean;
+    storageController?: AbortController; attempt?: HomeboxRetentionAttempt;
+  }
+  const frames = new WeakMap<HomeboxOriginalFrame, FrameRecord>();
+  function cleanupFrame(record: FrameRecord) {
+    if (!record.ui && !record.storage) { record.blob = null; record.stopTracking(); }
+  }
+  function retireFrame(record: FrameRecord) {
+    if (record.retired) return;
+    record.retired = true; record.ui = false; record.storageController?.abort(); cleanupFrame(record); record.notify();
+  }
+  const frameCurrent = (record: FrameRecord) => !record.retired && safeCurrent(record.binding.current);
+  async function acquireHomebox(refInput: OfflineHomeboxAttachmentRefV1, signal: AbortSignal,
+    reader: object, additionalCurrent: () => boolean, notify: () => void): Promise<HomeboxOriginalOpenResult> {
+    const b = binding(); if (b.status !== 'ok') return { status: 'retired' };
+    const { session, view } = options.state(), originalActor = actor;
+    if (!session || !view || !originalActor || !validHomeboxRef(refInput)) return { status: 'invalid' };
+    const ref = Object.freeze({ ...refInput }), scope = Object.freeze({ ...view.scope });
+    if (!listsAttachment(view, ref)) return { status: 'missing' };
+    const expiry = Date.parse(session.expiresAt);
+    const current = () => b.value.current() && Date.now() < expiry && safeCurrent(additionalCurrent);
+    if (signal.aborted || !current()) return { status: signal.aborted ? 'aborted' : 'retired' };
+    let claims = homeboxSent.get(session);
+    if (!claims) { claims = new Map(); homeboxSent.set(session, claims); }
+    const key = homeboxKey(scope, ref), prior = claims.get(key);
+    if (prior) return prior.state === 'reserved-unsent' || prior.state === 'in-flight' ? { status: 'busy' }
+      : { status: 'spent', outcome: prior.state === 'sent-success' ? 'success' : prior.state === 'sent-unknown' ? 'unknown' : 'definitive-refusal' };
+    const claim: Claim = { state: 'reserved-unsent' }; claims.set(key, claim);
+    const controller = new AbortController(), cancel = () => controller.abort();
+    signal.addEventListener('abort', cancel, { once: true });
+    let record: FrameRecord | undefined;
+    const untrack = track(current, expiry, () => { controller.abort(); if (record) retireFrame(record); });
+    try {
+      const { readHomeboxOriginal } = await import('../src/offline/homebox-original-reader');
+      if (signal.aborted || controller.signal.aborted || !current()) {
+        claims.delete(key); return { status: signal.aborted ? 'aborted' : 'retired' };
+      }
+      claim.state = 'in-flight';
+      const read = await readHomeboxOriginal({ scope, ref, signal: controller.signal,
+        ...(options.homeboxTransport ? { transport: options.homeboxTransport } : {}) });
+      if (read.status === 'unavailable' && !read.sent) claims.delete(key);
+      else claim.state = read.status === 'ok' ? 'sent-success' : read.status === 'unknown' ? 'sent-unknown' : 'definitive-refusal';
+      if (controller.signal.aborted || !current()) return { status: signal.aborted ? 'aborted' : 'retired' };
+      if (read.status !== 'ok') return { status: read.status };
+      const pin = Object.freeze({ ...read.pin });
+      const frame = Object.freeze({}) as HomeboxOriginalFrame;
+      record = { frame, reader, ref, pin, binding: Object.freeze({ session, view, actorId: session.actorId, scope, actor: originalActor, current }), notify, stopTracking: untrack,
+        blob: new Blob([read.bytes.slice(0)], { type: pin.contentType ?? 'application/octet-stream' }), ui: true, storage: false, retired: false };
+      frames.set(frame, record); return { status: 'ok', frame };
+    } catch {
+      if (claim.state === 'reserved-unsent') claims.delete(key);
+      else if (claim.state === 'in-flight') claim.state = 'sent-unknown';
+      return { status: !current() ? 'retired' : claim.state === 'sent-unknown' ? 'unknown' : signal.aborted ? 'aborted' : 'unavailable' };
+    } finally { signal.removeEventListener('abort', cancel); if (!record) untrack(); }
+  }
+  function retainHomeboxFrame(record: FrameRecord): HomeboxRetentionAttempt {
+    if (record.attempt) return record.attempt;
+    const controller = new AbortController(); record.storageController = controller; record.storage = true;
+    const current = () => record.storage && !controller.signal.aborted && record.blob !== null && frameCurrent(record);
+    const work = async (): Promise<OfflineResult<Readonly<OfflineHomeboxPinV1>>> => {
+      try {
+        const blob = record.blob;
+        if (!blob || !current()) return { status: 'retired' };
+        const bytes = await blob.arrayBuffer();
+        if (!current() || record.blob !== blob) return { status: 'retired' };
+        const home = owner.bindHome(record.binding.actor, record.binding.scope, current);
+        if (home.status !== 'ok') return home;
+        const stored = await owner.keepHomeboxDocument(home.value, record.pin, bytes, controller.signal);
+        return stored.status === 'ok' ? { status: 'ok', value: record.pin } : stored;
+      } catch { return { status: current() ? 'unavailable' : 'retired' }; }
+    };
+    // The operation owns its signal, not the UI. The existing storage deadline is not increased.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<OfflineResult<Readonly<OfflineHomeboxPinV1>>>(resolve => {
+      timer = setTimeout(() => { resolve({ status: 'uncertain' }); controller.abort(); }, 10_000);
+    });
+    const result = Promise.race([work(), deadline]).then(outcome => {
+      if (outcome.status === 'integrity' || outcome.status === 'retired' || !frameCurrent(record)) retireFrame(record);
+      return outcome;
+    }).finally(() => { if (timer !== undefined) clearTimeout(timer); record.storage = false; cleanupFrame(record); });
+    const attempt: HomeboxRetentionAttempt = Object.freeze({ result,
+      async reconcile(signal: AbortSignal): Promise<HomeboxRetentionReconciliation> {
+        const current = () => !signal.aborted && frameCurrent(record);
+        const fail = (): HomeboxRetentionReconciliation => ({ status: signal.aborted ? 'aborted' : 'retired' });
+        if (!current()) return fail();
+        try {
+          const copy = await owner.readLast(signal); if (!current()) return fail();
+          if (copy.status !== 'ok') {
+            if (copy.status === 'integrity' || copy.status === 'retired') { retireFrame(record); return { status: copy.status }; }
+            return { status: 'unresolved' };
+          }
+          const identity = await owner.copyIdentity(copy.value.handle, signal); if (!current()) return fail();
+          if (identity.status !== 'ok' || identity.value.actorId !== record.binding.actorId
+            || identity.value.scope.workspaceId !== record.binding.scope.workspaceId || identity.value.scope.homeId !== record.binding.scope.homeId) {
+            retireFrame(record); return fail();
+          }
+          const held = await owner.homeboxStatus(copy.value.handle, record.ref, signal); if (!current()) return fail();
+          if (held.status !== 'ok') {
+            if (held.status === 'integrity' || held.status === 'retired') { retireFrame(record); return { status: held.status }; }
+            return { status: 'unresolved' };
+          }
+          if (held.value.availability === 'failed-integrity') { retireFrame(record); return { status: 'integrity' }; }
+          if (held.value.availability !== 'held') return { status: 'unresolved' };
+          const heldPin = held.value.pin;
+          if (!Object.keys(record.pin).every(key => record.pin[key as keyof OfflineHomeboxPinV1]
+            === heldPin[key as keyof OfflineHomeboxPinV1])) return { status: 'unresolved' };
+          const bytes = await owner.readHomeboxDocument(copy.value.handle, record.pin, signal); if (!current()) return fail();
+          if (bytes.status === 'integrity' || bytes.status === 'retired') { retireFrame(record); return { status: bytes.status }; }
+          return bytes.status === 'ok' ? { status: 'held', pin: record.pin } : { status: 'unresolved' };
+        } catch { return current() ? { status: 'unavailable' } : fail(); }
+      },
+    });
+    record.attempt = attempt; return attempt;
+  }
+  function createHomeboxOriginalReader(view: ReadyView, source: HomeboxOriginalSource): OfflineResult<HomeboxOriginalReader> {
+    const b = binding(), identity = source.getBindingIdentity();
+    if (b.status !== 'ok' || options.state().view !== view || !identity) return { status: 'retired' };
+    const scope = Object.freeze({ ...view.scope }), bound = source.getBindingScope(identity);
+    if (!bound || bound.workspaceId !== scope.workspaceId || bound.homeId !== scope.homeId) return { status: 'retired' };
+    const token = {}, listeners = new Set<() => void>(), borrows = new Set<HomeboxOriginalFrame>(), pending = new Set<AbortController>();
+    let disposed = false, retired = false;
+    const current = () => {
+      const latest = source.getBindingScope(identity);
+      return !retired && b.value.current() && source.getBindingIdentity() === identity
+        && latest?.workspaceId === scope.workspaceId && latest.homeId === scope.homeId;
+    };
+    const notify = () => { for (const cb of [...listeners]) { try { cb(); } catch { /* notification is not authority */ } } };
+    const untrack = track(current, Date.parse(options.state().session!.expiresAt), () => {
+      retired = true; for (const request of pending) request.abort();
+      for (const frame of borrows) { const record = frames.get(frame); if (record) retireFrame(record); } notify();
+    });
+    const release = (frame: HomeboxOriginalFrame) => {
+      const record = frames.get(frame); if (!record || record.reader !== token) return;
+      record.ui = false; borrows.delete(frame); cleanupFrame(record);
+    };
+    const admitted = (frame: HomeboxOriginalFrame) => {
+      const record = frames.get(frame);
+      return !disposed && record?.reader === token && record.ui && frameCurrent(record) ? record : null;
+    };
+    return { status: 'ok', value: {
+      scope,
+      async open(refInput, signal) {
+        if (disposed || !current()) return { status: 'retired' };
+        if (!validHomeboxRef(refInput)) return { status: 'invalid' };
+        const ref = Object.freeze({ ...refInput });
+        if (!listsAttachment(view, ref)) return { status: 'missing' };
+        const listed = view.entries.flatMap(entry => entry.source.sourceKind === 'homebox-entity'
+          && entry.source.sourceInstanceId === ref.sourceInstanceId && entry.source.collectionId === ref.collectionId && entry.source.externalId === ref.entityId
+          ? entry.attachments.filter(a => a.kind === 'stored-file' && a.attachmentId === ref.attachmentId) : []);
+        // A hint can refuse scheduling; it never admits received bytes.
+        if (listed.some(a => {
+          if (a.kind !== 'stored-file') return false;
+          if (a.byteSize === null || a.byteSize === undefined || !/^[0-9]+$/.test(a.byteSize)) return false;
+          const digits = a.byteSize.replace(/^0+/, '') || '0';
+          return digits.length > 8 || Number(digits) > 10_485_760;
+        })) return { status: 'limit' };
+        const request = new AbortController(), cancel = () => request.abort();
+        pending.add(request); signal.addEventListener('abort', cancel, { once: true });
+        if (signal.aborted) request.abort();
+        try {
+          const discovery = await source.discover(identity, request.signal);
+          if (disposed || !current() || request.signal.aborted) return { status: signal.aborted ? 'aborted' : 'retired' };
+          if (discovery.scope.workspaceId !== scope.workspaceId || discovery.scope.homeId !== scope.homeId
+            || !discovery.installedSources.some(row => row.workspaceId === scope.workspaceId && row.homeId === scope.homeId
+              && row.key.sourceKind === 'homebox-entity' && row.key.sourceInstanceId === ref.sourceInstanceId
+              && row.key.collectionId === ref.collectionId && row.key.externalId === ref.entityId)) return { status: 'unavailable' };
+          const opened = await acquireHomebox(ref, request.signal, token, current, notify);
+          if (opened.status === 'ok') {
+            if (disposed || !current() || request.signal.aborted) { release(opened.frame); return { status: 'retired' }; }
+            borrows.add(opened.frame);
+          }
+          return opened;
+        } catch { return { status: !current() || disposed ? 'retired' : signal.aborted ? 'aborted' : 'unavailable' }; }
+        finally { signal.removeEventListener('abort', cancel); pending.delete(request); }
+      },
+      isCurrent: frame => admitted(frame) !== null,
+      getBlob: frame => admitted(frame)?.blob ?? null,
+      subscribe(changed) { if (disposed) return () => {}; listeners.add(changed); return () => { listeners.delete(changed); }; },
+      retain(frame) {
+        const record = admitted(frame); return record ? { status: 'ok', value: retainHomeboxFrame(record) } : { status: 'retired' };
+      },
+      release,
+      dispose() { if (disposed) return; disposed = true; untrack(); for (const request of pending) request.abort();
+        for (const frame of [...borrows]) release(frame); listeners.clear(); },
+    } };
+  }
   const metadata = (row: SourceDocument): OfflineCatalogItemV1 => ({
     documentId: row.documentId, documentRevision: row.revision, title: row.title, lifecycle: row.lifecycle,
     assetId: row.original.assetId, assetRevision: row.original.revision, sha256: row.original.sha256,
@@ -120,12 +335,14 @@ export function createLiveCopyRetention(options: {
       return () => { outcomeListeners.delete(changed); unsubscribe(); };
     } } satisfies OfflineReadPort,
     storage: { status: owner.status, requestPersistence: owner.requestPersistence, clear: async () => {
-      generation++; actor = null; observed = null; return remember(await owner.clear());
+      generation++; actor = null; observed = null; refreshHomeboxOriginals(); return remember(await owner.clear());
     } },
     observe,
     lastResult: () => lastResult,
     /** Synchronous retirement on sign-out/host replacement, even before lazy deletion. */
-    retire() { generation++; actor = null; observed = null; owner.invalidate(); },
+    retire() { generation++; actor = null; observed = null; refreshHomeboxOriginals(); owner.invalidate(); },
+    createHomeboxOriginalReader,
+    refreshHomeboxOriginals,
     async capture(view: ReadyView, signal: AbortSignal) {
       const b = binding(); if (b.status !== 'ok') return remember(b);
       if (options.state().view !== view) return remember({ status: 'retired' } as const);
@@ -212,36 +429,25 @@ export function createLiveCopyRetention(options: {
     },
     /** True when this session allocation already sent a read for the exact association. */
     homeboxSent(ref: OfflineHomeboxAttachmentRefV1): boolean {
-      const session = options.state().session;
-      return !!session && homeboxSent.get(session)?.has(homeboxKey(ref)) === true;
+      const { session, view } = options.state();
+      return !!session && !!view && homeboxSent.get(session)?.has(homeboxKey(view.scope, ref)) === true;
     },
     /** One borrowed HomeBox original for an exact stored-file association in the current live view.
      * The reader module loads lazily; unknown transport outcomes report 'uncertain' and are never replayed. */
-    async retainHomeboxOriginal(ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal): Promise<OfflineResult<OfflineHomeboxPinV1>> {
-      const b = binding(); if (b.status !== 'ok') return remember(b);
-      const { session, view } = options.state();
-      if (!session || !view || !validHomeboxRef(ref)) return remember({ status: 'invalid' });
-      if (!listsAttachment(view, ref)) return remember({ status: 'missing' });
-      // Claim synchronously, before any await, so concurrent calls for one session/association cannot both send.
-      let sent = homeboxSent.get(session); if (!sent) { sent = new Set<string>(); homeboxSent.set(session, sent); }
-      const key = homeboxKey(ref), claimed = sent;
-      if (claimed.has(key)) return remember({ status: 'uncertain' });
-      claimed.add(key); let dispatched = false;
+    async retainHomeboxOriginal(ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal,
+      additionalCurrent: () => boolean = () => true): Promise<OfflineResult<OfflineHomeboxPinV1>> {
+      const opened = await acquireHomebox(ref, signal, {}, additionalCurrent, () => {});
+      if (opened.status !== 'ok') return remember({ status: opened.status === 'unknown' || opened.status === 'busy' || opened.status === 'spent'
+        ? 'uncertain' : opened.status });
+      const record = frames.get(opened.frame)!;
+      // Bulk work follows the caller's cancellation; explicit UI storage has its own signal.
+      const cancel = () => record.storageController?.abort();
       try {
-        const { readHomeboxOriginal } = await import('../src/offline/homebox-original-reader');
-        if (signal.aborted || !b.value.current()) { claimed.delete(key); return remember({ status: signal.aborted ? 'aborted' : 'retired' }); }
-        // The server spends admission before provider I/O; from here the claim is never released after a send.
-        dispatched = true;
-        const read = await readHomeboxOriginal({ scope: view.scope, ref, signal, ...(options.homeboxTransport ? { transport: options.homeboxTransport } : {}) });
-        if (read.status === 'unavailable' && !read.sent) claimed.delete(key);
-        if (!b.value.current()) return remember({ status: 'retired' });
-        if (read.status !== 'ok') return remember({ status: read.status === 'unknown' ? 'uncertain' : read.status });
-        const result = await owner.keepHomeboxDocument(b.value.home, read.pin, read.bytes, signal);
-        return remember(result.status === 'ok' ? { status: 'ok', value: read.pin } : result);
-      } catch {
-        if (!dispatched) claimed.delete(key);
-        return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' });
-      }
+        const attempt = retainHomeboxFrame(record);
+        signal.addEventListener('abort', cancel, { once: true }); if (signal.aborted) cancel();
+        record.ui = false;
+        return remember(await attempt.result);
+      } finally { signal.removeEventListener('abort', cancel); record.ui = false; cleanupFrame(record); }
     },
     /** Confirmed absence retires only this building's local catalog membership.
      * Empty provenance grants no source access; original bytes remain subject to
@@ -348,7 +554,7 @@ export function createLiveCopyRetention(options: {
       } catch { return remember({ status: signal.aborted ? 'aborted' : current() ? 'integrity' : 'retired' }); }
       finally { if (opened) client?.release(opened); client?.dispose(); }
     },
-    close() { generation++; actor = null; observed = null; owner.close(); outcomeListeners.clear();
+    close() { generation++; actor = null; observed = null; refreshHomeboxOriginals(); owner.close(); outcomeListeners.clear();
       options.events?.removeEventListener('focus', recheckCopies); options.events?.removeEventListener('visibilitychange', recheckCopies);
       if (channel) { channel.onmessage = null; channel.close(); } },
   };

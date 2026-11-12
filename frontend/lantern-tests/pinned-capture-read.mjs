@@ -1,6 +1,8 @@
 /** Successful local-only pinned file discovery, capture and availability reads. */
 import assert from 'node:assert/strict';
 import { loadNumericSource } from './load-numeric-source.mjs';
+import { readFileSync } from 'node:fs';
+import { transformWithOxc } from 'vite';
 
 const { createPinnedFileClient } = await import(await loadNumericSource('integration/pinned-file-client.ts'));
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -94,3 +96,100 @@ assert.deepEqual(events, [
   `/api/atlas/media/pinned-homebox/${scope.workspaceId}/${scope.homeId}/${tokenFor(1)}/availability`,
 ]);
 console.log('PASS synthetic pinned discovery, exact six-field v3/v4 capture and one availability observation each');
+
+// Actual additive action source, generated hook/JSX and reader boundaries only.
+// This is not a React/DOM mount, user download or ordinary-anchor retention control.
+const actionKey = Symbol.for('houseatlas.homebox-original-action.generated');
+const dataURL = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`;
+const hooksURL = dataURL(`
+const state = () => globalThis[Symbol.for('houseatlas.homebox-original-action.generated')];
+export const useState = initial => state().useState(initial);
+export const useRef = initial => state().useRef(initial);
+export const useMemo = (fn, deps) => state().useMemo(fn, deps);
+export const useEffect = (fn, deps) => state().useEffect(fn, deps);
+`);
+const jsxURL = dataURL(`export const jsx = (type, props) => typeof type === 'function' ? type(props) : ({type, props}); export const jsxs = jsx; export const Fragment = 'fragment';`);
+const storeURL = dataURL(`export const useStore = () => globalThis[Symbol.for('houseatlas.homebox-original-action.generated')].store;`);
+const pdfURL = dataURL(`export const SourcePdf = props => ({type: 'generated-pdf', props});`);
+const actionPath = new URL('../src/lantern/components/HomeboxOriginalAction.tsx', import.meta.url);
+const actionSource = readFileSync(actionPath, 'utf8');
+assert(!actionSource.includes('library-preference'), 'explicit keep-on-open must not read the bulk preference');
+let actionCode = (await transformWithOxc(actionSource, actionPath.pathname,
+  { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false })).code;
+for (const [specifier, replacement] of Object.entries({ react: hooksURL, 'react/jsx-runtime': jsxURL,
+  '../state/store': storeURL, '../source-documents/SourcePdf': pdfURL })) {
+  assert(actionCode.includes(JSON.stringify(specifier))); actionCode = actionCode.replaceAll(JSON.stringify(specifier), JSON.stringify(replacement));
+}
+assert(!/^\s*import.*from\s+["'](?!data:)/m.test(actionCode));
+const { HomeboxOriginalAction } = await import(dataURL(actionCode));
+const textOf = node => node == null || typeof node === 'boolean' ? '' : Array.isArray(node) ? node.map(textOf).join('')
+  : typeof node === 'object' ? textOf(node.props?.children) : String(node);
+function findNode(node, match) {
+  if (!node || typeof node !== 'object') return null;
+  if (Array.isArray(node)) { for (const child of node) { const found = findNode(child, match); if (found) return found; } return null; }
+  return match(node) ? node : findNode(node.props?.children, match);
+}
+function actionHarness() {
+  const slots = [], effects = []; let cursor = 0, effectCursor = 0, pending = [];
+  const entry = { source: { sourceKind: 'homebox-entity', sourceInstanceId: uuid(810), collectionId: 'generated-opaque', externalId: uuid(820) } };
+  const attachment = { kind: 'stored-file', attachmentId };
+  const state = { store: { projection: { view: { scope }, entries: new Map([['doc', entry]]), attachments: new Map([['doc', attachment]]) },
+    house: { docs: [{ id: 'doc', title: 'Generated verified copy' }] } },
+    useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
+      return [slots[i], value => { slots[i] = typeof value === 'function' ? value(slots[i]) : value; }]; },
+    useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; },
+    useMemo(fn, deps) { const i = cursor++; if (!slots[i] || deps.some((v, at) => v !== slots[i].deps[at])) slots[i] = { deps, value: fn() }; return slots[i].value; },
+    useEffect(fn, deps) { const i = effectCursor++, old = effects[i];
+      if (!old || deps.some((v, at) => v !== old.deps[at])) pending.push(() => { old?.cleanup?.(); effects[i] = { deps, cleanup: fn() }; }); },
+    render(port) { cursor = 0; effectCursor = 0; pending = []; globalThis[actionKey] = state; return HomeboxOriginalAction({ docId: 'doc', port }); },
+    commit() { const work = pending; pending = []; for (const fn of work) fn(); },
+    close() { for (const effect of effects) effect.cleanup?.(); delete globalThis[actionKey]; },
+  }; return state;
+}
+const settleAction = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
+const originalCreateURL = URL.createObjectURL, originalRevokeURL = URL.revokeObjectURL;
+try {
+  for (const kind of ['application/pdf', 'application/octet-stream']) {
+    const madeURLs = [], revoked = [], listeners = new Set(), frame = {}, blob = new Blob(['generated bytes'], { type: kind });
+    URL.createObjectURL = value => { assert.equal(value, blob); const url = `blob:generated-${madeURLs.length}`; madeURLs.push(url); return url; };
+    URL.revokeObjectURL = url => revoked.push(url);
+    let current = true, disposed = false, acquisitions = 0, keeps = 0, resolveStorage, reconciles = 0;
+    const result = new Promise(resolve => { resolveStorage = resolve; });
+    const attempt = { result, async reconcile() { reconciles++; return { status: 'unresolved' }; } };
+    const reader = { scope, async open() { acquisitions++; return { status: 'ok', frame }; },
+      isCurrent: candidate => current && !disposed && candidate === frame,
+      getBlob: candidate => reader.isCurrent(candidate) ? blob : null,
+      subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
+      retain(candidate) { assert.equal(candidate, frame); keeps++; return { status: 'ok', value: attempt }; },
+      release() {}, dispose() { disposed = true; } };
+    const port = { async createReader() { return { status: 'ok', value: reader }; } };
+    const harness = actionHarness();
+    try {
+      harness.render(port); harness.commit(); await settleAction();
+      let tree = harness.render(port); harness.commit();
+      findNode(tree, n => n.type === 'button' && textOf(n) === 'Read and keep verified copy').props.onClick(); await settleAction();
+      tree = harness.render(port); harness.commit(); tree = harness.render(port); harness.commit();
+      assert.equal(acquisitions, 1); assert.equal(keeps, 1); assert.equal(madeURLs.length, 1);
+      const save = findNode(tree, n => n.type === 'a'); assert.equal(save.props.href, madeURLs[0]);
+      save.props.onClick({ preventDefault() { assert.fail('Current verified copy should be usable'); } });
+      assert.equal(revoked.length, 0, 'click does not revoke a still-owned URL');
+      assert.equal(!!findNode(tree, n => n.type === 'generated-pdf'), kind === 'application/pdf');
+      if (kind !== 'application/pdf') assert.match(textOf(tree), /Save the verified bytes without opening a renderer/);
+      resolveStorage({ status: 'uncertain' }); await settleAction();
+      tree = harness.render(port); harness.commit(); assert.match(textOf(tree), /Keeping outcome unknown/);
+      findNode(tree, n => n.type === 'button' && textOf(n) === 'Check this exact held copy').props.onClick(); await settleAction();
+      assert.equal(reconciles, 1); assert.equal(acquisitions, 1); assert.equal(keeps, 1);
+      current = false; for (const changed of listeners) changed();
+      assert.deepEqual(revoked, madeURLs, 'retirement revokes the URL synchronously before another render');
+      const renderedPdf = findNode(tree, n => n.type === 'generated-pdf'); if (renderedPdf) assert(renderedPdf.props.signal.aborted);
+      let blocked = false; save.props.onClick({ preventDefault() { blocked = true; } }); assert(blocked);
+      tree = harness.render(port); harness.commit(); assert.equal(findNode(tree, n => n.type === 'a'), null);
+      assert.deepEqual(revoked, madeURLs);
+    } finally { resolveStorage({ status: 'quota' }); harness.close(); }
+    assert(disposed);
+  }
+} finally { URL.createObjectURL = originalCreateURL; URL.revokeObjectURL = originalRevokeURL; delete globalThis[actionKey]; }
+const previewSource = readFileSync(new URL('../src/lantern/components/RealPreview.tsx', import.meta.url), 'utf8');
+assert(previewSource.includes("const HomeboxOriginalAction = lazy(() => import('./HomeboxOriginalAction')"));
+assert(previewSource.includes("'Download original'")); assert(previewSource.includes('<PinnedFileAction key={id} docId={id} />'));
+console.log('PASS authored-source additive action controls: one frame, explicit keep, inert save, unknown reconciliation and owned URL cleanup');

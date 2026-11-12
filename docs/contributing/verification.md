@@ -1,5 +1,30 @@
 # HouseAtlas
 
+## Additive HomeBox verified-copy foundation
+
+The optional `homeboxOriginals` port passes through Host/state by type only; the
+live adapter resolves the existing lazy retention owner and rechecks the original
+session, generation, scope, view and captured expiry before returning its actual
+reader. The owner consumes existing host notifications without loading eagerly.
+The separate preview action and automatic fill share one private acquisition
+coordinator. Sent success/refusal/unknown claims stay spent; one memoized storage
+attempt retains the same immutable verified bytes without a second acquisition.
+Ordinary UI close releases the public frame/URLs but not the admitted storage
+borrow. Session/view/source retirement, real expiry and explicit storage clear
+withdraw both interests. Final transaction predicates and exact-pin/verified-byte
+local reconciliation preserve existing epoch, registration, budget and LRU fences.
+
+Existing required `offline-electrical-copy.test.mjs` extends actual-owner controls,
+including clear during a paused write; `pinned-capture-read.mjs` extends synthetic
+hook/action and unchanged-anchor controls. They are authored and NOT RUN locally;
+the latter is not a mounted React or device result. No selection is added: all
+83 SOURCE / 1 BUILD / 11 BROWSER entries (95 total), commands and 180000 ms limits
+remain. Exact-head required CI and emitted startup raw/gzip budgets still gate
+qualification. Both ordinary issued-URL anchors remain unchanged; this foundation
+does not complete ordinary opened-file retention, whole-library storage or
+real-iPhone acceptance. No provider/storage grant, backend route, workflow, pin,
+resource limit or device verification is added.
+
 ## HomeBox captured size-hint display
 
 The existing required `offline-electrical-copy.test.mjs` source entry covers

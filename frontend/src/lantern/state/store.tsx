@@ -6,6 +6,7 @@ import type { LanternProjection } from '../adapters/read';
 import type { AtlasEditingClient } from '../../app/editing';
 import type { QuantityClient } from '../../api/quantity-client';
 import type { PinnedFileClient } from '../../api/pinned-file-client';
+import type { HomeboxOriginalsPort } from '../homebox-originals/types';
 import type { NetworkRelationsClient } from '../../api/network-relations-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
@@ -105,6 +106,8 @@ export interface LanternActions {
   quantity?: QuantityClient;
   /** Optional local HomeBox file consumer; never a grant or quantity authority. */
   pinnedFiles?: PinnedFileClient;
+  /** Optional owned verified-copy action; never changes ordinary download anchors. */
+  homeboxOriginals?: HomeboxOriginalsPort;
   /** Optional saved Network relations reader; never a source owner or currentness authority. */
   networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
