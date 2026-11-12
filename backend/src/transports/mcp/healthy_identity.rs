@@ -105,6 +105,96 @@ impl Fixture {
         self.scratch.path().join("fixture/atlas.sqlite")
     }
 
+    pub(super) fn core(&self) -> &Core {
+        &self.core
+    }
+
+    /// Separate borrowed-read issuance; never changes the Editor POST client.
+    pub(super) fn borrowed_read_principal(&self, login_key: &str) -> Result<a::Principal, Failure> {
+        let (role, actor) = match login_key {
+            "login" => (a::Role::Viewer, 5),
+            "editorLogin" => (a::Role::Editor, 7),
+            _ => return Err("Expected an existing generated fixture login".into()),
+        };
+        let receipt: Value = serde_json::from_slice(&fs::read(
+            self.scratch.path().join("fixture/smoke-session.json"),
+        )?)?;
+        let body = serde_json::to_vec(receipt.get(login_key).ok_or("Missing fixture login")?)?;
+        let login_url = format!("{ORIGIN}/api/atlas/auth/login");
+        let mut access = self.core.access.lock().map_err(|_| "Access unavailable")?;
+        let login = access.login(
+            &a::RequestEvidence {
+                method: a::Method::Post,
+                url: &login_url,
+                origin: Some(ORIGIN),
+                sec_fetch_site: Some("same-origin"),
+                referer: None,
+                cookie: None,
+                authorization: None,
+                csrf: None,
+            },
+            &body,
+            "mcp288-evidence-read-controls",
+        )?;
+        let cookie = login.set_cookie().split(';').next().ok_or("Missing cookie")?;
+        let principal = access.authorize(
+            &a::RequestEvidence {
+                method: a::Method::Get,
+                url: &self.url,
+                origin: Some(ORIGIN),
+                sec_fetch_site: Some("same-origin"),
+                referer: None,
+                cookie: Some(cookie),
+                authorization: None,
+                csrf: None,
+            },
+            &self.scope,
+            a::Action::Read,
+        )?;
+        assert_eq!(principal.role(), role);
+        assert_eq!(principal.actor_id().as_str(), id(actor));
+        assert_eq!(principal.scope(), &self.scope);
+        Ok(principal)
+    }
+
+    /// Strict SQLite-owner reopen only; the genuine Access owner is retained.
+    pub(super) fn reopen_existing(mut self) -> Result<Self, Failure> {
+        let path = self.database_path();
+        let Core {
+            access,
+            store,
+            vault,
+            home,
+            homes,
+            ..
+        } = self.core;
+        Arc::try_unwrap(store)
+            .map_err(|_| "Store retained")?
+            .into_inner()
+            .map_err(|_| "Store unavailable")?
+            .close()?;
+        let reopened = Store::open_existing(
+            path,
+            NativeContracts,
+            ReadAuthority(Arc::clone(&access)),
+            NativeMediaRuntime {
+                vault: Arc::clone(&vault),
+                server: ServerRuntime,
+            },
+            storage::StoreOptions::default(),
+        )?;
+        self.core = Core {
+            access,
+            store: Arc::new(Mutex::new(reopened)),
+            vault,
+            home,
+            homes,
+            atlas_list_pages: AtlasListPages::default(),
+            media_policy_evidence: Mutex::default(),
+        };
+        Ok(self)
+    }
+
     pub(super) fn reopen(mut self) -> Result<Self, Failure> {
         let Core {
             access,

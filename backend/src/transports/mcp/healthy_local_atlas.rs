@@ -29,6 +29,9 @@ mod bindings_reconciliation;
 #[path = "healthy_evidence_lifecycle.rs"]
 mod evidence_lifecycle;
 
+#[path = "evidence_read_controls.rs"]
+mod evidence_read_controls;
+
 #[path = "healthy_identity.rs"]
 mod identity;
 
