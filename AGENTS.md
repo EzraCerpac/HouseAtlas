@@ -968,6 +968,21 @@ restart or crash durability, source adoption/remap, available bytes/transfer,
 renderer/accepted placement, installed provider or WebMCP/device acceptance.
 This documents existing execution and changes no command or held selection.
 
+Three additional #288 borrowed evidence-read controls are authored and **UNRUN**
+in `healthy_local_atlas::evidence_read_controls`, discovered by the existing
+default backend-library lane. Generated Viewer login/GET admission checks native
+and MCP evidence get/list/history parity, null/Unicode payloads and the Editor
+writer's original audit attribution. List controls distinguish connection reuse
+from actual Access-session replacement and fence actor, query/options and the
+complete authorized snapshot; a foreign-scope refusal is authorization evidence.
+Saved history chains retain their watermark across strict SQLite-owner reopen
+with the original Access owner, while fresh chains include later commits and a
+new session for the same actor remains eligible. Full factual/audit/commit
+contents are compared, excluding expected history-cursor bookkeeping.
+This is not mounted Viewer admission, process/session restart, recovery or full
+#288/#289 acceptance. No workflow, command, selection, deadline or trust pin changes;
+all 83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total) remain unchanged.
+
 
 The same default-library selection includes
 `http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`.

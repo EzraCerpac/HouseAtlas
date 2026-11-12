@@ -1419,6 +1419,28 @@ accepted placement, installed provider or WebMCP/device acceptance follows.
 This paragraph documents already executed scope without changing CI commands,
 registration, source assertions or held selections.
 
+Three additional functions under
+`transports::mcp::healthy_local_atlas::evidence_read_controls::` are authored
+and **UNRUN** in the existing default backend-library lane:
+
+- `borrowed_viewer_evidence_family_preserves_native_pages_and_audit_disclosure`
+- `borrowed_evidence_list_cursor_fences_actor_session_query_scope_and_snapshot`
+- `borrowed_evidence_history_cursor_preserves_actor_query_watermark_after_reopen`
+
+They use genuine generated Viewer login/GET admission and actual native/MCP
+evidence reads, preserving complete ordered pages, null/Unicode payloads and
+the Editor writer's audit/intent/digest attribution. List continuation separates
+same-session connection reuse from fresh Access issuance, and fences actor,
+query/options and full authorized snapshot changes even when selected records
+are equal. Foreign-scope refusal is an authorization observation. Saved history
+chains survive strict Store-owner reopen with retained Access and exclude later
+commits; fresh chains include them, and fresh same-actor sessions remain eligible.
+Factual records, audits and commits are compared by content, excluding expected
+history-cursor persistence. This is not mounted Viewer admission, process/session
+restart, recovery or complete #288/#289 acceptance. No commands, workflow, pins,
+limits, deadlines or frontend selections change (83 SOURCE / 1 BUILD / 11 BROWSER,
+95 total). Hosted exact-head results must establish execution separately.
+
 The default-library lane also retains the three existing #533 cases in
 `backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, with prefix
 `transports::mcp::lifecycle::synthetic_contracts::`:
