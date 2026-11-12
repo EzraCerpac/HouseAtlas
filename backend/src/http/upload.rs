@@ -198,13 +198,13 @@ async fn intake_command(
         let _upload_permit = upload_permit;
         let _admitted = checked.admission_permit()?;
         worker_diagnostic.phase(Phase::WaitingCore);
-        let mut core = host.core.lock().map_err(|_| unavailable())?;
+        let core = host.core.lock().map_err(|_| unavailable())?;
         let home = core.homes.iter().find(|home| home.scope == scope).cloned()
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
         worker_diagnostic.phase(Phase::Qualifying);
         let selection = match namespace {
-            PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
-            PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),
+            PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&core, &principal, &home, &input.metadata),
+            PlaceNamespace::Native => qualified_upload_plan::resolve_native(&core, &principal, &home, &input.metadata),
         }.map_err(stock_reads::http_error)?;
         let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
             .map_err(media_error)?;

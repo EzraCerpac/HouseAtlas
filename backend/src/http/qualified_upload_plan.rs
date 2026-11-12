@@ -111,7 +111,7 @@ fn one_record<'a>(
 /// Reuse actual qualified admission through the same original read principal.
 /// Call before entering a mutation fence; these read adapters acquire Access.
 pub fn read_admission(
-    core: &mut Core,
+    core: &Core,
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
     source: &d::SourceRef,
@@ -129,7 +129,7 @@ pub fn read_admission(
 /// Resolve the selected canonical PLACE using real Store/view/admission data.
 /// Caller supplies already parsed metadata. No lock or grant spans async intake.
 pub fn resolve<'p, 'm>(
-    core: &mut Core,
+    core: &Core,
     principal: &'p RequestPrincipal,
     home: &d::HomeSummary,
     metadata: &'m UploadMetadata,
@@ -281,7 +281,7 @@ struct NativePlace {
 }
 
 fn native_place(
-    core: &mut Core,
+    core: &Core,
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
     record_id: &str,
@@ -384,7 +384,7 @@ fn native_place(
 /// and current role-derived affordance data; the POST still obtains real AT11
 /// mutation authority and Media's original principal allocation.
 pub(super) fn native_admission(
-    core: &mut Core,
+    core: &Core,
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
     record_id: &str,
@@ -406,7 +406,7 @@ pub(super) fn native_admission(
 /// Only the explicit native POST calls this constructor. It neither accepts a
 /// caller source/binding nor falls back from the source-backed resolver above.
 pub(super) fn resolve_native<'p, 'm>(
-    core: &mut Core,
+    core: &Core,
     principal: &'p RequestPrincipal,
     home: &d::HomeSummary,
     metadata: &'m UploadMetadata,

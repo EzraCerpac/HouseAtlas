@@ -32,7 +32,7 @@ fn active<'a>(
     })
 }
 pub(super) fn admission(
-    core: &mut crate::app::Core,
+    core: &crate::app::Core,
     p: &crate::app::RequestPrincipal,
     home: &d::HomeSummary,
     source: &d::SourceRef,

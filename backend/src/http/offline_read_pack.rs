@@ -116,7 +116,7 @@ fn prepare(
     method: &Method,
     scope: &d::Scope,
 ) -> Result<Prepared, HttpFailure> {
-    let mut core = host.core.lock().map_err(|_| unavailable())?;
+    let core = host.core.lock().map_err(|_| unavailable())?;
     let label = core
         .homes
         .iter()
@@ -124,7 +124,7 @@ fn prepare(
         .ok_or_else(|| failure(StatusCode::NOT_FOUND))?
         .label
         .clone();
-    let (snapshot, metadata) = reads::retained_pack_cut(&mut core, host, p, &scope_storage(scope))?;
+    let (snapshot, metadata) = reads::retained_pack_cut(&core, host, p, &scope_storage(scope))?;
     p.seal_source_capture();
     let url = super::auth::url(host, uri);
     let observed = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
@@ -164,14 +164,14 @@ fn recheck(
     prepared: &Prepared,
     scope: &d::Scope,
 ) -> Result<(), HttpFailure> {
-    let mut core = host.core.lock().map_err(|_| unavailable())?;
+    let core = host.core.lock().map_err(|_| unavailable())?;
     if !Arc::ptr_eq(&core.store, &prepared.store)
         || !Arc::ptr_eq(&core.access, &prepared.access)
         || !Arc::ptr_eq(&core.vault, &prepared.vault)
     {
         return Err(conflict());
     }
-    let (snapshot, metadata) = reads::retained_pack_cut(&mut core, host, p, &scope_storage(scope))?;
+    let (snapshot, metadata) = reads::retained_pack_cut(&core, host, p, &scope_storage(scope))?;
     if fingerprint(&snapshot, &metadata, host, scope)? != prepared.fingerprint {
         return Err(conflict());
     }

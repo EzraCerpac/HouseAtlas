@@ -172,7 +172,7 @@ fn domain_error(error: d::DomainError) -> HttpFailure {
     }
 }
 fn query_view(
-    core: &mut Core,
+    core: &Core,
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
 ) -> Result<d::CurrentOutput, HttpFailure> {

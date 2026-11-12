@@ -86,13 +86,13 @@ pub(super) fn authorized_read<T>(
     method: &Method,
     scope: Option<d::Scope>,
     include_home_choices: bool,
-    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
+    operation: impl FnOnce(&Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
 ) -> Result<T, HttpFailure> {
     // Preserve the existing syntax rejection before any session/data lookup.
     if let Some(scope) = &scope {
         crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
     }
-    let mut core = host
+    let core = host
         .core
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -105,7 +105,7 @@ pub(super) fn authorized_read<T>(
         scope,
         include_home_choices,
     )?;
-    let result = operation(&mut core, &principal, &home)?;
+    let result = operation(&core, &principal, &home)?;
     let access = core
         .access
         .lock()
@@ -121,13 +121,13 @@ pub(super) fn authorized_read_phased<P, T>(
     uri: &Uri,
     method: &Method,
     selection: (Option<d::Scope>, bool),
-    prepare: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<P, HttpFailure>,
+    prepare: impl FnOnce(&Core, &RequestPrincipal, &d::HomeSummary) -> Result<P, HttpFailure>,
     finish: impl FnOnce(P, &d::Scope) -> Result<T, HttpFailure>,
 ) -> Result<T, HttpFailure> {
     if let Some(scope) = &selection.0 {
         crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
     }
-    let mut core = host
+    let core = host
         .core
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -135,7 +135,7 @@ pub(super) fn authorized_read_phased<P, T>(
     let (principal, home) =
         capture_read(host, &core, headers, uri, method, selection.0, selection.1)?;
     let canonical = Arc::clone(&core.access);
-    let prepared = prepare(&mut core, &principal, &home)?;
+    let prepared = prepare(&core, &principal, &home)?;
     drop(core);
     let result = finish(prepared, &home.scope)?;
     let core = host

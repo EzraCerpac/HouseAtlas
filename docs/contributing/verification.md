@@ -1,5 +1,17 @@
 # HouseAtlas
 
+## Immutable Core read preparation
+
+Existing HTTP read/admission helpers and their preparation closures borrow
+`&Core`; necessary callers retain the same mutex guard with an immutable
+borrow. The source-only change preserves original authorization, lock
+acquisition/drop statements, inner Store/Access effects, errors and returns.
+No new tests or selections are added: existing default backend-library tests,
+Rust source/example checks and ordinary required hosted gates qualify the exact
+composed head. No local compiler, formatter or test execution is claimed.
+This preparation establishes neither root replacement history nor an owning
+Send capture, journal receipt, final release gate or feature activation.
+
 ## Fictional example combined overlay owner
 
 The existing required SOURCE list adds
