@@ -840,3 +840,567 @@ fn healthy_completed_resumed_dispatch_correlations() {
         json!([])
     );
 }
+
+/// The selected runner has no catalog/store peer implementation at all. Its
+/// generated structural snapshot is DATA, not an authenticated native owner.
+mod selected_terminal {
+    use super::*;
+    use crate::ai::runner::{SelectedRun, SelectedRunRejection};
+    use crate::ai::suggestions::*;
+    use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext, StockTarget};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    fn snapshot() -> AdmittedSnapshot {
+        let id = |n| format!("00000000-0000-4000-8000-{n:012}");
+        AdmittedSnapshot::new(SnapshotInput {
+            feature: SuggestionFeature::Inventory,
+            scope: StockContext {
+                workspace_id: id(1),
+                home_id: id(2),
+            },
+            actor_id: id(3),
+            authority_epoch: "generated-epoch".into(),
+            sources: vec![SourceInput {
+                input_ref: "subject".into(),
+                target: StockTarget::Atlas {
+                    target: AtlasTarget::Record {
+                        record_type: AtlasRecordKind::Identity,
+                        record_id: Some(id(4)),
+                    },
+                },
+                version: "generated-revision".into(),
+                source_date: None,
+                retrieved_at: "2026-11-08T12:00:00Z".into(),
+                availability: Availability::Available,
+                role: InputRole::Subject,
+                kind: CandidateKind::InventoryItem,
+                evidence: vec![],
+            }],
+        })
+        .unwrap()
+    }
+
+    fn proposal(snapshot: &AdmittedSnapshot) -> String {
+        json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":"subject",
+            "claims":[],"missingEvidence":["Generated source has no content evidence"],
+            "result":{"kind":"inventory","changes":[],"duplicates":[]}})
+        .to_string()
+    }
+
+    fn message(text: &str) -> Value {
+        json!({"type":"message","role":"assistant","status":"completed",
+            "content":[{"type":"output_text","text":text}]})
+    }
+
+    fn observed(output: Vec<Value>, usage: Usage) -> InferenceOutcome {
+        InferenceOutcome::Completed { output, usage }
+    }
+
+    #[derive(Default)]
+    struct Connection {
+        calls: AtomicUsize,
+        failure: Option<AiError>,
+        cancel_after: bool,
+        denied: bool,
+    }
+    impl ConnectionPort<SyntheticContext> for Connection {
+        fn check<'a>(
+            &'a self,
+            context: &'a SyntheticContext,
+            model: &'a str,
+            cancel: &'a Cancellation,
+        ) -> PortFuture<'a, ConnectionSnapshot> {
+            Box::pin(async move {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                if self.cancel_after {
+                    cancel.request();
+                }
+                if let Some(error) = self.failure {
+                    return Err(error);
+                }
+                let mut snapshot = HealthyConnection.check(context, model, cancel).await?;
+                if self.denied {
+                    snapshot.permission = InferencePermission::Denied;
+                }
+                Ok(snapshot)
+            })
+        }
+    }
+
+    struct Inference {
+        reply: Mutex<Option<Result<InferenceOutcome, AiError>>>,
+        requests: Mutex<Vec<Value>>,
+        polls: AtomicUsize,
+        cancel_on_ready: bool,
+    }
+    impl Inference {
+        fn new(reply: Result<InferenceOutcome, AiError>) -> Self {
+            Self {
+                reply: Mutex::new(Some(reply)),
+                requests: Mutex::new(vec![]),
+                polls: AtomicUsize::new(0),
+                cancel_on_ready: false,
+            }
+        }
+    }
+    impl InferencePort<SyntheticContext> for Inference {
+        fn infer<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            request_id: &'a str,
+            request: &'a ResponsesRequest,
+            cancel: &'a Cancellation,
+        ) -> PortFuture<'a, InferenceOutcome> {
+            Box::pin(async move {
+                assert_eq!(request_id, "generated-selected-request");
+                let wire = serde_json::to_value(request).unwrap();
+                assert_eq!(wire["tools"], json!([]));
+                assert_eq!(wire["store"], false);
+                assert_eq!(wire["stream"], true);
+                self.requests.lock().unwrap().push(wire);
+                let mut pending = true;
+                std::future::poll_fn(|cx| {
+                    self.polls.fetch_add(1, Ordering::SeqCst);
+                    if pending {
+                        pending = false;
+                        cx.waker().wake_by_ref();
+                        return Poll::Pending;
+                    }
+                    if self.cancel_on_ready {
+                        cancel.request();
+                    }
+                    Poll::Ready(self.reply.lock().unwrap().take().unwrap())
+                })
+                .await
+            })
+        }
+    }
+
+    #[derive(Default)]
+    struct Meter {
+        observations: Mutex<Vec<Usage>>,
+        failures: AtomicUsize,
+        fail_on_observation: bool,
+        latched: AtomicBool,
+    }
+    impl UsagePort<SyntheticContext> for Meter {
+        fn observed(&self, _: &SyntheticContext, _: &str, usage: Usage) {
+            self.observations.lock().unwrap().push(usage);
+            if self.fail_on_observation {
+                self.latched.store(true, Ordering::SeqCst);
+            }
+        }
+        fn provider_failed(&self, _: &SyntheticContext, _: &str, _: &ProviderDiagnostic) {
+            self.failures.fetch_add(1, Ordering::SeqCst);
+        }
+        fn domain_observed(
+            &self,
+            _: &SyntheticContext,
+            _: &str,
+            _: &DomainDispatch,
+        ) -> Result<(), AiError> {
+            panic!("selected completion cannot observe a domain dispatch")
+        }
+    }
+
+    fn input() -> RunInput {
+        RunInput {
+            request_id: "generated-selected-request".into(),
+            prompt: "Review generated selected inputs only".into(),
+        }
+    }
+
+    // The bound proves Send; the first poll must actually suspend at inference.
+    fn pending_then_ready<F: Future + Send>(future: F) -> F::Output {
+        let mut future = pin!(future);
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(future.as_mut().poll(&mut context).is_pending());
+        match future.as_mut().poll(&mut context) {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("generated inference must resolve on its second poll"),
+        }
+    }
+
+    fn run(
+        admitted: &AdmittedSnapshot,
+        connection: &Connection,
+        inference: &Inference,
+        meter: &Meter,
+        cancel: &Cancellation,
+        limits: RunLimits,
+    ) -> SelectedRun {
+        let context = SyntheticContext {
+            workspace: "generated-workspace".into(),
+            home: "generated-home".into(),
+        };
+        // Neither unit peer implements a domain catalog or continuation port.
+        let runner = AiRunner {
+            connection,
+            inference,
+            catalog: &(),
+            usage: meter,
+            continuations: &(),
+        };
+        pending_then_ready(runner.run_selected(
+            &context,
+            "generated-model",
+            input(),
+            cancel,
+            limits,
+            admitted,
+        ))
+    }
+
+    fn measured() -> Usage {
+        Usage {
+            input_tokens: Some(3),
+            output_tokens: None,
+            total_tokens: Some(7),
+        }
+    }
+
+    #[test]
+    fn selected_one_pending_send_inference_keeps_original_without_domain_ports() {
+        let admitted = snapshot();
+        let output = vec![
+            json!({"type":"reasoning","encrypted_content":"generated-opaque"}),
+            message(&proposal(&admitted)),
+        ];
+        let pointer = output.as_ptr() as usize;
+        let original = observed(output, measured());
+        let expected = format!("{original:?}");
+        let inference = Inference::new(Ok(original));
+        let meter = Meter::default();
+        let connection = Connection::default();
+        let result = run(
+            &admitted,
+            &connection,
+            &inference,
+            &meter,
+            &Cancellation::default(),
+            RunLimits::default(),
+        );
+        assert_eq!(result.local, Ok(()));
+        assert_eq!(result.original_usage, Some(measured()));
+        assert_eq!(result.usage, measured());
+        assert_eq!(format!("{:?}", result.original.as_ref().unwrap()), expected);
+        let Some(InferenceOutcome::Completed { output, .. }) = result.original else {
+            panic!("original completed observation was lost");
+        };
+        assert_eq!(output.as_ptr() as usize, pointer);
+        assert_eq!(connection.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(inference.requests.lock().unwrap().len(), 1);
+        assert_eq!(inference.polls.load(Ordering::SeqCst), 2);
+        assert_eq!(*meter.observations.lock().unwrap(), vec![measured()]);
+    }
+
+    #[test]
+    fn selected_strict_decoder_preserves_refusal_malformed_ambiguity_and_tool_fences() {
+        let admitted = snapshot();
+        let good = message(&proposal(&admitted));
+        let cases = vec![
+            (vec![], CompletionRejection::InvalidEnvelope),
+            (vec![message("")], CompletionRejection::InvalidEnvelope),
+            (
+                vec![message("not JSON")],
+                CompletionRejection::Validation(SuggestionError::InvalidOutput),
+            ),
+            (
+                vec![
+                    json!({"type":"message","role":"assistant","status":"completed",
+                    "content":[{"type":"refusal","refusal":"Generated refusal"}]}),
+                ],
+                CompletionRejection::Refused,
+            ),
+            (
+                vec![good.clone(), good.clone()],
+                CompletionRejection::InvalidEnvelope,
+            ),
+            (
+                vec![json!({"type":"unknown","text":"Generated unknown"})],
+                CompletionRejection::InvalidEnvelope,
+            ),
+            (
+                vec![json!({"type":"function_call","namespace":"houseatlas",
+                    "call_id":"generated-call","name":"listRecords","arguments":"{}"})],
+                CompletionRejection::InvalidEnvelope,
+            ),
+            (
+                vec![json!({"type":"function_call","namespace":"other"}), good],
+                CompletionRejection::InvalidEnvelope,
+            ),
+        ];
+        for (output, rejection) in cases {
+            let original = observed(output, measured());
+            let before = format!("{original:?}");
+            let inference = Inference::new(Ok(original));
+            let meter = Meter::default();
+            let result = run(
+                &admitted,
+                &Connection::default(),
+                &inference,
+                &meter,
+                &Cancellation::default(),
+                RunLimits::default(),
+            );
+            assert_eq!(
+                result.local,
+                Err(SelectedRunRejection::Completion(rejection))
+            );
+            assert_eq!(format!("{:?}", result.original.unwrap()), before);
+            assert_eq!(result.original_usage, Some(measured()));
+            assert_eq!(result.usage, measured());
+            assert_eq!(*meter.observations.lock().unwrap(), vec![measured()]);
+            assert_eq!(inference.requests.lock().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn selected_runner_and_strict_completion_bounds_remain_distinct() {
+        let admitted = snapshot();
+        for (output, rejection) in [
+            (
+                vec![json!({"type":"reasoning","encrypted_content":"x".repeat(4 * 1024 * 1024)})],
+                SelectedRunRejection::Bounds(AiError::LimitReached),
+            ),
+            (
+                vec![json!({"type":"reasoning","encrypted_content":"x".repeat(1_048_576)})],
+                SelectedRunRejection::Completion(CompletionRejection::InvalidEnvelope),
+            ),
+            (
+                vec![message(&"x".repeat(65_537))],
+                SelectedRunRejection::Completion(CompletionRejection::InvalidEnvelope),
+            ),
+        ] {
+            let inference = Inference::new(Ok(observed(output, measured())));
+            let meter = Meter::default();
+            let result = run(
+                &admitted,
+                &Connection::default(),
+                &inference,
+                &meter,
+                &Cancellation::default(),
+                RunLimits::default(),
+            );
+            assert_eq!(result.local, Err(rejection));
+            assert!(result.original.is_some());
+            assert_eq!(result.original_usage, Some(measured()));
+            assert_eq!(*meter.observations.lock().unwrap(), vec![measured()]);
+        }
+    }
+
+    fn diagnostic() -> ProviderDiagnostic {
+        ProviderDiagnostic {
+            http_status: Some(503),
+            code: Some("generated-failure".into()),
+            parameter: None,
+            request_id: Some("generated-provider-request".into()),
+        }
+    }
+
+    #[test]
+    fn selected_noncompleted_observations_keep_variant_usage_and_accounting() {
+        let admitted = snapshot();
+        for (original, rejection, observed_count, failures) in [
+            (
+                InferenceOutcome::Cancelled { usage: measured() },
+                CompletionRejection::Cancelled,
+                1,
+                0,
+            ),
+            (
+                InferenceOutcome::Stopped { usage: measured() },
+                CompletionRejection::Stopped,
+                1,
+                0,
+            ),
+            (
+                InferenceOutcome::Failed {
+                    reason: AiError::UsageLimitReached,
+                    usage: measured(),
+                    diagnostic: diagnostic(),
+                },
+                CompletionRejection::Failed,
+                1,
+                1,
+            ),
+            (
+                InferenceOutcome::Unresolved {
+                    reason: AiError::ProviderUnavailable,
+                    usage: measured(),
+                    diagnostic: diagnostic(),
+                },
+                CompletionRejection::Unresolved,
+                0,
+                1,
+            ),
+        ] {
+            let before = format!("{original:?}");
+            let inference = Inference::new(Ok(original));
+            let meter = Meter::default();
+            let result = run(
+                &admitted,
+                &Connection::default(),
+                &inference,
+                &meter,
+                &Cancellation::default(),
+                RunLimits::default(),
+            );
+            assert_eq!(
+                result.local,
+                Err(SelectedRunRejection::Completion(rejection))
+            );
+            assert_eq!(format!("{:?}", result.original.unwrap()), before);
+            assert_eq!(result.original_usage, Some(measured()));
+            assert_eq!(result.usage, measured());
+            assert_eq!(meter.observations.lock().unwrap().len(), observed_count);
+            assert_eq!(meter.failures.load(Ordering::SeqCst), failures);
+        }
+    }
+
+    #[test]
+    fn selected_unknown_usage_and_void_meter_latch_do_not_invent_health_authority() {
+        let admitted = snapshot();
+        for usage in [Usage::default(), measured()] {
+            let inference =
+                Inference::new(Ok(observed(vec![message(&proposal(&admitted))], usage)));
+            let meter = Meter {
+                fail_on_observation: true,
+                ..Meter::default()
+            };
+            let result = run(
+                &admitted,
+                &Connection::default(),
+                &inference,
+                &meter,
+                &Cancellation::default(),
+                RunLimits::default(),
+            );
+            assert_eq!(result.local, Ok(()));
+            assert_eq!(result.original_usage, Some(usage));
+            assert_eq!(result.usage, usage);
+            assert_eq!(*meter.observations.lock().unwrap(), vec![usage]);
+            assert!(meter.latched.load(Ordering::SeqCst));
+        }
+    }
+
+    #[test]
+    fn selected_post_inference_cancellation_does_not_replace_the_original_terminal() {
+        let admitted = snapshot();
+        let original = observed(vec![message(&proposal(&admitted))], measured());
+        let before = format!("{original:?}");
+        let inference = Inference {
+            cancel_on_ready: true,
+            ..Inference::new(Ok(original))
+        };
+        let meter = Meter::default();
+        let result = run(
+            &admitted,
+            &Connection::default(),
+            &inference,
+            &meter,
+            &Cancellation::default(),
+            RunLimits::default(),
+        );
+        assert_eq!(result.local, Err(SelectedRunRejection::Cancelled));
+        assert_eq!(format!("{:?}", result.original.unwrap()), before);
+        assert_eq!(result.original_usage, Some(measured()));
+        assert_eq!(result.usage, measured());
+        assert_eq!(*meter.observations.lock().unwrap(), vec![measured()]);
+    }
+
+    #[test]
+    fn selected_inference_errors_remain_distinct_from_original_terminal_failures() {
+        let admitted = snapshot();
+        for error in [
+            AiError::ProviderUnavailable,
+            AiError::UsageLimitReached,
+            AiError::CancelRequested,
+        ] {
+            let inference = Inference::new(Err(error));
+            let meter = Meter::default();
+            let result = run(
+                &admitted,
+                &Connection::default(),
+                &inference,
+                &meter,
+                &Cancellation::default(),
+                RunLimits::default(),
+            );
+            let rejection = if error == AiError::ProviderUnavailable {
+                SelectedRunRejection::UnresolvedInference
+            } else {
+                SelectedRunRejection::Inference(error)
+            };
+            assert_eq!(result.local, Err(rejection));
+            assert!(result.original.is_none());
+            assert_eq!(result.original_usage, None);
+            assert_eq!(result.usage, Usage::default());
+            assert!(meter.observations.lock().unwrap().is_empty());
+            assert_eq!(meter.failures.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[test]
+    fn selected_pre_inference_cancellation_connection_and_input_failures_do_not_submit() {
+        let admitted = snapshot();
+        for mode in 0..10 {
+            let context = SyntheticContext {
+                workspace: "generated-workspace".into(),
+                home: "generated-home".into(),
+            };
+            let connection = Connection {
+                failure: (mode == 2).then_some(AiError::ProviderUnavailable),
+                cancel_after: mode == 1,
+                denied: mode == 9,
+                ..Connection::default()
+            };
+            let inference = Inference::new(Ok(observed(vec![], Usage::default())));
+            let meter = Meter::default();
+            let cancel = Cancellation::default();
+            if mode == 0 {
+                cancel.request();
+            }
+            let runner = AiRunner {
+                connection: &connection,
+                inference: &inference,
+                catalog: &(),
+                usage: &meter,
+                continuations: &(),
+            };
+            let mut input = input();
+            let mut limits = RunLimits::default();
+            match mode {
+                3 => input.prompt.clear(),
+                4 => input.prompt = "x".repeat(limits.max_prompt_bytes + 1),
+                5 => input.request_id = "x".repeat(129),
+                6 => limits.max_json_bytes = 16,
+                7 => limits.max_rounds = 0,
+                _ => {}
+            }
+            let result = ready(runner.run_selected(
+                &context,
+                if mode == 8 { "" } else { "generated-model" },
+                input,
+                &cancel,
+                limits,
+                &admitted,
+            ));
+            let expected = match mode {
+                0 | 1 => SelectedRunRejection::Cancelled,
+                2 => SelectedRunRejection::Connection(AiError::ProviderUnavailable),
+                6 => SelectedRunRejection::Bounds(AiError::LimitReached),
+                9 => SelectedRunRejection::Connection(AiError::ConnectionUnavailable),
+                _ => SelectedRunRejection::Input(AiError::InvalidInput),
+            };
+            assert_eq!(result.local, Err(expected));
+            assert!(result.original.is_none());
+            assert_eq!(result.original_usage, None);
+            assert_eq!(result.usage, Usage::default());
+            assert!(inference.requests.lock().unwrap().is_empty());
+            assert_eq!(inference.polls.load(Ordering::SeqCst), 0);
+            assert!(meter.observations.lock().unwrap().is_empty());
+            assert_eq!(meter.failures.load(Ordering::SeqCst), 0);
+        }
+    }
+}

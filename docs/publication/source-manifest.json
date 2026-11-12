@@ -776,8 +776,8 @@
     {
       "path": "backend/src/ai/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 32620,
-      "sha256": "891d66da696d5c44868fefcdcfa10e836b8e36a8035e21e195dedfc9a3f7dfe3",
+      "bytes": 53785,
+      "sha256": "b7d713e8e41bf792c54b2c1790670bf39dab803627573fb4c177bb35f8e07b50",
       "owner": "ai"
     },
     {
@@ -1161,8 +1161,8 @@
     {
       "path": "backend/src/ai/runner.rs",
       "mode": "100644",
-      "bytes": 15820,
-      "sha256": "143db87a3e04ebbbb3cf7381316967ab43f80460abfe0585b4075598a840cc67",
+      "bytes": 22077,
+      "sha256": "8740131d25187a84d1b5d8d118c579c6ac52891eb2ecefc3180a289c865c6bf6",
       "owner": "ai"
     },
     {

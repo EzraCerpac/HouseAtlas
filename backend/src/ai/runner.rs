@@ -7,6 +7,33 @@ use super::{
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
+/// Ephemeral observations only. No serialization, journal or disclosure authority.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "Selected host composition is deferred")
+)]
+pub(crate) struct SelectedRun {
+    pub original: Option<InferenceOutcome>,
+    pub original_usage: Option<Usage>,
+    pub usage: Usage,
+    pub local: Result<(), SelectedRunRejection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "Selected host composition is deferred")
+)]
+pub(crate) enum SelectedRunRejection {
+    Input(AiError),
+    Connection(AiError),
+    Inference(AiError),
+    UnresolvedInference,
+    Cancelled,
+    Bounds(AiError),
+    Completion(super::suggestions::CompletionRejection),
+}
+
 /// Local bounds, deliberately absent from unsupported SIWC request parameters.
 #[derive(Debug, Clone, Copy)]
 pub struct RunLimits {
@@ -107,6 +134,139 @@ pub struct AiRunner<'a, Conn, Infer, Catalog, Meter, Store> {
     pub continuations: &'a Store,
 }
 impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Meter, Store> {
+    /// One admitted inference, without consulting any catalog or continuation.
+    /// The snapshot supplies structural DATA only, not current source authority.
+    /// Strict projection is discarded: a successful local decision cannot release
+    /// a suggestion before the deferred original host/native-owner boundaries.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Selected host composition is deferred")
+    )]
+    pub(crate) async fn run_selected<C>(
+        &self,
+        context: &C,
+        model: &str,
+        input: RunInput,
+        cancel: &Cancellation,
+        limits: RunLimits,
+        admitted: &super::suggestions::AdmittedSnapshot,
+    ) -> SelectedRun
+    where
+        Conn: ConnectionPort<C>,
+        Infer: InferencePort<C>,
+        Meter: UsagePort<C>,
+    {
+        let mut original = None;
+        let mut original_usage = None;
+        let mut usage = Usage::default();
+        let local = async {
+            let limits = limits.validate().map_err(SelectedRunRejection::Input)?;
+            if input.prompt.trim().is_empty()
+                || input.prompt.len() > limits.max_prompt_bytes
+                || input.request_id.is_empty()
+                || input.request_id.len() > 128
+            {
+                return Err(SelectedRunRejection::Input(AiError::InvalidInput));
+            }
+            cancel
+                .checkpoint()
+                .map_err(|_| SelectedRunRejection::Cancelled)?;
+            let connection = self
+                .connection
+                .check(context, model, cancel)
+                .await
+                .map_err(SelectedRunRejection::Connection)?;
+            cancel
+                .checkpoint()
+                .map_err(|_| SelectedRunRejection::Cancelled)?;
+            if !connection.can_infer() {
+                return Err(SelectedRunRejection::Connection(
+                    AiError::ConnectionUnavailable,
+                ));
+            }
+            let history = vec![json!({ "role": "user", "content": input.prompt })];
+            limits
+                .bound(&history)
+                .map_err(SelectedRunRejection::Bounds)?;
+            let request =
+                ResponsesRequest::new(model, history, &[]).map_err(SelectedRunRejection::Input)?;
+            limits
+                .bound(&request)
+                .map_err(SelectedRunRejection::Bounds)?;
+            cancel
+                .checkpoint()
+                .map_err(|_| SelectedRunRejection::Cancelled)?;
+            let observed = match self
+                .inference
+                .infer(context, &input.request_id, &request, cancel)
+                .await
+            {
+                Ok(observed) => observed,
+                Err(reason) => {
+                    usage.accumulate(Usage::default(), true);
+                    return Err(if reason == AiError::ProviderUnavailable {
+                        SelectedRunRejection::UnresolvedInference
+                    } else {
+                        SelectedRunRejection::Inference(reason)
+                    });
+                }
+            };
+            let measured = match &observed {
+                InferenceOutcome::Completed { usage, .. }
+                | InferenceOutcome::Cancelled { usage }
+                | InferenceOutcome::Stopped { usage }
+                | InferenceOutcome::Failed { usage, .. }
+                | InferenceOutcome::Unresolved { usage, .. } => *usage,
+            };
+            // Match ordinary accounting distinctions before any local rejection.
+            match &observed {
+                InferenceOutcome::Unresolved { diagnostic, .. } => {
+                    self.usage
+                        .provider_failed(context, &input.request_id, diagnostic);
+                }
+                InferenceOutcome::Failed { diagnostic, .. } => {
+                    self.usage.observed(context, &input.request_id, measured);
+                    self.usage
+                        .provider_failed(context, &input.request_id, diagnostic);
+                }
+                _ => self.usage.observed(context, &input.request_id, measured),
+            }
+            original_usage = Some(measured);
+            usage.accumulate(measured, true);
+            original = Some(observed);
+            cancel
+                .checkpoint()
+                .map_err(|_| SelectedRunRejection::Cancelled)?;
+            let observed = original.as_ref().expect("original terminal was retained");
+            if let InferenceOutcome::Completed { output, .. } = observed {
+                // Existing runner sizing serializes transiently; no bytes persist.
+                limits.bound(output).map_err(SelectedRunRejection::Bounds)?;
+            }
+            // Reuse the sole strict decoder, including its tighter envelope and
+            // payload limits, refusal/tool/ambiguity rules and unknown handling.
+            // Empty inspection cannot turn retained metadata into original bytes.
+            super::suggestions::disclose_completed(
+                observed,
+                admitted,
+                admitted,
+                &Default::default(),
+            )
+            .review
+            .map(|_| ())
+            .map_err(SelectedRunRejection::Completion)?;
+            cancel
+                .checkpoint()
+                .map_err(|_| SelectedRunRejection::Cancelled)
+        }
+        .await;
+        SelectedRun {
+            original,
+            original_usage,
+            usage,
+            local,
+        }
+    }
+
     pub async fn run<C>(
         &self,
         context: &C,
