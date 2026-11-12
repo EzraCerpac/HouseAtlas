@@ -1,4 +1,5 @@
 import type { OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
+import type { HomeboxOriginalsPort } from '../src/lantern/homebox-originals/types';
 import { keepLibrary } from '../src/offline/library-preference';
 import { lazy, StrictMode, Suspense, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -189,7 +190,7 @@ function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
-const quantityChanged = () => { configureOutbox(); sourceDocuments.refresh(); houseAcquisition.refresh(); quantityEvents.dispatchEvent(new Event("changed")); };
+const quantityChanged = () => { configureOutbox(); sourceDocuments.refresh(); houseAcquisition.refresh(); liveCopies?.refreshHomeboxOriginals(); quantityEvents.dispatchEvent(new Event("changed")); };
 // Native browser support only; undefined sends no admission request and registers nothing.
 const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
@@ -369,6 +370,23 @@ const pinnedFiles = createPinnedFileClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// The additive verified-copy action loads its actual owner only when requested.
+// This local fence creates no source authority or ordinary-anchor interception.
+const homeboxOriginals: HomeboxOriginalsPort = {
+  async createReader(view, signal) {
+    const session = currentSession, generation = sessionGeneration, scope = currentQuantityScope;
+    const expiresAt = session?.expiresAt ?? '';
+    const current = () => session !== null && currentSession === session && sessionGeneration === generation
+      && scope !== null && currentQuantityScope === scope && currentReadyView === view && view.scope === scope
+      && session.expiresAt === expiresAt && Number.isFinite(Date.parse(expiresAt)) && Date.parse(expiresAt) > Date.now();
+    if (signal.aborted || !current()) return { status: signal.aborted ? 'aborted' : 'retired' };
+    try {
+      const owner = await getLiveCopyRetention();
+      if (signal.aborted || !current()) return { status: signal.aborted ? 'aborted' : 'retired' };
+      return owner.createHomeboxOriginalReader(view, pinnedFiles);
+    } catch { return { status: signal.aborted ? 'aborted' : current() ? 'unavailable' : 'retired' }; }
+  },
+};
 // The informational AI account read uses the same actual session allocation
 // and completed view scope; it is read only on an explicit refresh.
 const account = createAccountObservationClient({
@@ -816,6 +834,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} homeboxOriginals={homeboxOriginals} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
