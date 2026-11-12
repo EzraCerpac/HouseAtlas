@@ -334,7 +334,7 @@ export function createLiveCopyRetention(options: {
       return () => { outcomeListeners.delete(changed); unsubscribe(); };
     } } satisfies OfflineReadPort,
     storage: { status: owner.status, requestPersistence: owner.requestPersistence, clear: async () => {
-      generation++; actor = null; observed = null; return remember(await owner.clear());
+      generation++; actor = null; observed = null; refreshHomeboxOriginals(); return remember(await owner.clear());
     } },
     observe,
     lastResult: () => lastResult,

@@ -655,6 +655,52 @@ test('HomeBox storage survives UI close but original source/view predicates reac
   }
 });
 
+test('HomeBox clear synchronously withdraws reader/UI authority and cancels storage without replay', async () => {
+  const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+  const transaction = f.backend.transaction.bind(f.backend); let reached, resume, replacement;
+  const boundary = new Promise(resolve => { reached = resolve; });
+  const gate = new Promise(resolve => { resume = resolve; });
+  const viewer = new AbortController(), notifications = []; let originalWrites = 0, clearSettled = false;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    reader.subscribe(() => {
+      const current = reader.isCurrent(opened.frame), blob = reader.getBlob(opened.frame);
+      notifications.push({ current, blob }); if (!current) viewer.abort();
+    });
+    f.backend.transaction = (write, work) => transaction(write, async tx => {
+      if (write) { reached(); await gate; }
+      return work({ ...tx, put(table, key, value) {
+        if (table === 'metadata' && value.kind === 'homebox-document') originalWrites++;
+        return tx.put(table, key, value);
+      } });
+    });
+    const attempt = reader.retain(opened.frame).value;
+    assert.equal(reader.retain(opened.frame).value, attempt, 'one storage attempt before retirement');
+    await boundary;
+    const clearing = f.owner.storage.clear().then(result => { clearSettled = true; return result; });
+    assert.equal(clearSettled, false, 'durable clear is still behind the paused storage transaction');
+    assert(notifications.length > 0, 'private reader subscribers are notified in the clear call');
+    assert(notifications.every(row => !row.current && row.blob === null));
+    assert.equal(viewer.signal.aborted, true, 'viewer-facing signal is cancelled before clear settles');
+    assert.equal(reader.isCurrent(opened.frame), false); assert.equal(reader.getBlob(opened.frame), null);
+    assert.equal(reader.retain(opened.frame).status, 'retired');
+    assert.equal((await reader.open(ref(), signal())).status, 'retired');
+    resume();
+    assert.equal((await attempt.result).status, 'retired', 'late storage cannot publish success');
+    assert.equal((await clearing).status, 'ok', 'successful clear still completes');
+    assert.equal(originalWrites, 0, 'retired original never reaches a metadata publication');
+    assert.equal(f.backend.tables().get('metadata').size, 0); assert.equal(f.backend.tables().get('bytes').size, 0);
+    assert.equal(reader.getBlob(opened.frame), null); assert.equal(viewer.signal.aborted, true);
+    assert.equal((await attempt.reconcile(signal())).status, 'retired');
+    assert.equal((await f.owner.observe(f.session, () => f.state.session === f.session)).status, 'ok');
+    assert.equal((await f.owner.capture(f.state.view, signal())).status, 'ok');
+    replacement = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+    assert.deepEqual(await replacement.open(ref(), signal()), { status: 'spent', outcome: 'success' }, 'clear does not release a sent claim');
+    assert.equal(f.server.calls.length, 1, 'neither clear nor a replacement reader re-acquires');
+  } finally { resume(); replacement?.dispose(); reader.dispose(); f.owner.close(); }
+});
+
 test('HomeBox frame refuses over-limit hints, keeps unsupported bytes inert and observes replacement/expiry', async () => {
   const large = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '10485761' }]));
   try {
