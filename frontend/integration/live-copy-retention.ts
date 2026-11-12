@@ -235,6 +235,7 @@ export function createLiveCopyRetention(options: {
           ? entry.attachments.filter(a => a.kind === 'stored-file' && a.attachmentId === ref.attachmentId) : []);
         // A hint can refuse scheduling; it never admits received bytes.
         if (listed.some(a => {
+          if (a.kind !== 'stored-file') return false;
           if (a.byteSize === null || a.byteSize === undefined || !/^[0-9]+$/.test(a.byteSize)) return false;
           const digits = a.byteSize.replace(/^0+/, '') || '0';
           return digits.length > 8 || Number(digits) > 10_485_760;
