@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { test } from 'node:test';
+import { transformWithOxc } from 'vite';
 const dataModule = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 const ownerCode = stripTypeScriptTypes(readFileSync(new URL('../src/offline/live-copy-owner.ts', import.meta.url), 'utf8'));
 assert(!/^\s*import(?:\s|['"])/m.test(ownerCode));
@@ -228,6 +229,10 @@ const reader = await import(dataModule(readerCode));
 const { createLiveCopyRetention: createHomeboxRetention } = await import(dataModule(homeboxAdapterCode));
 const { fillOfflineHomeboxOriginals } = await import(dataModule(policyCode));
 const { validHomeboxPin } = await import(dataModule(ownerCode));
+const decimalModule = dataModule(stripTypeScriptTypes(readFileSync(new URL('../src/numeric/decimal.ts', import.meta.url), 'utf8')));
+const hintModule = dataModule(stripTypeScriptTypes(readFileSync(new URL('../src/offline/homebox-size-hints.ts', import.meta.url), 'utf8'))
+  .replace(/(['"])\.\.\/numeric\/decimal\1/g, JSON.stringify(decimalModule)));
+const { summarizeHomeboxSizeHints } = await import(hintModule);
 const pdf = new TextEncoder().encode('%PDF-1.7\ngenerated\0original');
 const pdfSha = createHash('sha256').update(pdf).digest('hex');
 const ref = (attachmentId = uuid(42), collectionId = 'generated-opaque-collection') => ({ source: 'homebox-attachment',
@@ -244,6 +249,146 @@ function homeboxView(attachments = [{ attachmentId: uuid(42), byteSize: String(p
       contentType: 'application/pdf', byteSize: row.byteSize ?? null, downloadHref: null, previewHref: null })),
   }] };
 }
+const hintView = tokens => homeboxView(tokens.map((byteSize, i) => ({ attachmentId: uuid(100 + i), byteSize })));
+test('HomeBox hint summary distinguishes exact zero, known over-limit hints and unknown metadata', () => {
+  assert.deepEqual(summarizeHomeboxSizeHints(hintView(['0', '4096', '10485761', null, 'malformed'])), {
+    files: 5, knownSizes: 3, unknownSizes: 2, hintBytes: 10_489_857, aboveAutomaticLimit: 1,
+  });
+  assert.deepEqual(summarizeHomeboxSizeHints(hintView([])), {
+    files: 0, knownSizes: 0, unknownSizes: 0, hintBytes: 0, aboveAutomaticLimit: 0,
+  });
+  assert.deepEqual(summarizeHomeboxSizeHints(hintView(['0'])), {
+    files: 1, knownSizes: 1, unknownSizes: 0, hintBytes: 0, aboveAutomaticLimit: 0,
+  });
+  assert.equal(summarizeHomeboxSizeHints(hintView(['10485760'])).aboveAutomaticLimit, 0);
+  const unknown = summarizeHomeboxSizeHints(hintView([undefined, null, '', '-1', '0.5', 'NaN', '9007199254740992']));
+  assert.equal(unknown.files, 7); assert.equal(unknown.knownSizes, 0); assert.equal(unknown.unknownSizes, 7);
+});
+test('HomeBox hint duplicates use numeric equality and sticky unknown/conflict independent of order', () => {
+  for (const tokens of [['4096', '4.096e3', '4096.0'], ['4096.0', '4.096e3', '4096']]) {
+    const data = homeboxView(tokens.map(byteSize => ({ attachmentId: uuid(42), byteSize })));
+    assert.deepEqual(summarizeHomeboxSizeHints(data), { files: 1, knownSizes: 1, unknownSizes: 0, hintBytes: 4096, aboveAutomaticLimit: 0 });
+  }
+  for (const tokens of [['4096', '4097', '4096'], ['4097', '4096', '4096'], ['4096', null, '4096'], [null, '4096', '4096']]) {
+    const data = hintView(['0', '4096', '10485761', null, 'malformed']);
+    data.entries[0].attachments.splice(1, 1, ...tokens.map(byteSize => ({ attachmentId: uuid(101), kind: 'stored-file', byteSize })));
+    assert.deepEqual(summarizeHomeboxSizeHints(data), { files: 5, knownSizes: 2, unknownSizes: 3, hintBytes: 10_485_761, aboveAutomaticLimit: 1 });
+  }
+});
+test('HomeBox hint identity is collision-safe, source-specific and excludes links and other sources', () => {
+  const data = hintView(['0', '4096', '10485761', null, 'malformed']);
+  const duplicate = structuredClone(data.entries[0]); data.entries.push(duplicate);
+  data.entries[0].attachments.push({ attachmentId: uuid(110), kind: 'external-link', byteSize: '99999' });
+  const other = structuredClone(duplicate); other.source.sourceKind = 'atlas-native'; data.entries.push(other);
+  assert.deepEqual(summarizeHomeboxSizeHints(data), { files: 5, knownSizes: 3, unknownSizes: 2, hintBytes: 10_489_857, aboveAutomaticLimit: 1 });
+  const separate = structuredClone(duplicate); separate.source.collectionId = 'different-opaque-collection';
+  separate.attachments = [separate.attachments[1]]; data.entries.push(separate);
+  assert.deepEqual(summarizeHomeboxSizeHints(data), { files: 6, knownSizes: 4, unknownSizes: 2, hintBytes: 10_493_953, aboveAutomaticLimit: 1 });
+  const a = homeboxView([{ attachmentId: uuid(42), byteSize: '1' }]).entries[0], b = structuredClone(a);
+  a.source.collectionId = 'a\nb'; a.source.externalId = 'c';
+  b.source.collectionId = 'a'; b.source.externalId = 'b\nc';
+  assert.equal(summarizeHomeboxSizeHints({ ...data, entries: [a, b] }).files, 2, 'tuple delimiters cannot merge distinct associations');
+  b.source = { ...a.source, sourceInstanceId: uuid(99) };
+  assert.equal(summarizeHomeboxSizeHints({ ...data, entries: [a, b] }).files, 2);
+});
+test('HomeBox hint sums refuse overflow without converting known file hints to unknown', () => {
+  for (const tokens of [['9007199254740991', '1'], ['1', '9007199254740991']]) {
+    assert.deepEqual(summarizeHomeboxSizeHints(hintView(tokens)), { files: 2, knownSizes: 2, unknownSizes: 0, hintBytes: null, aboveAutomaticLimit: 1 });
+  }
+  assert.equal(summarizeHomeboxSizeHints(hintView(['9007199254740990', '1'])).hintBytes, Number.MAX_SAFE_INTEGER);
+});
+
+// Actual Settings source with synthetic hook/JSX boundaries: no React mount, DOM or browser.
+const settingsRuntimeKey = Symbol.for('houseatlas.settings-hints.generated');
+const settingsHooks = dataModule(`
+const runtime = () => globalThis[Symbol.for('houseatlas.settings-hints.generated')];
+export const useState = initial => runtime().useState(initial);
+export const useEffect = (fn, deps) => runtime().useEffect(fn, deps);
+export const useSyncExternalStore = () => true;
+`);
+const settingsJSX = dataModule(`export const jsx = (type, props) => ({ type, props }); export const jsxs = jsx;`);
+const settingsPreference = dataModule(`export const keepLibrary = () => true; export const setKeepLibrary = () => { throw Error('Unexpected preference write'); }; export const subscribeKeepLibrary = () => () => {};`);
+const settingsPath = new URL('../src/offline/OfflineStorageSettings.tsx', import.meta.url);
+let settingsCode = (await transformWithOxc(readFileSync(settingsPath, 'utf8'), settingsPath.pathname,
+  { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false })).code;
+for (const [specifier, module] of Object.entries({ react: settingsHooks, 'react/jsx-runtime': settingsJSX,
+  '../numeric/decimal': decimalModule, './library-preference': settingsPreference, './homebox-size-hints': hintModule })) {
+  assert(settingsCode.includes(JSON.stringify(specifier)), `Missing Settings import ${specifier}`);
+  settingsCode = settingsCode.replaceAll(JSON.stringify(specifier), JSON.stringify(module));
+}
+assert(!/^\s*import.*from\s+["'](?!data:)/m.test(settingsCode));
+const { OfflineStorageSettings } = await import(dataModule(settingsCode));
+const settingsText = node => node == null || typeof node === 'boolean' ? '' : Array.isArray(node) ? node.map(settingsText).join('')
+  : typeof node === 'object' ? settingsText(node.props?.children) : String(node);
+function settingsHarness() {
+  const slots = [], effects = []; let stateIndex = 0, effectIndex = 0, pending = [];
+  const runtime = {
+    useState(initial) {
+      const index = stateIndex++;
+      if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
+      return [slots[index], update => { slots[index] = typeof update === 'function' ? update(slots[index]) : update; }];
+    },
+    useEffect(fn, deps) {
+      const index = effectIndex++, before = effects[index];
+      if (!before || deps.some((value, i) => value !== before.deps[i])) pending.push(() => {
+        before?.cleanup?.(); effects[index] = { deps, cleanup: fn() };
+      });
+    },
+    render(controls) { stateIndex = 0; effectIndex = 0; pending = []; globalThis[settingsRuntimeKey] = runtime; return settingsText(OfflineStorageSettings({ controls })); },
+    commit() { const work = pending; pending = []; for (const fn of work) fn(); },
+    close() { for (const effect of effects) effect.cleanup?.(); delete globalThis[settingsRuntimeKey]; },
+  };
+  return runtime;
+}
+function generatedSettingsControls() {
+  const requests = [], listeners = new Set();
+  const controls = { read: {
+    readLast(signal) { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+      requests.push({ signal, resolve, reject }); return promise; },
+    readCatalog: async () => ({ status: 'missing' }), readElectricalCatalog: async () => ({ status: 'missing' }),
+    subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+  }, storage: {
+    status: async () => ({ status: 'unavailable' }),
+    requestPersistence() { throw Error('Unexpected persistence request'); },
+  } };
+  return { controls, requests, listeners, refresh() { for (const fn of listeners) fn(); } };
+}
+const hintCopy = data => ({ status: 'ok', value: { handle: {}, snapshot: { data } } });
+const settleSettings = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+test('Settings hint coverage refuses replaced requests, owners, failures and cleanup without new reads', async () => {
+  const harness = settingsHarness(), a = generatedSettingsControls(), b = generatedSettingsControls();
+  const text = controls => harness.render(controls);
+  try {
+    assert.match(text(a.controls), /HomeBox size hints are unavailable/); harness.commit();
+    a.requests[0].resolve(hintCopy(hintView(['0']))); await settleSettings();
+    assert.match(text(a.controls), /Size hints: 0 bytes across 1 file; 0 sizes unknown/); harness.commit();
+    a.refresh(); assert(a.requests[0].signal.aborted);
+    assert.match(text(a.controls), /HomeBox size hints are unavailable/); harness.commit();
+    a.refresh(); assert(a.requests[1].signal.aborted);
+    a.requests[2].resolve(hintCopy(hintView(['8192']))); await settleSettings();
+    a.requests[1].resolve(hintCopy(hintView(['4096']))); await settleSettings();
+    assert.match(text(a.controls), /Size hints: 8192 bytes/); harness.commit();
+    a.refresh(); a.requests[3].reject(Error('Generated read failure')); await settleSettings();
+    assert.match(text(a.controls), /HomeBox size hints are unavailable/); harness.commit();
+    a.refresh(); a.requests[4].resolve({ status: 'retired' }); await settleSettings();
+    assert.match(text(a.controls), /HomeBox size hints are unavailable/); harness.commit();
+    a.refresh(); a.requests[5].resolve(hintCopy(hintView(['10485761']))); await settleSettings();
+    assert.match(text(a.controls), /10485761 bytes across 1 file; 0 sizes unknown. 1 above/); harness.commit();
+    assert.match(text(b.controls), /HomeBox size hints are unavailable/, 'new props hide the still-populated old owner before cleanup');
+    // Discard that uncommitted render, then exercise a pending old-owner result too.
+    assert.match(text(a.controls), /10485761 bytes/); harness.commit();
+    a.refresh(); const staleCallback = [...a.listeners][0];
+    assert.match(text(b.controls), /HomeBox size hints are unavailable/, 'new owner is hidden before effects clean up'); harness.commit();
+    assert(a.requests[6].signal.aborted); assert.equal(a.listeners.size, 0);
+    b.requests[0].resolve(hintCopy(hintView([]))); await settleSettings();
+    a.requests[6].resolve(hintCopy(hintView(['4096']))); await settleSettings();
+    assert.match(text(b.controls), /No HomeBox files listed in this held view/); harness.commit();
+    staleCallback(); assert.equal(a.requests.length, 7, 'late unsubscribed callback cannot start a read');
+    b.refresh(); harness.close(); assert(b.requests[1].signal.aborted);
+    b.requests[1].resolve(hintCopy(hintView(['4096']))); await settleSettings();
+    assert.equal(b.listeners.size, 0);
+  } finally { harness.close(); }
+});
 // Synthetic authenticated discovery port: installed-source DATA is selected
 // only from this generated view; it never grants the original transport access.
 function currentPinnedFiles(view, discover = null) {

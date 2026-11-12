@@ -369,6 +369,13 @@ try {
       return !!paragraph && paragraph.getClientRects().length > 0 && getComputedStyle(paragraph).visibility !== 'hidden'
         && !document.querySelector('[role="dialog"]').textContent.includes('HomeBox attachments require a connection.');
     })()`), true, 'Visible Settings copy must distinguish held HomeBox PDFs from missing-file downloads');
+    assert.equal(await evaluate(`(() => {
+      const paragraph = [...document.querySelectorAll('[role="dialog"] .setting-static')].find(node =>
+        node.textContent.includes('HomeBox files listed in this held view: 1.'));
+      return !!paragraph && paragraph.getClientRects().length > 0 && getComputedStyle(paragraph).visibility !== 'hidden'
+        && paragraph.textContent.includes('Size hints: ${seeded.pdf.length} bytes across 1 file; 0 sizes unknown. 0 above the 10 MiB automatic-download limit.')
+        && paragraph.textContent.includes('These are reported sizes, not bytes stored here. Full HomeBox library size is unknown.');
+    })()`), true, 'Visible Settings must show exact captured HomeBox size hints without a storage or completeness claim');
     // Opened on purpose from the live app (its link marks the tab session), the
     // same page keeps the full Saved view with Saved scope and shell removal.
     await evaluate(`sessionStorage.setItem('houseatlas.saved-entry.v1', '1')`);
