@@ -1,5 +1,31 @@
 # HouseAtlas
 
+## HomeBox same-observation reopening
+
+Reviewed donor history `444d66bf` then `bcaedb3f`, based on qualified main
+`aedc2d84`, extends the existing owner and source controls for the current page
+and actual sign-in allocation. Compatible readers join acquisition or reborrow
+one earlier observation; exact-held recovery verifies the full pin and bytes,
+with no fresh provider request or replay after missing/uncertain storage.
+Bulk-created work retains bulk cancellation; explicit-created storage survives
+ordinary UI close. There is no SAVE promotion or second storage attempt.
+
+Existing required `offline-electrical-copy.test.mjs` covers shared observations,
+exact-pin replacement, finite claims/readers/interests/resident admission,
+discovery/stream preparation, cancellation and unknown-work quarantine. Its
+automatic-fill control keeps B valid while corrupting A's association/epoch/scope
+and requires A to refuse. Existing `pinned-capture-read.mjs` adds synthetic-hook
+reopen checks; neither entry establishes mounted device or private-provider
+acceptance. Numeric source correspondence is not measured allocation peaks,
+browser/native memory accounting or an RSS bound. Controls are authored and
+UNRUN until exact-head hosted qualification.
+
+No new selection or command is added: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total),
+existing 180000 ms per-entry limits, workflow/trust pins and emitted startup
+raw/gzip gates remain. Original/store/fill limits and storage deadlines remain.
+Both primary issued-URL download actions are unchanged; ordinary opened-file
+retention, compound whole-library storage and device acceptance remain open.
+
 ## Additive HomeBox verified-copy foundation
 
 The optional `homeboxOriginals` port passes through Host/state by type only; the
