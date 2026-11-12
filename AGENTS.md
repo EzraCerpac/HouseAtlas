@@ -1,5 +1,14 @@
 # HouseAtlas
 
+Immutable Core read preparation narrows only existing HTTP read/admission
+parameters, closure bounds and necessary caller borrows from `&mut Core` to
+`&Core`. The same Core mutex guards, original authorization/release checks
+and inner Store/Access mutations remain. No root slot, generation, lease,
+capture, journal/status or release-gate behavior is added; this does not enforce
+replacement history or Send/native-owner lifetime. Existing commands,
+83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total), pins and limits remain.
+No local compiler/formatter/tests ran; exact-head hosted qualification is required.
+
 
 Selected native suggestion inputs expose a source-owned `disclose_completed`
 method: it borrows the original terminal outcome, projects against the private
