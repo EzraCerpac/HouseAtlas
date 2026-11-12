@@ -173,10 +173,14 @@ impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Mete
                 ));
             }
             let history = vec![json!({ "role": "user", "content": input.prompt })];
-            limits.bound(&history).map_err(SelectedRunRejection::Bounds)?;
-            let request = ResponsesRequest::new(model, history, &[])
-                .map_err(SelectedRunRejection::Input)?;
-            limits.bound(&request).map_err(SelectedRunRejection::Bounds)?;
+            limits
+                .bound(&history)
+                .map_err(SelectedRunRejection::Bounds)?;
+            let request =
+                ResponsesRequest::new(model, history, &[]).map_err(SelectedRunRejection::Input)?;
+            limits
+                .bound(&request)
+                .map_err(SelectedRunRejection::Bounds)?;
             cancel
                 .checkpoint()
                 .map_err(|_| SelectedRunRejection::Cancelled)?;

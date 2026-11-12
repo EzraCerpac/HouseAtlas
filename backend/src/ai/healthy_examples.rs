@@ -1106,11 +1106,16 @@ mod selected_terminal {
                 CompletionRejection::Validation(SuggestionError::InvalidOutput),
             ),
             (
-                vec![json!({"type":"message","role":"assistant","status":"completed",
-                    "content":[{"type":"refusal","refusal":"Generated refusal"}]})],
+                vec![
+                    json!({"type":"message","role":"assistant","status":"completed",
+                    "content":[{"type":"refusal","refusal":"Generated refusal"}]}),
+                ],
                 CompletionRejection::Refused,
             ),
-            (vec![good.clone(), good.clone()], CompletionRejection::InvalidEnvelope),
+            (
+                vec![good.clone(), good.clone()],
+                CompletionRejection::InvalidEnvelope,
+            ),
             (
                 vec![json!({"type":"unknown","text":"Generated unknown"})],
                 CompletionRejection::InvalidEnvelope,
@@ -1138,7 +1143,10 @@ mod selected_terminal {
                 &Cancellation::default(),
                 RunLimits::default(),
             );
-            assert_eq!(result.local, Err(SelectedRunRejection::Completion(rejection)));
+            assert_eq!(
+                result.local,
+                Err(SelectedRunRejection::Completion(rejection))
+            );
             assert_eq!(format!("{:?}", result.original.unwrap()), before);
             assert_eq!(result.original_usage, Some(measured()));
             assert_eq!(result.usage, measured());
@@ -1238,7 +1246,10 @@ mod selected_terminal {
                 &Cancellation::default(),
                 RunLimits::default(),
             );
-            assert_eq!(result.local, Err(SelectedRunRejection::Completion(rejection)));
+            assert_eq!(
+                result.local,
+                Err(SelectedRunRejection::Completion(rejection))
+            );
             assert_eq!(format!("{:?}", result.original.unwrap()), before);
             assert_eq!(result.original_usage, Some(measured()));
             assert_eq!(result.usage, measured());
@@ -1251,10 +1262,8 @@ mod selected_terminal {
     fn selected_unknown_usage_and_void_meter_latch_do_not_invent_health_authority() {
         let admitted = snapshot();
         for usage in [Usage::default(), measured()] {
-            let inference = Inference::new(Ok(observed(
-                vec![message(&proposal(&admitted))],
-                usage,
-            )));
+            let inference =
+                Inference::new(Ok(observed(vec![message(&proposal(&admitted))], usage)));
             let meter = Meter {
                 fail_on_observation: true,
                 ..Meter::default()
