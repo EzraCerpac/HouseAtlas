@@ -1,5 +1,20 @@
 # HouseAtlas
 
+HomeBox verified-copy foundation adds an optional type-only original-frame port
+through Host/state and a lazy live-host adapter. The separate preview action and
+automatic fill share private session/exact-association claims; sent success,
+refusal and unknown outcomes are not replayed. One memoized storage attempt uses
+the same immutable verified bytes and can outlive ordinary UI close, while actual
+binding retirement, expiry and explicit storage clear withdraw owned interests.
+Transaction currentness, exact-pin read-only uncertainty reconciliation, bounded
+UI URLs and inert saving preserve existing storage authority and limits.
+Both ordinary issued-URL anchors remain unchanged: their opened-file retention
+and compound whole-library/device acceptance are unfinished. Existing required
+`offline-electrical-copy.test.mjs` and `pinned-capture-read.mjs` carry generated
+owner and synthetic-hook action controls; these are authored and unrun locally,
+not a mounted UI/device result. All 83 SOURCE / 1 BUILD / 11 BROWSER selections
+(95 total), commands, deadlines, startup budgets, workflow and trust pins remain.
+
 Offline Settings displays exact HomeBox captured size hints separately from
 measured retained bytes and storage budget. Exact association identity, numeric
 deduplication, conflicting/unknown duplicates, overflow and unavailable/empty
