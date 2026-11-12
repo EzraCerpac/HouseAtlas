@@ -1441,6 +1441,13 @@ restart, recovery or complete #288/#289 acceptance. No commands, workflow, pins,
 limits, deadlines or frontend selections change (83 SOURCE / 1 BUILD / 11 BROWSER,
 95 total). Hosted exact-head results must establish execution separately.
 
+At #618 head `deaf78bc`, Ubuntu source job `131350772502` failed
+`cargo fmt --all --check`. Reviewed donor `4b62ca63` applies only its ten
+emitted layout hunks in the evidence control and identity helper; assertions
+are unchanged. The old backend job succeeded, but individual named execution
+is not inferred here. macOS's old cause remains independently unknown.
+The repaired composition is unrun until its own hosted qualification.
+
 The default-library lane also retains the three existing #533 cases in
 `backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, with prefix
 `transports::mcp::lifecycle::synthetic_contracts::`:
