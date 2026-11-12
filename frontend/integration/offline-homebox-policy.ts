@@ -69,7 +69,7 @@ export async function fillOfflineHomeboxOriginals(options: {
     if (reads >= HOMEBOX_AUTOMATIC_READS_PER_PASS) return { message: `${held} HomeBox ${held === 1 ? 'file' : 'files'} on this device; more remain for a later pass.`, complete: false };
     if (!sourceCurrent()) return stopped(signal.aborted ? 'aborted' : 'retired');
     reads++;
-    const result = await owner.retainHomeboxOriginal(ref, signal);
+    const result = await owner.retainHomeboxOriginal(ref, signal, sourceCurrent);
     if (result.status === 'ok') held++;
     else if (result.status === 'uncertain' || result.status === 'retired' || result.status === 'aborted') return stopped(result.status);
     else unavailable++;

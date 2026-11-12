@@ -1,10 +1,12 @@
 import { safeMediaUrl, safeWebUrl } from '../../app/model';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { PinnedFileAction } from './PinnedFileAction';
 import { Note, StorageTag } from './ui';
 import { fmtDateTime } from '../data/time';
+
+const HomeboxOriginalAction = lazy(() => import('./HomeboxOriginalAction').then(module => ({ default: module.HomeboxOriginalAction })));
 
 /** Each issued capability owns its failure state, including late image events. */
 function AuthorizedImagePreview({ href, title }: { href: string; title: string }) {
@@ -15,7 +17,7 @@ function AuthorizedImagePreview({ href, title }: { href: string; title: string }
 
 /** No drawn demo pages: only existing authorized, decoded preview capabilities. */
 export function RealPreview() {
-  const { state, dispatch, house, projection } = useStore();
+  const { state, dispatch, house, projection, actions } = useStore();
   if (state.dialog?.type !== 'preview') return null;
   const id = state.dialog.docId, doc = house.docs.find(d => d.id === id);
   const attachment = projection.attachments.get(id), entry = projection.entries.get(id);
@@ -39,6 +41,9 @@ export function RealPreview() {
         <div><dt>Retrieved</dt><dd>{entry ? fmtDateTime(entry.retrievedAt) : 'Unknown'}</dd></div>
       </dl>
         {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}
+        {attachment.kind === 'stored-file' && actions.homeboxOriginals && <Suspense fallback={null}>
+          <HomeboxOriginalAction key={id} docId={id} port={actions.homeboxOriginals} />
+        </Suspense>}
       </aside>
     </div>
   </Modal>;

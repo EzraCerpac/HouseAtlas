@@ -528,6 +528,172 @@ test('unknown HomeBox outcomes report uncertain, keep nothing and are not retrie
   } finally { f.owner.close(); }
 });
 
+test('explicit HomeBox frame saves and retains identical immutable bytes with one shared acquisition', async () => {
+  const f = await homeboxSetup();
+  const made = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view));
+  assert.equal(made.status, 'ok'); const reader = made.value;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    const blob = reader.getBlob(opened.frame); assert(blob instanceof Blob);
+    assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), pdf);
+    const buffer = new Uint8Array(await blob.arrayBuffer()); buffer.fill(0);
+    assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), pdf, 'caller cannot mutate the verified Blob');
+    const retained = reader.retain(opened.frame); assert.equal(retained.status, 'ok');
+    assert.equal(reader.retain(opened.frame).value, retained.value, 'one attempt per frame');
+    const result = await retained.value.result; assert.equal(result.status, 'ok');
+    const stored = await f.owner.read.readHomeboxDocument(await readCopy(f.owner), result.value, signal());
+    assert.equal(stored.status, 'ok'); assert.deepEqual(new Uint8Array(await stored.value.arrayBuffer()), pdf);
+    assert.equal(f.server.calls.length, 1);
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
+    assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    assert.equal(reader.getBlob({}), null); assert.equal(reader.retain({}).status, 'retired');
+    const foreign = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view));
+    assert.equal(foreign.status, 'ok'); assert.equal(foreign.value.getBlob(opened.frame), null); foreign.value.dispose();
+    reader.release(opened.frame); assert.equal(reader.getBlob(opened.frame), null);
+    assert.equal(reader.retain(opened.frame).status, 'retired'); assert.equal(f.server.calls.length, 1);
+  } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('explicit opens and automatic fill cannot duplicate in-flight, unknown or refused acquisitions', async () => {
+  let finish, started;
+  const gate = new Promise(resolve => { finish = resolve; }), sent = new Promise(resolve => { started = resolve; });
+  const f = await homeboxSetup(transport(async request => { started(); await gate; return { facts: facts(request) }; }));
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+  try {
+    const pending = reader.open(ref(), signal()); await sent;
+    assert.deepEqual(await reader.open(ref(), signal()), { status: 'busy' });
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
+    finish(); const opened = await pending; assert.equal(opened.status, 'ok');
+    reader.release(opened.frame); assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    assert.equal(f.server.calls.length, 1);
+  } finally { finish(); reader.dispose(); f.owner.close(); }
+  for (const [respond, outcome, first] of [
+    [() => { throw Error('Generated lost response'); }, 'unknown', 'unknown'],
+    [() => new Response('generated refusal', { status: 503 }), 'definitive-refusal', 'unavailable'],
+  ]) {
+    const g = await homeboxSetup(transport(respond));
+    const r = g.owner.createHomeboxOriginalReader(g.state.view, currentPinnedFiles(g.state.view)).value;
+    try {
+      assert.equal((await r.open(ref(), signal())).status, first);
+      assert.deepEqual(await r.open(ref(), signal()), { status: 'spent', outcome });
+      r.dispose();
+      const again = g.owner.createHomeboxOriginalReader(g.state.view, currentPinnedFiles(g.state.view)).value;
+      assert.deepEqual(await again.open(ref(), signal()), { status: 'spent', outcome }); again.dispose();
+      assert.equal(g.server.calls.length, 1);
+    } finally { r.dispose(); g.owner.close(); }
+  }
+});
+
+test('HomeBox quota failure leaves the same-byte save usable but never releases its sent claim', async () => {
+  const f = await homeboxSetup(), reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+  const transaction = f.backend.transaction.bind(f.backend);
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    f.backend.transaction = (write, work) => transaction(write, tx => work({ ...tx, put(table, key, value) {
+      if (table === 'bytes') throw Object.assign(Error('Generated quota'), { name: 'QuotaExceededError' });
+      return tx.put(table, key, value);
+    } }));
+    const attempt = reader.retain(opened.frame); assert.equal(attempt.status, 'ok');
+    assert.equal((await attempt.value.result).status, 'quota');
+    assert.deepEqual(new Uint8Array(await reader.getBlob(opened.frame).arrayBuffer()), pdf);
+    assert.deepEqual(await reader.open(ref(), signal()), { status: 'spent', outcome: 'success' });
+    assert.equal(f.server.calls.length, 1);
+  } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox unknown write reconciles exact observation and bytes, never an older association or missing row', async () => {
+  const f = await homeboxSetup(), reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+  const transaction = f.backend.transaction.bind(f.backend); let uncertain = true;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    f.backend.transaction = async (write, work) => {
+      let original = false;
+      const result = await transaction(write, tx => work({ ...tx, put(table, key, value) {
+        if (table === 'bytes') original = true; return tx.put(table, key, value);
+      } }));
+      if (original && uncertain) { uncertain = false; throw Object.assign(Error('Generated unknown acknowledgment'), { name: 'OfflineCommitUnknown' }); }
+      return result;
+    };
+    const attempt = reader.retain(opened.frame).value;
+    assert.equal((await attempt.result).status, 'uncertain');
+    const row = [...f.backend.tables().get('metadata')].find(([, row]) => row.kind === 'homebox-document');
+    const exact = structuredClone(row[1]);
+    f.backend.tables().get('metadata').set(row[0], { ...exact, pin: { ...exact.pin, observationId: uuid(99) } });
+    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unresolved' }, 'older observation is not this write');
+    f.backend.tables().get('metadata').delete(row[0]);
+    assert.deepEqual(await attempt.reconcile(signal()), { status: 'unresolved' }, 'missing does not prove rollback');
+    f.backend.tables().get('metadata').set(row[0], exact);
+    assert.equal((await attempt.reconcile(signal())).status, 'held');
+    assert.equal(f.server.calls.length, 1); assert.equal(reader.retain(opened.frame).value, attempt);
+    const bytes = f.backend.tables().get('bytes').get(row[0]); new Uint8Array(bytes)[0] ^= 1;
+    assert.equal((await attempt.reconcile(signal())).status, 'integrity');
+    assert.equal(reader.getBlob(opened.frame), null);
+  } finally { reader.dispose(); f.owner.close(); }
+});
+
+test('HomeBox storage survives UI close but original source/view predicates reach the actual transaction', async () => {
+  for (const retire of [false, true]) {
+    const f = await homeboxSetup(), sources = currentPinnedFiles(f.state.view);
+    const reader = f.owner.createHomeboxOriginalReader(f.state.view, sources).value;
+    const transaction = f.backend.transaction.bind(f.backend); let reached;
+    const boundary = new Promise(resolve => { reached = resolve; }); let resume;
+    const gate = new Promise(resolve => { resume = resolve; });
+    try {
+      const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+      const before = structuredClone(f.backend.tables());
+      f.backend.transaction = (write, work) => transaction(write, async tx => {
+        if (write) { reached(); await gate; } return work(tx);
+      });
+      const attempt = reader.retain(opened.frame).value; await boundary;
+      reader.dispose(); assert.equal(reader.getBlob(opened.frame), null);
+      if (retire) { sources.retire(); f.owner.refreshHomeboxOriginals(); }
+      resume(); const stored = await attempt.result;
+      if (retire) { assert.equal(stored.status, 'retired'); assert.deepEqual(f.backend.tables(), before); }
+      else { assert.equal(stored.status, 'ok'); assert.equal((await attempt.reconcile(signal())).status, 'held'); }
+      assert.equal(f.server.calls.length, 1);
+    } finally { resume(); reader.dispose(); f.owner.close(); }
+  }
+});
+
+test('HomeBox frame refuses over-limit hints, keeps unsupported bytes inert and observes replacement/expiry', async () => {
+  const large = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '10485761' }]));
+  try {
+    const r = large.owner.createHomeboxOriginalReader(large.state.view, currentPinnedFiles(large.state.view)).value;
+    assert.equal((await r.open(ref(), signal())).status, 'limit'); assert.equal(large.server.calls.length, 0); r.dispose();
+  } finally { large.owner.close(); }
+  const text = new TextEncoder().encode('generated inert bytes');
+  const f = await homeboxSetup(transport(request => ({ body: text, facts: facts(request, text, { contentType: 'text/html' }) })));
+  const r = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+  try {
+    const opened = await r.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    assert.equal(r.getBlob(opened.frame).type, 'application/octet-stream');
+    f.state = { ...f.state, view: { ...f.state.view } }; f.owner.refreshHomeboxOriginals();
+    assert.equal(r.getBlob(opened.frame), null); assert.equal(r.retain(opened.frame).status, 'retired');
+    f.state = { ...f.state, session: { ...f.session, expiresAt: '2000-01-01T00:00:00Z' } };
+    assert.equal(f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).status, 'retired');
+    assert.equal(f.server.calls.length, 1);
+  } finally { r.dispose(); f.owner.close(); }
+});
+
+test('HomeBox frame owns a timer for actual captured session expiry, not a producer lease', async () => {
+  const f = await homeboxSetup();
+  const realNow = Date.now, realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+  let now = realNow(), next = 0; const timers = new Map(); let reader;
+  try {
+    Date.now = () => now;
+    globalThis.setTimeout = callback => { const id = ++next; timers.set(id, callback); return id; };
+    globalThis.clearTimeout = id => timers.delete(id);
+    f.session.expiresAt = new Date(now + 1000).toISOString();
+    reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+    let notifications = 0; reader.subscribe(() => { notifications++; });
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok'); assert(reader.getBlob(opened.frame));
+    now += 1001;
+    for (const [id, callback] of [...timers]) { timers.delete(id); callback(); }
+    assert.equal(reader.getBlob(opened.frame), null); assert.equal(reader.retain(opened.frame).status, 'retired');
+    assert(notifications > 0); assert.equal(f.server.calls.length, 1);
+  } finally { reader?.dispose(); f.owner.close(); Date.now = realNow; globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear; }
+});
+
 test('session replacement during the read, withdrawn or re-associated attachments and account change retire HomeBox bytes', async () => {
   let f;
   const server = transport(request => { f.state = { ...f.state, session: { ...f.session } }; return { facts: facts(request) }; });
