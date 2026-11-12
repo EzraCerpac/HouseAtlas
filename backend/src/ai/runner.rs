@@ -8,7 +8,10 @@ use serde_json::{Value, json};
 use std::collections::HashSet;
 
 /// Ephemeral observations only. No serialization, journal or disclosure authority.
-#[cfg_attr(not(test), expect(dead_code, reason = "Selected host composition is deferred"))]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "Selected host composition is deferred")
+)]
 pub(crate) struct SelectedRun {
     pub original: Option<InferenceOutcome>,
     pub original_usage: Option<Usage>,
@@ -17,7 +20,10 @@ pub(crate) struct SelectedRun {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(not(test), expect(dead_code, reason = "Selected host composition is deferred"))]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "Selected host composition is deferred")
+)]
 pub(crate) enum SelectedRunRejection {
     Input(AiError),
     Connection(AiError),
@@ -132,7 +138,10 @@ impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Mete
     /// The snapshot supplies structural DATA only, not current source authority.
     /// Strict projection is discarded: a successful local decision cannot release
     /// a suggestion before the deferred original host/native-owner boundaries.
-    #[cfg_attr(not(test), expect(dead_code, reason = "Selected host composition is deferred"))]
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Selected host composition is deferred")
+    )]
     pub(crate) async fn run_selected<C>(
         &self,
         context: &C,
