@@ -107,8 +107,11 @@ impl<'a> Reader<'a> {
         let content = result["content"].as_array().ok_or("Missing MCP content")?;
         assert_eq!(content.len(), 1);
         assert_eq!(content[0]["type"], "text");
-        let text: Value =
-            serde_json::from_str(content[0]["text"].as_str().ok_or("Missing canonical text")?)?;
+        let text: Value = serde_json::from_str(
+            content[0]["text"]
+                .as_str()
+                .ok_or("Missing canonical text")?,
+        )?;
         assert!(result["structuredContent"].is_object());
         assert_eq!(text, result["structuredContent"]);
         Ok(text)
@@ -172,7 +175,9 @@ impl<'a> Reader<'a> {
         assert!(matches!(
             native,
             Err(StockError::InvalidContract)
-                | Err(StockError::Domain(crate::domain::DomainError::InvalidContract))
+                | Err(StockError::Domain(
+                    crate::domain::DomainError::InvalidContract
+                ))
         ));
         Ok(())
     }
@@ -183,7 +188,10 @@ impl<'a> Reader<'a> {
         assert!(result.get("structuredContent").is_none());
         assert_eq!(result["content"].as_array().unwrap().len(), 1);
         assert_eq!(result["content"][0]["type"], "text");
-        assert_eq!(result["content"][0]["text"], "not-found: Resource unavailable");
+        assert_eq!(
+            result["content"][0]["text"],
+            "not-found: Resource unavailable"
+        );
         // This is NativePrincipalPort's scope authorization refusal, not proof
         // that the list-cursor owner was invoked with a foreign scope.
         Ok(())
@@ -228,7 +236,12 @@ async fn cycle(fixture: &Fixture, previous_revision: u64, serial: u32) -> Result
         assert_eq!(outcome["data"]["auditIds"].as_array().unwrap().len(), 1);
         assert_eq!(
             outcome["data"]["records"],
-            json!([public_record(PRIMARY, revision, lifecycle, &payload(PRIMARY))])
+            json!([public_record(
+                PRIMARY,
+                revision,
+                lifecycle,
+                &payload(PRIMARY)
+            )])
         );
         steps.push((intent, outcome));
     }
@@ -568,7 +581,12 @@ async fn borrowed_evidence_list_cursor_fences_actor_session_query_scope_and_snap
     // A new MCP connection with the SAME Access issuance keeps its cursor.
     let mut reader = Reader::open(fixture.core(), viewer.clone()).await?;
     assert_eq!(
-        fixture.core().access.lock().unwrap().authenticated_session_binding(&viewer)?,
+        fixture
+            .core()
+            .access
+            .lock()
+            .unwrap()
+            .authenticated_session_binding(&viewer)?,
         original_binding
     );
     assert_eq!(reader.deterministic(&continuation).await?, second);
@@ -577,7 +595,12 @@ async fn borrowed_evidence_list_cursor_fences_actor_session_query_scope_and_snap
     let fresh = fixture.borrowed_read_principal("login")?;
     assert_eq!(fresh.actor_id(), viewer.actor_id());
     assert_ne!(
-        fixture.core().access.lock().unwrap().authenticated_session_binding(&fresh)?,
+        fixture
+            .core()
+            .access
+            .lock()
+            .unwrap()
+            .authenticated_session_binding(&fresh)?,
         original_binding
     );
     let mut fresh_reader = Reader::open(fixture.core(), fresh).await?;
@@ -699,7 +722,10 @@ async fn borrowed_evidence_history_cursor_preserves_actor_query_watermark_after_
     let fixture = fixture.reopen_existing()?;
     assert!(Arc::ptr_eq(&access, &fixture.core().access));
     assert_eq!(
-        access.lock().unwrap().authenticated_session_binding(&viewer)?,
+        access
+            .lock()
+            .unwrap()
+            .authenticated_session_binding(&viewer)?,
         original_binding
     );
     assert_eq!(facts(&fixture.database_path())?, committed);
@@ -726,7 +752,10 @@ async fn borrowed_evidence_history_cursor_preserves_actor_query_watermark_after_
     let fresh = fixture.borrowed_read_principal("login")?;
     assert_eq!(fresh.actor_id(), viewer.actor_id());
     assert_ne!(
-        access.lock().unwrap().authenticated_session_binding(&fresh)?,
+        access
+            .lock()
+            .unwrap()
+            .authenticated_session_binding(&fresh)?,
         original_binding
     );
     let mut fresh_reader = Reader::open(fixture.core(), fresh).await?;
@@ -744,7 +773,13 @@ async fn borrowed_evidence_history_cursor_preserves_actor_query_watermark_after_
     let mut other_reader = Reader::open(fixture.core(), other).await?;
     other_reader.invalid_cursor(&saved).await?;
     assert_eq!(
-        history_chain(&mut other_reader, request.clone(), request.clone(), &all_events).await?,
+        history_chain(
+            &mut other_reader,
+            request.clone(),
+            request.clone(),
+            &all_events
+        )
+        .await?,
         all_events
     );
     other_reader.close();
