@@ -364,7 +364,7 @@ pub(super) async fn events(
     }
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        let mut core = host
+        let core = host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -458,8 +458,7 @@ pub(super) async fn events(
             prior_principal: entry.principal.as_ref(),
         });
         let owner = retained.map_or(&initial_owner, |entry| &entry.owner);
-        let graph =
-            super::reads::retained_read_snapshot(&mut core, &host, principal, &storage_scope)?;
+        let graph = super::reads::retained_read_snapshot(&core, &host, principal, &storage_scope)?;
         if serde_json::to_vec(&graph)
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .len()
@@ -623,7 +622,7 @@ pub(super) async fn reconcile_intent(State(host): State<Host>, request: Request)
     let raw = super::intake::json(&bytes)?;
     tokio::task::spawn_blocking(move || {
         let _admitted = admitted;
-        let mut core = host
+        let core = host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -664,8 +663,7 @@ pub(super) async fn reconcile_intent(State(host): State<Host>, request: Request)
                 .map_err(access_error)?;
             (Box::new(RequestPrincipal::new(principal)), session)
         };
-        let graph =
-            super::reads::retained_read_snapshot(&mut core, &host, &principal, &storage_scope)?;
+        let graph = super::reads::retained_read_snapshot(&core, &host, &principal, &storage_scope)?;
         if serde_json::to_vec(&graph)
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .len()

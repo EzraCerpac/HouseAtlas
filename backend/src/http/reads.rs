@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 
 fn network_snapshot(
-    core: &mut Core,
+    core: &Core,
     host: &Host,
     p: &RequestPrincipal,
     scope: &s::Scope,
@@ -36,7 +36,7 @@ fn network_snapshot(
 /// Each event page seals its own current request; its cursor only correlates
 /// the prior allocation and fixed query. Exact-intent reads keep their request.
 pub(super) fn retained_read_snapshot(
-    core: &mut Core,
+    core: &Core,
     host: &Host,
     p: &RequestPrincipal,
     scope: &s::Scope,
@@ -45,7 +45,7 @@ pub(super) fn retained_read_snapshot(
 }
 
 fn source_snapshot(
-    core: &mut Core,
+    core: &Core,
     host: &Host,
     p: &RequestPrincipal,
     scope: &s::Scope,
@@ -55,7 +55,7 @@ fn source_snapshot(
 }
 
 pub(super) fn retained_pack_cut(
-    core: &mut Core,
+    core: &Core,
     host: &Host,
     p: &RequestPrincipal,
     scope: &s::Scope,
@@ -64,7 +64,7 @@ pub(super) fn retained_pack_cut(
 }
 
 fn source_snapshot_cut(
-    core: &mut Core,
+    core: &Core,
     host: &Host,
     p: &RequestPrincipal,
     scope: &s::Scope,

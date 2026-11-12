@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 101521,
-      "sha256": "cd47341da3532b2a9e5d753d41910cb541e595d3b559cdfac6148ff00b71832b",
+      "bytes": 102136,
+      "sha256": "a8262f60ef8ddf6d388b7522921ee68835653cabdc996103f95f1f217bfe5858",
       "owner": "core-integration"
     },
     {
@@ -2540,8 +2540,8 @@
     {
       "path": "backend/src/http/editing/mod.rs",
       "mode": "100644",
-      "bytes": 6258,
-      "sha256": "0dcb802aa925c76ce301462e73d595e4deb497847f485ee231c826b8d23c069e",
+      "bytes": 6254,
+      "sha256": "6f61915f3b9b17685a9bf3ff1cca378269ef8745ca388ae8d4bae5695c57ea1d",
       "owner": "core-integration"
     },
     {
@@ -2624,8 +2624,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 25171,
-      "sha256": "b7b9952bb1cd0a2e64a42a9f308cb6d4732b64a72cd355d2b8c821da2cf9500b",
+      "bytes": 25167,
+      "sha256": "769656dd9177dd800bf3d664c573b0a6fad9034e8a1fbc1fdf324cc660cacb47",
       "owner": "core-integration"
     },
     {
@@ -2666,15 +2666,15 @@
     {
       "path": "backend/src/http/offline_read_pack.rs",
       "mode": "100644",
-      "bytes": 45472,
-      "sha256": "991282abf7ad43d4e6e1780a789096254d1b5bd8dee9ecc6c69399e7555cf6df",
+      "bytes": 45456,
+      "sha256": "91ad577f4497f12d36c64361ebc54f405311782e3e8995018a0aa12707dd8a40",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/operation_events.rs",
       "mode": "100644",
-      "bytes": 29667,
-      "sha256": "5d856c59db1076cccec15e0a8f3ef83abac750a6ebfa63d4818d2ae591c56b2f",
+      "bytes": 29627,
+      "sha256": "1688356db2c0a30fe4f9ecdca7778957b938f4a1d99cc27d8dc3ec767eec962c",
       "owner": "core-integration"
     },
     {
@@ -2701,8 +2701,8 @@
     {
       "path": "backend/src/http/providers/homebox_reads.rs",
       "mode": "100644",
-      "bytes": 8280,
-      "sha256": "2aec943376f84bf18e6aa13bda880112deb9d7044d081d72e7b9dec3f33ca55f",
+      "bytes": 8276,
+      "sha256": "307955215665f1819e41c989c604c3c42454449baa3124018b76d49ffd8d9aa9",
       "owner": "core-integration"
     },
     {
@@ -2743,8 +2743,8 @@
     {
       "path": "backend/src/http/qualified_upload_plan.rs",
       "mode": "100644",
-      "bytes": 24563,
-      "sha256": "1c2cf539ead0012206b33e03c05ce30c490d85a0503b3ec00d625eb0e148cb70",
+      "bytes": 24543,
+      "sha256": "0553d01a9fdfa23282fd38afeef04609ef66a747502a57e809abb2c0bcdf1e69",
       "owner": "core-integration"
     },
     {
@@ -2792,15 +2792,15 @@
     {
       "path": "backend/src/http/read_authority.rs",
       "mode": "100644",
-      "bytes": 7615,
-      "sha256": "483a15c17431c4b290e4df31cb8b489345e948a50e0237345263cc4dbe0ce763",
+      "bytes": 7591,
+      "sha256": "147c685cecbe8046b20b2fed26d141ba42c1ddec1a82afaaaa39b5c3f976ff7c",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/reads.rs",
       "mode": "100644",
-      "bytes": 19176,
-      "sha256": "fec0fd0e16ee50967739f9fe93fab7ca51dca4ea7bc4255fddc8df0f766c3ced",
+      "bytes": 19156,
+      "sha256": "bba44c684111d80c888577327aed7342271a40adffb8e0f8347df9cf07df7184",
       "owner": "core-integration"
     },
     {
@@ -2876,8 +2876,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 16007,
-      "sha256": "b9094b0d954d6580fbd78a89549c1bba1c4c33750026488ccf6954c7395e5311",
+      "bytes": 15995,
+      "sha256": "c1d6f2ab394b135c50e99adc62227af2e37133abf5e387d3851dc3187bd157d7",
       "owner": "core-integration"
     },
     {
@@ -6614,8 +6614,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 329728,
-      "sha256": "a46b1b18489bb50927e4c2853698b3e21550336346973ece129f3e24c3212777",
+      "bytes": 330441,
+      "sha256": "0176147c6a3e5d80f9ca7dc5fba2379c107f68f4a29ff12271253b987e602a4a",
       "owner": "core-integration"
     },
     {
@@ -13516,8 +13516,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_canonical_upload_plan.rs",
       "mode": "100644",
-      "bytes": 11930,
-      "sha256": "e7620c300603fcb98a0e8b003160d364d648591e3aa075c80106d28d63f8e045",
+      "bytes": 11922,
+      "sha256": "e304fb45b82b60064c7197918d2c94b55e015416887aecdb36ab0deb9e2c57a6",
       "owner": "core-integration"
     },
     {
