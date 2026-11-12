@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 /// Invoke inside authorized_read, which owns request admission and the final
 /// original-principal release. Reading cache never starts a provider operation.
 pub(in crate::http) fn cached_partition(
-    core: &mut Core,
+    core: &Core,
     principal: &RequestPrincipal,
     home: &HomeSummary,
     source: &TrustedHomeBoxSource,
