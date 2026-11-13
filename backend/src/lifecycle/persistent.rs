@@ -2,6 +2,8 @@
 //! login/session receipt, provider, archive admission or recovery is created.
 use super::Failure;
 pub mod provider_reads;
+#[cfg(test)]
+mod receipt_identity_tests;
 use crate::{
     access as a,
     app::{Core, ReadAuthority, ServerRuntime, Store},
@@ -220,6 +222,22 @@ pub(super) struct State {
     pub(super) atlas_inode: u64,
 }
 
+impl State {
+    /// Persistent binding: format, configuration digest, schemas and database
+    /// inodes. The device fields record `st_dev` as observed when the receipt
+    /// was issued and are not compared, because the OS may renumber a volume
+    /// across boots (observed on macOS APFS). In-process descriptor/path
+    /// rechecks still compare device and inode.
+    pub(super) fn binds(&self, current: &Self) -> bool {
+        *self
+            == Self {
+                access_device: self.access_device,
+                atlas_device: self.atlas_device,
+                ..current.clone()
+            }
+    }
+}
+
 /// Offline only. The operator supplies every account/password/membership.
 /// Failure can leave incomplete private files; serve refuses missing state.
 pub fn initialize(config: &ServerConfig, provision_path: &Path) -> Result<(), Failure> {
@@ -419,12 +437,11 @@ fn reopen_selected(
             || state.configuration_digest != expected.configuration_digest
             || state.atlas_schema != storage::DATABASE_VERSION
             || state.access_schema != expected.access_schema
-            || state.access_device != expected.access_device
             || state.access_inode != expected.access_inode
         {
             return Err("Offline full selection requires the unchanged original access/configuration receipt".into());
         }
-    } else if state != expected {
+    } else if !state.binds(&expected) {
         return Err("Persistent deployment/state binding changed; no automatic adoption".into());
     }
     for database in [&access_path, &atlas_path] {
@@ -662,14 +679,10 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     }
     fs::rename(&pending_path, &path)?;
     sync(&lease.directory)?;
-    // Recheck only the exact native identities recorded by the original issuer.
+    // Recheck the native inodes recorded by the original issuer (see State::binds).
     let access = private_metadata(&config.data_directory.join("access.sqlite"))?;
     let atlas = private_metadata(&config.data_directory.join("atlas.sqlite"))?;
-    if access.dev() != state.access_device
-        || access.ino() != state.access_inode
-        || atlas.dev() != state.atlas_device
-        || atlas.ino() != state.atlas_inode
-    {
+    if access.ino() != state.access_inode || atlas.ino() != state.atlas_inode {
         return Err("Native database identity changed during rebind".into());
     }
     Ok(())

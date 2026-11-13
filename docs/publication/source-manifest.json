@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 108465,
-      "sha256": "b61ad8298d6683b2a1e9e2f1dabb6c6b0a0e0d2e01cc4ca963a32db829ca968d",
+      "bytes": 109318,
+      "sha256": "210e7acaa8f7d3e84ae2b777e1e0544291c6f5a11e136b945461c0b53d98dcec",
       "owner": "core-integration"
     },
     {
@@ -3009,8 +3009,8 @@
     {
       "path": "backend/src/lifecycle/ai_account.rs",
       "mode": "100644",
-      "bytes": 7817,
-      "sha256": "5f616e4132fb68da14bd4d268908b48ad75316b5d793573e053c77f7a3d7d617",
+      "bytes": 10222,
+      "sha256": "02fe7478b83433e98a9c02876cd0ca4f98b92027a162b4de0ba27df7cd61fb12",
       "owner": "core-integration"
     },
     {
@@ -3023,8 +3023,8 @@
     {
       "path": "backend/src/lifecycle/backup.rs",
       "mode": "100644",
-      "bytes": 21249,
-      "sha256": "5b4de02593a17ea7cc5d1d3b22fb3dbd404701f38814e74a4f1b749acd5838c8",
+      "bytes": 21255,
+      "sha256": "6c82b940a78e9a4520c292f81f9045744fb35ac23cd91939270d4017c5ba9695",
       "owner": "core-integration"
     },
     {
@@ -3058,8 +3058,8 @@
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 27721,
-      "sha256": "a2eba1f07802550f7152df850e67df71e2c177b94e7d1bca19b387f69dff78ca",
+      "bytes": 28229,
+      "sha256": "4f4ac9bdccb9960f115a6fd628883e893335902e98214b4a7759655867a66911",
       "owner": "core-integration"
     },
     {
@@ -3074,6 +3074,13 @@
       "mode": "100644",
       "bytes": 18574,
       "sha256": "6e002e2f96873bb668266cddc6d623ce3bbd66fef8be5b416b8436674a56825f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/persistent/receipt_identity_tests.rs",
+      "mode": "100644",
+      "bytes": 11026,
+      "sha256": "fa78a01015082a600122b1aac3b24d79baa1113286ac1af24b2736e885c0011d",
       "owner": "core-integration"
     },
     {
@@ -3184,8 +3191,8 @@
     {
       "path": "backend/src/lifecycle/receipt_compatibility.rs",
       "mode": "100644",
-      "bytes": 18804,
-      "sha256": "a5c093a1e4c98a1bd6fb27883f0c1f9274a5675a30d6fa3ded52d155bc2c098c",
+      "bytes": 19336,
+      "sha256": "f534494659824bf4150c51d60cbae125b9799f09391d71438ec2677fba829878",
       "owner": "core-integration"
     },
     {
@@ -6628,8 +6635,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 341333,
-      "sha256": "f243e994741c5097b07b0ba725f88115c91be34877f4a5d84850adbca37b1660",
+      "bytes": 342940,
+      "sha256": "67dd7a11a1b8645196b8e3ded619eb6d103b8f24b5c011bc938675babb2b2fb3",
       "owner": "core-integration"
     },
     {
@@ -6663,8 +6670,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 21458,
-      "sha256": "c6a46577bce253348eda437bdb82c243622c6058d2801a88b57dc7d8099dd832",
+      "bytes": 21575,
+      "sha256": "d334a662796def9d13b5ddd37d6425f4d3ba357a270dc52dca82817fc15676fa",
       "owner": "web"
     },
     {
@@ -7209,8 +7216,8 @@
     {
       "path": "docs/operations/persistent-server.md",
       "mode": "100644",
-      "bytes": 10082,
-      "sha256": "826c19be1b0c29d7f468d3541aaf3dcec9387bc3ee577f06cd5f962e2a734e38",
+      "bytes": 11872,
+      "sha256": "6c1c433fd5c349d7dee458fe315ccefdc1cd53dbf39f7973c7bf4da41730e795",
       "owner": "core-integration"
     },
     {
@@ -8189,8 +8196,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
       "mode": "100644",
-      "bytes": 17292,
-      "sha256": "598f5d92f09f7bf4be5340bf401f8cd90e92b33e469e1623e0a984f03df2ddf2",
+      "bytes": 17485,
+      "sha256": "228eff4440f0eeee85d5d05392b45ca76a811d1bf39eb7c9be6f0cda8720bbca",
       "owner": "web"
     },
     {
@@ -8266,8 +8273,8 @@
     {
       "path": "frontend/lantern-tests/example-files-healthy.mjs",
       "mode": "100644",
-      "bytes": 13340,
-      "sha256": "51fd7389280ccbfecdf393b07a202c4f4ee4645cceeb90731a555397a8ed30dd",
+      "bytes": 17579,
+      "sha256": "654e1ac196626b7c6b04db6b42f912df795739b8882c5df7f8042897a8e8f32f",
       "owner": "web"
     },
     {

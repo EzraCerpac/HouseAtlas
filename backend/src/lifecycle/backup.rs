@@ -402,7 +402,7 @@ impl SourceCut {
             atlas_device: atlas.metadata.dev(),
             atlas_inode: atlas.metadata.ino(),
         };
-        if state != expected {
+        if !state.binds(&expected) {
             return Err("Persistent backup state binding changed; no adoption".into());
         }
         let cut = Self {

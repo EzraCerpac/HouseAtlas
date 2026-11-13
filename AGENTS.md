@@ -1553,3 +1553,15 @@ admission/copy/bake are separately authored controls, not inferred pixel evidenc
 All new pixel controls are NOT RUN by this integration thread. Their added cost
 must pass the unchanged 180-second outer case and existing renderer assertions.
 No test selection, security flag, timeout, budget, release or activation changed.
+
+The default backend-library set also discovers the seven
+`lifecycle::persistent::receipt_identity_tests::` cases and one
+`lifecycle::ai_account::tests::` case. Fresh synthetic loopback-local state with
+a receipt reissued under other device numbers still reopens, backs up offline
+and rebinds origin. Same-device replacement of either database or swapped
+databases are refused by inode alone, and rollback refuses a legacy receipt
+upgraded after a renumber. One pure case checks the binding predicate; the
+AI-account case checks the same device tolerance and inode refusal for a selected
+generated SQLite file. Disposable private folders only; no listener, provider,
+real data or volume remount, so no actual reboot is observed. No workflow command
+or runner is added.
