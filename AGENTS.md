@@ -984,7 +984,7 @@ This is not mounted Viewer admission, process/session restart, recovery or full
 all 83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total) remain unchanged.
 
 Two additional #288 controls in `http::agents::mounted_evidence_controls` are
-authored and **UNRUN**, registered only with `#[cfg(test)]` for the unchanged
+registered only with `#[cfg(test)]` for the unchanged
 default backend-library command. Genuine generated Editor setup mutations use
 stock HTTP; the ordinary ReadOnly Host then serves mounted Editor evidence
 get/list/history reads and refuses an unadmitted mutation. A genuine Viewer
@@ -994,6 +994,14 @@ history-cursor and Access session/rate bookkeeping is outside that comparison.
 No whole-database immutability, mounted Viewer admission, browser/device or full
 #288/#289 acceptance is established. All existing selections, commands, limits,
 deadlines and trust pins remain unchanged; exact-head hosted execution is pending.
+
+At `b1d3f089`, backend job `131860016688` explicitly passed both mounted cases:
+389 passed, zero failed, 12 ignored and three filtered, in 340.17 seconds.
+Ubuntu source job `131860016629` failed `cargo fmt --all --check`; macOS source
+job `131860016711` also failed, but its cause remains independently unknown.
+Reviewed donor `840be37b` applies only the emitted test-file layout changes and
+optional trailing commas. This repaired source is **UNRUN** until its own hosted
+qualification; historical backend execution belongs only to `b1d3f089`.
 
 
 The same default-library selection includes
