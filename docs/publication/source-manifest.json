@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 107874,
-      "sha256": "52b2128df023a173a1dfb672cb2b29b62c0c6aa920a3f4d23bea9eb7988eda02",
+      "bytes": 108643,
+      "sha256": "8c4a53985075eef3ce57a753fdf000ff7064b2e6459d41f6b4e484cdc78d3e62",
       "owner": "core-integration"
     },
     {
@@ -3009,8 +3009,8 @@
     {
       "path": "backend/src/lifecycle/ai_account.rs",
       "mode": "100644",
-      "bytes": 7817,
-      "sha256": "5f616e4132fb68da14bd4d268908b48ad75316b5d793573e053c77f7a3d7d617",
+      "bytes": 10222,
+      "sha256": "02fe7478b83433e98a9c02876cd0ca4f98b92027a162b4de0ba27df7cd61fb12",
       "owner": "core-integration"
     },
     {
@@ -3023,8 +3023,8 @@
     {
       "path": "backend/src/lifecycle/backup.rs",
       "mode": "100644",
-      "bytes": 21249,
-      "sha256": "5b4de02593a17ea7cc5d1d3b22fb3dbd404701f38814e74a4f1b749acd5838c8",
+      "bytes": 21255,
+      "sha256": "6c82b940a78e9a4520c292f81f9045744fb35ac23cd91939270d4017c5ba9695",
       "owner": "core-integration"
     },
     {
@@ -3058,8 +3058,8 @@
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 27721,
-      "sha256": "a2eba1f07802550f7152df850e67df71e2c177b94e7d1bca19b387f69dff78ca",
+      "bytes": 28229,
+      "sha256": "4f4ac9bdccb9960f115a6fd628883e893335902e98214b4a7759655867a66911",
       "owner": "core-integration"
     },
     {
@@ -3074,6 +3074,13 @@
       "mode": "100644",
       "bytes": 18574,
       "sha256": "6e002e2f96873bb668266cddc6d623ce3bbd66fef8be5b416b8436674a56825f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/persistent/receipt_identity_tests.rs",
+      "mode": "100644",
+      "bytes": 11026,
+      "sha256": "fa78a01015082a600122b1aac3b24d79baa1113286ac1af24b2736e885c0011d",
       "owner": "core-integration"
     },
     {
@@ -3184,8 +3191,8 @@
     {
       "path": "backend/src/lifecycle/receipt_compatibility.rs",
       "mode": "100644",
-      "bytes": 18804,
-      "sha256": "a5c093a1e4c98a1bd6fb27883f0c1f9274a5675a30d6fa3ded52d155bc2c098c",
+      "bytes": 19336,
+      "sha256": "f534494659824bf4150c51d60cbae125b9799f09391d71438ec2677fba829878",
       "owner": "core-integration"
     },
     {
@@ -6628,8 +6635,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 338948,
-      "sha256": "f14d25ecbc178bf18b80e640123eee9d9f2960c0fc4d8a78792d6bea8d6f5c96",
+      "bytes": 340215,
+      "sha256": "ffc872c066e7d86cff2fe7f18e05f0c95c78133b0c0f0cceafbc77638eebac89",
       "owner": "core-integration"
     },
     {
@@ -7209,8 +7216,8 @@
     {
       "path": "docs/operations/persistent-server.md",
       "mode": "100644",
-      "bytes": 10082,
-      "sha256": "826c19be1b0c29d7f468d3541aaf3dcec9387bc3ee577f06cd5f962e2a734e38",
+      "bytes": 11872,
+      "sha256": "6c1c433fd5c349d7dee458fe315ccefdc1cd53dbf39f7973c7bf4da41730e795",
       "owner": "core-integration"
     },
     {

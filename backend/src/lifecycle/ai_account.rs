@@ -179,7 +179,9 @@ impl DatabaseCustody {
             || actual.nlink() != 1
             || actual.mode() & 0o777 != 0o600
             || actual.len() < 100
-            || actual.dev() != self.selected.device
+            // The selected device number is not compared: the OS may renumber a
+            // volume across boots (see persistent::State::binds). The descriptor
+            // and named path below must still share device and inode.
             || actual.ino() != self.selected.inode
             || named.file_type().is_symlink()
             || named.dev() != actual.dev()
@@ -208,4 +210,62 @@ impl DatabaseCustody {
 
 fn unavailable<E>(_: E) -> AiError {
     AiError::ConnectionUnavailable
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AiError, DatabaseCustody, DatabaseSelection};
+    use rusqlite::Connection;
+    use std::{
+        fs,
+        os::unix::fs::{MetadataExt, PermissionsExt},
+        path::{Path, PathBuf},
+    };
+
+    /// Generated rollback-journal SQLite file, private to the disposable root.
+    fn database(root: &Path, name: &str) -> PathBuf {
+        let path = root.join(name);
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE synthetic(value INTEGER); INSERT INTO synthetic VALUES (1);",
+            )
+            .unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        path
+    }
+
+    #[test]
+    fn selected_database_tolerates_renumbered_device_but_not_another_inode() {
+        let temporary = tempfile::Builder::new()
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let root = fs::canonicalize(temporary.path()).unwrap();
+        let path = database(&root, "journal.sqlite");
+        let original = fs::metadata(&path).unwrap();
+        let select = |device, inode| DatabaseSelection {
+            path: path.clone(),
+            device,
+            inode,
+        };
+        // A selection written before the volume was renumbered still opens.
+        let (db, custody) =
+            DatabaseCustody::open(select(original.dev() ^ 1, original.ino()), &root).unwrap();
+        custody.check().unwrap();
+        drop((db, custody));
+
+        // Same path and device, another inode: the selection is refused.
+        let replacement = database(&root, "replacement.sqlite");
+        fs::rename(&replacement, &path).unwrap();
+        let replaced = fs::metadata(&path).unwrap();
+        assert_eq!(replaced.dev(), original.dev());
+        assert_ne!(replaced.ino(), original.ino());
+        assert!(matches!(
+            DatabaseCustody::open(select(original.dev(), original.ino()), &root),
+            Err(AiError::ConnectionUnavailable)
+        ));
+        // Control: the same file passes when its actual inode is selected.
+        DatabaseCustody::open(select(original.dev(), replaced.ino()), &root).unwrap();
+    }
 }
