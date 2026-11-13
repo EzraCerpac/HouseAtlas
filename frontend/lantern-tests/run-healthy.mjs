@@ -91,6 +91,7 @@ for (const args of selected) {
   const ms = Math.round(performance.now() - started), ok = run.status === 0;
   results.push({ command: args.join(' '), ok, ms });
   console.log(`${ok ? 'PASS' : 'FAIL'} ${String(ms).padStart(6)} ms  node ${args.join(' ')}`);
+  if (ok) for (const line of run.stdout.split('\n')) if (line.startsWith('INFO ')) console.log('    ' + line);
   if (!ok) process.stdout.write((run.stdout + run.stderr).split('\n').slice(-25).map(line => '    ' + line).join('\n') + '\n');
 }
 const failed = results.filter(result => !result.ok);

@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 106533,
-      "sha256": "c0c65b5ef8c07605e8479e734c8c33ff646565603e8366e0a6aa964f72169fd2",
+      "bytes": 106782,
+      "sha256": "b4613c00f5cfd901aa2decc83671e7cd48b746ded8eab2726652ce98cbbed6c1",
       "owner": "core-integration"
     },
     {
@@ -6292,8 +6292,8 @@
     {
       "path": "docs/architecture/property-network-connections.md",
       "mode": "100644",
-      "bytes": 8880,
-      "sha256": "3b998fb5bb656680de04fd1b14598d940b8c721807b3983c959f95c38372b5bd",
+      "bytes": 8956,
+      "sha256": "414aecd864568c800b400872d05b349b280563b49921aa4ea7c753be13579514",
       "owner": "web"
     },
     {
@@ -6628,8 +6628,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 336905,
-      "sha256": "0d69a58f76ba7fe7dee3a9e8c57d9006c5344957f46d4914a126ec304f4d57de",
+      "bytes": 337306,
+      "sha256": "09966e887b82e4dd0bef41029b99056303ff1872702e93b6a5b00254ed14279c",
       "owner": "core-integration"
     },
     {
@@ -8399,8 +8399,8 @@
     {
       "path": "frontend/lantern-tests/network-trace-mounted/browser.mjs",
       "mode": "100644",
-      "bytes": 19905,
-      "sha256": "f58e1cb44736895d7eeb32f173cd8ea5090cf089dd59997792d3a0957ebf5403",
+      "bytes": 20189,
+      "sha256": "49fcc28514e06cb8d238657d1fcb5b2b61e84ab7c5b80d94d76f81bc40de8d88",
       "owner": "web"
     },
     {
@@ -8672,8 +8672,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6969,
-      "sha256": "9590f7c3fa7670641df24f8773c9e472ed101febcc347b0e9480d339a04a9e21",
+      "bytes": 7080,
+      "sha256": "0785a7567e793471840a5240f87dd586ff484354e71f9e760ba5174a79caf9d0",
       "owner": "web"
     },
     {
@@ -12375,8 +12375,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 65617,
-      "sha256": "525aa843615dd002447b70955c3f6141f0dde49e6465ce54c076819773b4a214",
+      "bytes": 65769,
+      "sha256": "702991c632f701c9b427544ab8c0d75ea1fea3269901b568a8f03f6b71fd3130",
       "owner": "core-integration"
     },
     {
