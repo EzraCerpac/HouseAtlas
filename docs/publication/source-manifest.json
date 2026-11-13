@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 106236,
-      "sha256": "2a4161c0578014ad5e87a214df7ad60aaf6e4c02c285aabdb584f30b3c676e7f",
+      "bytes": 107874,
+      "sha256": "52b2128df023a173a1dfb672cb2b29b62c0c6aa920a3f4d23bea9eb7988eda02",
       "owner": "core-integration"
     },
     {
@@ -2449,8 +2449,15 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 24272,
-      "sha256": "068dead197adacb9c4ced102d74b3909b51ff21c6e1f6f1d6e46eba2ee11c51f",
+      "bytes": 24316,
+      "sha256": "315754b1f94f8ba42665dfec57844179756a66c8ee618c9ad6346198ef36da8d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/agents/mounted_evidence_controls.rs",
+      "mode": "100644",
+      "bytes": 32182,
+      "sha256": "5bcca312e85ec69fed9c51ccb3093ec50a5a7c6c1a646c94c382360ac7ccd2a0",
       "owner": "core-integration"
     },
     {
@@ -6285,8 +6292,8 @@
     {
       "path": "docs/architecture/property-network-connections.md",
       "mode": "100644",
-      "bytes": 8880,
-      "sha256": "3b998fb5bb656680de04fd1b14598d940b8c721807b3983c959f95c38372b5bd",
+      "bytes": 8956,
+      "sha256": "414aecd864568c800b400872d05b349b280563b49921aa4ea7c753be13579514",
       "owner": "web"
     },
     {
@@ -6621,8 +6628,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 336632,
-      "sha256": "1c6a4816d376a6968e68615b7e35740b04b107a0b085951067354787154547dc",
+      "bytes": 338948,
+      "sha256": "f14d25ecbc178bf18b80e640123eee9d9f2960c0fc4d8a78792d6bea8d6f5c96",
       "owner": "core-integration"
     },
     {
@@ -8392,8 +8399,8 @@
     {
       "path": "frontend/lantern-tests/network-trace-mounted/browser.mjs",
       "mode": "100644",
-      "bytes": 19905,
-      "sha256": "f58e1cb44736895d7eeb32f173cd8ea5090cf089dd59997792d3a0957ebf5403",
+      "bytes": 20189,
+      "sha256": "49fcc28514e06cb8d238657d1fcb5b2b61e84ab7c5b80d94d76f81bc40de8d88",
       "owner": "web"
     },
     {
@@ -8665,8 +8672,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6969,
-      "sha256": "9590f7c3fa7670641df24f8773c9e472ed101febcc347b0e9480d339a04a9e21",
+      "bytes": 7080,
+      "sha256": "0785a7567e793471840a5240f87dd586ff484354e71f9e760ba5174a79caf9d0",
       "owner": "web"
     },
     {
@@ -12368,8 +12375,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 65617,
-      "sha256": "525aa843615dd002447b70955c3f6141f0dde49e6465ce54c076819773b4a214",
+      "bytes": 65769,
+      "sha256": "702991c632f701c9b427544ab8c0d75ea1fea3269901b568a8f03f6b71fd3130",
       "owner": "core-integration"
     },
     {

@@ -115,7 +115,7 @@ its graph is shown with the exact data it traced. It uses the admitted route for
 both the stage condition and the trace prop. `publishStageTrace` compares the
 graph key and data identity on withdrawal; it does not distinguish two owners
 sharing both identities. `NetworkGraph` publishes and withdraws in layout effects.
-The authored host controls and first-frame behavior remain unverified.
+The authored host controls remain unverified; the mounted host case requires the trace at the first animation callback and only logs elapsed time.
 
 The current host chooses the standalone graph only without a host lens; the
 lens graph is in the alternative portal. The combined runtime graph list

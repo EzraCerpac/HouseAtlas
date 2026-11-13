@@ -135,9 +135,12 @@ The source entry separates pure, static-markup and static-source controls.
 The mounted generated fixture builds both index.html and host.html, exercising
 standalone graph and actual UnifiedAtlas host/lens wiring, trace publication
 and retirement, chain/hop, Plan/3D and reduced-motion controls after settlement.
-These authored controls are unrun; they are not live-owner acceptance,
-first-frame retirement or elapsed-latency evidence. No local test/build/compiler,
-typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
+These authored controls are unrun; they are not live-owner acceptance
+or paint evidence. The host case requires the trace at the first animation
+callback after a trusted click, with unchanged read counters and no browser
+request; the input-to-DOM-observation time is logged as informational and
+asserted only to be finite and ordered, never as a 60 Hz or one-frame bound.
+No local test/build/compiler, typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
 required. Earlier 81/1/9 counts describe the prior candidate. Existing #552
 source/writer and ownership boundaries remain; no new workflow or authority.
 
@@ -997,6 +1000,26 @@ contents are compared, excluding expected history-cursor bookkeeping.
 This is not mounted Viewer admission, process/session restart, recovery or full
 #288/#289 acceptance. No workflow, command, selection, deadline or trust pin changes;
 all 83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total) remain unchanged.
+
+Two additional #288 controls in `http::agents::mounted_evidence_controls` are
+registered only with `#[cfg(test)]` for the unchanged
+default backend-library command. Genuine generated Editor setup mutations use
+stock HTTP; the ordinary ReadOnly Host then serves mounted Editor evidence
+get/list/history reads and refuses an unadmitted mutation. A genuine Viewer
+performs one stock HTTP evidence GET, then mounted MCP initialization is refused.
+Selected factual records/audits/commits are compared by content; legitimate
+history-cursor and Access session/rate bookkeeping is outside that comparison.
+No whole-database immutability, mounted Viewer admission, browser/device or full
+#288/#289 acceptance is established. All existing selections, commands, limits,
+deadlines and trust pins remain unchanged; exact-head hosted execution is pending.
+
+At `b1d3f089`, backend job `131860016688` explicitly passed both mounted cases:
+389 passed, zero failed, 12 ignored and three filtered, in 340.17 seconds.
+Ubuntu source job `131860016629` failed `cargo fmt --all --check`; macOS source
+job `131860016711` also failed, but its cause remains independently unknown.
+Reviewed donor `840be37b` applies only the emitted test-file layout changes and
+optional trailing commas. This repaired source is **UNRUN** until its own hosted
+qualification; historical backend execution belongs only to `b1d3f089`.
 
 
 The same default-library selection includes
