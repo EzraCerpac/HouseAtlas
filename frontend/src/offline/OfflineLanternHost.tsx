@@ -134,7 +134,7 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
       key={`${selection.generation}:${readingDocumentKey(reading.request)}`} owner={owner} selection={selection}
       reading={reading} onUnavailable={() => changePresentation(state => closeReadingDocument(state, selection.generation, readingDocumentKey(reading.request)))}
       onPosition={position => changePresentation(state => rememberReadingPosition(state, selection.generation, readingDocumentKey(reading.request), position))} />}
-    {settings && <Modal title="Settings" onClose={() => setSettings(false)}><div className="settings"><OfflineStorageSettings controls={owner} /><a className="btn" href="/saved/index.html" onClick={markSavedEntry}>Saved house copies</a></div></Modal>}
+    {settings && <Modal title="Settings" onClose={() => setSettings(false)}><div className="settings"><OfflineStorageSettings controls={owner} /><a className="btn" href="/saved/index.html" onClick={markSavedEntry}>Saved house copies</a><a className="btn" href="/example/index.html">Example house</a></div></Modal>}
   </div>;
 }
 
