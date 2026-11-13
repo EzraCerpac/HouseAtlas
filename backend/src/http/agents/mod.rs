@@ -7,6 +7,8 @@ mod errors;
 mod homebox_partition_catalog;
 pub mod mcp;
 pub(crate) mod mcp_transport;
+#[cfg(test)]
+mod mounted_evidence_controls;
 pub mod stock_dispatch;
 
 use super::{
