@@ -983,6 +983,18 @@ This is not mounted Viewer admission, process/session restart, recovery or full
 #288/#289 acceptance. No workflow, command, selection, deadline or trust pin changes;
 all 83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total) remain unchanged.
 
+Two additional #288 controls in `http::agents::mounted_evidence_controls` are
+authored and **UNRUN**, registered only with `#[cfg(test)]` for the unchanged
+default backend-library command. Genuine generated Editor setup mutations use
+stock HTTP; the ordinary ReadOnly Host then serves mounted Editor evidence
+get/list/history reads and refuses an unadmitted mutation. A genuine Viewer
+performs one stock HTTP evidence GET, then mounted MCP initialization is refused.
+Selected factual records/audits/commits are compared by content; legitimate
+history-cursor and Access session/rate bookkeeping is outside that comparison.
+No whole-database immutability, mounted Viewer admission, browser/device or full
+#288/#289 acceptance is established. All existing selections, commands, limits,
+deadlines and trust pins remain unchanged; exact-head hosted execution is pending.
+
 
 The same default-library selection includes
 `http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`.

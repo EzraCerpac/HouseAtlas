@@ -1,4 +1,4 @@
-//! Unapplied #288 draft pinned to main 632168283a85c046f7ae5c0aabb93486e64c34a2.
+//! Generated mounted HTTP evidence controls authored against main 632168283a85c046f7ae5c0aabb93486e64c34a2.
 //! Intended test-only home: http::agents::mounted_evidence_controls.
 //! Actual default Host/router/Access/StockService/SQLite; generated evidence only.
 //! No mounted Viewer admission, browser, listener, expiry, reopen or provider proof.
