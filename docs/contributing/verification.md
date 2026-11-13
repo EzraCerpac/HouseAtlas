@@ -1448,6 +1448,36 @@ are unchanged. The old backend job succeeded, but individual named execution
 is not inferred here. macOS's old cause remains independently unknown.
 The repaired composition is unrun until its own hosted qualification.
 
+Two additional authored cases under
+`http::agents::mounted_evidence_controls::` use the unchanged default
+backend-library discovery command:
+
+- `mounted_read_profile_evidence_family_matches_native_pages_and_admission`
+- `viewer_evidence_http_reads_do_not_create_mounted_mcp_authority`
+
+Genuine generated Editor setup mutations go through stock HTTP. The ordinary
+ReadOnly Host serves mounted Editor evidence get/list/history reads with native
+read parity, exact projections, null/Unicode payloads and original Editor
+audit/intent attribution. A schema-valid unadmitted mutation is refused without
+native mutation dispatch, followed by another admitted read. Separately, a genuine
+Viewer stock HTTP evidence GET succeeds and its mounted MCP initialization is
+refused. Selected factual records/audits/commits remain equal across reads;
+legitimate history-cursor and Access session/rate bookkeeping is excluded, so this
+is not whole-database immutability. No mounted Viewer admission, browser/device or
+complete #288/#289 acceptance follows. No workflow, dependency, command, selection,
+pin, limit or deadline changes; exact-head hosted qualification remains pending.
+
+Historical execution is pinned to `b1d3f089` in run `43417790715`, attempt 1:
+backend job `131860016688` explicitly reported both mounted cases `ok`, with
+389 passed, zero failed, 12 ignored and three filtered in 340.17 seconds.
+That run failed overall: Ubuntu source job `131860016629` failed
+`cargo fmt --all --check`, producing 36 retained diagnostic sections. The cause
+of macOS source job `131860016711` remains independently unknown. Reviewed donor
+`840be37b` applies only the matching layout changes and optional trailing commas
+in `mounted_evidence_controls.rs`, preserving assertions, names and all other
+tokens. This repaired candidate remains **UNRUN** pending exact-head hosted
+qualification. No local formatter, compiler or tests ran.
+
 The default-library lane also retains the three existing #533 cases in
 `backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, with prefix
 `transports::mcp::lifecycle::synthetic_contracts::`:

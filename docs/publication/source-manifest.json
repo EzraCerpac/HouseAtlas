@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 105144,
-      "sha256": "8c9c24663d5a546ccb1fc28e9905cf6183794848fea8a28e9b14609c314d5c9d",
+      "bytes": 106533,
+      "sha256": "c0c65b5ef8c07605e8479e734c8c33ff646565603e8366e0a6aa964f72169fd2",
       "owner": "core-integration"
     },
     {
@@ -2449,8 +2449,15 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 24272,
-      "sha256": "068dead197adacb9c4ced102d74b3909b51ff21c6e1f6f1d6e46eba2ee11c51f",
+      "bytes": 24316,
+      "sha256": "315754b1f94f8ba42665dfec57844179756a66c8ee618c9ad6346198ef36da8d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/agents/mounted_evidence_controls.rs",
+      "mode": "100644",
+      "bytes": 32182,
+      "sha256": "5bcca312e85ec69fed9c51ccb3093ec50a5a7c6c1a646c94c382360ac7ccd2a0",
       "owner": "core-integration"
     },
     {
@@ -6621,8 +6628,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 334990,
-      "sha256": "4af498645091db9d51c4e6949264a7f00161e73322c1a09db73c3d20e3ecdb66",
+      "bytes": 336905,
+      "sha256": "0d69a58f76ba7fe7dee3a9e8c57d9006c5344957f46d4914a126ec304f4d57de",
       "owner": "core-integration"
     },
     {
