@@ -3,9 +3,11 @@
  * building with floors, per floor and per room with a selectable part, named
  * and nested as the companion lists them. A room on several floors sits under
  * the floor of its first selectable part. The HomeBox copy is stale and its
- * source update times unknown. Every identifier is generated here. */
+ * source update times unknown; the reading lamp has one stored manual
+ * (./files). Every identifier is generated here. */
 import type { Entry, ReadyView } from '../src/app/types';
 import type { AtlasAction } from '../src/lantern/unified-atlas/scene';
+import { LAMP_MANUAL } from './files';
 
 export const EXAMPLE_LABEL = 'Synthetic example house';
 /** The example's own generated scope; no configured home uses it. */
@@ -21,7 +23,7 @@ const RETRIEVED = '2026-01-03T10:15:00Z';
 /** The parts of the generated companion the Home records are derived from. */
 export interface ExampleCompanion {
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
-  readonly buildings: readonly Readonly<{ buildingId: string; label: string; levelIds: readonly string[] }>[];
+  readonly buildings: readonly Readonly<{ buildingId: string; label: string; nativePlaceId: string | null; levelIds: readonly string[] }>[];
   readonly levels: readonly Readonly<{ levelId: string; buildingId: string; label: string }>[];
   readonly rooms: readonly Readonly<{ roomId: string; label: string; occurrenceIds: readonly string[] }>[];
   readonly occurrences: readonly Readonly<{ spaceOccurrenceId: string; levelId: string }>[];
@@ -68,7 +70,7 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
       entity: { id, name, description: '', entityType: { id: '00000000-0000-4000-8000-0000000e0902', name: category, isLocation: false },
         parent: { id: parent }, archived: false, quantity: null, manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
       kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null, retrievedAt: RETRIEVED,
-      aliases: [], mobility: 'unknown', attachments: [], maintenance: [], nativeLinks: [],
+      aliases: [], mobility: 'unknown', attachments: roomId === 'syn-room-living' ? [LAMP_MANUAL] : [], maintenance: [], nativeLinks: [],
       networkBound: false, networkStates: [], networkRelations: [],
     });
   }

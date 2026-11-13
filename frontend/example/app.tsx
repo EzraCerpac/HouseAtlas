@@ -1,6 +1,7 @@
 /** SYNTHETIC example house: the actual LanternHost and unified Atlas over
  * the generated fictional publication used by the capture fixtures, with Home
- * records derived from that same publication (./household). Every record,
+ * records derived from that same publication (./household) and fictional
+ * files for each file reader (./files). Every record,
  * label, identifier and coordinate is invented. Application reads are
  * in-page fakes; no session credentials, native transport, provider or
  * account are used. It never falls back to, or mixes with, a real Home.
@@ -20,6 +21,7 @@ import { createSyntheticDocumentServer } from '../lantern-tests/source-host-visu
 import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/synthetic-site';
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
 import { createExampleOverlays } from './synthetic-overlays';
+import { createExampleElectrical, createExampleHomeboxOriginals } from './files';
 import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart } from './household';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
@@ -55,7 +57,14 @@ async function example() {
         return start.length === 0 ? read : { ...read, start };
       } },
   };
-  return { view: exampleHomeView(generated.companion), models };
+  const view = exampleHomeView(generated.companion);
+  // Fictional files: the electrical drawing sits on the house building; the
+  // reading lamp's manual is a HomeBox-style original (./files).
+  const house = generated.companion.buildings.find(row => row.buildingId === 'syn-building-house');
+  if (!house?.nativePlaceId) throw new Error('Example house building is missing');
+  const electrical = await createExampleElectrical(view, { nativePlaceId: house.nativePlaceId, label: house.label });
+  const homeboxOriginals = await createExampleHomeboxOriginals(view, sourceDocuments);
+  return { view, models, topology: electrical.topology, electricalLibrary: electrical.port, homeboxOriginals };
 }
 
 // pagehide unmounts the tree, so its effects release the WebGL/WebGPU
@@ -67,9 +76,10 @@ function mount() {
   const current = createRoot(element);
   root = current;
   const render = (node: ReactNode) => { if (root === current) current.render(node); };
-  void example().then(({ view, models }) => render(<LanternHost view={view}
+  void example().then(({ view, models, topology, electricalLibrary, homeboxOriginals }) => render(<LanternHost view={view}
     actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
-    nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
+    nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} topology={topology}
+    sourceElectricalLibrary={electricalLibrary} homeboxOriginals={homeboxOriginals} />),
   error => render(<p role="alert">{error instanceof Error ? error.message : 'The example house could not start.'}</p>));
 }
 mount();
