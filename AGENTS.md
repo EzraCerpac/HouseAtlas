@@ -120,9 +120,12 @@ The source entry separates pure, static-markup and static-source controls.
 The mounted generated fixture builds both index.html and host.html, exercising
 standalone graph and actual UnifiedAtlas host/lens wiring, trace publication
 and retirement, chain/hop, Plan/3D and reduced-motion controls after settlement.
-These authored controls are unrun; they are not live-owner acceptance,
-first-frame retirement or elapsed-latency evidence. No local test/build/compiler,
-typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
+These authored controls are unrun; they are not live-owner acceptance
+or paint evidence. The host case requires the trace at the first animation
+callback after a trusted click, with unchanged read counters and no browser
+request; the input-to-DOM-observation time is logged as informational and
+asserted only to be finite and ordered, never as a 60 Hz or one-frame bound.
+No local test/build/compiler, typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
 required. Earlier 81/1/9 counts describe the prior candidate. Existing #552
 source/writer and ownership boundaries remain; no new workflow or authority.
 
