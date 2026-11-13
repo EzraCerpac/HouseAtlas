@@ -51,7 +51,7 @@ async function readJson(response: Response, limit: number, signal: AbortSignal):
   if (!reader) throw new TypeError('Response body missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
-  const chunks: Uint8Array[] = [];
+  const accumulator = new Uint8Array(limit);
   let length = 0;
   try {
     for (;;) {
@@ -59,16 +59,33 @@ async function readJson(response: Response, limit: number, signal: AbortSignal):
       const next = await reader.read();
       signal.throwIfAborted();
       if (next.done) break;
-      length += next.value.byteLength;
-      if (length > limit) throw new TypeError('Response exceeds bound');
-      chunks.push(next.value);
+      if (next.value.byteLength > limit - length) throw new TypeError('Response exceeds bound');
+      accumulator.set(next.value, length); length += next.value.byteLength;
     }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const bytes = accumulator.subarray(0, length);
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
+/** Discovery's 64 KiB body bounds parser payload. Admit its closed shape before decoder key arrays. */
+function admitDiscovery(value: unknown): void {
+  const fields = (v: unknown, allowed: readonly string[]) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v) || Object.getPrototypeOf(v) !== Object.prototype) throw new TypeError('Invalid discovery object');
+    let count = 0;
+    for (const key in v) {
+      if (!Object.prototype.hasOwnProperty.call(v, key) || ++count > allowed.length || !allowed.includes(key)) throw new TypeError('Invalid discovery fields');
+    }
+    if (count !== allowed.length) throw new TypeError('Invalid discovery fields');
+    return v as Record<string, unknown>;
+  };
+  const row = fields(value, ['schemaVersion', 'scope', 'revision', 'installedSources']);
+  fields(row.scope, ['workspaceId', 'homeId']);
+  if (!Array.isArray(row.installedSources) || row.installedSources.length > 64) throw new TypeError('Invalid discovery count');
+  for (const source of row.installedSources) {
+    const entry = fields(source, ['workspaceId', 'homeId', 'key']);
+    fields(entry.key, ['sourceInstanceId', 'collectionId', 'sourceKind', 'externalId']);
+  }
 }
 
 /** Local HomeBox file consumer. Discovery is informational, capture is one
@@ -200,6 +217,7 @@ export function createPinnedFileClient(options: PinnedFileClientOptions): Pinned
     const observed: Observed = { sent: false, status: null };
     try {
       const raw = await exchange(found, `${stockRoot(found.values)}/homebox-pinned-file-admission`, 65_536, signal, observed);
+      admitDiscovery(raw);
       const discovery = decodePinnedDiscovery(raw, found.values);
       if (!isCurrent(found)) throw new TypeError('Session or home changed');
       discoveries.set(discovery, found);

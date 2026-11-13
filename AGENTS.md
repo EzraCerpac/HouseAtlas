@@ -1,5 +1,20 @@
 # HouseAtlas
 
+HomeBox same-observation reopening joins or reborrows the exact earlier capture
+within one retention owner and actual page/sign-in allocation. Sent claims stay
+spent; missing local bytes do not trigger another provider acquisition. Reader
+handles share private immutable bytes and one storage attempt, while existing
+bulk cancellation and explicit storage continuation after UI close stay distinct.
+Exact-held reads recheck the full pin, epoch, scope and association; automatic
+status cannot follow another association's valid pin. Uncertain work remains
+quarantined without replay. Finite claims/readers/interests, one pipeline and
+two resident observations bound admitted application payload; source allocation
+accounting is not a measured peak, browser/native allocation or RSS guarantee.
+Existing owner and synthetic-hook controls are authored and UNRUN until hosted
+qualification. All 95 selections, commands, limits, deadlines and trust pins
+remain unchanged. Primary issued-URL downloads, ordinary-open integration,
+whole-library and device acceptance remain separate and unfinished.
+
 HomeBox verified-copy foundation adds an optional type-only original-frame port
 through Host/state and a lazy live-host adapter. The separate preview action and
 automatic fill share private session/exact-association claims; sent success,

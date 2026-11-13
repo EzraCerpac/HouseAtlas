@@ -92,7 +92,7 @@ export interface OfflineHomeboxPinV1 extends OfflineHomeboxAttachmentRefV1 {
 export type OfflineHomeboxAvailability =
   | Readonly<{ availability: 'held'; bytes: number; pin: OfflineHomeboxPinV1 }>
   | Readonly<{ availability: 'not-held' | 'failed-integrity'; bytes: number | null }>;
-export type OfflineFailure ='unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain';
+export type OfflineFailure ='unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain' | 'resource';
 export type OfflineResult<T> = Readonly<{ status: 'ok'; value: T }> | Readonly<{ status: OfflineFailure }>;
 /** Opaque local historical selection, with no live authorization. */
 export interface OfflineCopyHandle { readonly kind: 'stored-copy' }
@@ -124,7 +124,9 @@ export interface OfflineStoragePort {
 export type OfflineTable = 'control' | 'metadata' | 'bytes';
 export interface OfflineTransaction {
   get<T>(table: OfflineTable, key: string): Promise<T | undefined>;
-  list<T>(table: OfflineTable): Promise<readonly { readonly key: string; readonly value: T }[]>;
+  /** The visitor may await only transaction operations. No delivered row is retained by the adapter. */
+  scan(table: 'metadata' | 'control', maxRows: number,
+    visit: (key: string, value: unknown) => void | Promise<void>): Promise<void>;
   put(table: OfflineTable, key: string, value: unknown): Promise<void>;
   remove(table: OfflineTable, key: string): Promise<void>;
   empty(table: OfflineTable): Promise<void>;
