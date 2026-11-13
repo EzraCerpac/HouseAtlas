@@ -89,66 +89,106 @@ try {
   client.release(held); client.dispose(); library.release(frame); library.dispose();
 
   // Offline worker: exact table of the example's build files, served from its own cache.
-  const out = join(scratch, 'dist-example');
-  mkdirSync(join(out, 'assets'), { recursive: true });
-  const files = { 'index.html': '<!doctype html><title>Synthetic example house</title>', 'assets/app-a1.js': 'export {};', 'assets/app-a1.css': 'body{}' };
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(out, name), text);
-  const table = writeExampleWorker(out);
-  assert.deepEqual(table.map(row => row.path), ['/example/assets/app-a1.css', '/example/assets/app-a1.js', '/example/index.html']);
-  assert.throws(() => { writeFileSync(join(out, 'notes.txt'), 'x'); writeExampleWorker(out); }, /Unsupported example file/);
-  rmSync(join(out, 'notes.txt'));
-  writeExampleWorker(out);
-  const workerCode = readFileSync(join(out, 'service-worker.js'), 'utf8');
   const MIME = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8' };
   const origin = 'https://example-host.invalid';
-  async function scope({ served = files, preexisting = [] } = {}) {
-    const stores = new Map(preexisting.map(name => [name, new Map()])), handlers = {}, requests = [];
-    const network = { online: true };
-    const caches = {
-      async open(name) {
-        if (!stores.has(name)) stores.set(name, new Map());
-        const store = stores.get(name);
-        return { match: async url => store.get(String(url))?.clone(), put: async (url, response) => { store.set(String(url), response); } };
-      },
-      keys: async () => [...stores.keys()], delete: async name => stores.delete(name),
-    };
-    const fetch = async (input, init = {}) => {
-      const url = new URL(typeof input === 'string' ? input : input.url ?? String(input));
-      requests.push({ path: url.pathname + url.search, credentials: init.credentials });
-      if (!network.online) throw new TypeError('offline');
-      const name = url.pathname.replace('/example/', '');
-      if (url.origin !== origin || !(name in served)) return new Response(null, { status: 404 });
-      return new Response(served[name], { headers: { 'content-type': MIME[name.split('.').at(-1)] } });
-    };
-    const self = { location: new URL(origin), skipWaiting: async () => {}, clients: { claim: async () => {} },
+  const emit = (name, files) => {
+    const out = join(scratch, name);
+    mkdirSync(join(out, 'assets'), { recursive: true });
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(out, file), text);
+    return { out, table: writeExampleWorker(out), files };
+  };
+  const buildA = emit('build-a', { 'index.html': '<!doctype html><title>Synthetic example house A</title>',
+    'assets/app-a1.js': 'export {};', 'assets/viewer-a1.js': 'export const a = 1;', 'assets/app-a1.css': 'body{}' });
+  assert.deepEqual(buildA.table.map(row => row.path), ['/example/assets/app-a1.css', '/example/assets/app-a1.js', '/example/assets/viewer-a1.js', '/example/index.html']);
+  assert.throws(() => { writeFileSync(join(buildA.out, 'notes.txt'), 'x'); writeExampleWorker(buildA.out); }, /Unsupported example file/);
+  rmSync(join(buildA.out, 'notes.txt'));
+  writeExampleWorker(buildA.out);
+  const buildB = emit('build-b', { 'index.html': '<!doctype html><title>Synthetic example house B</title>',
+    'assets/app-b2.js': 'export {};', 'assets/viewer-b2.js': 'export const b = 2;' });
+  // One origin: shared Cache Storage and server; each worker has its own realm.
+  const world = { stores: new Map(['houseatlas-example-old', 'houseatlas-saved-public-keep'].map(name => [name, new Map()])),
+    served: buildA.files, server: 'ok', requests: [] };
+  const caches = {
+    async open(name) {
+      if (!world.stores.has(name)) world.stores.set(name, new Map());
+      const store = world.stores.get(name);
+      return { match: async url => store.get(String(url))?.clone(), put: async (url, response) => { store.set(String(url), response); } };
+    },
+    keys: async () => [...world.stores.keys()], delete: async name => world.stores.delete(name),
+  };
+  const fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === 'string' ? input : input.url ?? String(input));
+    world.requests.push({ path: url.pathname + url.search, credentials: init.credentials });
+    if (world.server === 'offline') throw new TypeError('offline');
+    if (world.server === '503') return new Response('Unavailable', { status: 503, headers: { 'content-type': 'text/html' } });
+    if (world.server === 'portal') return new Response(null, { status: 302, headers: { location: 'https://portal.invalid/' } });
+    const name = url.pathname.replace('/example/', '');
+    if (url.origin !== origin || !(name in world.served)) return new Response(null, { status: 404 });
+    return new Response(world.served[name], { headers: { 'content-type': MIME[name.split('.').at(-1)] } });
+  };
+  function worker(build, active) {
+    const handlers = {}, calls = { skipWaiting: 0, claim: 0 };
+    const self = { location: new URL(origin), registration: { active },
+      skipWaiting: async () => { calls.skipWaiting++; }, clients: { claim: async () => { calls.claim++; } },
       addEventListener: (type, handler) => { handlers[type] = handler; } };
-    new Function('self', 'caches', 'fetch', workerCode)(self, caches, fetch);
+    new Function('self', 'caches', 'fetch', readFileSync(join(build.out, 'service-worker.js'), 'utf8'))(self, caches, fetch);
     const lifecycle = async type => { let work; handlers[type]({ waitUntil: promise => { work = promise; } }); await work; };
     const request = (path, mode = 'no-cors') => {
       let response = null;
       handlers.fetch({ request: { method: 'GET', url: origin + path, mode }, respondWith: value => { response = value; } });
       return response;
     };
-    return { stores, requests, network, lifecycle, request };
+    return { self, calls, lifecycle, request };
   }
-  const worker = await scope({ preexisting: ['houseatlas-example-old', 'houseatlas-saved-public-keep'] });
-  await worker.lifecycle('install');
-  assert.ok(worker.requests.every(row => row.credentials === 'omit'), 'install reads public files without cookies');
-  await worker.lifecycle('activate');
-  const names = [...worker.stores.keys()];
-  assert.ok(names.includes('houseatlas-saved-public-keep') && !names.includes('houseatlas-example-old'), 'only older example caches are removed');
-  worker.network.online = false;
-  const entry = await worker.request('/example/index.html?building=syn-building-house&view=plan', 'navigate');
-  assert.equal(await entry.text(), files['index.html'], 'the entry opens offline with its starting-state query');
-  assert.equal(await (await worker.request('/example/assets/app-a1.js')).text(), files['assets/app-a1.js']);
+  const text = async response => (await response).text();
+  const exampleCaches = () => [...world.stores.keys()].filter(name => name.startsWith('houseatlas-example-'));
+
+  // First install takes control at once and removes only older example caches.
+  const workerA = worker(buildA, null);
+  await workerA.lifecycle('install');
+  assert.ok(world.requests.every(row => row.credentials === 'omit'), 'install reads public files without cookies');
+  assert.equal(workerA.calls.skipWaiting, 1, 'the first install takes over');
+  await workerA.lifecycle('activate');
+  assert.equal(workerA.calls.claim, 1);
+  assert.ok(world.stores.has('houseatlas-saved-public-keep') && !world.stores.has('houseatlas-example-old'), 'only older example caches are removed');
+  for (const server of ['offline', '503', 'portal']) {
+    world.server = server; const before = world.requests.length;
+    const entry = await workerA.request('/example/index.html?building=syn-building-house&view=plan', 'navigate');
+    assert.equal(entry.status, 200, `${server}: the held entry answers`);
+    assert.equal(await entry.text(), buildA.files['index.html'], `${server}: the entry opens with its starting-state query`);
+    assert.equal(await text(workerA.request('/example/assets/viewer-a1.js')), buildA.files['assets/viewer-a1.js']);
+    assert.equal(world.requests.length, before, `${server}: held files need no network read`);
+  }
+  world.server = 'ok';
   for (const [path, mode] of [['/api/atlas/view', 'cors'], ['/', 'navigate'], ['/saved/index.html', 'navigate'],
     ['/example/assets/app-a1.js', 'navigate'], ['/example/assets/app-a1.js?x=1', 'no-cors'], ['/example/other.html', 'navigate']])
-    assert.equal(worker.request(path, mode), null, `${path} (${mode}) is not intercepted`);
-  worker.network.online = true;
-  assert.equal(await (await worker.request('/example/index.html', 'navigate')).text(), files['index.html']);
+    assert.equal(workerA.request(path, mode), null, `${path} (${mode}) is not intercepted`);
+
+  // A new deploy installs beside the active build and waits: an open page of
+  // build A can still load A's not-yet-loaded viewer offline.
+  world.served = buildB.files;
+  const workerB = worker(buildB, workerA.self);
+  await workerB.lifecycle('install');
+  assert.equal(workerB.calls.skipWaiting, 0, 'an update does not take over open pages');
+  assert.equal(exampleCaches().length, 2);
+  world.server = 'offline';
+  assert.equal(await text(workerA.request('/example/assets/viewer-a1.js')), buildA.files['assets/viewer-a1.js']);
+  assert.equal(await text(workerA.request('/example/index.html', 'navigate')), buildA.files['index.html']);
+  // Once build A's pages have closed, build B activates, drops A's cache and serves only B.
+  await workerB.lifecycle('activate');
+  assert.equal(exampleCaches().length, 1);
+  assert.equal(await text(workerB.request('/example/index.html', 'navigate')), buildB.files['index.html']);
+  assert.equal(await text(workerB.request('/example/assets/viewer-b2.js')), buildB.files['assets/viewer-b2.js']);
+  assert.equal(workerB.request('/example/assets/viewer-a1.js'), null, 'build B does not serve build A files');
+  world.server = 'ok';
+
   // Changed bytes fail installation and leave no partial example cache.
-  const changed = await scope({ served: { ...files, 'assets/app-a1.js': 'export const changed = 1;' } });
+  world.served = { ...buildB.files, 'assets/viewer-b2.js': 'export const changed = 1;' };
+  const changedBuild = { ...buildB, out: buildB.out };
+  writeFileSync(join(buildB.out, 'service-worker.js'), readFileSync(join(buildB.out, 'service-worker.js'), 'utf8').replace(/const BUILD="[0-9a-f]+"/, 'const BUILD="changed"'));
+  const changed = worker(changedBuild, workerB.self);
   await assert.rejects(changed.lifecycle('install'), /Example file changed/);
-  assert.deepEqual([...changed.stores.keys()], []);
+  assert.ok(!world.stores.has('houseatlas-example-changed'));
+  assert.equal(exampleCaches().length, 1);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-console.log('PASS fictional example files: HomeBox original kept in memory, electrical drawing PDF, and /example/ offline worker (pure)');
+console.log('PASS fictional example files: HomeBox original kept in memory, electrical drawing PDF, and /example/ offline worker across two builds (pure)');

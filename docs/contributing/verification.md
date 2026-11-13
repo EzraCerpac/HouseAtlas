@@ -115,14 +115,21 @@ checks:
   building, lists one PDF document through the production Electrical Library
   reader, and its drawing bytes match the recorded SHA-256;
 - `build/example-offline-plugin.mjs` tables exactly the emitted example files,
-  refuses other file types, and the generated `/example/` worker, run in a
-  fake worker scope over temporary files, installs without cookies, removes
-  only older example caches, serves the entry (with its query) and built files
-  from its cache while offline, ignores API, root, Saved and unlisted paths,
-  and leaves no cache when a file's bytes differ from the table.
+  refuses other file types, and the generated `/example/` workers of two
+  builds, run in fake worker realms over one shared fake Cache Storage and
+  server, behave as follows: the first install reads without cookies, takes
+  over and removes only older example caches; the entry (with its query) and
+  built files come from its cache, with no network read, while offline, on an
+  HTTP 503 and on a captive-portal redirect; API, root, Saved and unlisted
+  paths are ignored; a second build's update does not take over, so the first
+  build still serves its not-yet-loaded files offline, and once activated it
+  removes the first build's cache and serves only its own files; changed bytes
+  leave no partial cache.
 
-It does not establish browser service-worker behavior, iPhone or Mac PWA
-behavior, the Saved shell's stored copies or any real household file.
+It checks reader results and the worker in a fake realm, not mounted PDF
+rendering or real browser offline behavior. It does not establish browser
+service-worker behavior, iPhone or Mac PWA behavior, the Saved shell's stored
+copies or any real household file.
 
 ## Mounted stored Atlas dialog currentness
 

@@ -6628,8 +6628,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 340874,
-      "sha256": "aae66cd109d4e4155c0e477486c6e583192315f7121e362b79dbaa02f9ed3a19",
+      "bytes": 341333,
+      "sha256": "f243e994741c5097b07b0ba725f88115c91be34877f4a5d84850adbca37b1660",
       "owner": "core-integration"
     },
     {
@@ -6663,8 +6663,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 21038,
-      "sha256": "55db9a7c8b2460b136c07e92b7eb93e2cbd41f708e4031239fc0e21aa27f02cc",
+      "bytes": 21458,
+      "sha256": "c6a46577bce253348eda437bdb82c243622c6058d2801a88b57dc7d8099dd832",
       "owner": "web"
     },
     {
@@ -7545,8 +7545,8 @@
     {
       "path": "frontend/build/example-offline-worker-source.js",
       "mode": "100644",
-      "bytes": 3172,
-      "sha256": "545a0f241f7a7e92b6c5d3cbfcb19ab9c775b7cd990bb14dad8282ee70ca7420",
+      "bytes": 3112,
+      "sha256": "0d5afd247a74f8f6d8640afe0fb01ab8c7609080d0537324ff02724169e4547c",
       "owner": "web"
     },
     {
@@ -8266,8 +8266,8 @@
     {
       "path": "frontend/lantern-tests/example-files-healthy.mjs",
       "mode": "100644",
-      "bytes": 10548,
-      "sha256": "7a393ed23187d25aaecd6ecf7abab40eedd2daba722ea18b83b8ecbeed484e4d",
+      "bytes": 13340,
+      "sha256": "51fd7389280ccbfecdf393b07a202c4f4ee4645cceeb90731a555397a8ed30dd",
       "owner": "web"
     },
     {

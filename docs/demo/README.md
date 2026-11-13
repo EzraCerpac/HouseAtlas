@@ -114,9 +114,13 @@ Safari keep separate storage, so load the example once online in each.
 
 The example worker caches only `/example/` files under its own
 `houseatlas-example-` cache name and removes only its own earlier caches.
-Its entry prefers the network and falls back to the held copy after two
-seconds; built files come from the held copy. The app's own service workers,
-precache and Saved copies are unchanged and list nothing from the example.
+The entry and its built files always come from the held copy of the
+worker's own build, so a server error or captive-portal answer never replaces
+it. A new deploy installs as a worker update that takes over only after every
+open example page has closed; until then those pages keep their own build,
+including files they have not loaded yet. On iPhone, close the installed app
+fully to pick up a new example build. The app's own service workers, precache
+and Saved copies are unchanged and list nothing from the example.
 
 ### Documents in the example
 
@@ -267,6 +271,8 @@ inventory editing, live HomeBox or Network sources, native documents or sign-in.
 The example's files and its offline worker are checked without a browser by
 `frontend/lantern-tests/example-files-healthy.mjs` (production readers, an
 in-memory copy store and a fake worker scope); the capture does not open them.
+That test checks reader results and the worker in a fake realm, not mounted PDF
+rendering or real browser offline behavior.
 The example supplies no geometry metadata source, and its topology client
 lists only the house building (for the Electrical Library) with no members;
 the corresponding geometry-metadata warning remains visible.
