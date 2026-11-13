@@ -447,6 +447,13 @@ pub fn rollback(selection: &Selection) -> Result<Report, Failure> {
     if old != expected_old {
         return Err("Legacy backup differs beyond its original digest".into());
     }
+    // `validate` tolerates renumbered devices, but the legacy binary compares
+    // them exactly; never restore a receipt that binary would refuse.
+    let access = persistent::private_metadata(&config.data_directory.join("access.sqlite"))?;
+    let atlas = persistent::private_metadata(&config.data_directory.join("atlas.sqlite"))?;
+    if (old.access_device, old.atlas_device) != (access.dev(), atlas.dev()) {
+        return Err("Legacy receipt device numbers differ from the current databases; the legacy binary would refuse it, so rollback is unavailable".into());
+    }
     let cut: Compatibility = serde_json::from_slice(&read_selected_file(
         &config.data_directory.join(&record),
         RECEIPT_LIMIT,

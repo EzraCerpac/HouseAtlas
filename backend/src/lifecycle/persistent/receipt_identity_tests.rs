@@ -1,9 +1,17 @@
 //! Disposable synthetic state only. A receipt issued under another `st_dev`
 //! numbering (as after a macOS reboot) still reopens, backs up and rebinds;
-//! a replaced or swapped database is still refused.
+//! a replaced or swapped database is refused by inode alone, and rollback
+//! never restores a legacy receipt with stale device numbers.
 use super::{State, initialize_without_password, rebind_origin, reopen};
-use crate::{config::server::ServerConfig, lifecycle::backup};
+use crate::{
+    config::server::ServerConfig,
+    lifecycle::{
+        backup,
+        receipt_compatibility::{self, Selection},
+    },
+};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::Write,
@@ -174,22 +182,37 @@ fn renumbered_device_still_allows_offline_backup() {
     assert!(destination.join("manifest.json").is_file());
 }
 
-#[test]
-fn replaced_database_is_refused_after_renumbering() {
-    let fixture = Fixture::new();
-    fixture.renumber_receipt();
-    // Same bytes, same directory and device, new inode: still a replacement.
-    let atlas = fixture.data("atlas.sqlite");
-    let before = fs::metadata(&atlas).unwrap().ino();
-    replace_private(&atlas, &fs::read(&atlas).unwrap());
-    assert_ne!(fs::metadata(&atlas).unwrap().ino(), before);
-    assert_eq!(error(reopen(&fixture.config)), BINDING);
+/// The receipt's device numbers equal the current ones, so a refusal can only
+/// come from an inode (or other non-device) difference.
+fn assert_receipt_devices_current(fixture: &Fixture) {
+    let state: State = serde_json::from_slice(&fixture.receipt()).unwrap();
+    for (name, device) in [
+        ("access.sqlite", state.access_device),
+        ("atlas.sqlite", state.atlas_device),
+    ] {
+        assert_eq!(fs::metadata(fixture.data(name)).unwrap().dev(), device);
+    }
 }
 
 #[test]
-fn swapped_databases_are_refused_after_renumbering() {
+fn replaced_database_is_refused_by_inode_alone() {
+    for name in ["access.sqlite", "atlas.sqlite"] {
+        let fixture = Fixture::new();
+        // Same bytes, directory and device; only the inode changes.
+        let path = fixture.data(name);
+        let before = fs::metadata(&path).unwrap();
+        replace_private(&path, &fs::read(&path).unwrap());
+        let after = fs::metadata(&path).unwrap();
+        assert_eq!(after.dev(), before.dev());
+        assert_ne!(after.ino(), before.ino());
+        assert_receipt_devices_current(&fixture);
+        assert_eq!(error(reopen(&fixture.config)), BINDING, "{name}");
+    }
+}
+
+#[test]
+fn swapped_databases_are_refused_by_inode_alone() {
     let fixture = Fixture::new();
-    fixture.renumber_receipt();
     let (access, atlas, aside) = (
         fixture.data("access.sqlite"),
         fixture.data("atlas.sqlite"),
@@ -198,7 +221,57 @@ fn swapped_databases_are_refused_after_renumbering() {
     fs::rename(&access, &aside).unwrap();
     fs::rename(&atlas, &access).unwrap();
     fs::rename(&aside, &atlas).unwrap();
+    assert_receipt_devices_current(&fixture);
     assert_eq!(error(reopen(&fixture.config)), BINDING);
+}
+
+/// Upgrade tolerates a renumbered device, but rollback must not restore a
+/// legacy receipt whose device numbers the legacy binary would refuse.
+#[test]
+fn rollback_refuses_legacy_receipt_with_renumbered_devices() {
+    let sha256 = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+    // `false` is the positive control: unchanged devices round-trip.
+    for renumbered in [false, true] {
+        let fixture = Fixture::new();
+        let mut state: State = serde_json::from_slice(&fixture.receipt()).unwrap();
+        state.configuration_digest = fixture.config.legacy_state_digest().unwrap();
+        if renumbered {
+            state.access_device ^= 1;
+            state.atlas_device ^= 1;
+        }
+        let legacy = serde_json::to_vec(&state).unwrap();
+        replace_private(&fixture.data("server-state.json"), &legacy);
+        let config = serde_json::to_vec(&fixture.config).unwrap();
+        let config_path = fixture.root.join("server-config.json");
+        replace_private(&config_path, &config);
+
+        let upgrade = Selection::new(config_path.clone(), sha256(&config), sha256(&legacy), None);
+        if let Err(error) = receipt_compatibility::upgrade(&upgrade.unwrap()) {
+            panic!("upgrade (renumbered: {renumbered}): {error}");
+        }
+        let upgraded = fixture.receipt();
+        assert_ne!(upgraded, legacy);
+
+        let rollback = Selection::new(
+            config_path,
+            sha256(&config),
+            sha256(&upgraded),
+            Some(sha256(&legacy)),
+        )
+        .unwrap();
+        match receipt_compatibility::rollback(&rollback) {
+            Ok(_) if !renumbered => assert_eq!(fixture.receipt(), legacy),
+            Err(error) if renumbered => {
+                assert_eq!(
+                    error.to_string(),
+                    "Legacy receipt device numbers differ from the current databases; the legacy binary would refuse it, so rollback is unavailable"
+                );
+                assert_eq!(fixture.receipt(), upgraded);
+            }
+            Ok(_) => panic!("rollback restored a renumbered legacy receipt"),
+            Err(error) => panic!("rollback control: {error}"),
+        }
+    }
 }
 
 #[test]
