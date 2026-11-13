@@ -14,66 +14,50 @@ export async function fillOfflineHomeboxOriginals(options: {
   owner: LiveCopyRetention; view: ReadyView; pinnedFiles: Pick<PinnedFileClient, 'getBindingIdentity' | 'getBindingScope' | 'discover'>; current(): boolean; enabled(): boolean; signal: AbortSignal;
 }): Promise<{ message: string; complete: boolean }> {
   const { owner, view, signal, pinnedFiles } = options;
-  const live = () => !signal.aborted && options.current() && options.enabled();
   const stopped = (status: string) => ({ message: `HomeBox file download stopped (${status}). Check held files before trying again.`, complete: false });
-  const candidates: { ref: OfflineHomeboxAttachmentRefV1; bytes: number }[] = [];
-  let unknownSize = 0;
-  for (const entry of view.entries) for (const attachment of entry.attachments) {
-    if (attachment.kind !== 'stored-file' || entry.source.sourceKind !== 'homebox-entity') continue;
-    const bytes = attachment.byteSize !== null && /^[1-9][0-9]{0,8}$/.test(attachment.byteSize) ? Number(attachment.byteSize) : null;
-    if (bytes === null || bytes > HOMEBOX_ORIGINAL_MAX_BYTES) { unknownSize++; continue; }
-    candidates.push({ bytes, ref: { source: 'homebox-attachment', sourceInstanceId: entry.source.sourceInstanceId,
-      collectionId: entry.source.collectionId, entityId: entry.source.externalId, attachmentId: attachment.attachmentId } });
-  }
-  const skipped = unknownSize ? `; ${unknownSize} without a usable size stay online-only` : '';
-  if (!candidates.length) return { message: `No HomeBox files to keep${skipped}.`, complete: unknownSize === 0 };
-  if (!live()) return stopped('stopped');
-  // Cached attachments select candidates; only the existing authenticated
-  // discovery can identify a currently installed exact source. It grants no
-  // capture authority, which the original route checks independently.
-  const identity = pinnedFiles.getBindingIdentity();
-  const scope = identity && pinnedFiles.getBindingScope(identity);
-  if (!identity || !scope || scope.workspaceId !== view.scope.workspaceId || scope.homeId !== view.scope.homeId)
-    return stopped('source-unavailable');
-  let discovered: Awaited<ReturnType<typeof pinnedFiles.discover>>;
-  try { discovered = await pinnedFiles.discover(identity, signal); }
-  catch { return stopped(signal.aborted ? 'aborted' : 'source-unavailable'); }
-  const sourceCurrent = () => live() && pinnedFiles.getBindingIdentity() === identity;
-  if (!sourceCurrent() || discovered.scope.workspaceId !== view.scope.workspaceId || discovered.scope.homeId !== view.scope.homeId)
-    return stopped('retired');
-  const installed = candidates.filter(({ ref }) => discovered.installedSources.some(source =>
-    source.workspaceId === view.scope.workspaceId && source.homeId === view.scope.homeId
-    && source.key.sourceKind === 'homebox-entity' && source.key.sourceInstanceId === ref.sourceInstanceId
-    && source.key.collectionId === ref.collectionId && source.key.externalId === ref.entityId));
-  const uninstalled = candidates.length - installed.length;
-  if (!installed.length) return { message: 'No current enumerable HomeBox file source. Cached files stay online-only.', complete: false };
-  const copy = await owner.read.readLast(signal);
-  if (copy.status !== 'ok') return stopped(copy.status);
-  const [native, electrical, storage] = await Promise.all([owner.read.readCatalog(copy.value.handle, signal),
-    owner.read.readElectricalCatalog(copy.value.handle, signal), owner.storage.status(signal)]);
-  if (storage.status !== 'ok' || native.status !== 'ok' && native.status !== 'missing' || electrical.status !== 'ok' && electrical.status !== 'missing')
-    return { message: 'Held file sizes could not be checked. Automatic HomeBox downloads paused.', complete: false };
-  // Size hints are display data; they schedule work but never admit bytes, which the store measures itself.
-  const total = installed.reduce((sum, row) => sum + row.bytes, 0)
-    + (native.status === 'ok' ? native.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0) : 0)
-    + (electrical.status === 'ok' ? electrical.value.buildings.reduce((sum, building) => sum + building.documents.reduce((n, d) => n + Number(d.pin.byteSize), 0), 0) : 0);
-  if (total > storage.value.budgetBytes * 0.8) return { message: 'HomeBox files exceed the automatic storage budget.', complete: false };
-  let held = 0, unavailable = uninstalled, reads = 0;
-  for (const { ref } of installed) {
-    if (!sourceCurrent()) return stopped(signal.aborted ? 'aborted' : 'retired');
-    const status = await owner.read.homeboxStatus(copy.value.handle, ref, signal);
-    if (!sourceCurrent()) return stopped(signal.aborted ? 'aborted' : 'retired');
-    if (status.status === 'ok' && status.value.availability === 'held') { held++; continue; }
-    if (status.status !== 'ok') return stopped(status.status);
-    if (owner.homeboxSent(ref)) { unavailable++; continue; }
-    if (reads >= HOMEBOX_AUTOMATIC_READS_PER_PASS) return { message: `${held} HomeBox ${held === 1 ? 'file' : 'files'} on this device; more remain for a later pass.`, complete: false };
-    if (!sourceCurrent()) return stopped(signal.aborted ? 'aborted' : 'retired');
-    reads++;
-    const result = await owner.retainHomeboxOriginal(ref, signal, sourceCurrent);
-    if (result.status === 'ok') held++;
-    else if (result.status === 'uncertain' || result.status === 'retired' || result.status === 'aborted') return stopped(result.status);
-    else unavailable++;
-  }
-  return { message: `${held} HomeBox ${held === 1 ? 'file' : 'files'} on this device${unavailable ? `; ${unavailable} unavailable` : ''}${skipped}.`,
-    complete: unavailable === 0 && unknownSize === 0 };
+  const result = await owner.withHomeboxFillPass(view, pinnedFiles, signal, options.current, options.enabled, async pass => {
+    // Two bounded walks borrow the current view. No full candidate/installed arrays survive an await.
+    function* candidates() {
+      for (const entry of view.entries) for (const attachment of entry.attachments) {
+        if (attachment.kind !== 'stored-file' || entry.source.sourceKind !== 'homebox-entity') continue;
+        const bytes = attachment.byteSize !== null && /^[1-9][0-9]{0,8}$/.test(attachment.byteSize) ? Number(attachment.byteSize) : null;
+        if (bytes === null || bytes > HOMEBOX_ORIGINAL_MAX_BYTES) { yield null; continue; }
+        const ref: OfflineHomeboxAttachmentRefV1 = { source: 'homebox-attachment', sourceInstanceId: entry.source.sourceInstanceId,
+          collectionId: entry.source.collectionId, entityId: entry.source.externalId, attachmentId: attachment.attachmentId };
+        yield { ref, bytes };
+      }
+    }
+    let unknownSize = 0, uninstalled = 0, installed = 0, total = pass.otherBytes;
+    for (const item of candidates()) {
+      if (!item) { unknownSize++; continue; }
+      if (!pass.installed(item.ref)) { uninstalled++; continue; }
+      installed++; total += item.bytes;
+      if (!Number.isSafeInteger(total)) return stopped('resource');
+    }
+    const skipped = unknownSize ? `; ${unknownSize} without a usable size stay online-only` : '';
+    if (!installed && !uninstalled) return { message: `No HomeBox files to keep${skipped}.`, complete: unknownSize === 0 };
+    if (!installed) return { message: 'No current enumerable HomeBox file source. Cached files stay online-only.', complete: false };
+    if (total > pass.budgetBytes * 0.8) return { message: 'HomeBox files exceed the automatic storage budget.', complete: false };
+    let held = 0, unavailable = uninstalled, reads = 0;
+    for (const item of candidates()) {
+      if (!item || !pass.installed(item.ref)) continue;
+      const { ref } = item;
+      if (!pass.current()) return stopped(signal.aborted ? 'aborted' : 'retired');
+      const status = await pass.status(ref);
+      if (!pass.current()) return stopped(signal.aborted ? 'aborted' : 'retired');
+      if (status.status === 'ok' && status.value.availability === 'held') { held++; continue; }
+      if (status.status !== 'ok') return stopped(status.status);
+      if (owner.homeboxSent(ref)) { unavailable++; continue; }
+      if (reads >= HOMEBOX_AUTOMATIC_READS_PER_PASS) return { message: `${held} HomeBox ${held === 1 ? 'file' : 'files'} on this device; more remain for a later pass.`, complete: false };
+      if (!pass.current()) return stopped(signal.aborted ? 'aborted' : 'retired');
+      reads++;
+      const result = await pass.retain(ref);
+      if (result.status === 'ok') held++;
+      else if (result.status === 'uncertain' || result.status === 'retired' || result.status === 'aborted' || result.status === 'resource') return stopped(result.status);
+      else unavailable++;
+    }
+    return { message: `${held} HomeBox ${held === 1 ? 'file' : 'files'} on this device${unavailable ? `; ${unavailable} unavailable` : ''}${skipped}.`,
+      complete: unavailable === 0 && unknownSize === 0 };
+  });
+  return result.status === 'ok' ? result.value : stopped(result.reason ?? result.status);
 }

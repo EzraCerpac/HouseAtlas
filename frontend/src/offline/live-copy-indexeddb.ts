@@ -48,12 +48,29 @@ export function openLiveCopyBackend(factory: IDBFactory | undefined, timers: {
         });
         const access: OfflineTransaction = {
           get: <R>(table: OfflineTable, key: string) => ask<R | undefined>(tx.objectStore(table).get(key)),
-          async list<R>(table: OfflineTable) {
-            const store = tx.objectStore(table);
-            const keys = ask(store.getAllKeys()), values = ask(store.getAll());
-            const [k, v] = await Promise.all([keys, values]);
-            if (k.length !== v.length || k.some(key => typeof key !== 'string')) throw new Error('Invalid offline keys');
-            return k.map((key, i) => ({ key: key as string, value: v[i] as R }));
+          scan(table, maxRows, visit) {
+            if (!Number.isSafeInteger(maxRows) || maxRows < 1) return Promise.reject(new Error('Invalid offline scan bound'));
+            return new Promise<void>((yes, no) => {
+              let count = 0, stopped = false;
+              const request = tx.objectStore(table).openCursor();
+              const fail = (error: unknown) => { stopped = true; no(error); };
+              request.onerror = () => fail(request.error ?? new Error('Offline cursor failed'));
+              request.onsuccess = () => {
+                if (stopped) return;
+                if (settled || failure) { fail(failure ?? new Error('Offline transaction retired')); return; }
+                const cursor = request.result;
+                if (!cursor) { yes(); return; }
+                if (++count > maxRows) {
+                  fail(Object.assign(new Error('Offline scan capacity exceeded'), { name: 'OfflineResourceLimit' })); return;
+                }
+                if (typeof cursor.key !== 'string') { fail(new Error('Invalid offline key')); return; }
+                // One browser-delivered value may be oversized; the visitor admits fields before copying.
+                void Promise.resolve().then(() => visit(cursor.key as string, cursor.value)).then(() => {
+                  if (settled || failure) { fail(failure ?? new Error('Offline transaction retired')); return; }
+                  try { cursor.continue(); } catch (error) { fail(error); }
+                }, fail);
+              };
+            });
           },
           async put(table, key, value) { await ask(tx.objectStore(table).put(value, key)); },
           async remove(table, key) { await ask(tx.objectStore(table).delete(key)); },

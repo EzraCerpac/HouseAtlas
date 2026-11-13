@@ -26,7 +26,13 @@ export async function checkLiveCopyContracts() {
           const draft = structuredClone(data);
           const tx = {
             get: async (table, key) => structuredClone(draft.get(table).get(key)),
-            list: async table => [...draft.get(table)].map(([key, value]) => ({ key, value: structuredClone(value) })),
+            async scan(table, maxRows, visit) {
+              let count = 0;
+              for (const key of [...draft.get(table).keys()].sort()) {
+                if (++count > maxRows) throw Object.assign(Error('Generated scan capacity'), { name: 'OfflineResourceLimit' });
+                await visit(key, structuredClone(draft.get(table).get(key)));
+              }
+            },
             put: async (table, key, value) => { draft.get(table).set(key, structuredClone(value)); },
             remove: async (table, key) => { draft.get(table).delete(key); },
             empty: async table => { draft.get(table).clear(); },
@@ -173,11 +179,23 @@ export async function checkLiveCopyContracts() {
   const backendSource = readFileSync(new URL('../src/offline/live-copy-indexeddb.ts', import.meta.url), 'utf8');
   const backendCode = stripTypeScriptTypes(backendSource);
   const { openLiveCopyBackend } = await import('data:text/javascript;base64,' + Buffer.from(backendCode).toString('base64'));
+  let cursorRows = [], cursorValues = 0, cursorContinueError = null;
   const transactions = [], db = {
     objectStoreNames: { contains: () => true }, close() {},
     transaction() {
       const tx = {
-        objectStore() { return { get() {
+        objectStore() { return { openCursor() {
+          const request = { result: null }; let index = 0;
+          const deliver = () => queueMicrotask(() => {
+            request.result = index >= cursorRows.length ? null : {
+              key: cursorRows[index][0],
+              get value() { cursorValues++; return cursorRows[index][1]; },
+              continue() { if (cursorContinueError) throw cursorContinueError; index++; deliver(); },
+            };
+            request.onsuccess?.();
+          });
+          deliver(); return request;
+        }, get() {
           const request = { result: undefined };
           queueMicrotask(() => request.onsuccess?.()); return request;
         } }; },
@@ -200,6 +218,21 @@ export async function checkLiveCopyContracts() {
   const lateRead = late.transaction(false, async () => null); late.close(); opening.onsuccess();
   await assert.rejects(lateRead, /closed/); assert.equal(lateClosed, true);
   cases.push('live-copy-actual-backend-completion-abort-and-late-close-interface');
+  const cursors = openLiveCopyBackend(factory), visited = [];
+  cursorRows = [['a', { n: 1 }], ['b', { n: 2 }]]; cursorValues = 0;
+  const ordered = cursors.transaction(false, async tx => {
+    await tx.scan('metadata', 2, async (key, value) => { await tx.get('control', 'witness'); visited.push([key, value.n]); });
+  });
+  await setImmediate(); assert.deepEqual(visited, [['a', 1], ['b', 2]]); assert.equal(cursorValues, 2);
+  transactions.at(-1).oncomplete(); await ordered;
+  cursorRows = [['a', { n: 1 }], ['b', { n: 2 }], ['c', { oversized: 'generated-delivery' }]]; cursorValues = 0;
+  await assert.rejects(cursors.transaction(false, tx => tx.scan('metadata', 2, () => {})), error => error.name === 'OfflineResourceLimit');
+  assert.equal(cursorValues, 2, 'excess row value is not read/admitted; real browser delivery remains outside this guarantee');
+  cursorRows = [['a', { n: 1 }]]; cursorContinueError = new Error('generated cursor continuation refusal');
+  await assert.rejects(cursors.transaction(false, tx => tx.scan('metadata', 2, () => {})), /generated cursor continuation refusal/);
+  cursorContinueError = null;
+  cursors.close();
+  cases.push('live-copy-actual-cursor-order-idb-await-and-admission-before-retention');
   const timerCallbacks = new Map(); let nextTimer = 0;
   const fakeTimers = { set(callback, milliseconds) { assert.equal(milliseconds, 10000); const id = ++nextTimer; timerCallbacks.set(id, callback); return id; },
     clear(id) { timerCallbacks.delete(id); } };
