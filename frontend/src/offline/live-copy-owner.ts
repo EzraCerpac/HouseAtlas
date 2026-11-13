@@ -232,13 +232,13 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     need(Number.isSafeInteger(limits[key]) && limits[key] > 0 && limits[key] <= LIVE_COPY_LIMITS[key]);
   const now = options.now ?? Date.now, actors = new WeakMap<object, { epoch: string; actorId: string; serial: number; current: () => boolean }>();
   const homes = new WeakMap<object, Binding>(), copies = new WeakMap<object, Binding>();
-  const listeners = new Set<() => void>(); let serial = 0, readSerial = 0, closed = false;
+  const listeners = new Set<() => void>(); let serial = 0, readSerial = 0, isClosed = false;
   let observedActor: string | null | undefined;
   const emit = () => { for (const cb of [...listeners]) { try { cb(); } catch { /* observers do not own storage */ } } };
   const changed = () => { emit(); try { options.changed?.(); } catch { /* commit is already acknowledged */ } };
   const check = (b?: Binding, signal?: AbortSignal) => {
     if (signal?.aborted) throw new Refusal('aborted');
-    need(!closed && (!b || b.serial === (b.live ? serial : readSerial) && b.current()), 'retired');
+    need(!isClosed && (!b || b.serial === (b.live ? serial : readSerial) && b.current()), 'retired');
   };
   const run = async <T>(work: () => Promise<T>): Promise<OfflineResult<T>> => {
     try { return { status: 'ok', value: await work() }; }
@@ -320,16 +320,16 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
   const copy = (handle: OfflineCopyHandle) => { const b = copies.get(handle); need(b && !b.live, 'retired'); check(b); return b!; };
   const invalidate = () => { serial++; readSerial++; emit(); };
   const wipe = async (current: () => boolean) => {
-    need(current() && !closed, 'retired');
+    need(current() && !isClosed, 'retired');
     const tombstone: Control = { version: 1, epoch: crypto.randomUUID(), actorId: null, home: null };
-    await backend.transaction(true, async tx => { need(current() && !closed, 'retired'); await tx.put('control', 'witness', tombstone); });
+    await backend.transaction(true, async tx => { need(current() && !isClosed, 'retired'); await tx.put('control', 'witness', tombstone); });
     // Durable retirement is already committed. Notify other visible tabs even if physical deletion fails.
     changed();
     await backend.transaction(true, async tx => {
-      need(current() && !closed, 'retired');
+      need(current() && !isClosed, 'retired');
       const latest = await tx.get<Control>('control', 'witness');
       need(latest?.epoch === tombstone.epoch && latest.actorId === null, 'retired');
-      await tx.empty('metadata'); await tx.empty('bytes'); await dropRegistrations(tx); need(current() && !closed, 'retired');
+      await tx.empty('metadata'); await tx.empty('bytes'); await dropRegistrations(tx); need(current() && !isClosed, 'retired');
     });
   };
   const readDocument = (handle: OfflineCopyHandle, pin: OfflineDocumentPinV1, signal: AbortSignal) => {
@@ -405,32 +405,32 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       invalidate(); const admittedSerial = serial;
       if (current()) observedActor = actorId;
       return run(async () => {
-        need(current() && admittedSerial === serial && !closed, 'retired');
+        need(current() && admittedSerial === serial && !isClosed, 'retired');
         need(actorId === null || bounded(actorId, 1024) && actorId.length > 0);
         if (actorId === null) { await wipe(() => current() && admittedSerial === serial); changed(); return null; }
         const c = await backend.transaction(true, async tx => {
-          need(current() && admittedSerial === serial && !closed, 'retired');
+          need(current() && admittedSerial === serial && !isClosed, 'retired');
           const prior = await tx.get<Control>('control', 'witness');
           need(prior === undefined || controlOK(prior), 'integrity');
           if (prior?.actorId === actorId && actorId !== null) return prior!;
           const next: Control = { version: 1, epoch: crypto.randomUUID(), actorId, home: null };
           await tx.put('control', 'witness', next);
           await tx.empty('metadata'); await tx.empty('bytes'); await dropRegistrations(tx);
-          need(current() && admittedSerial === serial && !closed, 'retired'); return next;
+          need(current() && admittedSerial === serial && !isClosed, 'retired'); return next;
         });
-        need(current() && admittedSerial === serial && !closed, 'retired'); changed();
+        need(current() && admittedSerial === serial && !isClosed, 'retired'); changed();
         const token: LiveCopyActor = Object.freeze({ kind: 'online-observed-actor' });
-        need(current() && admittedSerial === serial && !closed, 'retired');
+        need(current() && admittedSerial === serial && !isClosed, 'retired');
         actors.set(token, { epoch: c.epoch, actorId, serial: admittedSerial, current }); return token;
       });
     },
     /** Internal non-allocating check; it mints no home/copy handle and performs no IO. */
     currentActor(actor: LiveCopyActor): boolean {
-      const a = actors.get(actor); return !!a && a.serial === serial && !closed && a.current();
+      const a = actors.get(actor); return !!a && a.serial === serial && !isClosed && a.current();
     },
     bindHome(actor: LiveCopyActor, scope: Scope, current: () => boolean): OfflineResult<LiveCopyHome> {
       const a = actors.get(actor);
-      if (!a || a.serial !== serial || !a.current() || !current() || closed) return { status: 'retired' };
+      if (!a || a.serial !== serial || !a.current() || !current() || isClosed) return { status: 'retired' };
       if (!scopeOK(scope)) return { status: 'invalid' };
       const token: LiveCopyHome = Object.freeze({ kind: 'online-observed-home' });
       homes.set(token, { ...a, scope: { ...scope }, live: true, current: () => a.current() && current() }); return { status: 'ok', value: token };
@@ -693,7 +693,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         changed(); return null;
       });
     },
-    close() { invalidate(); closed = true; backend.close(); listeners.clear(); },
+    close() { invalidate(); isClosed = true; backend.close(); listeners.clear(); },
   };
 }
 function validateCatalog(catalog: OfflineCatalogV1): void {

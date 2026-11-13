@@ -3,7 +3,7 @@ import type { NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-ev
 import type { ReadyView } from '../src/app/types';
 import type { AtlasSessionInfo } from '../src/app/session';
 import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame, SourceDocumentReader } from '../src/lantern/source-documents/types';
-import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
+import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineFailure, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
 import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, validHomeboxRef, listsAttachment, admitJson, stringPayload, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
 import type { HomeboxOriginalFrame, HomeboxOriginalReader, HomeboxOriginalOpenResult, HomeboxOriginalSource,
@@ -80,6 +80,9 @@ export function createLiveCopyRetention(options: {
   let claimCount = 0, claimPayload = 0, readerCount = 0, interestCount = 0, residentBytes = 0;
   type PipelineLease = { released: boolean };
   let pipeline: PipelineLease | null = null, quarantined = false;
+  // Stored-copy quota is the only failure here with no open-result status; it is a local-storage unavailability.
+  const refusal = (status: OfflineFailure): HomeboxOriginalOpenResult => status === 'uncertain' ? { status: 'unknown' }
+    : status === 'quota' ? { status: 'unavailable', reason: 'local-storage' } : { status };
   const resource = (account: string) => ({ status: 'resource' as const, resource: account });
   const takePipeline = () => {
     if (pipeline || quarantined) return null;
@@ -271,7 +274,7 @@ export function createLiveCopyRetention(options: {
       if (!selected.outcome) await changed;
       if (!liveInterest()) return { status: signal.aborted ? 'aborted' : 'retired' };
       const outcome = selected.outcome!;
-      if (outcome.status !== 'ok') return outcome.status === 'uncertain' ? { status: 'unknown' } : outcome;
+      if (outcome.status !== 'ok') return refusal(outcome.status);
       const root = outcome.value;
       if (!frameCurrent(root)) return { status: 'retired' };
       let backing: 'memory' | 'exact-held' = 'memory';
@@ -312,7 +315,7 @@ export function createLiveCopyRetention(options: {
         if (!liveInterest()) return { status: signal.aborted ? 'aborted' : 'retired' };
         const held = rehydrated!;
         if (held.status !== 'ok') {
-          if (held.status === 'integrity' || held.status === 'retired') { retireFrame(root); return held; }
+          if (held.status === 'integrity' || held.status === 'retired') { retireFrame(root); return { status: held.status }; }
           return { status: 'unavailable', reason: held.status === 'missing' ? 'held-missing' : 'local-storage' };
         }
         if (!liveInterest() || !frameCurrent(root)) return { status: signal.aborted ? 'aborted' : 'retired' };
