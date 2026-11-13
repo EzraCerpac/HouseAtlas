@@ -1528,3 +1528,11 @@ admission/copy/bake are separately authored controls, not inferred pixel evidenc
 All new pixel controls are NOT RUN by this integration thread. Their added cost
 must pass the unchanged 180-second outer case and existing renderer assertions.
 No test selection, security flag, timeout, budget, release or activation changed.
+
+The default backend-library set also discovers the six
+`lifecycle::persistent::receipt_identity_tests::` cases: fresh synthetic
+loopback-local state with a receipt reissued under other device numbers still
+reopens, backs up offline and rebinds origin, while a same-device replacement or
+swapped databases are refused. Disposable private folders only; no listener,
+provider, real data or volume remount, so no actual reboot is observed. No
+workflow command or runner is added.

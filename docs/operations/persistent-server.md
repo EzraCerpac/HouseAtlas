@@ -11,7 +11,7 @@ houseatlas serve --server-config /canonical/private/server.json
 
 `initialize` requires a new data directory and explicitly selected accounts, supplied passwords and exact home memberships. It creates no synthetic default users, login sessions, inventory, provider enrollment or historical authority. Failed initialization may leave partial private state; normal startup refuses an absent initialization receipt. There is no automatic cleanup/adoption/retry.
 
-`serve` requires existing private native state and the exact compiled Access and Atlas schemas. It does not provision accounts, reset sessions or apply database migrations. The receipt binds deployment configuration and original database file identities. One descriptor lock owns the data directory during serving and HTTP drain. SIGINT/SIGTERM request a five-second drain. In Unix gateway mode, deadline expiry closes the serving coordinator and removes its checked socket, returns an error, and skips the graceful-shutdown event. Detached request handlers or work already handed to blocking threads may still finish; this deadline does not prove their termination. Existing disposable fixture CLI remains separate.
+`serve` requires existing private native state and the exact compiled Access and Atlas schemas. It does not provision accounts, reset sessions or apply database migrations. The receipt binds deployment configuration and original database file identities (see [Receipt identity across reboots](#receipt-identity-across-reboots)). One descriptor lock owns the data directory during serving and HTTP drain. SIGINT/SIGTERM request a five-second drain. In Unix gateway mode, deadline expiry closes the serving coordinator and removes its checked socket, returns an error, and skips the graceful-shutdown event. Detached request handlers or work already handed to blocking threads may still finish; this deadline does not prove their termination. Existing disposable fixture CLI remains separate.
 
 The configuration digest format `houseatlas-server-state/2` also binds the exact
 listener and MCP command selection. Earlier format-1 receipts fail strict reopen,
@@ -27,6 +27,27 @@ Provisioning is closed private JSON: schemaVersion 1 and users[{userId,actorId,u
 Stable state includes access.sqlite, atlas.sqlite, media/, server-state.json, server.lock and logs/server.events.jsonl. Directories are 0700; private files are 0600. Lifecycle logs contain fixed event names and dates, not credentials or requests. Administrators own log retention; no automatic maintenance is added.
 
 The persistent Host mounts existing Atlas functionality using explicitly selected command profile. HomeBox, Network and AI providers remain unconfigured. It does not admit historical Media references or activate quantity writes.
+
+## Receipt identity across reboots
+
+`server-state.json` (format `houseatlas-persistent-server/1`) binds the format,
+configuration digest, both schema versions and the inode of `access.sqlite` and
+`atlas.sqlite`. Its `accessDevice` and `atlasDevice` fields record `st_dev` as
+observed when the receipt was issued. They are not compared, because the OS can
+assign a volume a different device number after a reboot (observed on macOS
+APFS) while every file keeps its inode. A replaced, restored, copied or swapped
+database has a different inode and is still refused. Checks within one process
+(open descriptor against named path, lease, backup source cut) still compare
+device and inode.
+
+Existing receipts need no change, and none is rewritten. The same binding
+applies to `serve`, the offline `backup` source check, `upgrade-state-receipt`
+and the final `rebind-origin` recheck. `rollback-state-receipt` still requires
+the compatibility record's exact device numbers, because it restores a receipt
+for an older binary that compares them. Binaries built before this change also
+refuse a renumbered volume (`Persistent deployment/state binding changed; no
+automatic adoption`); with such a binary, stop the service and correct only the
+two device fields after confirming every other field matches.
 
 ## NAS launch inputs still required
 

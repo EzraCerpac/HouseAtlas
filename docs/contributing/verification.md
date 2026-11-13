@@ -1268,6 +1268,17 @@ Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
 tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
 HomeBox source and remain a manual check.
 
+The default backend-library selection also discovers the six
+`lifecycle::persistent::receipt_identity_tests::` cases. Each initializes fresh
+synthetic loopback-local state in a disposable private folder and reissues its
+receipt with other device numbers, as a reboot can assign. Ordinary reopen, the
+offline `native-stock-queue-free` backup capture and an explicit origin rebind
+still succeed without rewriting the receipt beyond the rebind digest, while a
+same-device copy replacing `atlas.sqlite` and swapped database files are refused;
+one pure case checks that only the device fields are tolerated. No listener,
+provider, real data or volume remount is used, so these cases do not observe an
+actual reboot.
+
 The existing default backend-library selection also invokes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.
 It calls the unchanged `healthy-homebox-cache-stock` example body through actual
