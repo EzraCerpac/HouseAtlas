@@ -271,8 +271,9 @@ inventory editing, live HomeBox or Network sources, native documents or sign-in.
 The example's files and its offline worker are checked without a browser by
 `frontend/lantern-tests/example-files-healthy.mjs` (production readers, an
 in-memory copy store and a fake worker scope); the capture does not open them.
-That test checks reader results and the worker in a fake realm, not mounted PDF
-rendering or real browser offline behavior.
+The same test validates the example's topology records and renders the Places
+rows to static markup. It checks reader results, that markup and the worker in a
+fake realm, not mounted PDF or Places rendering or real browser offline behavior.
 The example supplies no geometry metadata source, and its topology client
 lists only the house building (for the Electrical Library) with no members;
 the corresponding geometry-metadata warning remains visible.

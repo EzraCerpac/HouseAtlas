@@ -151,9 +151,10 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
   };
   const options: NativeElectricalLibraryOptions = { getContext: () => context, subscribeContext: () => () => {}, createDocuments, transport };
   const port: ElectricalLibraryPort = { async createReader() { return createNativeElectricalLibraryReader(options); } };
-  const identity = { target: { authority: 'atlas', recordType: 'identity', recordId: buildingId }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } };
-  const semantics = { target: { authority: 'atlas', recordType: 'location-semantics', recordId: U(61) }, revision: 1, lifecycle: 'active',
-    payload: { atlasId: buildingId, semanticKind: 'building', label: buildingLabel, reviewStatus: 'accepted' } };
+  // Complete record shapes, typed so a missing required field (such as evidenceIds) fails the typecheck.
+  const identity: TopologyRecord<'identity'> = { target: { authority: 'atlas', recordType: 'identity', recordId: buildingId }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } };
+  const semantics: TopologyRecord<'location-semantics'> = { target: { authority: 'atlas', recordType: 'location-semantics', recordId: U(61) }, revision: 1, lifecycle: 'active',
+    payload: { atlasId: buildingId, semanticKind: 'building', label: buildingLabel, reviewStatus: 'accepted', evidenceIds: [U(4)] } };
   const topologyBinding = Object.freeze({ scope });
   const topology: TopologyClient = { getBinding: () => topologyBinding, subscribe: () => () => {},
     async listAll<K extends TopologyKind>(_binding: unknown, kind: K, signal: AbortSignal) {

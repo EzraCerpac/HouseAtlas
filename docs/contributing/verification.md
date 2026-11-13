@@ -114,6 +114,10 @@ checks:
 - the existing fictional electrical fixture, placed on the example's house
   building, lists one PDF document through the production Electrical Library
   reader, and its drawing bytes match the recorded SHA-256;
+- that fixture's topology records pass the production stock result validator,
+  and the actual Places view (`RoomsView.tsx`), rendered to static markup with
+  the example projection and a topology index built from those records, lists
+  the example's buildings, levels and rooms with their Atlas identities;
 - `build/example-offline-plugin.mjs` tables exactly the emitted example files,
   refuses other file types, and the generated `/example/` workers of two
   builds, run in fake worker realms over one shared fake Cache Storage and
@@ -126,8 +130,8 @@ checks:
   removes the first build's cache and serves only its own files; changed bytes
   leave no partial cache.
 
-It checks reader results and the worker in a fake realm, not mounted PDF
-rendering or real browser offline behavior. It does not establish browser
+It checks reader results, static Places markup and the worker in a fake
+realm, not mounted PDF or Places rendering or real browser offline behavior. It does not establish browser
 service-worker behavior, iPhone or Mac PWA behavior, the Saved shell's stored
 copies or any real household file.
 

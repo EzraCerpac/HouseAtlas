@@ -21,14 +21,29 @@ assert.equal(globalThis.indexedDB, undefined);
 const scratch = mkdtempSync(join(tmpdir(), 'example-files-'));
 try {
   let api;
+  const topologyPath = join(root, 'frontend/src/lantern/topology/TopologyProvider.tsx');
   {
     const entry = join(scratch, 'entry.ts');
     writeFileSync(entry, [
       `export { createExampleElectrical, createExampleHomeboxOriginals, LAMP_MANUAL, LAMP_MANUAL_BYTES } from ${JSON.stringify(join(root, 'frontend/example/files.ts'))};`,
       `export { exampleHomeView, EXAMPLE_SCOPE } from ${JSON.stringify(join(root, 'frontend/example/household.ts'))};`,
       `export { buildSyntheticAtlas } from ${JSON.stringify(join(root, 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts'))};`,
+      // The Places lens content as the example mounts it, rendered to static markup.
+      `export { PlacesContent } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/RoomsView.tsx'))};`,
+      `export { StoreProvider } from ${JSON.stringify(join(root, 'frontend/src/lantern/state/store.tsx'))};`,
+      `export { projectView } from ${JSON.stringify(join(root, 'frontend/src/lantern/adapters/read.ts'))};`,
+      `export { buildTopologyIndex } from ${JSON.stringify(join(root, 'frontend/src/lantern/topology/model.ts'))};`,
+      `export { TopologyContextForTest } from ${JSON.stringify(topologyPath)};`,
+      `export { createExactStockResultValidator } from ${JSON.stringify(join(root, 'frontend/src/numeric/schema-validator.ts'))};`,
+      `export { parseLosslessJson } from ${JSON.stringify(join(root, 'frontend/src/numeric/lossless-json.ts'))};`,
+      `export { createElement } from ${JSON.stringify(join(root, 'frontend/node_modules/react/index.js'))};`,
+      `export { renderToStaticMarkup } from ${JSON.stringify(join(root, 'frontend/node_modules/react-dom/cjs/react-dom-server-legacy.browser.production.js'))};`,
     ].join('\n'));
-    const result = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent',
+    // Expose the provider's actual context only in this test bundle.
+    const exposeContext = { name: 'test-only-topology-context', enforce: 'pre', transform(code, id) {
+      if (id === topologyPath) return `${code}\nexport { Context as TopologyContextForTest };\n`;
+    } };
+    const result = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', plugins: [exposeContext],
       build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
     const path = join(scratch, 'fixture.mjs');
     writeFileSync(path, (Array.isArray(result) ? result[0] : result).output.find(row => row.type === 'chunk' && row.isEntry).code);
@@ -87,6 +102,40 @@ try {
   assert.ok(pdf(drawingBytes));
   assert.equal(sha(drawingBytes), drawing.sha256);
   client.release(held); client.dispose(); library.release(frame); library.dispose();
+
+  // Places: every topology list the example supplies passes the production
+  // result validator, and the Places lens content renders its rows from it.
+  const topology = electrical.topology, binding = topology.getBinding();
+  const kinds = { identity: 'identity', binding: 'binding', 'location-semantics': 'location_semantics', relation: 'relation' };
+  const lists = {};
+  for (const [kind, command] of Object.entries(kinds)) {
+    const read = await topology.listAll(binding, kind, signal);
+    assert.equal(read.status, 'ready');
+    const result = { schemaVersion: 3, commandId: `atlas.${kind}.list`, requestId: '00000000-0000-4000-8000-0000000e0b01',
+      resolvedScope: api.EXAMPLE_SCOPE, status: 'read', replayed: false,
+      data: { sourceStatus: read.sourceStatus, nextCursor: null, records: read.records } };
+    assert.ok(api.createExactStockResultValidator().validate(command, api.parseLosslessJson(JSON.stringify(result))),
+      `example ${kind} records match the published result schema`);
+    lists[kind] = read;
+  }
+  const sourceProjection = api.projectView(view);
+  const selectable = new Map(sourceProjection.house.spaces.flatMap(space => {
+    const entry = sourceProjection.entries.get(space.id); return entry ? [[space.id, entry]] : [];
+  }));
+  const index = api.buildTopologyIndex({ identities: lists.identity.records, bindings: lists.binding.records,
+    semantics: lists['location-semantics'].records, relations: lists.relation.records,
+    sourceStatuses: Object.values(lists).map(read => read.sourceStatus) }, view, selectable);
+  const context = { activate: () => () => {}, nativePlaces: undefined, nativeEvidenceDocuments: undefined, nativeBinding: null,
+    reload: () => {}, index, status: 'ready', buildingId: null, chooseBuilding: () => {}, levelId: 'all', chooseLevel: () => {},
+    model: null, memberStatus: 'loading', notice: '', memberSourceStatus: null };
+  const actions = { reload: async () => true, switchHome: () => {}, busy: false, notice: '' };
+  const projection = api.projectView(view, { status: 'unavailable' }, { status: 'unavailable' }, () => {}, false);
+  const markup = api.renderToStaticMarkup(api.createElement(api.StoreProvider, { projection, actions },
+    api.createElement(api.TopologyContextForTest.Provider, { value: context }, api.createElement(api.PlacesContent))));
+  const names = [...markup.matchAll(/class="ledger-name"[^>]*>([^<]*)</g)].map(match => match[1]);
+  for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Gallery'])
+    assert.ok(names.includes(name), `Places lists ${name}`);
+  assert.match(markup, /Atlas identity: /, 'the reviewed house building renders its physical facts');
 
   // Offline worker: exact table of the example's build files, served from its own cache.
   const MIME = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8' };
@@ -191,4 +240,4 @@ try {
   assert.ok(!world.stores.has('houseatlas-example-changed'));
   assert.equal(exampleCaches().length, 1);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-console.log('PASS fictional example files: HomeBox original kept in memory, electrical drawing PDF, and /example/ offline worker across two builds (pure)');
+console.log('PASS fictional example files: HomeBox original kept in memory, electrical drawing PDF, Places rows, and /example/ offline worker across two builds (pure)');

@@ -104,8 +104,9 @@ The required SOURCE list adds `example-files-healthy.mjs`: 84 SOURCE / 1 BUILD /
 11 BROWSER (96 total), limits unchanged. It reads the example house's
 generated HomeBox manual through the production verified-copy owner over an
 in-memory store and its fictional electrical drawing through the production
-Electrical Library reader, and runs the generated `/example/` offline worker in
-a fake worker scope over temporary files. No browser, IndexedDB, network,
+Electrical Library reader, validates its topology records and renders the
+actual Places rows to static markup, and runs the generated `/example/` offline
+worker in a fake worker scope over temporary files. No browser, IndexedDB, network,
 native host, real household file or device behavior is exercised.
 Earlier counts below describe their respective source checkpoints.
 
