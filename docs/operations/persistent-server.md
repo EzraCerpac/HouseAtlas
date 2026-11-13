@@ -35,19 +35,26 @@ configuration digest, both schema versions and the inode of `access.sqlite` and
 `atlas.sqlite`. Its `accessDevice` and `atlasDevice` fields record `st_dev` as
 observed when the receipt was issued. They are not compared, because the OS can
 assign a volume a different device number after a reboot (observed on macOS
-APFS) while every file keeps its inode. A replaced, restored, copied or swapped
-database has a different inode and is still refused. Checks within one process
-(open descriptor against named path, lease, backup source cut) still compare
-device and inode.
+APFS) while every file keeps its inode.
 
-Existing receipts need no change, and none is rewritten. The same binding
-applies to `serve`, the offline `backup` source check, `upgrade-state-receipt`
-and the final `rebind-origin` recheck. `rollback-state-receipt` still requires
-the compatibility record's exact device numbers, because it restores a receipt
-for an older binary that compares them. Binaries built before this change also
-refuse a renumbered volume (`Persistent deployment/state binding changed; no
-automatic adoption`); with such a binary, stop the service and correct only the
-two device fields after confirming every other field matches.
+The check therefore detects a changed configuration, a changed schema version,
+and a database whose inode changed: one replaced, copied back from a backup, or
+swapped with the other. It does not detect a whole-volume substitution that
+preserves inode numbers, such as a volume clone or snapshot restore mounted at
+the same path; the configuration digest binds the data directory path, not the
+volume. Checks within one process (open descriptor against named path, lease,
+backup source cut) still compare device and inode.
+
+The same binding applies to `serve`, the offline `backup` source check,
+`upgrade-state-receipt` and the final `rebind-origin` recheck. The device field
+of each `--ai-account-selection` database is likewise not compared; its inode,
+path and in-process checks remain. Existing receipts and selections need no
+change, and no manual step is needed after a reboot with this build.
+`rollback-state-receipt` refuses when the legacy receipt's device numbers differ
+from the current databases, because it restores a receipt for an older binary
+that compares them; that binary would refuse it. Binaries built before this
+change refuse a renumbered volume with `Persistent deployment/state binding
+changed; no automatic adoption`.
 
 ## NAS launch inputs still required
 

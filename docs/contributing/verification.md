@@ -1268,16 +1268,26 @@ Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
 tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
 HomeBox source and remain a manual check.
 
-The default backend-library selection also discovers the six
-`lifecycle::persistent::receipt_identity_tests::` cases. Each initializes fresh
-synthetic loopback-local state in a disposable private folder and reissues its
-receipt with other device numbers, as a reboot can assign. Ordinary reopen, the
-offline `native-stock-queue-free` backup capture and an explicit origin rebind
-still succeed without rewriting the receipt beyond the rebind digest, while a
-same-device copy replacing `atlas.sqlite` and swapped database files are refused;
-one pure case checks that only the device fields are tolerated. No listener,
-provider, real data or volume remount is used, so these cases do not observe an
-actual reboot.
+The default backend-library selection also discovers the seven
+`lifecycle::persistent::receipt_identity_tests::` cases and
+`lifecycle::ai_account::tests::selected_database_tolerates_renumbered_device_but_not_another_inode`.
+One receipt case is a pure predicate check that only the device fields are
+tolerated. The other six initialize fresh synthetic loopback-local state in a
+disposable private folder:
+- With the receipt reissued under other device numbers, as a reboot can assign,
+  ordinary reopen, the offline `native-stock-queue-free` backup capture and an
+  explicit origin rebind still succeed without rewriting the receipt beyond the
+  rebind digest.
+- With the receipt's device numbers left current, a same-device copy replacing
+  `access.sqlite` or `atlas.sqlite` (each separately), and swapped database
+  files, are refused by inode alone.
+- A legacy receipt upgraded after a renumber cannot be rolled back, while an
+  unrenumbered upgrade and rollback restores the legacy bytes.
+
+The AI-account case opens a generated rollback-journal SQLite file through the
+selection custody with another device number, then refuses a same-device
+replacement. No listener, provider, real data or volume remount is used, so these
+cases do not observe an actual reboot.
 
 The existing default backend-library selection also invokes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.
