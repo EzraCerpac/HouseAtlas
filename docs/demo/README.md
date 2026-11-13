@@ -65,17 +65,58 @@ Home and Atlas therefore show one household. Three fictional belongings have
 source parents in those rooms; that hierarchy does not establish reviewed
 physical placement. The read-only HomeBox copy is stale (retrieved 3 January
 2026) and each record's source update time is unknown. Every label, identifier,
-coordinate and date is invented.
+coordinate, date and file is invented.
 The home name, shown on every screen, is *Synthetic example house*.
 
 `npm --prefix frontend run build` ships it: after the app's own build, a
 second pass, `vite build --config example/vite.config.ts`, writes only
 `dist/example/`. The app's inputs, chunks and startup files stay as they were,
 and nothing from the example enters the app's precache or service worker. The
-signed-out screen links to it as **Example house**. The Rust host serves
-`dist/example/index.html` at exactly `/example/index.html` to signed-out
-browsers too; `/example/` alone is not mapped. The Vite dev server serves the
-same page at the same path.
+signed-out screen links to it as **Example house**; signed in, **Settings**
+has **Open example house**, and the offline (Saved) app's **Settings** has
+**Example house**. The Rust host serves `dist/example/index.html` at exactly
+`/example/index.html`, signed in or out; `/example/` alone is not mapped. The
+Vite dev server serves the same page at the same path.
+
+### Files in the example
+
+Each file path the app has gets one small generated PDF, read through the
+same production reader and viewer the real house uses, behind in-page fake
+transports (`frontend/example/files.ts`):
+
+| File | Where to open it | Reader and viewer |
+| --- | --- | --- |
+| *Synthetic parcel survey*, two pages (source Document) | **Library** › **Source documents** › **Synthetic parcel survey** › **Original** | Native source Documents reader, PDF viewer |
+| Eighteen *Synthetic electrical page* drawings (electrical evidence) | **Library** › **Electrical drawings**, building *Synthetic house* | Electrical Library reader, drawing viewer |
+| *Fictional reading lamp manual*, one page (HomeBox stored file) | **Library** › **File details for Fictional reading lamp manual** › **Read and keep verified copy**; also from the reading lamp's detail | Verified-copy owner (`live-copy-retention.ts`, `readHomeboxOriginal`), PDF viewer |
+
+The manual has no issued download link, so **Download original** shows
+*File access is unavailable*; the verified copy is the only way to open it.
+That copy is kept in an in-memory store for the life of the page, so *on this
+device* there means this open page; nothing is written to IndexedDB. As in
+the real house, opening the manual again in the same page reuses that
+observation instead of reading the original again.
+The electrical drawings use the existing fictional fixture of the Electrical
+Library checks, placed on the house building; their room associations
+(*Fictional kitchen*, *Fictional study*) are fictional and unresolved.
+
+### Opening it on a phone or Mac
+
+Once a build is deployed, open `https://<your HouseAtlas host>/example/index.html`
+in the installed app (Settings › **Open example house**, or **Example house**
+on the sign-in screen) or in the browser. The page installs its own service
+worker, scoped to `/example/`, that holds every built example file. After the
+page has loaded once online and stayed open for a few seconds, it opens with
+the network off, including all three PDFs, because its data and files are
+generated in the page. Offline, the installed app starts in its Saved view;
+open **Settings** › **Example house** there. On iPhone, the installed app and
+Safari keep separate storage, so load the example once online in each.
+
+The example worker caches only `/example/` files under its own
+`houseatlas-example-` cache name and removes only its own earlier caches.
+Its entry prefers the network and falls back to the held copy after two
+seconds; built files come from the held copy. The app's own service workers,
+precache and Saved copies are unchanged and list nothing from the example.
 
 ### Documents in the example
 
@@ -148,7 +189,9 @@ session credentials are used for application-data reads, the app modules on
 the page neither read nor change the real app's outbox, Atlas caches or
 preferences, and changes made in the example are not persisted. The browser
 still sends the origin's cookies with requests for the page's own scripts and
-styles. It is not available offline. After Back/Forward it shows the house
+styles. Its own `/example/` worker (above) holds only the example's built
+files; it can open the origin's Cache Storage like any same-origin worker but
+touches only its own caches. After Back/Forward it shows the house
 again: a page restored from the back/forward cache mounts a fresh tree.
 
 ### Screenshots and video for a pull request
@@ -221,8 +264,12 @@ storage and the replaced globals only); coexistence with an existing browser
 profile or an active service worker (the context is clean and service workers
 are blocked); worker realms; iPhone, PWA, offline or device behavior;
 inventory editing, live HomeBox or Network sources, native documents or sign-in.
-The example supplies no topology client or geometry metadata source;
-the corresponding building-record and geometry-metadata warnings remain visible.
+The example's files and its offline worker are checked without a browser by
+`frontend/lantern-tests/example-files-healthy.mjs` (production readers, an
+in-memory copy store and a fake worker scope); the capture does not open them.
+The example supplies no geometry metadata source, and its topology client
+lists only the house building (for the Electrical Library) with no members;
+the corresponding geometry-metadata warning remains visible.
 The starting-state checks use fresh reads only: the example has no stored
 copy, so a stored copy shown first is covered only by the pure ledger
 controls in `frontend/lantern-tests/unified-atlas-start-healthy.mjs`, which

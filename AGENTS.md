@@ -100,6 +100,15 @@ required. This CPU-only slice does not qualify GPU slots, rendered fallback,
 readiness or occurrence completeness and does not complete #339. Production
 renderer/schema/allocation code, workflows and sandbox setup remain unchanged.
 
+The required SOURCE list adds `example-files-healthy.mjs`: 84 SOURCE / 1 BUILD /
+11 BROWSER (96 total), limits unchanged. It reads the example house's
+generated HomeBox manual through the production verified-copy owner over an
+in-memory store and its fictional electrical drawing through the production
+Electrical Library reader, and runs the generated `/example/` offline worker in
+a fake worker scope over temporary files. No browser, IndexedDB, network,
+native host, real household file or device behavior is exercised.
+Earlier counts below describe their respective source checkpoints.
+
 The required SOURCE list adds `example-combined-overlays-healthy.mjs`:
 83 SOURCE / 1 BUILD / 11 BROWSER (95 total). All previous entries and
 180000 ms per-entry limits remain, including the explicit stored-dialog case.
