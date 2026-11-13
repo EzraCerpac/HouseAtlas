@@ -196,18 +196,16 @@ fn validate(
     let atlas_path = config.data_directory.join("atlas.sqlite");
     let access = persistent::private_metadata(&access_path)?;
     let atlas = persistent::private_metadata(&atlas_path)?;
-    if state
-        != &(State {
-            format: "houseatlas-persistent-server/1".into(),
-            configuration_digest: digest.into(),
-            atlas_schema: crate::storage::DATABASE_VERSION,
-            access_schema: crate::access::ACCESS_SCHEMA_VERSION,
-            access_device: access.dev(),
-            access_inode: access.ino(),
-            atlas_device: atlas.dev(),
-            atlas_inode: atlas.ino(),
-        })
-    {
+    if !state.binds(&State {
+        format: "houseatlas-persistent-server/1".into(),
+        configuration_digest: digest.into(),
+        atlas_schema: crate::storage::DATABASE_VERSION,
+        access_schema: crate::access::ACCESS_SCHEMA_VERSION,
+        access_device: access.dev(),
+        access_inode: access.ino(),
+        atlas_device: atlas.dev(),
+        atlas_inode: atlas.ino(),
+    }) {
         return Err(
             "Original deployment, schema or native database identity does not match".into(),
         );
