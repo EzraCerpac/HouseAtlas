@@ -66,6 +66,11 @@ export function SettingsContents() {
 
       {actions.offlineStorage}
 
+      {!globalThis.location?.pathname.startsWith('/example/') && <div className="field">
+        <span className="field-label">Example house</span>
+        <a className="btn" href="/example/index.html">Open example house</a>
+      </div>}
+
       <fieldset className="field">
         <legend>Model quality</legend>
         <Choice label="Model quality" value={modelQuality} onChange={setModelQuality}

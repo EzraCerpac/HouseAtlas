@@ -1,8 +1,8 @@
 /** Example-only production pass: builds frontend/example into dist/example
  * after the app's own build. It is a separate pass so the app's inputs, chunk
- * graph, startup files and offline shell stay byte-identical. It has no
- * offline-shell plugin, so nothing here enters the app's precache or service
- * worker. */
+ * graph, startup files and offline shell stay byte-identical. Nothing here
+ * enters the app's precache or service workers; the example has its own
+ * /example/ worker (build/example-offline-plugin.mjs). */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
@@ -10,6 +10,7 @@ import react from '@vitejs/plugin-react';
 import { pdfjsBinaryDataPlugin } from '../build/pdfjs-binary-data-plugin.mjs';
 import { threeNoticeBanner } from '../build/three-notice-banner.mjs';
 import { clientSchemasPlugin } from '../build/client-schemas-plugin.mjs';
+import { exampleOfflinePlugin } from '../build/example-offline-plugin.mjs';
 
 const frontend = fileURLToPath(new URL('..', import.meta.url));
 /** The Rust host loads only these file types, each at most 4,000,000 bytes. */
@@ -32,7 +33,7 @@ export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   base: '/example/',
   publicDir: false,
-  plugins: [clientSchemasPlugin(), react(), pdfjsBinaryDataPlugin(frontend), hostLimits()],
+  plugins: [clientSchemasPlugin(), react(), pdfjsBinaryDataPlugin(frontend), hostLimits(), exampleOfflinePlugin()],
   worker: { rolldownOptions: { output: { postBanner: threeNoticeBanner(frontend) } } },
   build: {
     outDir: resolve(frontend, 'dist/example'),

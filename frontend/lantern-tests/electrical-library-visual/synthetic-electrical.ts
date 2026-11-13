@@ -36,11 +36,18 @@ export function syntheticElectricalPdf(): Uint8Array<ArrayBuffer> {
   return encode(document);
 }
 
-export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 'pdf', pdfMembership: 'available' | 'absent' | 'failed' = 'available') {
-  const scope = Object.freeze({ workspaceId: U(1), homeId: U(2) }), buildingId = U(3), pdfEvidenceId = U(7), pdfAssetId = U(8);
+/** `place` relocates the same fictional records into another generated home
+ * (the example house): its scope, one building identity and labels. */
+export interface SyntheticElectricalPlace {
+  readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
+  readonly buildingId: string; readonly buildingLabel: string; readonly homeLabel: string;
+}
+export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 'pdf', pdfMembership: 'available' | 'absent' | 'failed' = 'available', place?: SyntheticElectricalPlace) {
+  const scope = Object.freeze({ ...(place?.scope ?? { workspaceId: U(1), homeId: U(2) }) }), buildingId = place?.buildingId ?? U(3), pdfEvidenceId = U(7), pdfAssetId = U(8);
+  const buildingLabel = place?.buildingLabel ?? 'Fictional building', homeLabel = place?.homeLabel ?? 'Fictional electrical home';
   const session = Object.freeze({ schemaVersion: 1 as const, actorId: U(90), csrfToken: 'fictional-unused', expiresAt: '2099-01-01T00:00:00Z' });
-  const view: ReadyView = { status: 'ready', scope, homeLabel: 'Fictional electrical home', now: '2026-01-02T12:00:00Z',
-    canEdit: false, homes: [{ ...scope, label: 'Fictional electrical home' }], entries: [], caches: [] };
+  const view: ReadyView = { status: 'ready', scope, homeLabel, now: '2026-01-02T12:00:00Z',
+    canEdit: false, homes: [{ ...scope, label: homeLabel }], entries: [], caches: [] };
   const context: SceneAssociationContext = { sessionIdentity: session, session, view, admission: null };
   const pdf = syntheticElectricalPdf(), pdfSha = await hash(pdf);
   const sheets = [2, 9, 18].map((page, i) => ({ id: `fictional-sheet-${i + 1}`, title: ['Fictional kitchen', 'Fictional study', 'Fictional unassigned sheet'][i]!,
@@ -144,9 +151,10 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
   };
   const options: NativeElectricalLibraryOptions = { getContext: () => context, subscribeContext: () => () => {}, createDocuments, transport };
   const port: ElectricalLibraryPort = { async createReader() { return createNativeElectricalLibraryReader(options); } };
-  const identity = { target: { authority: 'atlas', recordType: 'identity', recordId: buildingId }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } };
-  const semantics = { target: { authority: 'atlas', recordType: 'location-semantics', recordId: U(61) }, revision: 1, lifecycle: 'active',
-    payload: { atlasId: buildingId, semanticKind: 'building', label: 'Fictional building', reviewStatus: 'accepted' } };
+  // Complete record shapes, typed so a missing required field (such as evidenceIds) fails the typecheck.
+  const identity: TopologyRecord<'identity'> = { target: { authority: 'atlas', recordType: 'identity', recordId: buildingId }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } };
+  const semantics: TopologyRecord<'location-semantics'> = { target: { authority: 'atlas', recordType: 'location-semantics', recordId: U(61) }, revision: 1, lifecycle: 'active',
+    payload: { atlasId: buildingId, semanticKind: 'building', label: buildingLabel, reviewStatus: 'accepted', evidenceIds: [U(4)] } };
   const topologyBinding = Object.freeze({ scope });
   const topology: TopologyClient = { getBinding: () => topologyBinding, subscribe: () => () => {},
     async listAll<K extends TopologyKind>(_binding: unknown, kind: K, signal: AbortSignal) {
