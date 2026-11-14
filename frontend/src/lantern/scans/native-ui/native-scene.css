@@ -21,6 +21,7 @@
 .native-scene-drawing > [role='status'] { margin: 0; font-size: var(--fs-s, 13.5px); }
 .native-scene-drawing-payload { flex: 1 1 0; min-height: 360px; display: flex; flex-direction: column; gap: 6px; }
 .native-scene-drawing-payload > * { flex: none; }
+.native-scene-drawing-payload[hidden] { display: none; }
 .native-scene-drawing-image { overflow: auto; max-height: 70vh; }
 .native-scene-pdf-status { margin: 0; font-size: var(--fs-s, 13.5px); color: var(--ink-2, #334); }
 .native-scene-pdf-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
