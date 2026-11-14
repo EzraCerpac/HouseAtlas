@@ -207,13 +207,15 @@ try {
     // DOM checks can continue on a genuine browser with unavailable WebGL.
     // A successful context/draw count is not hardware-GPU or visual pixel acceptance.
     await check('all ten room-list selections, duplicate labels, floor text and focus', async () => {
-      const rows = await evaluate(`Array.from(document.querySelectorAll('.ua-rooms section')).flatMap(s=>Array.from(s.querySelectorAll('button')).map(b=>({floor:s.getAttribute('aria-label'),label:b.querySelector('span').textContent})))`);
+      const rows = await evaluate(`Array.from(document.querySelectorAll('.ua-rooms section')).flatMap(s=>Array.from(s.querySelectorAll('button')).map(b=>({floor:s.getAttribute('aria-label'),heading:s.querySelector('h3').textContent,label:b.querySelector('span').textContent})))`);
+      // All buildings: each heading names its building; choosing a room scopes to that building.
+      assert(rows.every(row => row.heading === row.floor && / Synthetic (house|studio)$/.test(row.floor)));
       assert.equal(rows.length, 10);
       for (const row of rows) {
         await clear(); await click(stackRow('.ua-stack-buildings', 'All buildings'));
         await sheet(true); await click(roomButton(row.floor, row.label));
         assert.equal(await selectedRoom(), row.label);
-        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), row.floor);
+        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), row.floor.replace(/, Synthetic (house|studio)$/, ''));
         assert.equal(await evaluate('document.activeElement===document.querySelector(".ua-inspector h2")'), true);
       }
     });
@@ -223,8 +225,8 @@ try {
       await click(button('[aria-label="Atlas view"] button', 'Plan'));
       await until('document.querySelectorAll(".ua-plan path").length>0', 'connected source plan');
       assert.equal(await selectedRoom(), 'Stairs');
-      await sheet(true); await click(button('[aria-label="Also on"] button', 'Upper floor, Synthetic house'));
-      assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Upper floor, Synthetic house');
+      await sheet(true); await click(button('[aria-label="Also on"] button', 'Upper floor'));
+      assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Upper floor');
       await click(button('[aria-label="Atlas view"] button', '3D'));
       assert.equal(await selectedRoom(), 'Stairs');
     });
@@ -360,7 +362,7 @@ try {
         };
         const beforePlan = await settledPlan();
         assert.equal(await selectedRoom(), 'Hall');
-        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor, Synthetic house');
+        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor');
         assert.equal(await evaluate(pendingCopy), true, 'Fresh read remains held through room, Plan and modal setup');
         // Retain actual nodes, not selectors which could silently find replacements.
         // Observe removals and all focus transitions, including loss followed by
@@ -395,7 +397,7 @@ try {
         assert.deepEqual(lifetime, { sameShell: true, sameStage: true, sameViewport: true, sameDialog: true, sameHeading: true,
           connected: true, modal: true, focused: true, storedIndicatorRemoved: true, removed: [], focus: [], losses: [] });
         assert.equal(await selectedRoom(), 'Hall');
-        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor, Synthetic house');
+        assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Ground floor');
         // The stable-stage assertion must never preserve content after denial.
         // A separate generated page sends 403 through the production reader.
         await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false });
