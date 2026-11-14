@@ -6,6 +6,7 @@ import { HouseAtlasPdfBinaryDataFactory, pdfjsDecoderUrl } from 'virtual:houseat
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
+import { ExampleLabel } from '../../example-label';
 import { stageMark, stageSpan } from '../../observability/stage-timing';
 import { resolveRecordedPdfPage } from './recorded-pdf-page';
 
@@ -314,7 +315,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   };
   return <section className="native-scene-drawing" role="dialog" aria-modal="true"
     aria-label={sheet.title} onKeyDown={keys}>
-    <header><div><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
+    <header><div><ExampleLabel /><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
       <button ref={closer} type="button" className="chip-btn" onClick={event => {
         stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); deliberateClose.current = true; onClose();
       }}>Close drawing</button></header>
