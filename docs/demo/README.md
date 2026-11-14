@@ -63,7 +63,9 @@ floor and per room with a selectable part, with the Atlas names and nesting.
 A room on several floors sits under the floor of its first selectable part.
 Home and Atlas therefore show one household. Three fictional belongings have
 source parents in those rooms; that hierarchy does not establish reviewed
-physical placement. The read-only HomeBox copy is stale (retrieved 3 January
+physical placement. The folding stool has a quantity of 2, the sketchbook's
+stays unknown, and the reading lamp has two upkeep entries (one scheduled, one
+done with a retained cost token). The read-only HomeBox copy is stale (retrieved 3 January
 2026) and each record's source update time is unknown. Every label, identifier,
 coordinate, date and file is invented.
 The home name, shown on every screen, is *Synthetic example house*.
@@ -136,10 +138,38 @@ They do not establish a building, floor or room placement.
 The media artifact includes the list and qualified-preview detail;
 the example uses an in-page synthetic reader, not a live document source.
 
-In Atlas, open the Network lens and show the Network layer. Open Devices and
-select Fictional access point to trace its recorded connection to Fictional
-network root. This fictional graph shows logical associations, not physical
-locations or cable routes; its source coverage is partial.
+### Electrical and network in the example
+
+Both are invented documentary records, not wiring or device evidence
+(`frontend/example/synthetic-overlays.ts`).
+
+- **Electrical**: show the Electrical layer. Hall has three historic drawing
+  symbols and Living room one. *Fictional drawing group 1* names three of them
+  across both rooms; the fourth symbol has no group and stays unknown. No group
+  names a circuit, panel or verified wiring: the circuit-and-panel trace needs
+  a reviewed projection that no host supplies yet, so it is not shown. The
+  18-page drawing opens from **Library** › **Electrical drawings**.
+- **Network**: open the Network lens and show the Network layer. Devices lists
+  four: *Fictional network root* (Living room), *Fictional access point*
+  (Stairs), *Fictional switch* (Hall) and *Fictional streaming box* (Living
+  room). Select the access point or switch for a one-step route to the root;
+  select the streaming box for a two-step route whose tentative Wi-Fi hop is
+  marked uncertain. This graph shows logical associations, not physical
+  locations or cable routes; its source coverage is partial.
+
+### Named links
+
+Each opens the actual Atlas at a named view (rule below), then the step shown.
+
+- `/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-hall&view=plan`:
+  Hall in Plan. Show **Electrical** for its three symbols and drawing group 1.
+- `/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-living&view=3d`:
+  Living room in 3D. **Electrical** shows its one grouped symbol; the Network
+  lens has the root and streaming box.
+- `/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan`:
+  Stairs. The Network lens traces the access point to the root.
+- `/example/index.html`, then **Rooms & places**: the unplaced belongings with
+  quantity and source hierarchy; **Upkeep** lists the lamp's two entries.
 
 ### Starting state
 
@@ -282,8 +312,10 @@ the corresponding geometry-metadata warning remains visible.
 The starting-state checks use fresh reads only: the example has no stored
 copy, so a stored copy shown first is covered only by the pure ledger
 controls in `frontend/lantern-tests/unified-atlas-start-healthy.mjs`, which
-mount no React tree and are on the healthy runner list. The example's
-coverage of #591 is not complete.
+mount no React tree and are on the healthy runner list. Its Documents, inventory
+quantity and upkeep, and the drawing group and network graph are checked by
+`example-files-healthy.mjs` and `example-combined-overlays-healthy.mjs`
+without a browser.
 
 ## Reproduce
 

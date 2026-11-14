@@ -27,28 +27,42 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
     symbolLegend: { xMeansSocket: null, socketsPerX: null, receiptId: null }, roomMappingReceipt: receipt, registrationReceipts: [],
     sheets: [{ id: 'example-sheet', title: 'Fictional drawing', pdfPage: 1, originalPhoto: 'fictional.jpg',
       originalPhotoSha256: 'd'.repeat(64), renderedPhotoSha256: 'e'.repeat(64), sourceDate: null, regionIds: ['hall', 'living'] }],
-    groups: [], regions: ['hall', 'living'].map((id, i) => ({ id, sheetId: 'example-sheet', label: `Fictional ${id}`,
+    // One historic drawing group spans both rooms; symbol 3 has no group (unknown).
+    groups: [{ id: 'example-group-1', label: 'Fictional drawing group 1', fixtureIds: ['example-symbol-0', 'example-symbol-1', 'example-symbol-3'],
+      evidenceBasis: 'historic-drawing-label', currentCircuitId: null, verifiedWiring: false }],
+    regions: ['hall', 'living'].map((id, i) => ({ id, sheetId: 'example-sheet', label: `Fictional ${id}`,
       sourceOutline: [], outlineClosed: false, sourceBounds: [.1, .1, .9, .9], outlineBasis: 'untraced',
       places: [{ ...targets[i]!, label: rooms[i]!.label, basis: 'owner-reported' }], orientation: 'unregistered', physicalTransform: null })),
     fixtures: [0, 1, 2, 3].map(i => ({ id: `example-symbol-${i}`, sheetId: 'example-sheet', regionId: i < 3 ? 'hall' : 'living', clusterId: null,
       kind: 'socket', label: `Fictional symbol ${i + 1}`, glyph: 'X', source: { symbolKey: `example-symbol-${i}`,
         originalPhotoSha256: 'd'.repeat(64), renderedPhotoSha256: 'e'.repeat(64), normalizedBox: [.3, .3, .4, .4],
         normalizedPoint: [.35, .35], literalLabels: [], placementDescription: 'Fictional drawing symbol' },
-      group: { id: null, label: null, basis: 'unknown', note: '' }, glyphCount: 1, fixtureCount: null,
+      group: [0, 1, 3].includes(i) ? { id: 'example-group-1', label: 'Fictional drawing group 1', basis: 'label-adjacent', note: 'Invented drawing label; not a circuit' }
+        : { id: null, label: null, basis: 'unknown', note: '' }, glyphCount: 1, fixtureCount: null,
       uncertainty: 'Current wiring is unknown', currentState: 'historic-unverified', physicalCoordinate: null, wireRoute: null })),
   };
+  // Logical records only: root (Living room) <- switch (Hall) <- streaming box (Living room, tentative);
+  // root <- access point (Stairs). No cable route, coordinate or radio coverage.
+  const placed = (i: number, roomLabel: string) => ({ placeId: null, sourceRoomId: `example-room-${i}`, sourcePlaceId: targets[i]!.packagePlaceKey,
+    sourcePlaceUUID: targets[i]!.packagePlaceUuid, planAssociations: [{ sourceAnchorId: `example-anchor-${i}`, sourceFloorKey: 'example-floor',
+      sourceFloorLabel: 'Fictional floor', sourceReference: 'Fictional record', sourceHandle: 'example-handle', sourceSHA256: floorHash,
+      mappingReceiptSHA256: receipt.sha256 }], roomLabel, detail: '', confidence: 'recorded' as const, basis: 'Fictional association',
+    floorKey: null, mappingStatus: 'accepted' as const, coordinate: null });
+  const link = (id: string, from: string, to: string, medium: string, confidence: 'recorded' | 'tentative', notes: string) => ({ id, fromEndpointId: from,
+    toEndpointId: to, kind: 'connection' as const, medium, confidence, sourceConfidence: null, temporalStatus: confidence, recordedAtPrecision: null,
+    basis: 'Fictional association', recordedAt: null, notes, path: null });
   const network: NetworkOverlayData = {
     viewKey: pins.viewKey, source: { label: 'Fictional network', revision: 'example-1', recordedAt: null, retrievedAt: null,
       status: 'recorded', acceptedAt: null, coverage: 'partial', notes: 'Fictional logical records', roomMappingReceipt: receipt },
-    devices: [{ id: 'example-access-point', label: 'Fictional access point', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '',
-      place: { placeId: null, sourceRoomId: 'example-room-stairs', sourcePlaceId: targets[2]!.packagePlaceKey, sourcePlaceUUID: targets[2]!.packagePlaceUuid,
-        planAssociations: [{ sourceAnchorId: 'example-anchor-2', sourceFloorKey: 'example-floor', sourceFloorLabel: 'Fictional floor',
-          sourceReference: 'Fictional record', sourceHandle: 'example-handle', sourceSHA256: floorHash, mappingReceiptSHA256: receipt.sha256 }],
-        roomLabel: 'Stairs', detail: '', confidence: 'recorded', basis: 'Fictional association', floorKey: null, mappingStatus: 'accepted', coordinate: null } },
-    { id: 'example-root', label: 'Fictional network root', kind: 'router', sourceRoot: true, mobility: 'fixed', confidence: 'recorded', notes: '', place: null }],
-    endpoints: [], links: [{ id: 'example-link', fromEndpointId: 'example-access-point', toEndpointId: 'example-root', kind: 'connection', medium: 'ethernet',
-      confidence: 'recorded', sourceConfidence: null, temporalStatus: 'recorded', recordedAtPrecision: null, basis: 'Fictional association',
-      recordedAt: null, notes: 'Logical association only; no cable route', path: null }],
+    devices: [
+      { id: 'example-access-point', label: 'Fictional access point', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(2, 'Stairs') },
+      { id: 'example-root', label: 'Fictional network root', kind: 'router', sourceRoot: true, mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-switch', label: 'Fictional switch', kind: 'switch', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(0, 'Hall') },
+      { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room') }],
+    endpoints: [], links: [
+      link('example-link', 'example-access-point', 'example-root', 'ethernet', 'recorded', 'Logical association only; no cable route'),
+      link('example-link-switch', 'example-switch', 'example-root', 'ethernet', 'recorded', 'Logical association only; no cable route'),
+      link('example-link-box', 'example-streaming-box', 'example-switch', 'wifi', 'tentative', 'Unconfirmed; invented for the example')],
   };
   const sceneSelection = { ...scene.scope, revision: scene.selection.revision, publicationId: scene.publication.publicationId,
     semanticsSha256: scene.publication.semanticsSha256 };

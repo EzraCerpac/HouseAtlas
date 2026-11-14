@@ -814,7 +814,7 @@ try {
   if (await showNetwork.isVisible()) await showNetwork.click();
   const graph = networkLens.locator('figure.ung');
   await graph.getByText('Recorded logical network; no physical routes', { exact: true }).waitFor();
-  const devices = graph.locator('details.ung-list').filter({ has: production.getByText('Devices (2)', { exact: true }) });
+  const devices = graph.locator('details.ung-list').filter({ has: production.getByText('Devices (4)', { exact: true }) });
   await devices.locator('summary').click();
   await devices.getByRole('button', { name: /^Fictional access point/ }).click();
   const trace = graph.getByRole('region', { name: 'Route to Fictional network root' });
