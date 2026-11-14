@@ -1443,6 +1443,7 @@
     {"path":"frontend/src/lantern/canonical-ifc/mesh-appearance.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/mesh-scene.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/model.ts","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/canonical-ifc/move-resolution.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/occlusion-history.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/prepare-effect-pipelines.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/render-probe.ts","mode":"100644","owner":"web"},

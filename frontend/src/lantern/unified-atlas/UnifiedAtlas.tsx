@@ -1477,7 +1477,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           </g>
         </svg>
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
-          <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
+          <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} interacting={camera.dragging} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys} roomKeys={roomKeys}
