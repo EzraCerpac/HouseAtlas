@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Icon } from './Icon';
+import { ExampleLabel } from '../example-label';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -76,6 +77,7 @@ export function Modal({
       <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="modal-head">
           <div>
+            <ExampleLabel />
             {kicker && <div className="modal-kicker">{kicker}</div>}
             <h2 id={titleId}>{title}</h2>
           </div>

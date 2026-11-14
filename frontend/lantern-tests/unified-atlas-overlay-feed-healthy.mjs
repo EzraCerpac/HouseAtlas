@@ -59,7 +59,9 @@ const frameFor = building => {
       retrievedAt: null, status: 'recorded', acceptedAt: null, coverage: 'partial', notes: '' },
       devices: [{ id: `router-${building.buildingId}`, label: `Router ${building.label}`, kind: 'router', mobility: 'fixed', confidence: 'recorded', notes: '', place: null }],
       links: [], endpoints: [] } },
-    electricity: unavailable, electricalFixtures: unavailable });
+    electricity: unavailable, electricalFixtures: unavailable,
+    // An opaque panel/circuit projection: the feed passes current frames' only.
+    electricalData: Object.freeze({ building: building.buildingId, generation }) });
 };
 
 /** A fake current source owner per building; `online` gates every open. */
@@ -165,11 +167,13 @@ const results = [];
   assert.deepEqual(shown.stored, { storedAt, refreshing: true });
   assert.equal(shown.records.unplaced.network.length, 2);
   assert.equal(shown.records.network, 'available');
+  assert.deepEqual(shown.electricalData, [], 'a stored copy carries no panel/circuit projection');
   assert.equal(feed.snapshot(), shown, 'an unchanged feed returns the same snapshot');
   release(); world.gate = null; await settle(); await settle();
   shown = feed.snapshot();
   assert.equal(shown.reason, 'available'); assert.equal(shown.stored, null, 'fresh frames replace the stored copy');
   assert.deepEqual(shown.buildings.map(row => row.reason), ['available', 'available']);
+  assert.deepEqual(shown.electricalData.map(row => row.building), ['house', 'shed'], 'each current frame supplies its own projection');
   const reads = { ...world.counts };
   for (const value of [false, true, false, true]) feed.setActive(value);
   await settle();
@@ -179,6 +183,7 @@ const results = [];
   world.online = false; world.drop(); await settle();
   shown = feed.snapshot();
   assert.equal(shown.reason, 'stored-copy', 'offline, the last loaded records stay on screen');
+  assert.deepEqual(shown.electricalData, [], 'a dropped frame withdraws its projection');
   assert.equal(shown.stored.refreshing, false);
   assert.equal(shown.stored.storedAt, new Date(clock.now()).toISOString(), 'the stored copy is the one this page just read');
   assert.deepEqual(clock.pending(), [OVERLAY_REOPEN_DELAY_MS], 'a dropped frame is read again later');

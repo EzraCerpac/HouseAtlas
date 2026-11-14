@@ -1721,6 +1721,18 @@
   font-weight: 700;
 }
 
+/* The example house's label on surfaces that cover the top bar (example only). */
+.lantern-host .example-label {
+  display: inline-block;
+  margin: 0 0 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: var(--fs-s);
+  font-weight: 600;
+}
+
 .lantern-host .modal-kicker {
   font-size: var(--fs-s);
   color: var(--muted);

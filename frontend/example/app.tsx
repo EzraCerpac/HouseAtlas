@@ -12,6 +12,7 @@
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { LanternHost } from '../src/lantern/Host';
+import { ExampleLabelContext } from '../src/lantern/example-label';
 import type { SourceModelPort } from '../src/lantern/source-ports';
 import type { SourceDocumentsPort } from '../src/lantern/source-documents/types';
 import type { ModelOverviewSelection } from '../src/lantern/source-models/overview-types';
@@ -68,10 +69,11 @@ function mount() {
   const current = createRoot(element);
   root = current;
   const render = (node: ReactNode) => { if (root === current) current.render(node); };
-  void example().then(({ view, models, topology, electricalLibrary, homeboxOriginals }) => render(<LanternHost view={view}
-    actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
-    nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} topology={topology}
-    sourceElectricalLibrary={electricalLibrary} homeboxOriginals={homeboxOriginals} />),
+  // The label also heads the dialogs and drawing viewer that cover the top bar.
+  void example().then(({ view, models, topology, electricalLibrary, homeboxOriginals }) => render(<ExampleLabelContext value={view.homeLabel}>
+    <LanternHost view={view} actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
+      nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} topology={topology}
+      sourceElectricalLibrary={electricalLibrary} homeboxOriginals={homeboxOriginals} /></ExampleLabelContext>),
   error => render(<p role="alert">{error instanceof Error ? error.message : 'The example house could not start.'}</p>));
 }
 mount();

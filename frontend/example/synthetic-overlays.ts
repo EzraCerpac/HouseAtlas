@@ -1,11 +1,13 @@
-/** Invented documentary observations for the example only. These carry no
- * native authority, physical device coordinates or installed wiring claim. */
+/** Invented documentary observations for the example only, plus the fictional
+ * panel/circuit projection of ./electrical-data for its drawing group. These
+ * carry no native authority, physical device coordinates or installed wiring claim. */
 import type { UnifiedAtlasPort } from '../src/lantern/unified-atlas/types';
 import type { UnifiedAtlasOverlayAvailableFrame } from '../integration/unified-atlas-overlay-source';
 import type { NativeSceneSourceSelection } from '../src/lantern/scans/native-scene-source-types';
 import type { ElectricalFixtureData } from '../src/lantern/overlays/electricity/fixture-types';
 import type { NetworkOverlayData } from '../src/lantern/overlays/network/types';
 import { ExactDecimal } from '../src/numeric/decimal';
+import { exampleElectricalInput, exampleElectricalProjection } from './electrical-data';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays']> = async (_selection, scene, building, signal) => {
@@ -66,13 +68,20 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
   };
   const sceneSelection = { ...scene.scope, revision: scene.selection.revision, publicationId: scene.publication.publicationId,
     semanticsSha256: scene.publication.semanticsSha256 };
+  const roomBindings = rooms.map((room, i) => ({ roomId: room!.roomId, nativePlaceId: room!.nativePlaceId!, spaceOccurrenceId: null,
+    sourceRoomIds: [`example-room-${i}`], targets: [{ ...targets[i]!, sourceAnchorIds: [`example-anchor-${i}`] }],
+    qualification: 'current-native-room-join' as const, anchor: { kind: 'room-summary' as const } }));
+  // The panel/circuit projection names the exact ledger bytes this frame shows.
+  const ledgerSha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(electricalFixtures))))]
+    .map(n => n.toString(16).padStart(2, '0')).join('');
+  signal.throwIfAborted();
+  const projection = exampleElectricalProjection(exampleElectricalInput(scene.scope, pins.viewKey, electricalFixtures, ledgerSha256, rooms[0]!.nativePlaceId!));
   const frame: UnifiedAtlasOverlayAvailableFrame = { status: 'available', lease: {}, sceneSelection, nativeBuildingId: building.nativePlaceId,
-    currentSource: { recordId: U(612), revision: ExactDecimal.parse('1'), payload: {} }, sourceSelection: pins,
-    roomBindings: rooms.map((room, i) => ({ roomId: room!.roomId, nativePlaceId: room!.nativePlaceId!, spaceOccurrenceId: null,
-      sourceRoomIds: [`example-room-${i}`], targets: [{ ...targets[i]!, sourceAnchorIds: [`example-anchor-${i}`] }],
-      qualification: 'current-native-room-join', anchor: { kind: 'room-summary' } })),
+    currentSource: { recordId: U(612), revision: ExactDecimal.parse('1'), payload: {} }, sourceSelection: pins, roomBindings,
     network: { status: 'available', data: network }, electricity: { status: 'unavailable', reason: 'not-retained' },
-    electricalFixtures: { status: 'available', data: electricalFixtures } };
+    electricalFixtures: { status: 'available', data: electricalFixtures },
+    electricalData: { ledger: { workspaceId: scene.scope.workspaceId, homeId: scene.scope.homeId, sceneEvidenceId: pins.sceneEvidenceId,
+      sceneOriginalSha256: pins.sceneOriginalSha256, viewKey: pins.viewKey, sha256: ledgerSha256 }, projection, roomBindings } };
   let current = true, opened = false;
   let openingSignal: AbortSignal | null = null;
   const listeners = new Set<() => void>();

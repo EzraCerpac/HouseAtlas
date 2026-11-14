@@ -31,6 +31,9 @@ try {
       // The Places lens content as the example mounts it, rendered to static markup.
       `export { PlacesContent } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/RoomsView.tsx'))};`,
       `export { UpkeepView } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/UpkeepView.tsx'))};`,
+      `export { Modal } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/Modal.tsx'))};`,
+      `export { ExampleLabelContext } from ${JSON.stringify(join(root, 'frontend/src/lantern/example-label.tsx'))};`,
+      `export { EXAMPLE_LABEL } from ${JSON.stringify(join(root, 'frontend/example/household.ts'))};`,
       `export { StoreProvider } from ${JSON.stringify(join(root, 'frontend/src/lantern/state/store.tsx'))};`,
       `export { projectView } from ${JSON.stringify(join(root, 'frontend/src/lantern/adapters/read.ts'))};`,
       `export { buildTopologyIndex } from ${JSON.stringify(join(root, 'frontend/src/lantern/topology/model.ts'))};`,
@@ -164,6 +167,17 @@ try {
   const upkeep = api.renderToStaticMarkup(api.createElement(api.StoreProvider, { projection, actions }, api.createElement(api.UpkeepView)));
   for (const title of ['Fictional bulb check', 'Fictional bulb replacement']) assert.ok(upkeep.includes(title), `Upkeep lists ${title}`);
 
+  // Label: the dialogs and drawing viewer that cover the top bar show the
+  // example's label only under the example's provider; a configured home has none.
+  const dialog = provided => api.renderToStaticMarkup(api.createElement(api.ExampleLabelContext, { value: provided },
+    api.createElement(api.Modal, { title: 'Fictional reading lamp manual', onClose: () => {} }, 'body')));
+  assert.equal(view.homeLabel, api.EXAMPLE_LABEL);
+  assert.match(dialog(view.homeLabel), /<header class="modal-head"><div><p class="example-label">Synthetic example house<\/p>/);
+  assert.doesNotMatch(dialog(null), /example-label|Synthetic example house/);
+  const drawingSource = readFileSync(join(root, 'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx'), 'utf8');
+  assert.match(drawingSource, /<header><div><ExampleLabel \/><h3>\{sheet\.title\}<\/h3>/, 'the drawing viewer heads with the same label');
+  assert.match(readFileSync(join(root, 'frontend/example/app.tsx'), 'utf8'), /<ExampleLabelContext value=\{view\.homeLabel\}>/);
+
   // Offline worker: exact table of the example's build files, served from its own cache.
   const MIME = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8' };
   const origin = 'https://example-host.invalid';
@@ -233,11 +247,15 @@ try {
     assert.equal(entry.status, 200, `${server}: the held entry answers`);
     assert.equal(await entry.text(), buildA.files['index.html'], `${server}: the entry opens with its starting-state query`);
     assert.equal(await text(workerA.request('/example/assets/viewer-a1.js')), buildA.files['assets/viewer-a1.js']);
+    // The short entry answers as the host does: 307 to the entry, query kept, which the worker then serves.
+    const short = await workerA.request('/example/?building=syn-building-house&view=plan', 'navigate');
+    assert.deepEqual([short.status, short.headers.get('location')], [307, `${origin}/example/index.html?building=syn-building-house&view=plan`]);
     assert.equal(world.requests.length, before, `${server}: held files need no network read`);
   }
   world.server = 'ok';
   for (const [path, mode] of [['/api/atlas/view', 'cors'], ['/', 'navigate'], ['/saved/index.html', 'navigate'],
-    ['/example/assets/app-a1.js', 'navigate'], ['/example/assets/app-a1.js?x=1', 'no-cors'], ['/example/other.html', 'navigate']])
+    ['/example/assets/app-a1.js', 'navigate'], ['/example/assets/app-a1.js?x=1', 'no-cors'], ['/example/other.html', 'navigate'],
+    ['/example/', 'no-cors'], ['/example/assets/', 'navigate'], ['/examples/', 'navigate']])
     assert.equal(workerA.request(path, mode), null, `${path} (${mode}) is not intercepted`);
 
   // A new deploy installs beside the active build and waits: an open page of
@@ -267,4 +285,4 @@ try {
   assert.ok(!world.stores.has('houseatlas-example-changed'));
   assert.equal(exampleCaches().length, 1);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-console.log('PASS fictional example files: source Documents, HomeBox original kept in memory, electrical drawing PDF, Places rows, inventory quantity and upkeep, and /example/ offline worker across two builds (pure)');
+console.log('PASS fictional example files: source Documents, HomeBox original kept in memory, electrical drawing PDF, Places rows, inventory quantity and upkeep, the example label in dialog markup, and /example/ offline worker, including its short entry, across two builds (pure)');

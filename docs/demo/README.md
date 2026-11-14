@@ -68,7 +68,24 @@ stays unknown, and the reading lamp has two upkeep entries (one scheduled, one
 done with a retained cost token). The read-only HomeBox copy is stale (retrieved 3 January
 2026) and each record's source update time is unknown. Every label, identifier,
 coordinate, date and file is invented.
-The home name, shown on every screen, is *Synthetic example house*.
+The home name, shown on every screen, is *Synthetic example house*. Dialogs
+and the full-screen drawing viewer, which cover the top bar, carry the same
+label in their heading (`ExampleLabelContext`, provided only by the example).
+
+### Feature areas
+
+| Area | How to reach it in the example |
+| --- | --- |
+| Inventory | **Atlas** › **Rooms & places**: three belongings in *No reviewed placement*, with quantity and source hierarchy; open one for its read-only detail. **Upkeep** lists the lamp's two entries. |
+| Documents | **Library** › **Source documents** and **Electrical drawings**; the lamp manual from **Library** › **File details** (below). |
+| Electrical groups | Hall link below, **Electrical** layer, open *Fictional symbol 1* › **Show drawing group**: the historic group and its fictional circuits A1 and A2 (below). |
+| Network trace | **Atlas** › **Network**; select the access point, switch or streaming box (below). |
+| Offline | Load `/example/` or `/example/index.html` once online; both then open with the network off (below). |
+
+No belonging has a reviewed room placement: the HomeBox projection always
+reports placement unknown and the native records have no reviewed item-to-room
+relation, so item-to-room navigation cannot be shown without a new placement
+source. The source hierarchy above is not that placement.
 
 `npm --prefix frontend run build` ships it: after the app's own build, a
 second pass, `vite build --config example/vite.config.ts`, writes only
@@ -78,9 +95,11 @@ signed-out screen links to it as **Example house**; signed in, **Settings**
 has **Open example house**, and the offline (Saved) app's **Settings** has
 **Example house**. The Rust host serves `dist/example/index.html` at exactly
 `/example/index.html`, signed in or out. `/example/` and `/example` redirect
-there (307, query kept), so the page and its worker keep that one address;
-the redirect needs the network. The Vite dev server serves the same page at
-the same path.
+there (307, query kept), so the page and its worker keep that one address.
+Once the example worker is installed it answers `/example/` with the same
+redirect itself, so that entry also opens offline; `/example` (no slash) lies
+outside the worker's scope and still needs the network. The Vite dev server
+serves the same page at the same path.
 
 ### Files in the example
 
@@ -107,7 +126,7 @@ Library checks, placed on the house building; their room associations
 ### Opening it on a phone or Mac
 
 Once a build is deployed, open `https://<your HouseAtlas host>/example/index.html`
-(typing `/example/` online also lands there) in the installed app (Settings › **Open example house**, or **Example house**
+(`/example/` also lands there, offline too after the first visit) in the installed app (Settings › **Open example house**, or **Example house**
 on the sign-in screen) or in the browser. The page installs its own service
 worker, scoped to `/example/`, that holds every built example file. After the
 page has loaded once online and stayed open for a few seconds, it opens with
@@ -118,6 +137,11 @@ Safari keep separate storage, so load the example once online in each.
 
 The example worker caches only `/example/` files under its own
 `houseatlas-example-` cache name and removes only its own earlier caches.
+Besides those files it answers only a navigation to its own scope root,
+`/example/`, with a redirect to the entry. The browser sends `/example/`
+navigations to this registration (its `/example/` scope is the longest match);
+the root worker handles only queryless `/` and `/index.html` and the `/saved/`
+worker only its own files, so neither worker's reach changes.
 The entry and its built files always come from the held copy of the
 worker's own build, so a server error or captive-portal answer never replaces
 it. A new deploy installs as a worker update that takes over only after every
@@ -145,10 +169,18 @@ Both are invented documentary records, not wiring or device evidence
 
 - **Electrical**: show the Electrical layer. Hall has three historic drawing
   symbols and Living room one. *Fictional drawing group 1* names three of them
-  across both rooms; the fourth symbol has no group and stays unknown. No group
-  names a circuit, panel or verified wiring: the circuit-and-panel trace needs
-  a reviewed projection that no host supplies yet, so it is not shown. The
-  18-page drawing opens from **Library** › **Electrical drawings**.
+  across both rooms; the fourth symbol has no group and stays unknown. The
+  group itself still names no circuit and stays *Historic drawing group,
+  unverified*. Open a member symbol and choose **Show drawing group**: Hall and
+  Living room are highlighted and **Circuit and panel** shows invented current
+  data (`frontend/example/electrical-data.ts`), as the reviewed projection the
+  example's overlay frame supplies: *Fictional circuit A1* on symbol 1, 16 A,
+  confirmed by an invented test; *Fictional circuit A2* on symbol 4, an owner
+  report not confirmed by test, rating and protection unknown; symbol 2 has no
+  reviewed circuit. Both sit on *Fictional panel*, whose room button opens
+  Hall. No test was performed and nothing here is wiring evidence. No
+  configured home supplies such a projection yet. The 18-page drawing opens
+  from **Library** › **Electrical drawings**.
 - **Network**: open the Network lens and show the Network layer. Devices lists
   four: *Fictional network root* (Living room), *Fictional access point*
   (Stairs), *Fictional switch* (Hall) and *Fictional streaming box* (Living
@@ -162,7 +194,8 @@ Both are invented documentary records, not wiring or device evidence
 Each opens the actual Atlas at a named view (rule below), then the step shown.
 
 - `/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-hall&view=plan`:
-  Hall in Plan. Show **Electrical** for its three symbols and drawing group 1.
+  Hall in Plan. Show **Electrical** for its three symbols and drawing group 1;
+  **Show drawing group** on *Fictional symbol 1* shows circuits A1 and A2.
 - `/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-living&view=3d`:
   Living room in 3D. **Electrical** shows its one grouped symbol; the Network
   lens has the root and streaming box.
@@ -313,9 +346,11 @@ The starting-state checks use fresh reads only: the example has no stored
 copy, so a stored copy shown first is covered only by the pure ledger
 controls in `frontend/lantern-tests/unified-atlas-start-healthy.mjs`, which
 mount no React tree and are on the healthy runner list. Its Documents, inventory
-quantity and upkeep, and the drawing group and network graph are checked by
-`example-files-healthy.mjs` and `example-combined-overlays-healthy.mjs`
-without a browser.
+quantity and upkeep, the label in dialog markup, the `/example/` redirect, the
+drawing group, its fictional circuits (against the actual projector) and the
+network graph are checked by `example-files-healthy.mjs` and
+`example-combined-overlays-healthy.mjs` without a browser. The capture does not
+open the circuits, the drawing viewer or the example offline.
 
 ## Reproduce
 
