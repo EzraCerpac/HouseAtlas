@@ -172,16 +172,109 @@ const browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gp
 const stopBrowser = trackOfflineBrowser(browser);
 const cdp = new Pipe(browser);
 const timeout = (ms, label) => new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms).unref());
+// Keep bounded observations across target replacement and reload. Do not turn
+// diagnostics into extra network/storage work or change the case's deadlines.
+const observations = [];
+const record = (kind, detail) => {
+  const bounded = JSON.parse(JSON.stringify(detail, (_key, value) => typeof value === 'string' ? value.slice(0, 2000) : value));
+  observations.push({ ms: Date.now(), kind, detail: bounded });
+  if (observations.length > 160) observations.shift();
+};
+let primarySession, coldReload = null, diagnose = async () => ({ observations });
+cdp.listeners.add(message => {
+  const { method, params, sessionId } = message;
+  if (sessionId !== primarySession) return;
+  if (['Page.frameNavigated', 'Page.lifecycleEvent', 'Page.frameStartedLoading', 'Page.frameStoppedLoading',
+    'Runtime.executionContextCreated', 'Runtime.executionContextDestroyed', 'Runtime.executionContextsCleared'].includes(method)) {
+    record(method, params);
+    if (method === 'Page.frameNavigated' && !params.frame.parentId && coldReload)
+      coldReload.committedLoader = params.frame.loaderId;
+  } else if (method === 'Runtime.exceptionThrown') {
+    record(method, { text: params.exceptionDetails.text, description: params.exceptionDetails.exception?.description?.slice(0, 2000),
+      url: params.exceptionDetails.url, lineNumber: params.exceptionDetails.lineNumber });
+  } else if (method === 'Runtime.consoleAPICalled') {
+    record(method, { type: params.type, context: params.executionContextId,
+      args: params.args.map(arg => String(arg.value ?? arg.description ?? arg.type).slice(0, 1000)) });
+  } else if (method === 'Network.loadingFailed') record(method, params);
+});
+// Observe original IndexedDB requests without replacing application handlers,
+// awaiting requests, reading stored values or creating a connection ourselves.
+const storageProbe = `(() => {
+  const pending = new Map(), recent = []; let next = 0;
+  const finish = (id, kind) => {
+    const entry = pending.get(id); pending.delete(id);
+    recent.push({ ...entry, kind, at: performance.now() }); if (recent.length > 40) recent.shift();
+  };
+  globalThis.__offlineStorageDiagnostics = () => ({ pending: [...pending.values()], recent });
+  const open = indexedDB.open;
+  indexedDB.open = function (...args) {
+    const request = open.apply(this, args), id = ++next;
+    pending.set(id, { id, operation: 'open', database: String(args[0]), at: performance.now() });
+    for (const event of ['success', 'error']) request.addEventListener(event, () => finish(id, event), { once: true });
+    for (const event of ['blocked', 'upgradeneeded']) request.addEventListener(event, () => {
+      recent.push({ id, kind: event, at: performance.now() }); if (recent.length > 40) recent.shift();
+    });
+    request.addEventListener('success', () => request.result.addEventListener('versionchange', () => {
+      recent.push({ id, kind: 'versionchange', at: performance.now() }); if (recent.length > 40) recent.shift();
+    }), { once: true });
+    return request;
+  };
+  const transaction = IDBDatabase.prototype.transaction;
+  IDBDatabase.prototype.transaction = function (...args) {
+    const tx = transaction.apply(this, args), id = ++next;
+    pending.set(id, { id, operation: 'transaction', database: this.name, mode: tx.mode, at: performance.now() });
+    for (const event of ['complete', 'abort']) tx.addEventListener(event, () => finish(id, event), { once: true });
+    return tx;
+  };
+})()`;
 let primaryFailure = null;
 try {
   let { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   let { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
-  await send('Page.enable'); await send('Runtime.enable');
+  const observePage = async () => {
+    primarySession = sessionId;
+    await send('Page.enable'); await send('Runtime.enable');
+    await send('Page.setLifecycleEventsEnabled', { enabled: true });
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: storageProbe });
+  };
+  await observePage();
   const evaluate = async expression => {
     const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (exceptionDetails) record('evaluate exception', { text: exceptionDetails.text, description: exceptionDetails.exception?.description?.slice(0, 1000) });
     assert(!exceptionDetails, exceptionDetails?.exception?.description ?? exceptionDetails?.text);
     return result.value;
+  };
+  const bounded = async task => {
+    let timer;
+    try { return await Promise.race([task(), new Promise(resolve => { timer = setTimeout(() => resolve('diagnostic timeout'), 1500); })]); }
+    catch (error) { return String(error); } finally { clearTimeout(timer); }
+  };
+  diagnose = async () => {
+    const [page, workers, frameTree, documentTree, targets] = await Promise.all([
+      bounded(() => evaluate(`(() => ({
+        url: location.href, readyState: document.readyState, visibility: document.visibilityState,
+        htmlLength: document.documentElement?.outerHTML.length, text: document.body?.innerText.slice(0, 2000),
+        rootChildren: document.getElementById('root')?.childElementCount,
+        appHidden: document.querySelector('.offline-app-root')?.hidden,
+        storage: globalThis.__offlineStorageDiagnostics?.(),
+        navigation: performance.getEntriesByType('navigation').map(({ type, startTime, responseStart, domContentLoadedEventEnd, loadEventEnd }) =>
+          ({ type, startTime, responseStart, domContentLoadedEventEnd, loadEventEnd })),
+        controller: navigator.serviceWorker.controller?.scriptURL,
+      }))()`)),
+      bounded(() => evaluate(`navigator.serviceWorker.getRegistrations().then(rows => rows.map(row => ({ scope: row.scope,
+        active: row.active?.state, waiting: row.waiting?.state, installing: row.installing?.state })))`)),
+      bounded(() => send('Page.getFrameTree')),
+      bounded(async () => {
+        // DOM-domain readback is independent of Runtime's default context.
+        const { root } = await send('DOM.getDocument', { depth: 0 });
+        const { outerHTML } = await send('DOM.getOuterHTML', { nodeId: root.nodeId });
+        return { url: root.documentURL, htmlLength: outerHTML.length,
+          containsWithdrawnMessage: outerHTML.includes('Held app information is unavailable or was removed.') };
+      }),
+      bounded(() => cdp.send('Target.getTargets')),
+    ]);
+    return { coldReload, page, workers, frameTree, documentTree, targets, observations };
   };
   const screenshot = async name => {
     const directory = process.env.HOUSEATLAS_OFFLINE_SCREENSHOTS;
@@ -194,7 +287,7 @@ try {
   const poll = async (expression, ms, label) => {
     const until = Date.now() + ms;
     for (;;) {
-      if (await evaluate(expression).catch(() => false)) return Date.now();
+      if (await evaluate(expression).catch(error => { record('poll evaluation error', String(error)); return false; })) return Date.now();
       if (Date.now() > until) throw new Error(label + ': ' + await evaluate('document.body.innerText').catch(() => 'page unavailable'));
       await new Promise(done => setTimeout(done, 25));
     }
@@ -261,7 +354,7 @@ try {
     assert.equal((await cdp.send('Target.closeTarget', { targetId })).success, true);
     ({ targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' }));
     ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
-    await send('Page.enable'); await send('Runtime.enable');
+    await observePage();
     cdp.listeners.add(message => {
       if (message.sessionId === sessionId && message.method === 'Network.requestWillBeSent'
         && !['GET', 'HEAD'].includes(message.params.request.method))
@@ -415,7 +508,10 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.source-pdf-page canvas, .offline-atlas, .saved-stage') === null`, 10_000, 'Peer tombstone did not withdraw held drawing and Atlas');
     assert.equal((await cdp.send('Target.closeTarget', { targetId: second.targetId })).success, true);
+    const { frameTree } = await send('Page.getFrameTree');
+    coldReload = { previousLoader: frameTree.frame.loaderId, frameId: frameTree.frame.id, requestedAt: Date.now() };
     await send('Page.reload', {});
+    coldReload.acknowledgedAt = Date.now();
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
@@ -423,7 +519,10 @@ try {
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {
-  primaryFailure = { error }; throw error;
+  primaryFailure = { error };
+  try { console.error('Offline launch failure diagnostics: ' + JSON.stringify(await diagnose())); }
+  catch (diagnosticError) { console.error('Offline diagnostics unavailable:', diagnosticError); }
+  throw error;
 } finally {
   await finishOfflineCleanup({
     primaryFailure,
