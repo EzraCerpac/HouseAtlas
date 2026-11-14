@@ -61,6 +61,7 @@ const panelCode = panelOutput.output.find(row => row.type === 'chunk').code
   .replaceAll('from "react/jsx-runtime"', `from ${JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)}`)
   .replaceAll('from "react"', `from "data:text/javascript;base64,${Buffer.from(hookModule).toString('base64')}"`);
 const { CaptureDraftPanel: HookedPanel } = await import(`data:text/javascript;base64,${Buffer.from(panelCode).toString('base64')}`);
+globalThis.requestAnimationFrame ??= () => 0;
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 /** One Panel instance: opt in, activate a named button, then read its visible status and listed rows. */
@@ -70,6 +71,8 @@ function mountPanel(port, candidate = () => null) {
     parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} })); };
   return {
     optIn() { render().find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } }); },
+    /** Tick the checkbox whose label contains this text. */
+    check(label) { const box = render().find(node => node.type === 'label' && text(node).includes(label)); nodes(box.props.children).find(node => node.type === 'input').props.onChange({ target: { checked: true } }); },
     async click(label) {
       const button = render().find(node => node.type === 'button' && text(node) === label);
       assert(button && !button.props.disabled, label); button.props.onClick();
@@ -185,6 +188,20 @@ try {
     assert.deepEqual(row.owner, { actorId: 'synthetic-actor', ...scope });
     assert.deepEqual(new Uint8Array(await row.original.arrayBuffer()), new Uint8Array(await original.arrayBuffer()));
     assert.equal(f.calls.post, 0); assert.equal(f.calls.get, 0); assert.equal(f.calls.editing, 0);
+    // Browser-wide limits refuse a further save by name; nothing partial is stored.
+    const filler = (n, bytes) => ({ ...row, id: uuid(n), original: new Blob([new Uint8Array(bytes)], { type: row.contentType }) });
+    const candidate = (file, id = uuid(940)) => () => ({ localId: id, selection: { original: file, file, capture: { ...capture, filename: file.name, reportedContentType: file.type } },
+      form, targetSourceRef: null, recordId: placeId, optedIn: true });
+    f.shared.rows = [row, filler(941, 16), filler(942, 16), filler(943, 16)];
+    let panel = mountPanel(f.port, candidate(original)); panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: this browser already holds the maximum of 4 local drafts, including any for other places or accounts.');
+    assert.equal(f.shared.rows.length, 4);
+    const mib = 1024 * 1024, large = new File([new Uint8Array(3 * mib).fill(65)], 'synthetic-large.txt', { type: 'text/plain', lastModified: 42 });
+    f.shared.rows = [filler(941, 10 * mib), filler(942, 10 * mib), filler(943, 10 * mib)];
+    panel = mountPanel(f.port, candidate(large)); panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: it would exceed the 32 MiB total for local drafts in this browser, including any for other places or accounts.');
+    assert.deepEqual(f.shared.rows.map(stored => stored.id), [uuid(941), uuid(942), uuid(943)]);
+    assert.equal(f.calls.post + f.calls.get + f.calls.editing, 0);
   } else if (caseName === 'native-reopen-unsent') {
     await f.save();
     // A new adapter over the same retained rows models a reopened app.
@@ -247,6 +264,15 @@ try {
     assert.equal(f.shared.rows.length, 1); assert.equal(f.shared.rows[0].state, 'unsent');
     assert.equal(f.calls.post + other.calls.post + home.calls.post, 0); assert.equal(f.calls.editing, 0);
   } else if (caseName === 'native-lost-reply-drafts-reachable') {
+    // Through the panel: right after the lost reply the row reads Outcome unknown, without a reload.
+    const g = fixture();
+    const shown = mountPanel(g.port, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }));
+    shown.optIn(); await shown.click('Save local draft');
+    await shown.click(`Review ${original.name}`);
+    g.shared.lostReply = true; shown.check('Upload this saved file');
+    assert.equal(await shown.click('Confirm upload'), 'Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
+    assert.deepEqual(shown.rows().map(listed => listed.split('Saved ')[0]), [`${original.name} · ${original.size} bytes · Outcome unknown`]);
+    assert.equal(g.calls.post, 1); assert.equal(g.shared.rows[0].state, 'outcome-unknown');
     await f.save();
     f.shared.lostReply = true;
     await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Scope, SourceRef } from '../api/generated/contracts';
-import type { DraftReview, DraftSummary, DraftUnknownInspection } from '../capture-drafts/types';
+import { DRAFT_LIMITS, type DraftReview, type DraftSummary, type DraftUnknownInspection } from '../capture-drafts/types';
+import type { DraftLimitError } from '../capture-drafts/validation';
 import { sameTarget, type CaptureDraftPort, type DraftCompletion } from './port';
 
 type SaveInput = Parameters<CaptureDraftPort['save']>[0];
@@ -23,6 +24,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   const active = useRef<ReturnType<CaptureDraftPort['operation']> | null>(null);
   const locked = useRef(false);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const reviewed = useRef<string | null>(null);
   const sourceKey = JSON.stringify(source);
   const mine = (row: DraftSummary) => sameTarget(row.targetSourceRef, source) && (source !== null || row.recordId === recordId);
   useEffect(() => {
@@ -37,15 +39,15 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     const unsubscribe = port.subscribeInvalidation(clear);
     return () => { unsubscribe(); active.current?.controller.abort(); active.current?.release(); port.invalidate(); };
   }, [port, sourceKey, recordId]);
-  const run = async (action: (signal: AbortSignal) => Promise<void>) => {
+  const run = async (action: (signal: AbortSignal) => Promise<void>, explain: (error: unknown) => string | null = () => null) => {
     if (locked.current || parentBusy) return;
     locked.current = true;
     const operation = port.operation(); active.current = operation;
     setBusy(true); onBusy(true); setStatus('');
     try { await action(operation.controller.signal); }
-    catch {
+    catch (error) {
       if (!operation.controller.signal.aborted)
-        setStatus('Local draft action could not complete. The local file may be unavailable or its submission outcome unknown. View local drafts again.');
+        setStatus(explain(error) ?? 'Local draft action could not complete. The local file may be unavailable or its submission outcome unknown. View local drafts again.');
     } finally {
       operation.release(); if (active.current === operation) active.current = null;
       locked.current = false; setBusy(false); onBusy(false);
@@ -69,19 +71,33 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     const rows = await port.list(); signal.throwIfAborted();
     setSummaries(rows.filter(mine));
     setStatus('Unsent draft saved on this browser. Nothing was uploaded.');
-  });
+  }, error => (error as Error | null)?.name !== 'DraftLimitError' ? null : (error as DraftLimitError).limit === 'count'
+    ? `Local draft not saved: this browser already holds the maximum of ${DRAFT_LIMITS.count} local drafts, including any for other places or accounts.`
+    : `Local draft not saved: it would exceed the ${DRAFT_LIMITS.totalBytes / 1024 / 1024} MiB total for local drafts in this browser, including any for other places or accounts.`);
+  // The stored rows as they are now, for the current account and this place.
+  const relist = async () => { try { const rows = (await port.list()).filter(mine); setSummaries(rows); return rows; } catch { return null; } };
   const resume = (id: string) => void run(async signal => {
     setReview(null); setInspection(null); setConfirmed(false);
     if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
     const next = await port.review(id, signal); signal.throwIfAborted();
     if (!sameTarget(next.targetSourceRef, source) || next.recordId !== recordId) throw new Error('Draft target differs');
-    setReview(next); setStatus('Review the saved file and values. Upload requires a separate confirmation.');
+    reviewed.current = id; setReview(next); setStatus('Review the saved file and values. Upload requires a separate confirmation.');
     requestAnimationFrame(() => { if (!signal.aborted) reviewHeading.current?.focus(); });
   });
   const submit = () => void run(async signal => {
     if (!review || !confirmed || !recordId || !canUpload) return;
-    const selected = review; setReview(null); setConfirmed(false);
-    const completion = await port.submit(selected, source, recordId, signal);
+    const selected = review, selectedId = reviewed.current; setReview(null); setConfirmed(false);
+    let completion: DraftCompletion;
+    try { completion = await port.submit(selected, source, recordId, signal); }
+    catch (error) {
+      // A failed send leaves the row as stored before sending; show that state now, without a reload.
+      signal.throwIfAborted();
+      if ((await relist())?.some(row => row.id === selectedId && row.state === 'outcome-unknown')) {
+        setStatus('Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
+        return;
+      }
+      throw error;
+    }
     signal.throwIfAborted();
     // Release the foreground lease before the ordinary view refresh masks the
     // scope. Local acknowledgement already ran before this refresh.
@@ -89,7 +105,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     if (completion.committed) {
       setSummaries([]);
       setStatus(completion.localCleanup === 'removed' ? 'Saved. The local draft was removed.' : 'Saved. Local cleanup could not be confirmed; the local attempt remains locked.');
-    } else setStatus('The upload was not committed. The local attempt remains locked with an unknown outcome.');
+    } else { await relist(); setStatus('The upload was not committed. The local attempt remains locked with an unknown outcome.'); }
     await onSubmitted(completion);
   });
   const inspect = (id: string) => void run(async signal => {
