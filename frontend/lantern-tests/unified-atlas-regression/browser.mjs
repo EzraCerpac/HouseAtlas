@@ -249,6 +249,14 @@ try {
       await click(button('.layer-bar button', 'Electrical'));
       // The second marker joins a frame or two after the toggle; wait for that settled state.
       await until('document.querySelectorAll(".ua-marker").length === 2', 'two electrical markers');
+      // The camera is still easing into the building; click the marker only once it holds still.
+      let held = '', stillFor = 0;
+      for (let tries = 0; stillFor < 3; tries++) {
+        assert(tries < 100, 'Hall marker never held still');
+        const rect = await evaluate('JSON.stringify(document.querySelector(".ua-marker[aria-label^=\'Hall:\']")?.getBoundingClientRect() ?? null)');
+        stillFor = rect !== 'null' && rect === held ? stillFor + 1 : 0; held = rect;
+        await wait(60);
+      }
       await click('document.querySelector(".ua-marker[aria-label^=\'Hall:\']")');
       assert.equal(await selectedRoom(), 'Hall');
       assert.match(await evaluate('document.querySelector(".ua-inspector").textContent'), /3 records/);
