@@ -62,6 +62,7 @@ const SOURCE = [
   ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-reported-mime-label-upload'],
   ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-offline-save-held-identity'],
   ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-save-no-identity-refused'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-session-answer-classification'],
   node('topology-read.mjs'),
   node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
   // Offline / saved copy
