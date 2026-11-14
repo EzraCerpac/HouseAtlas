@@ -32,13 +32,19 @@ globalThis[symbol] = {
 };
 const hooksURL = dataURL(`const hooks=globalThis[Symbol.for('houseatlas.compact-layer-details.synthetic-hooks')];
 export const {useRef,useLayoutEffect,useSyncExternalStore}=hooks;`);
-const file = new URL('../src/lantern/unified-atlas/LayerDetailsDock.tsx', import.meta.url);
-let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
-  { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
-for (const [name, replacement] of [['react', hooksURL], ['react/jsx-runtime', jsxURL]]) {
-  assert(code.includes(JSON.stringify(name)));
-  code = code.replaceAll(JSON.stringify(name), JSON.stringify(replacement));
-}
+const compileTsx = async (path, imports) => {
+  const file = new URL(path, import.meta.url);
+  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
+    { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
+  for (const [name, replacement] of imports) {
+    assert(code.includes(JSON.stringify(name)));
+    code = code.replaceAll(JSON.stringify(name), JSON.stringify(replacement));
+  }
+  return code;
+};
+const labelURL = dataURL(await compileTsx('../src/lantern/example-label.tsx', [['react', reactURL], ['react/jsx-runtime', jsxURL]]));
+const code = await compileTsx('../src/lantern/unified-atlas/LayerDetailsDock.tsx',
+  [['react', hooksURL], ['react/jsx-runtime', jsxURL], ['../example-label', labelURL]]);
 const { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } = await import(dataURL(code));
 // Compile the actual shell handlers with observable local actions. The modal's
 // capture/bubble sequence must leave the map, menu and graph actions untouched.
