@@ -7,7 +7,8 @@
  * against a synthetic in-page HTTPS transport serving the generated
  * publication. `?atlas-scene=<path>&atlas-model=<path>` uses an externally
  * supplied companion and its GLB instead; both paths must be same-origin and
- * are read once before the stub below. Nothing is written or kept. */
+ * are read once before the stub below. `&atlas-ground=wide` adds a generated
+ * site ground wider than the surroundings' fade. Nothing is written or kept. */
 import { createRoot } from 'react-dom/client';
 import { LanternHost } from '../../src/lantern/Host';
 import type { AtlasSessionInfo } from '../../src/app/session';
@@ -95,7 +96,7 @@ async function atlasInput(): Promise<{ readonly companionBytes: Uint8Array<Array
     return { companionBytes, glb };
   }
   if (params.get('atlas') !== 'generated') return null;
-  const generated = await buildSyntheticAtlas(scope);
+  const generated = await buildSyntheticAtlas(scope, 0, params.get('atlas-ground') === 'wide');
   return { companionBytes: generated.companionBytes, glb: generated.glb };
 }
 
