@@ -58,13 +58,32 @@ export function motionRatio(ratio: number, frameMs: readonly number[], devicePix
 }
 
 /** A run of moving frames: the pixel ratio it began with, kept until the view is still
- * again, and its frames' GPU times as they arrive. */
-export interface Motion { readonly ratio: number; readonly frameMs: number[] }
+ * again, its frames' GPU times as they arrive, how many timed frames the GPU has not
+ * finished yet, and whether a still frame has ended it. */
+export interface Motion { readonly ratio: number; readonly frameMs: number[]; pending: number; ended: boolean }
 
 /** The motion a frame belongs to: a moving frame continues the motion in progress
  * (whatever has been learned since) or begins one at `learned`; a still frame has none. */
 export const nextMotion = (current: Motion | null, moving: boolean, learned: number): Motion | null =>
-  !moving ? null : current ?? { ratio: learned, frameMs: [] };
+  !moving ? null : current ?? { ratio: learned, frameMs: [], pending: 0, ended: false };
+
+/** One frame of `motion` was submitted to the GPU. The returned function records its GPU
+ * time once it has finished (null if it never did); once the motion has ended and none of
+ * its frames is pending, `learn` gets all of their times. A backlogged GPU can finish a
+ * short drag's frames after the still frame that ended it, so those late times still count. */
+export function timeMotionFrame(motion: Motion, learn: (frameMs: readonly number[]) => void): (ms: number | null) => void {
+  motion.pending++;
+  return ms => {
+    if (ms !== null) motion.frameMs.push(ms);
+    if (--motion.pending === 0 && motion.ended) learn(motion.frameMs);
+  };
+}
+
+/** A still frame has ended `motion`: `learn` gets its frames' times now, or once the last pending one finishes. */
+export function endMotion(motion: Motion, learn: (frameMs: readonly number[]) => void): void {
+  motion.ended = true;
+  if (motion.pending === 0) learn(motion.frameMs);
+}
 
 /** The drawing buffer for a layout size at `ratio`, within `maxPixels`. */
 export function bufferSize(width: number, height: number, ratio: number, maxPixels: number): [number, number] {

@@ -3,7 +3,7 @@ import type { PreparedMesh, Projection } from './geometry';
 import { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
 import type { AppearanceInput } from './mesh-appearance';
 import type { MeshScene } from './mesh-scene';
-import { bufferSize, clampMoveRatio, motionRatio, nextMotion, startMoveRatio, stillRatio, type Motion } from './move-resolution';
+import { bufferSize, clampMoveRatio, endMotion, motionRatio, nextMotion, startMoveRatio, stillRatio, timeMotionFrame, type Motion } from './move-resolution';
 import type { DragReadout } from './render-probe';
 import { SceneBuildObservation } from './scene-build-observation';
 
@@ -120,6 +120,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     // The motion in progress: its pixel ratio and the GPU time of its frames (WebGPU), from when each was
     // submitted (or the frame before finished, if later) until the GPU finished it.
     let motion: Motion | null = null, lastDone = -Infinity;
+    const learn = (frameMs: readonly number[]) => {
+      if (moveRatio !== null) moveRatio = motionRatio(moveRatio, frameMs, window.devicePixelRatio || 1) ?? moveRatio;
+    };
     // A still frame (contact shading, full resolution) the GPU has not finished yet; the next one waits for it,
     // so a drag that begins meanwhile is never queued behind more than one. Whether a waiting frame only refines.
     let stillInFlight = false, stillWaiting: boolean | null = null;
@@ -218,9 +221,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       // Frames without contact shading are the moving ones (and the moment before the view settles).
       const dpr = window.devicePixelRatio || 1, moving = shading <= 0;
       moveRatio = clampMoveRatio(moveRatio ?? startMoveRatio(dpr, window.matchMedia?.('(pointer: coarse)').matches === true), dpr);
-      // A still frame ends the motion; its frames' median GPU time sets the next motion's ratio.
+      // A still frame ends the motion; its frames' median GPU time, once all are in, sets the next motion's ratio.
       const ended = motion; motion = nextMotion(motion, moving, moveRatio);
-      if (ended && !motion) moveRatio = motionRatio(moveRatio, ended.frameMs, dpr) ?? moveRatio;
+      if (ended && !motion) endMotion(ended, learn);
       const ratio = motion?.ratio ?? stillRatio(dpr), [w, h] = size(ratio);
       // A newly prepared stage: the frame as it was, copied and faded out over the first frame
       // of the new stage. Contact shading fades in by its own strength instead.
@@ -242,8 +245,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       // (plus however long this thread takes to see it finish), not this frame's encoding.
       const submitted = performance.now(), finished = scene.backend === 'webgpu' ? scene.finished() : null;
       if (finished && motion && scene.complete()) {
-        const { frameMs } = motion;
-        void finished.then(() => { const done = performance.now(); frameMs.push(done - Math.max(submitted, lastDone)); lastDone = done; }, () => undefined);
+        const record = timeMotionFrame(motion, learn);
+        void finished.then(() => { const done = performance.now(); record(done - Math.max(submitted, lastDone)); lastDone = done; }, () => record(null));
       }
       if (finished && !moving) {
         stillInFlight = true;

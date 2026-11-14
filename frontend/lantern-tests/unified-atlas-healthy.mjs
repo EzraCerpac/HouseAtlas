@@ -36,6 +36,7 @@ const threeURL = new URL('./node_modules/three/build/three.module.js', frontend)
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
 const pointersURL = await sourceURL('../src/lantern/canonical-ifc/stage-pointers.ts');
 const moveResolutionURL = await sourceURL('../src/lantern/canonical-ifc/move-resolution.ts');
+const renderProbeURL = await sourceURL('../src/lantern/canonical-ifc/render-probe.ts');
 const labelsURL = await sourceURL('../src/lantern/unified-atlas/labels.ts');
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
 const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
@@ -1653,7 +1654,7 @@ for (const type of ['touch', 'mouse']) {
 // Moving-frame pixel ratio (MeshLayer, #312): a still frame keeps the device's ratio up to 2; moving frames start at one
 // pixel per layout pixel on a coarse pointer, adapt to GPU time within [floor, still], and never oscillate in between.
 {
-  const { stillRatio, moveFloor, startMoveRatio, adaptMoveRatio, motionRatio, nextMotion, bufferSize, MOVE_BUDGET_MS, MOVE_MIN_RATIO, MOTION_MIN_FRAMES } = await import(moveResolutionURL);
+  const { stillRatio, moveFloor, startMoveRatio, adaptMoveRatio, motionRatio, nextMotion, endMotion, timeMotionFrame, bufferSize, MOVE_BUDGET_MS, MOVE_MIN_RATIO, MOTION_MIN_FRAMES } = await import(moveResolutionURL);
   const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} ≠ ${expected}`);
   assert.deepEqual([3, 2, 1.5, 1, .5, 0, NaN].map(stillRatio), [2, 2, 1.5, 1, .5, 1, 1], 'still frames: device ratio up to 2');
   assert.deepEqual([3, 1, .5].map(moveFloor), [MOVE_MIN_RATIO, MOVE_MIN_RATIO, .5], 'moving floor, never above the still ratio');
@@ -1683,10 +1684,10 @@ for (const type of ['touch', 'mouse']) {
     const drags = [];
     for (const [at, moving] of frames.entries()) {
       const ended = motion; motion = nextMotion(motion, moving, learned);
-      if (ended && !motion) learned = motionRatio(learned, ended.frameMs, 3) ?? learned;
+      if (ended && !motion) endMotion(ended, frameMs => { learned = motionRatio(learned, frameMs, 3) ?? learned; });
       const size = bufferSize(...layout, motion?.ratio ?? stillRatio(3), 16_777_216).join('×');
       if (motion && motion !== last) drags.push(new Set());
-      if (motion) { drags.at(-1).add(size); motion.frameMs.push(at < 20 ? 4 : 6); }
+      if (motion) { drags.at(-1).add(size); timeMotionFrame(motion, () => {})(at < 20 ? 4 : 6); }
       // A faster ratio learned in the middle of the first drag must not reach it.
       if (motion && at === 10) learned = adaptMoveRatio(learned, 4, 3);
       last = motion;
@@ -1694,7 +1695,31 @@ for (const type of ['touch', 'mouse']) {
     assert.deepEqual(drags.map(sizes => sizes.size), [1, 1], 'one drawing-buffer size per drag, from its first moving frame to its last');
     assert.notDeepEqual([...drags[0]], [...drags[1]], 'the next drag takes the ratio its predecessor taught');
     assert.equal(motionRatio(1, Array(MOTION_MIN_FRAMES - 1).fill(40), 3), null, 'a short glide teaches nothing');
+    // A short drag on a backlogged GPU: 12 frames of 50 ms submitted, only 7 finished when the still frame ends it.
+    // The other five finish later, while the next drag is already moving at its fixed ratio; the one after steps down.
+    let taught = 1;
+    const learn = frameMs => { taught = motionRatio(taught, frameMs, 3) ?? taught; };
+    const short = nextMotion(null, true, taught), done = Array.from({ length: 12 }, () => timeMotionFrame(short, learn));
+    for (const record of done.slice(0, 7)) record(50);
+    assert.equal(nextMotion(short, false, taught), null); endMotion(short, learn);
+    assert.equal(taught, 1, 'nothing is learned while the drag still has frames on the GPU');
+    const following = nextMotion(null, true, taught);
+    for (const record of done.slice(7)) record(50);
+    assert.equal(following.ratio, 1, 'late timings never change a drag already moving');
+    close(taught, MOVE_MIN_RATIO, 'they set the ratio once all twelve are in');
+    close(nextMotion(null, true, taught).ratio, MOVE_MIN_RATIO, 'the next drag steps down');
     close(motionRatio(1, [...Array(5).fill(40), ...Array(6).fill(9)], 3), 1, 'the median, not one slow frame, decides');
+  }
+  // WebGL2 drag readout: each interval is charged to the draw that began it, so a slow first frame is named as such.
+  {
+    const { createDragReadout } = await import(renderProbeURL);
+    const shown = [], readout = createDragReadout(text => shown.push(text));
+    const frame = (start, resized = false) => ({ start, submitted: start === 0 ? 80 : start + 2, finished: null, ratio: 1, still: 2, backend: 'webgl2', resized });
+    readout.frame(frame(0, true)); readout.frame(frame(96)); readout.frame(frame(112)); readout.other(null, false);
+    await new Promise(resolve => setTimeout(resolve));
+    assert.equal(shown.length, 1);
+    assert.match(shown[0], /worst 96\.0 ms at 0\.0 s \(frame 1 of 2, first frame\)/, shown[0]);
+    assert.match(shown[0], /Over 50 ms: 1 \(first frame 1\)/, shown[0]);
   }
   // A paused drag stays a drag until the finger lifts, so MeshLayer keeps moving frames (no contact shading) meanwhile.
   const h = gestureHarness();
@@ -1712,7 +1737,7 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Section targets, settled and reduced-motion equivalence, mid-sweep reveal agreeing across drawing, picks and room controls, '
   + 'retargeting from an intermediate cut, and the same publication 100 000 m higher. '
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
-  + 'Moving-frame pixel ratios start, adapt between drags and stay within their floor and the still ratio; a drag keeps one buffer size; a paused drag stays a drag. '
+  + 'Moving-frame pixel ratios start, adapt between drags and stay within their floor and the still ratio; a drag keeps one buffer size and late GPU timings teach the next; the WebGL2 drag readout names a slow first frame; a paused drag stays a drag. '
   + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
   + 'Mixed-floor records, static React provenance output, bounded repeated binding indexes and multiple same-level plans retain their source scope/order. '
   + 'An empty record binding, a room with no occurrence, per-reason distinct unplaced counts, 8,193 selectors and nine 1,024-record bindings are admitted. '

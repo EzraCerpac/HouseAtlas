@@ -3069,7 +3069,10 @@ to 2, a coarse pointer starts moving frames at one pixel per layout pixel, and
 generated GPU times move the ratio only within its floor and the still ratio, by
 a motion's median and with a band a step up cannot leave. Generated drags keep one
 drawing-buffer size from their first moving frame to their last, even when a new
-ratio is learned mid-drag; the next drag takes it. A generated paused touch drag
+ratio is learned mid-drag; the next drag takes it. GPU times that finish after a
+short drag has ended still teach the next drag without changing one already
+moving. The WebGL2 drag readout charges each frame interval to the draw that
+began it, so a generated slow first frame is named as such. A generated paused touch drag
 stays a drag until it lifts and picks nothing. No renderer, GPU timing, browser or
 phone frame time is exercised.
 

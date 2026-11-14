@@ -128,8 +128,9 @@ export function showProbeReport(text: string): void {
  * On WebGPU a frame's time runs from when it began (or the previous frame of the drag
  * finished on the GPU, if later) until the GPU has finished it, so a pause in the drag
  * is not counted as a slow frame, while earlier work the GPU still had queued is.
- * WebGL2 cannot see GPU completion cheaply; there it is the time between frames drawn,
- * leaving out gaps over PAUSE_MS. */
+ * WebGL2 cannot see GPU completion cheaply; there it is the time from one frame drawn
+ * to the next, counted against the earlier one (its cost delays the next), leaving out
+ * gaps over PAUSE_MS. */
 export interface DragReadout {
   /** One moving frame of a drag. */
   frame(frame: DragFrame): void;
@@ -157,12 +158,13 @@ export interface DragFrame {
 export type SlowCause = 'settle' | 'main thread' | 'first frame' | 'ratio change' | 'resize' | 'other';
 const PAUSE_MS = 250, SLOW_MS = 50;
 
-export function createDragReadout(): DragReadout {
+/** `display` shows the lines (by default, an output element over the page). */
+export function createDragReadout(display?: (text: string) => void): DragReadout {
   interface Drag { times: { ms: number; at: number; cause: SlowCause }[]; began: number; lastDone: number; lastStart: number; lastRatio: number;
-    resizes: number; ratio: number; still: number; backend: string; pending: Promise<void> }
+    lastAt: number; lastCause: SlowCause; resizes: number; ratio: number; still: number; backend: string; pending: Promise<void> }
   let drag: Drag | null = null, shadedPending = 0;
   let output: HTMLOutputElement | null = null;
-  const show = (text: string) => {
+  const show = display ?? ((text: string) => {
     if (!output) {
       output = document.createElement('output');
       output.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:9999;max-width:560px;margin:0 auto;padding:6px 10px;box-sizing:border-box;'
@@ -171,7 +173,7 @@ export function createDragReadout(): DragReadout {
       document.body.append(output);
     }
     output.textContent = text;
-  };
+  });
   const ratio = (value: number) => String(Math.round(value * 100) / 100);
   const end = () => {
     const ended = drag; if (!ended) return;
@@ -192,7 +194,7 @@ export function createDragReadout(): DragReadout {
   return {
     frame({ start, submitted, finished, ratio: moving, still, backend, resized }) {
       const first = drag === null;
-      const current = drag ??= { times: [], began: start, lastDone: -Infinity, lastStart: NaN, lastRatio: moving, resizes: 0, ratio: moving, still, backend, pending: Promise.resolve() };
+      const current = drag ??= { times: [], began: start, lastDone: -Infinity, lastStart: NaN, lastRatio: moving, lastAt: 0, lastCause: 'other', resizes: 0, ratio: moving, still, backend, pending: Promise.resolve() };
       const flagged: SlowCause = shadedPending > 0 ? 'settle' : first ? 'first frame' : moving !== current.lastRatio ? 'ratio change' : resized ? 'resize' : 'other';
       if (!first && resized) current.resizes++;
       current.ratio = moving; current.still = still; current.lastRatio = moving;
@@ -207,8 +209,8 @@ export function createDragReadout(): DragReadout {
           current.times.push({ ms, at, cause: flagged !== 'settle' && ms > SLOW_MS && busy > ms / 2 ? 'main thread' : flagged }); current.lastDone = done;
         }, () => undefined);
       } else {
-        if (start - current.lastStart <= PAUSE_MS) current.times.push({ ms: start - current.lastStart, at, cause: flagged });
-        current.lastStart = start;
+        if (start - current.lastStart <= PAUSE_MS) current.times.push({ ms: start - current.lastStart, at: current.lastAt, cause: current.lastCause });
+        current.lastStart = start; current.lastAt = at; current.lastCause = flagged;
       }
     },
     other(finished, shaded) {
