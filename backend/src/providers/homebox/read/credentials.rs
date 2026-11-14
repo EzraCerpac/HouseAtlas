@@ -339,7 +339,7 @@ impl NativeReadCredentialConfig {
             config: self.clone(),
             access: configured.access().clone(),
             principal: source.original().principal(),
-            source: source.original_source().clone(),
+            sources: vec![source.original_source().clone()],
             partition: source.original_partition().clone(),
         };
         credentials
@@ -360,11 +360,33 @@ impl NativeReadCredentialConfig {
         source: a::SourceGrant,
         partition: a::PartitionGrant,
     ) -> Result<NativeReadCredentials<'p>, ReadError> {
+        self.bind(access, principal, vec![source], partition)
+    }
+
+    /// Partition-wide delivery for the closed cache refresh owner only. Its
+    /// caller holds an approved PublishCache lease for this exact partition;
+    /// each delivery still fences the original principal and partition grant.
+    pub(crate) fn bind_publication<'p>(
+        self: &Arc<Self>,
+        access: Arc<Mutex<a::AccessBoundary>>,
+        principal: &'p a::Principal,
+        partition: a::PartitionGrant,
+    ) -> Result<NativeReadCredentials<'p>, ReadError> {
+        self.bind(access, principal, Vec::new(), partition)
+    }
+
+    fn bind<'p>(
+        self: &Arc<Self>,
+        access: Arc<Mutex<a::AccessBoundary>>,
+        principal: &'p a::Principal,
+        sources: Vec<a::SourceGrant>,
+        partition: a::PartitionGrant,
+    ) -> Result<NativeReadCredentials<'p>, ReadError> {
         let credentials = NativeReadCredentials {
             config: Arc::clone(self),
             access,
             principal,
-            source,
+            sources,
             partition,
         };
         credentials.check_binding()?;
@@ -377,7 +399,7 @@ impl NativeReadCredentialConfig {
                 .with_source_read_authorization(
                     credentials.principal,
                     &credentials.partition,
-                    std::slice::from_ref(&credentials.source),
+                    &credentials.sources,
                     |guard| -> a::AccessResult<()> {
                         if !std::ptr::eq(guard.principal(), credentials.principal) {
                             return Err(a::AccessError::Forbidden);
@@ -398,7 +420,7 @@ pub struct NativeReadCredentials<'p> {
     config: Arc<NativeReadCredentialConfig>,
     access: Arc<Mutex<a::AccessBoundary>>,
     principal: &'p a::Principal,
-    source: a::SourceGrant,
+    sources: Vec<a::SourceGrant>,
     partition: a::PartitionGrant,
 }
 impl<'p> NativeReadCredentials<'p> {
@@ -419,12 +441,13 @@ impl<'p> NativeReadCredentials<'p> {
 
     fn check_binding(&self) -> Result<(), ReadError> {
         let scope = &self.config.scope;
-        let source = self.source.reference();
         let partition = self.partition.partition();
         if self.principal.scope().workspace_id.as_str() != scope.workspace_id.as_str()
             || self.principal.scope().home_id.as_str() != scope.home_id.as_str()
-            || source.partition() != *partition
-            || source.key.source_kind != a::SourceKind::HomeboxEntity
+            || self.sources.iter().any(|grant| {
+                grant.reference().partition() != *partition
+                    || grant.reference().key.source_kind != a::SourceKind::HomeboxEntity
+            })
             || partition.workspace_id.as_str() != scope.workspace_id.as_str()
             || partition.home_id.as_str() != scope.home_id.as_str()
             || partition.source_instance_id.as_str() != scope.source_instance_id.as_str()
@@ -457,7 +480,7 @@ impl<'p> NativeReadCredentials<'p> {
                 .with_source_read_authorization(
                     self.principal,
                     &self.partition,
-                    std::slice::from_ref(&self.source),
+                    &self.sources,
                     |guard| -> Result<(), CredentialFenceError> {
                         if !std::ptr::eq(guard.principal(), self.principal) {
                             return Err(CredentialFenceError(ReadError(ErrorCode::Auth)));

@@ -1,4 +1,6 @@
-//! Explicit cached-provider startup selection. No enrollment, grants or refresh.
+//! Explicit cached-provider startup selection. Startup performs no enrollment,
+//! grant or refresh; schema 2 may select an owner-only HomeBox credential file
+//! and the Editors approved to request one explicit refresh.
 use super::{Failure, ServerLease};
 use crate::{
     access as a,
@@ -10,7 +12,7 @@ use crate::{
         },
         server::{ServerConfig, absolute_path, read_selected_file},
     },
-    http::Host,
+    http::{Host, PinnedHomeBoxFileBinding, providers::homebox_refresh::HomeBoxRefreshBinding},
     providers::{homebox::read as h, network as n},
     storage as s,
 };
@@ -24,6 +26,8 @@ use std::{
 
 const MAX_BYTES: u64 = 256 * 1024;
 const MAX_SOURCES: usize = 8;
+const MAX_CREDENTIAL_BYTES: u64 = 8192;
+const MAX_REFRESH_EDITORS: usize = 8;
 fn unavailable() -> Failure {
     "Selected cached-provider profile unavailable".into()
 }
@@ -76,7 +80,36 @@ impl ProviderReadSelection {
             _ => Err("Provider profile requires an exact path and SHA256".into()),
         }
     }
-    fn capture(self, config: &ServerConfig) -> Result<Packet, Failure> {
+    /// Owner approvals for Access construction. The same pinned bytes are
+    /// captured again by `ProviderReadMounts::prepare` after reopen.
+    pub fn lifecycle_policy(&self, config: &ServerConfig) -> Result<a::LifecyclePolicy, Failure> {
+        let packet = self.capture(config)?;
+        let mut rules = Vec::new();
+        for value in &packet.homebox_cached {
+            let registration: a::SourceRegistration =
+                serde_json::from_value(serde_json::to_value(&value.registration)?)
+                    .map_err(|_| unavailable())?;
+            for editor in value.refresh_editors.iter().flatten() {
+                for capability in [
+                    a::LifecycleCapability::ConfigureSource,
+                    a::LifecycleCapability::PublishCache,
+                ] {
+                    rules.push(
+                        a::LifecycleRule::new(
+                            editor.user_id.clone(),
+                            editor.actor_id.clone(),
+                            registration.clone(),
+                            capability,
+                            a::Action::Mutate,
+                        )
+                        .map_err(|_| unavailable())?,
+                    );
+                }
+            }
+        }
+        Ok(a::LifecyclePolicy::from_trusted_configuration(rules))
+    }
+    fn capture(&self, config: &ServerConfig) -> Result<Packet, Failure> {
         let bytes = read_selected_file(&self.path, MAX_BYTES, true).map_err(|_| unavailable())?;
         if format!("{:x}", Sha256::digest(&bytes)) != self.sha256 {
             return Err(unavailable());
@@ -101,6 +134,42 @@ struct HomeBox {
     registration: s::SourceRegistration,
     origin: String,
     limits: HomeBoxLimits,
+    /// Schema 2 only: absolute owner-only file holding the exact HomeBox
+    /// Authorization header value. Its bytes are never logged or returned.
+    #[serde(default)]
+    credential_file: Option<PathBuf>,
+    /// Schema 2 only: Editors approved to request one explicit refresh.
+    #[serde(default)]
+    refresh_editors: Option<Vec<RefreshEditor>>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RefreshEditor {
+    user_id: a::CanonicalId,
+    actor_id: a::CanonicalId,
+}
+impl HomeBox {
+    fn credential(
+        &self,
+        endpoint: &h::SourceEndpoint,
+    ) -> Result<Option<Arc<h::NativeReadCredentialConfig>>, Failure> {
+        let Some(path) = &self.credential_file else {
+            return Ok(None);
+        };
+        let mut bytes = zeroize::Zeroizing::new(
+            read_selected_file(path, MAX_CREDENTIAL_BYTES, true).map_err(|_| unavailable())?,
+        );
+        // Tolerate one trailing line ending from an ordinary editor.
+        if bytes.ends_with(b"\n") {
+            bytes.pop();
+            if bytes.ends_with(b"\r") {
+                bytes.pop();
+            }
+        }
+        let config = h::NativeReadCredentialConfig::from_trusted_header(endpoint, bytes.to_vec())
+            .map_err(|_| unavailable())?;
+        Ok(Some(Arc::new(config)))
+    }
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -139,7 +208,22 @@ struct Network {
 }
 impl Packet {
     fn validate(&self, config: &ServerConfig) -> Result<(), Failure> {
-        if self.schema_version != 1
+        let extended = self
+            .homebox_cached
+            .iter()
+            .any(|v| v.credential_file.is_some() || v.refresh_editors.is_some());
+        if !matches!(self.schema_version, 1 | 2)
+            || (self.schema_version == 1 && extended)
+            || self.homebox_cached.iter().any(|v| {
+                v.credential_file
+                    .as_deref()
+                    .is_some_and(|path| absolute_path(path).is_err())
+                    || v.refresh_editors.as_ref().is_some_and(|editors| {
+                        editors.is_empty()
+                            || editors.len() > MAX_REFRESH_EDITORS
+                            || v.credential_file.is_none()
+                    })
+            })
             || !digest(&self.server_configuration_digest)
             || self.server_configuration_digest != config.state_digest()?
             || self.homebox_cached.len() + self.network_cached.len() > MAX_SOURCES
@@ -189,6 +273,8 @@ impl Packet {
 pub struct ProviderReadMounts {
     original: Option<(crate::app::Access, Arc<Mutex<Store>>)>,
     homebox: Vec<TrustedHomeBoxSource>,
+    files: Vec<PinnedHomeBoxFileBinding>,
+    refresh: Vec<HomeBoxRefreshBinding>,
     network: Vec<NetworkBinding>,
 }
 impl ProviderReadMounts {
@@ -202,6 +288,8 @@ impl ProviderReadMounts {
             return Ok(Self {
                 original: None,
                 homebox: vec![],
+                files: vec![],
+                refresh: vec![],
                 network: vec![],
             });
         };
@@ -229,14 +317,37 @@ impl ProviderReadMounts {
                 .collect(),
         )
         .map_err(|_| unavailable())?;
-        let mut homebox = Vec::new();
+        let (mut homebox, mut files, mut refresh) = (Vec::new(), Vec::new(), Vec::new());
         for value in packet.homebox_cached {
-            homebox.push(TrustedHomeBoxSource::new_stock(
+            let source = TrustedHomeBoxSource::new_stock(
                 &value.origin,
-                value.registration,
+                value.registration.clone(),
                 value.limits.native(),
                 None,
-            )?);
+            )?;
+            if let Some(credentials) = value.credential(&source.endpoint()?)? {
+                let shared = Arc::new(source.clone());
+                files.push(PinnedHomeBoxFileBinding::new(
+                    Arc::clone(&shared),
+                    Arc::clone(&credentials),
+                )?);
+                if let Some(editors) = &value.refresh_editors {
+                    let configured = registry
+                        .sources()
+                        .iter()
+                        .find(|source| source.registration() == &value.registration)
+                        .cloned()
+                        .ok_or_else(unavailable)?;
+                    let approved = editors.iter().map(|e| e.actor_id.clone()).collect();
+                    refresh.push(HomeBoxRefreshBinding::new(
+                        shared,
+                        configured,
+                        credentials,
+                        approved,
+                    )?);
+                }
+            }
+            homebox.push(source);
         }
         let mut network = Vec::new();
         for value in packet.network_cached {
@@ -269,6 +380,8 @@ impl ProviderReadMounts {
         Ok(Self {
             original: Some((core.access.clone(), core.store.clone())),
             homebox,
+            files,
+            refresh,
             network,
         })
     }
@@ -284,6 +397,8 @@ impl ProviderReadMounts {
         }
         Ok(host
             .with_cached_homebox_sources(self.homebox)?
+            .with_pinned_homebox_files(self.files)?
+            .with_homebox_refresh(self.refresh)?
             .with_network_bindings(self.network)?)
     }
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Component, lazy, Suspense, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -249,9 +249,27 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
         {cache.collectionId && <code>{cache.collectionId}</code>}
       </dd>
     </div>)}
+    <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
     <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>
   </dl></Section>;
+}
+
+// The refresh controller and its button are not part of startup.
+const HomeboxRefreshButton = lazy(() => import('./HomeboxRefreshButton'));
+
+/** Offered only when the server's admission read says this signed-in Editor
+ * may refresh a configured source, with or without an existing cache. Nothing
+ * shows while the button loads; if it cannot load (for example offline), the
+ * refresh is simply not offered. */
+function HomeboxRefresh() {
+  const port = useStore().actions.homeboxRefresh;
+  return port ? <NotOfferedOnFailure><Suspense fallback={null}><HomeboxRefreshButton port={port} /></Suspense></NotOfferedOnFailure> : null;
+}
+class NotOfferedOnFailure extends Component<{ readonly children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 // ---------------- Room ----------------

@@ -186,7 +186,7 @@ fn closed_profile_requires_digest_scope_owner_and_unique_registration() {
                 v["homeboxCached"].as_array_mut().unwrap().push(r);
             }
             "digest" => v["serverConfigurationDigest"] = json!("0".repeat(64)),
-            "version" => v["schemaVersion"] = json!(2),
+            "version" => v["schemaVersion"] = json!(3),
             "allowlist" => {
                 v["homeboxCached"][0]["registration"]["allowedExternalIds"] = json!(["bad-id"])
             }
@@ -506,4 +506,71 @@ fn network_existing_schema_requires_immutable_triggers_without_repair() {
         )
         .unwrap();
     assert_eq!(count, 0);
+}
+
+#[test]
+fn v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged() {
+    let f = Fixture::new();
+    let before = counts(&f.config);
+    let secret = "Bearer synthetic-profile-only";
+    let credential = f.config.data_directory.join("homebox-credential");
+    let write_credential = |mode: u32| {
+        let _ = fs::remove_file(&credential);
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
+            .open(&credential)
+            .unwrap();
+        file.write_all(format!("{secret}\n").as_bytes()).unwrap();
+        fs::set_permissions(&credential, fs::Permissions::from_mode(mode)).unwrap();
+    };
+    let editors = json!([{"userId":"00000000-0000-4000-8000-000000000006",
+        "actorId":"00000000-0000-4000-8000-000000000007"}]);
+    let extended = |file: Option<Value>, approved: Option<&Value>| {
+        let mut value = packet(&f.config);
+        value["schemaVersion"] = json!(2);
+        if let Some(file) = file {
+            value["homeboxCached"][0]["credentialFile"] = file;
+        }
+        if let Some(approved) = approved {
+            value["homeboxCached"][0]["refreshEditors"] = approved.clone();
+        }
+        value
+    };
+    let prepared = |value: &Value| {
+        let selected = f.selection(value);
+        selected.lifecycle_policy(&f.config)?;
+        ProviderReadMounts::prepare(&f.config, &f.core, Some(selected), &f.lease)
+    };
+    write_credential(0o600);
+    // v1, and v2 without the new fields, mount exactly what they did before.
+    for value in [packet(&f.config), extended(None, None)] {
+        let mounts = prepared(&value).unwrap();
+        assert_eq!(mounts.homebox.len(), 1);
+        assert!(mounts.files.is_empty() && mounts.refresh.is_empty());
+    }
+    let mut legacy = packet(&f.config);
+    legacy["homeboxCached"][0]["credentialFile"] = json!(credential);
+    assert!(prepared(&legacy).is_err());
+    // An owner-only absolute credential file attaches Open file and refresh.
+    let mounts = prepared(&extended(Some(json!(credential)), Some(&editors))).unwrap();
+    assert_eq!((mounts.files.len(), mounts.refresh.len()), (1, 1));
+    let mounts = prepared(&extended(Some(json!(credential)), None)).unwrap();
+    assert_eq!((mounts.files.len(), mounts.refresh.len()), (1, 0));
+    for refused in [
+        extended(None, Some(&editors)),
+        extended(Some(json!("homebox-credential")), Some(&editors)),
+        extended(Some(json!(credential)), Some(&json!([]))),
+    ] {
+        assert!(prepared(&refused).is_err());
+    }
+    write_credential(0o644);
+    let error = prepared(&extended(Some(json!(credential)), Some(&editors)))
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(!error.contains("synthetic-profile-only"));
+    // Startup selection never enrolls a source or issues a grant.
+    assert_eq!(counts(&f.config), before);
 }

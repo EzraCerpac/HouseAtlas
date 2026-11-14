@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { shownView, type RefreshHostPort, type RefreshToken, type Withheld } from './homebox-withheld.ts';
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
@@ -126,12 +127,29 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   }, [historyClient, history, view, session]);
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
   const current = geometry?.view === view && geometry.session === session ? geometry.read : { status: 'loading' as const };
-  const projection = useMemo(() => projectView(view, current, currentHistory, loadMoreOperations, includeArchived), [view, current, currentHistory, loadMoreOperations, includeArchived]);
+  // A revocation recorded by an explicit refresh whose view re-read failed
+  // withholds HomeBox entries of every later view of that home in the same
+  // session, including one another reload delivered meanwhile.
+  const [withheld, setWithheld] = useState<Withheld | null>(null);
+  const shown = useMemo(() => shownView(view, session, withheld), [view, session, withheld]);
+  // The explicit HomeBox refresh lives here, with the view it reconciles, so
+  // closing the panel never drops its result; a home or session change does.
+  const rendered = useRef<{ token: RefreshToken; reload: () => Promise<boolean> }>(null);
+  rendered.current = { token: { workspaceId: view.scope.workspaceId, homeId: view.scope.homeId, session }, reload: actions.reload };
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [homeboxRefresh] = useState<RefreshHostPort>(() => ({
+    live: () => mounted.current,
+    current: () => rendered.current?.token ?? null,
+    reload: () => rendered.current ? rendered.current.reload() : Promise.resolve(false),
+    withhold: (token, on) => setWithheld(on ? { scope: { workspaceId: token.workspaceId, homeId: token.homeId }, session: token.session } : null),
+  }));
+  const projection = useMemo(() => projectView(shown, current, currentHistory, loadMoreOperations, includeArchived), [shown, current, currentHistory, loadMoreOperations, includeArchived]);
   const archiveVisibility = useMemo(() => ({ included: includeArchived, setIncluded: (included: boolean) => {
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
     setArchive({ view, session, included });
   } }), [view, session, includeArchived]);
-  const ports = useMemo(() => ({ ...actions, offlineStorage, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage]);
+  const ports = useMemo(() => ({ ...actions, offlineStorage, homeboxRefresh, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />

@@ -1,5 +1,63 @@
 # HouseAtlas
 
+## HomeBox Editor refresh and configured Open file
+
+Related to #285 and #560. The existing default backend-library selection
+discovers two added cases:
+
+- `http::providers::homebox_refresh::tests::healthy_editor_refresh_fills_cache_then_opens_original`
+  reopens a disposable synthetic store with one generated lifecycle approval
+  and drives the registered router against a generated loopback TLS HomeBox
+  built from the checked-in stock wire fixtures. The admission `GET` answers
+  `available` only to the approved Editor (before any cache exists) and the
+  same `unavailable` to a Viewer and an unlisted Editor with and without a
+  configured credential. A Viewer's POST is refused (403); an unlisted Editor's
+  POST is refused by the lifecycle rules; a Host without a credential answers
+  `not-configured`; a set in-flight flag answers `running`; none of these
+  sends anything upstream. The approved Editor's first POST registers the
+  source, publishes a fresh cache through `homebox_refresh::refresh` in
+  exactly seven GETs, the cached read then serves its rows, and Open file
+  returns the exact original bytes in three more GETs. A later upstream 401 is
+  recorded as `access-revoked` and the cached read then withholds the rows;
+  a later press is refused with `access-revoked` before any HomeBox request,
+  even when HomeBox would answer again.
+  Every observed provider request is a GET carrying the generated header.
+- `lifecycle::persistent::provider_reads::tests::v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged`
+  pins that schema 1, and schema 2 without the new fields, mount exactly as
+  before; that schema 1 refuses `credentialFile`; that an owner-only absolute
+  file selects Open file and refresh; that relative, empty-approval,
+  approval-without-credential and group-readable selections are refused with
+  an error that does not contain the file's bytes; and that startup enrolls
+  nothing.
+
+The existing `closed_profile_requires_digest_scope_owner_and_unique_registration`
+version case now uses unsupported schema 3. The frontend SOURCE list adds
+`node frontend/lantern-tests/homebox-refresh-healthy.mjs`. It drives the
+production controller behind the button against a generated server model
+using the route's answer shapes: the admission read alone decides whether the
+button is offered (approved Editor yes; Viewer, unlisted Editor and no
+credential no, with no POST); the first refresh starts with no cache; a later
+401 re-reads the view, withholds the copy and says access is revoked and
+that refreshing cannot restore it; a later press says the same without
+reaching HomeBox; when that re-read returns false or rejects, HomeBox entries
+of the current same-home, same-session view are withheld locally with the
+server's quarantine marker, including a view another reload delivered while
+the refresh was in flight; an ordinary failure says the earlier copy
+is still shown, or that the view could not be updated; the host, not the
+button, owns the refresh: closing the panel mid-refresh in the same home still
+re-reads the view (and withholds after a 401 whose re-read failed), a button
+mounted meanwhile shows it running and cannot start a second one, and one
+mounted afterwards shows the result; a home switch, sign-out or host teardown
+during the POST or the re-read drops the rest of the press (no re-read of the
+pressed home, no withholding, no status) and leaves the other home's view and
+pending read untouched, for both a refresh and a 401, and a late admission
+answer is dropped too; the lazily loaded button keeps one owner per host
+port; offline sends nothing;
+decoding is strict. With the seven native local drafts cases from #636 the
+inventory is 92 SOURCE / 1 BUILD / 11 BROWSER (104 total). No workflow command, runner, browser entry or held
+selection is added. None of this makes a live HomeBox read or establishes
+installed acceptance, which still needs the owner's read-only credential.
+
 ## HomeBox open-and-keep
 
 Opening a HomeBox stored file in the file dialog now keeps it on the device
@@ -912,7 +970,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 91 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, and runs the /example/ offline worker in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 92 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, and runs the /example/ offline worker in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

@@ -10,6 +10,7 @@ import type { HomeboxOriginalsPort } from '../homebox-originals/types';
 import type { NetworkRelationsClient } from '../../api/network-relations-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
+import type { RefreshHostPort } from '../homebox-withheld.ts';
 /** 'rooms' and 'network' remain route aliases for existing callers; they
  * resolve to the Atlas with its Places or Network lens and are never the
  * current view. */
@@ -112,6 +113,8 @@ export interface LanternActions {
   networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
   offlineStorage?: ReactNode;
+  /** The host's explicit HomeBox refresh port; the lazily loaded button only reads and presses it. */
+  homeboxRefresh?: RefreshHostPort;
 }
 function initial(house: HouseData): AppState {
   return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', atlasLens: null, selection: null,
