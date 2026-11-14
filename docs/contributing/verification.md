@@ -12,7 +12,8 @@ relaunch with a second owner that has no live session over the same in-memory
 storage: the file opens with no further request; sign-out clear and account
 replacement remove it; a quota refusal is reported and leaves it not held. The
 existing `pinned-capture-read.mjs` action harness checks the new wording,
-including the reported storage refusal. No browser, native service or provider
+including the reported storage refusal and a storage attempt that rejects after
+it began, which is reported as not known rather than not kept. No browser, native service or provider
 runs. No new selection or command: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
 
 ## HomeBox registration cleanup

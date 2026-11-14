@@ -60,6 +60,8 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
     setBusy(key); setMessage({ key, text: 'Opening…' });
     const ref: OfflineHomeboxAttachmentRefV1 = { source: 'homebox-attachment', sourceInstanceId: entry.source.sourceInstanceId,
       collectionId: entry.source.collectionId, entityId: entry.source.externalId, attachmentId: attachment.attachmentId };
+    // Set once storage may have started: from then on a failure cannot claim that nothing was kept.
+    let storing = false;
     try {
       const result = await reader.open(ref, signal);
       if (latest.current !== key || signal.aborted) { if (result.status === 'ok') reader.release(result.frame); return; }
@@ -67,9 +69,9 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
         setMessage({ key, text: result.status === 'busy' || result.status === 'settling' ? 'This file is already being opened.'
           : result.status === 'spent' ? 'This file was already requested in this session and is not requested again. Reload the page to try again.'
           : result.status === 'limit' ? 'Over 10 MiB: too large to keep on this device. Download original opens it without keeping it.'
-          : result.status === 'unknown' ? 'Reading this file did not complete. Nothing was kept on this device. Reload the page to try again.'
+          : result.status === 'unknown' ? 'Reading this file did not complete. No new copy was kept on this device. Reload the page to try again.'
           : result.status === 'unavailable' && result.reason === 'cancellation-ownership' ? 'This file is being kept on this device in the background. Open it again shortly.'
-          : `This file could not be opened (${result.status}). Nothing was kept on this device.` }); return;
+          : `This file could not be opened (${result.status}). No new copy was kept on this device.` }); return;
       }
       frameRef.current = result.frame;
       if (result.backing === 'exact-held') {
@@ -81,6 +83,7 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
       setOpened({ key, frame: result.frame, attempt });
       setMessage({ key, text: attempt ? 'Keeping a copy on this device…' : `Not kept on this device (${retained.status}).` });
       if (attempt) {
+        storing = true;
         const stored = await attempt.result;
         if (latest.current !== key || signal.aborted) return;
         setUncertain(stored.status === 'uncertain' ? key : null);
@@ -89,7 +92,11 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
           : stored.status === 'quota' ? 'Not kept on this device: device storage is full.'
           : `Not kept on this device (${stored.status}).` });
       }
-    } catch { if (latest.current === key && !signal.aborted) setMessage({ key, text: 'This file could not be opened. Nothing was kept on this device.' }); }
+    } catch {
+      if (latest.current !== key || signal.aborted) return;
+      if (storing) { setUncertain(key); setMessage({ key, text: 'This file was read. Not known whether it was kept on this device.' }); }
+      else setMessage({ key, text: 'This file could not be opened. No new copy was kept on this device.' });
+    }
     finally { if (latest.current === key) setBusy(null); }
   };
   const heldDownload = blob && download?.blob === blob && !download.signal.aborted ? download : null;
