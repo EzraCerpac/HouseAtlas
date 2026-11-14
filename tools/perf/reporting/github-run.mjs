@@ -20,6 +20,7 @@ try {
     const result = await publishOrigin({ api, context, expectedPrNumber: Number(process.env.EXPECTED_PR_NUMBER) });
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, result.markdown ? result.markdown + '\n' : 'Report skipped: stale, unassociated or superseded run.\n');
     console.log(`Performance report: ${result.status}.`);
+    if (result.failed) console.log('Exiting non-zero by design: the report is flagged failed (breached budget or measurement, invalid artifact, or failed originating run); see the job summary.');
     process.exitCode = result.failed ? 1 : 0;
   }
 } catch {
