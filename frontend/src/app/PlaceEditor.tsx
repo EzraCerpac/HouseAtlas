@@ -16,7 +16,7 @@ import { EvidencePicker } from "../capture-evidence/EvidencePicker";
 import type { EvidenceSelection } from "../capture-evidence/selection";
 import { useCaptureDrafts } from "../capture-drafts-ui/Context";
 import { CaptureDraftPanel, captureTargetKey } from "../capture-drafts-ui/Panel";
-import type { CaptureDraftPort } from "../capture-drafts-ui/port";
+import type { CaptureDraftPort, DraftCompletion } from "../capture-drafts-ui/port";
 
 const kinds: readonly LocationSemanticsPayloadSemanticKind[] = [
   "unclassified",
@@ -346,9 +346,9 @@ function PlaceEditorForTarget({
     return { localId: localSelection.current.id, selection, form: { statement, sourceLicense: license.value, reason },
       targetSourceRef: source, recordId: admission.record.recordId, optedIn: true };
   };
-  const draftSubmitted = async (result: StockResultEnvelope, cleanup: 'removed' | 'unconfirmed') => {
-    setReceipt(result);
-    if (result['status'] !== 'committed') { setStatus('The upload was not committed. The local attempt remains locked.'); return; }
+  const draftSubmitted = async ({ committed, result, localCleanup: cleanup }: DraftCompletion) => {
+    setReceipt(result as StockResultEnvelope);
+    if (!committed) { setStatus('The upload was not committed. The local attempt remains locked.'); return; }
     selectEvidence(null);
     const controller = begin('Saved. Refreshing information…');
     const suffix = cleanup === 'unconfirmed' ? ' Local cleanup could not be confirmed; view local drafts before any further action.' : '';

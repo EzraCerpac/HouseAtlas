@@ -52,6 +52,14 @@ const SOURCE = [
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'receipt-record-closure-keeps-original'],
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'cleanup-failure-known-commit'],
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'reused-receipt-object-keeps-unknown'],
+  // Local unsent drafts for a native Atlas place through the native evidence owner.
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-save-no-upload'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-reopen-unsent'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-review-confirm-one-upload'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-form-no-draft-database'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-other-place-or-account-refused'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-lost-reply-drafts-reachable'],
+  ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-reported-mime-label-upload'],
   node('topology-read.mjs'),
   node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
   // Offline / saved copy

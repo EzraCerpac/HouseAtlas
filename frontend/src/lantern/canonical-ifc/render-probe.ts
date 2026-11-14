@@ -122,56 +122,100 @@ export function showProbeReport(text: string): void {
 }
 
 /** Times the frames of each drag (MeshLayer: frames drawn while a finger or pointer
- * moves the view) and, once it lets go, shows one line: the median and worst frame
- * time, the frame count, the backend and the pixel ratios drawn. On WebGPU a frame's
- * time runs from when it began (or the previous frame finished on the GPU, if later)
- * until the GPU has finished it, so a pause in the drag is not counted as a slow frame.
- * WebGL2 cannot see GPU completion cheaply; there it is the time between frames drawn,
- * leaving out gaps over PAUSE_MS. */
+ * moves the view) and, once it lets go, shows two lines: the median and worst frame
+ * time, when the worst came and why, how many took over SLOW_MS and why, how often the
+ * drawing buffer changed size after the first frame, the backend and the pixel ratios.
+ * On WebGPU a frame's time runs from when it began (or the previous frame of the drag
+ * finished on the GPU, if later) until the GPU has finished it, so a pause in the drag
+ * is not counted as a slow frame, while earlier work the GPU still had queued is.
+ * WebGL2 cannot see GPU completion cheaply; there it is the time from one frame drawn
+ * to the next, counted against the earlier one (its cost delays the next), leaving out
+ * gaps over PAUSE_MS. */
 export interface DragReadout {
-  /** One moving frame of a drag, begun at `start` (performance.now()); `finished` resolves once the GPU has finished it. */
-  frame(start: number, finished: Promise<void> | null, ratio: number, still: number, backend: string): void;
-  /** The drag has ended: its line is shown once its last frame has finished. */
-  end(): void;
+  /** One moving frame of a drag. */
+  frame(frame: DragFrame): void;
+  /** A frame drawn outside a drag, which ends any drag; `shaded`: a still frame with contact shading. */
+  other(finished: Promise<void> | null, shaded: boolean): void;
 }
-const PAUSE_MS = 250;
+export interface DragFrame {
+  /** When drawing the frame began, and when its GPU work was submitted (performance.now()). */
+  readonly start: number;
+  readonly submitted: number;
+  /** Resolves once the GPU has finished it (WebGPU), or null (WebGL2). */
+  readonly finished: Promise<void> | null;
+  /** Its pixel ratio, and the still one. */
+  readonly ratio: number;
+  readonly still: number;
+  readonly backend: string;
+  /** Its drawing buffer had a different size from the frame drawn before it. */
+  readonly resized: boolean;
+}
+/** Why a slow drag frame was slow, judged in this order: the GPU was still busy with
+ * still frames (contact shading) drawn before the drag; this page's main thread was
+ * busy for most of the frame (encoding it, then a timer queued as it was submitted had not run); the
+ * drag's first frame; the moving pixel ratio changed; the drawing buffer changed size;
+ * anything else (the GPU itself, as far as this page can see). */
+export type SlowCause = 'settle' | 'main thread' | 'first frame' | 'ratio change' | 'resize' | 'other';
+const PAUSE_MS = 250, SLOW_MS = 50;
 
-export function createDragReadout(): DragReadout {
-  let drag: { times: number[]; lastDone: number; lastStart: number; ratio: number; still: number; backend: string; pending: Promise<void> } | null = null;
+/** `display` shows the lines (by default, an output element over the page). */
+export function createDragReadout(display?: (text: string) => void): DragReadout {
+  interface Drag { times: { ms: number; at: number; cause: SlowCause }[]; began: number; lastDone: number; lastStart: number; lastRatio: number;
+    lastAt: number; lastCause: SlowCause; resizes: number; ratio: number; still: number; backend: string; pending: Promise<void> }
+  let drag: Drag | null = null, shadedPending = 0;
   let output: HTMLOutputElement | null = null;
-  const show = (text: string) => {
+  const show = display ?? ((text: string) => {
     if (!output) {
       output = document.createElement('output');
       output.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:9999;max-width:560px;margin:0 auto;padding:6px 10px;box-sizing:border-box;'
-        + 'border-radius:8px;background:Canvas;color:CanvasText;box-shadow:0 2px 12px rgb(0 0 0 / .3);font:12px/1.4 ui-monospace,monospace;pointer-events:none';
+        + 'border-radius:8px;background:Canvas;color:CanvasText;box-shadow:0 2px 12px rgb(0 0 0 / .3);font:12px/1.4 ui-monospace,monospace;'
+        + 'white-space:pre-wrap;pointer-events:none';
       document.body.append(output);
     }
     output.textContent = text;
-  };
+  });
   const ratio = (value: number) => String(Math.round(value * 100) / 100);
+  const end = () => {
+    const ended = drag; if (!ended) return;
+    drag = null;
+    void ended.pending.then(() => {
+      const { times } = ended; if (times.length === 0) return;
+      const sorted = times.map(time => time.ms).sort((a, b) => a - b);
+      const worst = times.reduce((slowest, time) => time.ms > slowest.ms ? time : slowest);
+      const slow = times.filter(time => time.ms > SLOW_MS), counts = new Map<SlowCause, number>();
+      for (const { cause } of slow) counts.set(cause, (counts.get(cause) ?? 0) + 1);
+      const kind = ended.backend === 'webgpu' ? '' : ' (time between frames)';
+      show(`Drag: median ${percentile(sorted, .5).toFixed(1)} ms, worst ${worst.ms.toFixed(1)} ms at ${(worst.at / 1000).toFixed(1)} s`
+        + ` (frame ${times.indexOf(worst) + 1} of ${times.length}, ${worst.cause})${kind} · ${ended.backend} · pixel ratio ${ratio(ended.ratio)} moving, ${ratio(ended.still)} still\n`
+        + `Over ${SLOW_MS} ms: ${slow.length === 0 ? 'none' : `${slow.length} (${[...counts].map(([cause, count]) => `${cause} ${count}`).join(', ')})`}`
+        + ` · buffer resizes after the first frame: ${ended.resizes}`);
+    });
+  };
   return {
-    frame(start, finished, moving, still, backend) {
-      const current = drag ??= { times: [], lastDone: -Infinity, lastStart: NaN, ratio: moving, still, backend, pending: Promise.resolve() };
-      current.ratio = moving; current.still = still;
+    frame({ start, submitted, finished, ratio: moving, still, backend, resized }) {
+      const first = drag === null;
+      const current = drag ??= { times: [], began: start, lastDone: -Infinity, lastStart: NaN, lastRatio: moving, lastAt: 0, lastCause: 'other', resizes: 0, ratio: moving, still, backend, pending: Promise.resolve() };
+      const flagged: SlowCause = shadedPending > 0 ? 'settle' : first ? 'first frame' : moving !== current.lastRatio ? 'ratio change' : resized ? 'resize' : 'other';
+      if (!first && resized) current.resizes++;
+      current.ratio = moving; current.still = still; current.lastRatio = moving;
+      const at = start - current.began;
       if (finished) {
+        current.lastStart = start;
+        let free: number | null = null;
+        setTimeout(() => { free = performance.now(); });
         current.pending = finished.then(() => {
-          const done = performance.now();
-          current.times.push(done - Math.max(start, current.lastDone)); current.lastDone = done;
+          const done = performance.now(), from = Math.max(start, current.lastDone), ms = done - from;
+          const busy = Math.max(0, submitted - from) + Math.max(0, (free ?? done) - Math.max(submitted, from));
+          current.times.push({ ms, at, cause: flagged !== 'settle' && ms > SLOW_MS && busy > ms / 2 ? 'main thread' : flagged }); current.lastDone = done;
         }, () => undefined);
       } else {
-        if (start - current.lastStart <= PAUSE_MS) current.times.push(start - current.lastStart);
-        current.lastStart = start;
+        if (start - current.lastStart <= PAUSE_MS) current.times.push({ ms: start - current.lastStart, at: current.lastAt, cause: current.lastCause });
+        current.lastStart = start; current.lastAt = at; current.lastCause = flagged;
       }
     },
-    end() {
-      const ended = drag; if (!ended) return;
-      drag = null;
-      void ended.pending.then(() => {
-        const times = [...ended.times].sort((a, b) => a - b); if (times.length === 0) return;
-        const kind = ended.backend === 'webgpu' ? '' : ' (time between frames)';
-        show(`Drag: median ${percentile(times, .5).toFixed(1)} ms, worst ${times[times.length - 1]!.toFixed(1)} ms, ${times.length} frames${kind}`
-          + ` · ${ended.backend} · pixel ratio ${ratio(ended.ratio)} moving, ${ratio(ended.still)} still`);
-      });
+    other(finished, shaded) {
+      end();
+      if (finished && shaded) { shadedPending++; void finished.finally(() => { shadedPending--; }).catch(() => undefined); }
     },
   };
 }

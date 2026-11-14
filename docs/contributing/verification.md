@@ -52,8 +52,8 @@ during the POST or the re-read drops the rest of the press (no re-read of the
 pressed home, no withholding, no status) and leaves the other home's view and
 pending read untouched, for both a refresh and a 401, and a late admission
 answer is dropped too; offline sends nothing;
-decoding is strict: 85 SOURCE / 1 BUILD /
-11 BROWSER (97 total). No workflow command, runner, browser entry or held
+decoding is strict. With the seven native local drafts cases from #636 the
+inventory is 92 SOURCE / 1 BUILD / 11 BROWSER (104 total). No workflow command, runner, browser entry or held
 selection is added. None of this makes a live HomeBox read or establishes
 installed acceptance, which still needs the owner's read-only credential.
 
@@ -969,7 +969,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 85 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, and runs the /example/ offline worker in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 92 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, and runs the /example/ offline worker in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1114,10 +1114,11 @@ job, directory glob, browser lane or production behavior change.
 
 ## Generated capture original and draft receipt checks
 
-The existing `run-healthy.mjs` SOURCE list adds these twelve exact commands,
+The existing `run-healthy.mjs` SOURCE list adds these nineteen exact commands,
 one process per command, using Node 26.10.0 and unchanged locked frontend
-dependencies. Inspect `foreground.mjs`, `combined-host.mjs`, their generated
-fixtures and the imported client/controller/receipt validator before execution.
+dependencies. Inspect `foreground.mjs`, `combined-host.mjs`,
+`native-place-drafts.mjs`, their generated fixtures and the imported
+client/controller/receipt validator before execution.
 
 ```sh
 node frontend/capture-evidence-tests/selection.mjs --case selection-cancel-reselect
@@ -1132,6 +1133,13 @@ node frontend/capture-drafts-tests/combined-host.mjs --case existing-original-re
 node frontend/capture-drafts-tests/combined-host.mjs --case receipt-record-closure-keeps-original
 node frontend/capture-drafts-tests/combined-host.mjs --case cleanup-failure-known-commit
 node frontend/capture-drafts-tests/combined-host.mjs --case reused-receipt-object-keeps-unknown
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-save-no-upload
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-reopen-unsent
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-review-confirm-one-upload
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-form-no-draft-database
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-other-place-or-account-refused
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-lost-reply-drafts-reachable
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-reported-mime-label-upload
 ```
 
 The selection case holds File reads at the header and text boundaries, aborts
@@ -1154,11 +1162,31 @@ requires zero cleanup, retained exact bytes, unknown inspection and no
 redispatch. The two cleanup cases distinguish a correlated commit with failed
 local deletion from reuse of an earlier receipt for a separate attempt.
 
+The seven native-place draft cases bundle the actual draft adapter/controller,
+native evidence client, `NativePlaceEvidence` and draft panel with Vite, over
+a fake native exchange and the same kind of memory store. They check: an
+opted-in save creates one unsent row with no source target and no GET/POST;
+a second adapter over the retained rows lists it unsent; review reads one
+fresh native admission, confirmation sends exactly one native POST after the
+durable unknown marker and removes the row, and the saved row renders the
+original name, type and size; static markup of the native row and draft panel
+plus a session check open no draft store; and another place, a source target,
+another home or another account is refused without a POST; and after a lost
+reply to the one native POST, the closed native row keeps its opener enabled
+when a draft port exists (and disabled without one), the draft panel renders
+View local drafts with upload blocked, and the retained unknown attempt can be
+listed, inspected and removed only with explicit consent, with no further POST;
+and originals picked with an empty or alias (`image/jpg`) browser label, selected
+through the production selection owner, save and confirm with exactly one
+accepted POST of the canonical type and unchanged bytes and SHA-256.
+React output is static markup only; no click, focus or effect runs, so the
+close/reopen interaction itself is not exercised.
+
 These checks use generated Files, fake exchanges/owners and a deterministic
 memory store; the draft harness traps global fetch. No DOM, listener, native
 service, real IndexedDB, credentials or household input is involved. The
 foreground harness temporarily supplies only a fictional window origin.
-Neither harness mounts React or downloads an original from a native server.
+Neither harness mounts React interactively or downloads an original from a native server.
 Registration is not an execution result, browser/device acceptance, native
 custody/recovery proof or permission to retry an unknown result.
 
@@ -1329,9 +1357,11 @@ check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
 triangles, contact shading) and that the view redraws afterwards.
 `?render-probe=drag` skips that check; with either address, each drag of the
-unified Atlas shows one line once the finger lifts (median and worst frame time,
-frame count, backend, moving and still pixel ratios). No CI selection drags the
-view, so that line is device evidence only, never a CI result.
+unified Atlas shows two lines once the finger lifts: median and worst frame time,
+when the worst came and its cause (settle, main thread, first frame, ratio change,
+resize or other), frames over 50 ms by cause, drawing-buffer resizes after the
+first frame, backend, moving and still pixel ratios. No CI selection drags the
+view, so those lines are device evidence only, never a CI result.
 
 The report's startup diagnostics distinguish dynamic module import, adapter
 selection/renderer construction, renderer initialization, scene-graph setup,
@@ -3121,9 +3151,15 @@ malformed/omission, denial, replay, expiry, private-intake or browser test.
 The same runner checks the pure moving-frame pixel-ratio rule MeshLayer uses
 (`canonical-ifc/move-resolution.ts`, #312): still frames keep the device ratio up
 to 2, a coarse pointer starts moving frames at one pixel per layout pixel, and
-generated GPU times move the ratio only within its floor and the still ratio. A
-generated paused touch drag stays a drag until it lifts and picks nothing. No
-renderer, GPU timing, browser or phone frame time is exercised.
+generated GPU times move the ratio only within its floor and the still ratio, by
+a motion's median and with a band a step up cannot leave. Generated drags keep one
+drawing-buffer size from their first moving frame to their last, even when a new
+ratio is learned mid-drag; the next drag takes it. GPU times that finish after a
+short drag has ended still teach the next drag without changing one already
+moving. The WebGL2 drag readout charges each frame interval to the draw that
+began it, so a generated slow first frame is named as such. A generated paused touch drag
+stays a drag until it lifts and picks nothing. No renderer, GPU timing, browser or
+phone frame time is exercised.
 
 The same named healthy runner also checks generated section targets, current
 clip visibility during a sweep, retargeting, and exact settled/reduced-motion
@@ -5636,10 +5672,18 @@ The same frontend runner selects the capture selection case
 `selection-cancel-reselect`, the foreground case `stale-target-preparation`,
 five generated capture-original cases: `one-shot-originals`,
 `original-offer-reused`, `original-offer-digest-mismatch`,
-`original-offer-record-change` and `original-offer-unavailable`; and five
+`original-offer-record-change` and `original-offer-unavailable`; five
 fake-port draft cases: `healthy-save-review-commit`,
 `existing-original-receipt-commit`, `receipt-record-closure-keeps-original`,
-`cleanup-failure-known-commit` and `reused-receipt-object-keeps-unknown`.
+`cleanup-failure-known-commit` and `reused-receipt-object-keeps-unknown`;
+and seven native-place draft cases in `native-place-drafts.mjs`:
+`native-save-no-upload`, `native-reopen-unsent`,
+`native-review-confirm-one-upload`, `native-form-no-draft-database`,
+`native-other-place-or-account-refused`,
+`native-lost-reply-drafts-reachable` and
+`native-reported-mime-label-upload`. The native cases use the actual
+adapter/controller and native evidence client over a fake native exchange and
+memory store, with static React markup only.
 The finite failure cases cover original-offer identity and per-attempt receipt
 cleanup only, with generated originals, in-memory stores/exchanges and a fetch
 trap in the draft harness. They add no listener, native service or browser.
