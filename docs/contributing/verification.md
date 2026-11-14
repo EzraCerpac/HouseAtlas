@@ -1368,6 +1368,16 @@ selection custody with another device number, then refuses a same-device
 replacement. No listener, provider, real data or volume remount is used, so these
 cases do not observe an actual reboot.
 
+The default backend-library selection also discovers
+`http::response_layer::directory_index_tests::built_folder_urls_redirect_to_their_exact_entry`.
+Through the actual router of a disposable loopback-local Host with generated
+built-frontend files and no session, it checks that `/example/`, `/example`,
+HEAD `/example/` and `/saved/` answer 307 to exactly their `index.html` (a query
+is kept), with no body and `private, no-store`. The entry, the example worker and
+its files keep their exact addresses, and folders without an entry, unknown
+folders and a path starting with `//` stay 404 without a redirect. No listener,
+gateway, browser or service worker is involved.
+
 The existing default backend-library selection also invokes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.
 It calls the unchanged `healthy-homebox-cache-stock` example body through actual
