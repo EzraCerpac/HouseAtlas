@@ -78,7 +78,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   // other action, a result arriving after this operation was invalidated is discarded.
   const relist = async (signal: AbortSignal) => {
     let rows: DraftSummary[];
-    try { rows = (await port.list()).filter(mine); } catch { return null; }
+    try { rows = (await port.list()).filter(mine); } catch { signal.throwIfAborted(); return null; }
     signal.throwIfAborted(); setSummaries(rows); return rows;
   };
   const resume = (id: string) => void run(async signal => {

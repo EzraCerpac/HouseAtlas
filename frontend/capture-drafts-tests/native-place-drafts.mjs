@@ -65,10 +65,10 @@ globalThis.requestAnimationFrame ??= () => 0;
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 /** One Panel instance: opt in, activate a named button, then read its visible status and listed rows. */
-function mountPanel(port, candidate = () => null, { effects = false } = {}) {
+function mountPanel(port, candidate = () => null, { effects = false, onSubmitted = async () => {} } = {}) {
   hooks.state = []; hooks.effects = effects ? [] : null; hooks.mounted = false;
   const render = () => { hooks.slot = 0; return nodes(HookedPanel({ port, source: null, recordId: placeId, candidate, canSave: true,
-    parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} })); };
+    parentBusy: false, onBusy() {}, onSaved() {}, onSubmitted })); };
   // Optionally run the mount effects once, e.g. the invalidation subscription that clears the panel.
   render(); for (const effect of hooks.effects ?? []) effect(); hooks.mounted = true;
   return {
@@ -293,6 +293,23 @@ try {
     gate.resolve([{ ...(await h.port.list())[0], state: 'outcome-unknown' }]);
     for (let i = 0; i < 200 && fenced.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
     assert.equal(fenced.busy(), false); assert.deepEqual(fenced.rows(), []); assert.equal(fenced.status(), '');
+    // The same after a non-committed receipt, when the late re-list rejects as a stale read:
+    // no status and no completion callback for the invalidated attempt.
+    const k = fixture();
+    let completions = 0;
+    const stale = { ...k.port, list: () => gate ? gate.promise : k.port.list(),
+      submit: async () => ({ committed: false, result: {}, localCleanup: 'unconfirmed' }) };
+    gate = null;
+    const quiet = mountPanel(stale, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }),
+      { effects: true, async onSubmitted() { completions++; } });
+    quiet.optIn(); await quiet.click('Save local draft'); await quiet.click(`Review ${original.name}`);
+    quiet.check('Upload this saved file');
+    gate = Promise.withResolvers(); quiet.press('Confirm upload');
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+    k.port.invalidate();
+    gate.reject(new Error('Synthetic stale read after invalidation'));
+    for (let i = 0; i < 200 && quiet.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+    assert.equal(quiet.busy(), false); assert.deepEqual(quiet.rows(), []); assert.equal(quiet.status(), ''); assert.equal(completions, 0);
     await f.save();
     f.shared.lostReply = true;
     await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));

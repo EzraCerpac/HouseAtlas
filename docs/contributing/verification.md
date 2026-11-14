@@ -1235,8 +1235,9 @@ plus a session check open no draft store; and another place, a source target,
 another home or another account is refused without a POST; and after a lost
 reply to the one native POST sent through the panel, the panel re-lists the row
 as Outcome unknown at once and says it will not be sent again automatically, while a
-re-list that completes only after an invalidation leaves the cleared rows and status
-unchanged; the closed native row keeps its opener enabled
+re-list that completes or fails only after an invalidation, after a lost reply or a
+non-committed receipt, leaves the cleared rows and status unchanged and runs no
+completion callback; the closed native row keeps its opener enabled
 when a draft port exists (and disabled without one), the draft panel renders
 View local drafts with upload blocked, and the retained unknown attempt can be
 listed, inspected and removed only with explicit consent, with no further POST;
