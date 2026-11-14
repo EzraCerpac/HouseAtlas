@@ -10,7 +10,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServerConfig {
     pub schema_version: u32,
@@ -28,7 +28,7 @@ pub struct ServerConfig {
     pub authentication: ServerAuthentication,
 }
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum ServerAuthentication {
     #[default]
@@ -48,7 +48,7 @@ impl ServerAuthentication {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ServerHome {
     pub workspace_id: access::CanonicalId,

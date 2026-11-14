@@ -1,8 +1,9 @@
 //! Disposable synthetic state only. A persistent loopback-local server writes
 //! generated records and one original through its real HTTP routes, an offline
 //! `backup` bundle is captured, and `initialize --restore-bundle` adopts it into
-//! a new data directory that the strict reopen path then serves. Refusals keep
-//! the bundle untouched and leave no data directory or staging behind.
+//! a new data directory that the strict reopen path then serves. Refusals and
+//! injected failures keep the bundle untouched and leave no data directory or
+//! staging behind, and a rerun then succeeds.
 use super::{initialize_from_backup, initialize_without_password, reopen};
 use crate::{
     config::server::{ServerCommand, ServerConfig},
@@ -517,6 +518,60 @@ fn adoption_refuses_existing_targets_and_unverified_bundles() {
         assert!(!target.data_directory.exists(), "{label}");
         assert!(no_staging(&fixture.root), "{label}");
     }
+    assert_eq!(snapshot(&fixture.bundle), bundle_before);
+}
+
+fn staging(root: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(root)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".houseatlas-restore-"))
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn interrupted_adoption_publishes_nothing_and_a_rerun_succeeds() {
+    let runtime = runtime();
+    let fixture = fixture(&runtime);
+    let bundle_before = snapshot(&fixture.bundle);
+    // A hard interruption can leave only unfinished staging beside the target;
+    // it is never published and never blocks a rerun.
+    let leftover = ".houseatlas-restore-interrupted";
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .recursive(true)
+        .create(fixture.root.join(leftover).join("data/media"))
+        .unwrap();
+    for (index, point) in ["between-moves", "before-receipt", "before-publish"]
+        .into_iter()
+        .enumerate()
+    {
+        let target = config(&fixture.root, &format!("interrupted-{index}"));
+        super::ADOPTION_FAULT.with(|fault| fault.set(Some(point)));
+        let error = refused(initialize_from_backup(&target, None, &fixture.bundle));
+        super::ADOPTION_FAULT.with(|fault| fault.set(None));
+        assert!(error.contains(point), "{point}: {error}");
+        assert!(!target.data_directory.exists(), "{point}");
+        assert_eq!(staging(&fixture.root), [leftover], "{point}");
+        // The same command then completes, and the strict reopen accepts it.
+        initialize_from_backup(&target, None, &fixture.bundle).unwrap();
+        drop(reopen(&target).unwrap());
+    }
+    // Gateway mode: the staged build uses its own socket path, while the
+    // receipt is issued for the configured one.
+    let mut wire = serde_json::to_value(config(&fixture.root, "gateway")).unwrap();
+    let identity = wire["authentication"]["identity"].clone();
+    wire["origin"] = json!("https://houseatlas.synthetic.ts.net");
+    wire["authentication"] = json!({"mode":"trusted-proxy","identity":identity,
+        "policy":{"userLogin":"synthetic@gateway","nodeTag":"tag:synthetic",
+            "peerUid":rustix::process::geteuid().as_raw()},
+        "socket":fixture.root.join("gateway/gateway.sock")});
+    let gateway: ServerConfig = serde_json::from_value(wire).unwrap();
+    initialize_from_backup(&gateway, None, &fixture.bundle).unwrap();
+    drop(reopen(&gateway).unwrap());
+    assert_eq!(staging(&fixture.root), [leftover]);
     assert_eq!(snapshot(&fixture.bundle), bundle_before);
 }
 

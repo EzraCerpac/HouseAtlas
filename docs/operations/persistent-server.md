@@ -40,7 +40,12 @@ Never run them against a folder the live service holds.
 2. Download the newest archive and its `.sha256` from the iCloud folder, check
    the hash, and unpack the archive into a new private (`0700`) folder.
 3. Copy `server-config.json` from the archive to a private `0600` file owned by
-   the service user. Change only what differs on this machine:
+   the service user. Archives made before the backup job started carrying it
+   have no `server-config.json`. For those, take the configuration from your
+   private records and keep its original workspace/home selection and
+   authentication identity, because the restored records belong to that
+   workspace and home. In either case, change only what differs on this
+   machine:
    - `dataDirectory` must name a folder that does not exist yet, with
      `logDirectory` set to its `logs` folder.
    - The frontend and TLS paths.
@@ -54,13 +59,20 @@ Never run them against a folder the live service holds.
      --restore-bundle <unpacked folder>/bundle --profile native-stock-queue-free
    ```
 
-   It repeats the full `restore-check` verification in a private folder next
-   to the data folder and moves the verified database and originals in. It
-   then creates fresh Access and a new receipt exactly as `initialize` does.
-   Old accounts and sessions are not restored, so everyone signs in again.
-   In password mode, also pass `--provisioning-file`. The command refuses an
-   existing data folder (even an empty one) and a bundle that fails
+   It repeats the full `restore-check` verification in a private
+   `.houseatlas-restore-*` folder next to the data folder. It builds the whole
+   data folder there, with fresh Access and a new receipt exactly as
+   `initialize` creates them, then publishes it under its final name in one
+   step. Old accounts and sessions are not restored, so everyone signs in
+   again. In password mode, also pass `--provisioning-file`. The command
+   refuses an existing data folder (even an empty one) and a bundle that fails
    verification. It never changes the bundle.
+
+   The data folder therefore appears only when it is complete, with its
+   `server-state.json`. A failed run removes its staging folder. A run that was
+   killed or lost power can leave a `.houseatlas-restore-*` folder and no data
+   folder. Delete that leftover folder and run the same command again; the
+   bundle is only read.
 5. Rebuild the model release with `--restore-models`
    ([icloud-backup.md](icloud-backup.md#restore)) into a new folder outside the
    data folder.

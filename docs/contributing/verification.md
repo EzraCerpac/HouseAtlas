@@ -1394,7 +1394,7 @@ its files keep their exact addresses, and folders without an entry, unknown
 folders and a path starting with `//` stay 404 without a redirect. No listener,
 gateway, browser or service worker is involved.
 
-The default backend-library selection also discovers the three
+The default backend-library selection also discovers the four
 `lifecycle::persistent::restored_adoption_tests::` cases for
 `initialize --restore-bundle`. Each works in a disposable private folder with a
 generated loopback-local installation. That installation holds one stock
@@ -1410,6 +1410,14 @@ through the actual router, captured by the actual `backup` owner:
   (receipt unchanged). It also refuses three tampered copies: a flipped original
   byte, a flipped database byte and an extra member. Each refusal leaves no data
   folder and no staging.
+- `interrupted_adoption_publishes_nothing_and_a_rerun_succeeds` injects a
+  test-only failure at three points: between moving the database and the
+  originals into staging, before the receipt is written, and before the final
+  rename publishes the folder. Each leaves no data folder and no new staging,
+  and the same command then succeeds with strict reopen. A leftover staging
+  folder from a simulated hard interruption stays untouched and never blocks
+  a rerun. A trusted-proxy adoption checks that the staged build's socket path
+  does not leak into the receipt.
 - `restore_bundle_option_is_explicit_and_initialize_only` checks that the CLI
   requires `--profile native-stock-queue-free` and an absolute path, and that
   only `initialize` accepts the option.
