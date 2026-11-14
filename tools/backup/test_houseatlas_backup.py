@@ -49,6 +49,7 @@ class BackupScriptTest(unittest.TestCase):
         (originals / "0.blob").chmod(0o400)
         (work / "backup-report.json").write_text("{}")
         (work / "server-config.json").write_text("{}")
+        (work / "service.plist").write_text("<plist/>")
         archive = self.root / "a.tar.gz"
         hb.pack(work, archive)
         out = hb.private_dir(self.root / "out")
@@ -246,6 +247,8 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         release.binary = helper
         release.server_config = self.root / "server.json"
         release.server_config.write_text(json.dumps({"dataDirectory": str(self.root / "data")}))
+        release.plist = self.root / "service.plist"
+        release.plist.write_bytes(b"<plist/>")
         shared = hb.private_dir(self.root / "data" / hb.SHARED_FOLDER)
         (shared / "retention.json").write_text('{"keep": "recent", "nights": 7, "months": 1}')
 
@@ -282,6 +285,8 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         with tarfile.open(archive) as tar:
             self.assertEqual(tar.extractfile("server-config.json").read(), release.server_config.read_bytes())
             self.assertEqual(tar.getmember("server-config.json").mode & 0o777, 0o600)
+            self.assertEqual((tar.extractfile("service.plist").read(), tar.getmember("service.plist").mode & 0o777),
+                             (release.plist.read_bytes(), 0o600))
         self.assertFalse(stale.exists())
         self.assertNotIn("reportFailed", second)
         sidecar = json.loads((icloud / f"{second['archive']}{hb.MODELS_SIDECAR}").read_text())
@@ -315,6 +320,7 @@ class RetentionTest(unittest.TestCase):
         (work / "backup-report.json").write_text(json.dumps(
             {"modelStore": hb.MODEL_STORE, "models": models}))
         (work / "server-config.json").write_text("{}")
+        (work / "service.plist").write_text("<plist/>")
         target = self.icloud / f"{hb.ARCHIVE_PREFIX}{stamp}.tar.gz"
         hb.pack(work, target)
         (self.icloud / f"{target.name}.sha256").write_text("x\n")

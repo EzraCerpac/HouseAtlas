@@ -8,9 +8,9 @@ One run:
   3. restores the bundle into a fresh folder with `restore-check`;
   4. stores each model file in iCloud once, named by its SHA-256, so an
      unchanged release adds nothing; the nightly archive only lists them;
-  5. packs the bundle, the report and a copy of the server configuration (it
-     holds IDs, paths and the gateway identity policy, no secrets) into one
-     archive and copies it to iCloud;
+  5. packs the bundle, the report and copies of the server configuration and
+     the service plist (IDs, paths, pins and the gateway identity policy, no
+     secrets) into one archive and copies it to iCloud;
   6. waits until iCloud reports the uploads done, evicts the local copies,
      downloads them again from iCloud, compares the bytes, repeats the
      restore check on the downloaded bundle, and rebuilds the model folders
@@ -347,7 +347,7 @@ def restore_check(binary: Path, bundle: Path, destination: Path, step: str) -> d
 
 def pack(work: Path, archive: Path) -> None:
     with tarfile.open(archive, "w:gz") as tar:
-        for name in ("bundle", "backup-report.json", "server-config.json"):
+        for name in ("bundle", "backup-report.json", "server-config.json", "service.plist"):
             tar.add(work / name, arcname=name)
 
 
@@ -692,6 +692,9 @@ def backup(config: Config) -> dict:
     # The configuration this capture used, so a rebuild need not recall it.
     shutil.copyfile(service.server_config, work / "server-config.json")
     (work / "server-config.json").chmod(0o600)
+    # And the launchd plist that names it, with the serve options a restore needs.
+    shutil.copyfile(service.plist, work / "service.plist")
+    (work / "service.plist").chmod(0o600)
 
     # Blobs go up before the archive that names them, so no archive in iCloud
     # ever points at a model file that is not there.

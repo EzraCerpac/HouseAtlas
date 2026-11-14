@@ -36,7 +36,10 @@ Never run them against a folder the live service holds.
 
 1. Build the server binary and frontend from a `main` commit whose Atlas schema
    matches the archive. Adoption opens the restored database strictly and
-   refuses any other schema; there is no migration.
+   refuses any other schema; there is no migration. The commands are the ones
+   `tools/deploy-nas` runs: `cargo build --release --locked -p houseatlas-backend`,
+   then `npm ci`, `npm run typecheck` and `npm run build` in `frontend/`. The
+   frontend folder is `frontend/dist` (or a copy of it).
 2. Download the newest archive and its `.sha256` from the iCloud folder, check
    the hash, and unpack the archive into a new private (`0700`) folder.
 3. Copy `server-config.json` from the archive to a private `0600` file owned by
@@ -75,12 +78,28 @@ Never run them against a folder the live service holds.
    bundle is only read.
 5. Rebuild the model release with `--restore-models`
    ([icloud-backup.md](icloud-backup.md#restore)) into a new folder outside the
-   data folder.
-6. Write the service's launchd plist. It runs
-   `houseatlas serve --server-config <config>` with the model options for the
-   restored release: `--model-overview-manifest`, `--atlas-scene-manifest` and
-   `--atlas-room-links-manifest`, each with its `-sha256` pin computed from the
-   restored files. Load the plist with `launchctl bootstrap gui/$(id -u) <plist>`.
+   data folder. Its files land in `<model folder>/releases/<version>/`.
+6. Take `service.plist` from the archive and adapt its paths: the binary,
+   the server configuration, the restored model files, the logs and the
+   working folder. Archives made before the backup job started carrying it
+   have none; for those, write the plist yourself.
+
+   It runs `houseatlas serve --server-config <config>` with the model options
+   for the restored release: `--model-overview-manifest` (`publication.json`),
+   `--atlas-scene-manifest` (`atlas-scene.json`) and
+   `--atlas-room-links-manifest` (`reviewed-room-links.json`), each with its
+   `-sha256` pin of the restored file. When the release holds a
+   `display-policy.json`, also pass `--atlas-display-policy` with its
+   `-sha256` pin. Keep the old service's `--atlas-entry-building-id`, if it had
+   one. The copied plist has it; for an older archive, take it from your
+   private records. Without these two options the service still starts, but
+   serves the model without its reviewed display policy or entry building.
+
+   A plist you write needs `RunAtLoad` set to true. Without it, launchd loads
+   the job but never starts it. Also set `KeepAlive` with `SuccessfulExit`
+   false, so a crash restarts the service, plus a `0077` `Umask` and paths for
+   its standard output and error. A copied plist already has these keys. Load
+   the plist with `launchctl bootstrap gui/$(id -u) <plist>`.
 7. In `trusted-proxy` mode, reinstall and re-enroll the separate gateway by
    following its own instructions, and point it at the configured socket.
 8. Supply what no archive carries from your private records: provider
