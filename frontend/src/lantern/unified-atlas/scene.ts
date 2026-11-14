@@ -1086,6 +1086,16 @@ export const levelLift = (presentation: AtlasPresentation, levelId: string | nul
  * SURROUNDINGS_FAR, and whole for at least SURROUNDINGS_CLEAR metres however small the house. */
 export const SURROUNDINGS_NEAR = .5, SURROUNDINGS_FAR = 2.5, SURROUNDINGS_CLEAR = 4;
 
+/** How far past a box of half extent `half` (x, z) the surroundings start and finish
+ * fading. `rim` is the least distance from the box to the edge of the ground around it.
+ * The fade is complete there at the latest, with its start brought in in proportion, so
+ * the edge of the ground never shows against the sky. */
+export function surroundingsBand(half: readonly [number, number], rim = Infinity): { near: number; far: number } {
+  const reach = Math.hypot(half[0], half[1]), near = Math.max(SURROUNDINGS_CLEAR, SURROUNDINGS_NEAR * reach);
+  const far = near + (SURROUNDINGS_FAR - SURROUNDINGS_NEAR) * Math.max(reach, SURROUNDINGS_CLEAR);
+  return rim > 0 && rim < far ? { near: near * rim / far, far: rim } : { near, far };
+}
+
 /** The context meshes and the fade around the rest of the model, which stays the
  * subject; null when there is no context or nothing else to fade from. */
 export function atlasSurroundings(model: AtlasModel, lowestPitchDeg: number): Omit<Surroundings, 'backdrop'> | null {
@@ -1098,10 +1108,19 @@ export function atlasSurroundings(model: AtlasModel, lowestPitchDeg: number): Om
     min[0] = Math.min(min[0]!, b.min[0]); min[1] = Math.min(min[1]!, b.min[2]); max[0] = Math.max(max[0]!, b.max[0]); max[1] = Math.max(max[1]!, b.max[2]);
   }
   if (keys.size === 0 || !Number.isFinite(min[0]!) || !Number.isFinite(min[1]!)) return null;
+  const center = [(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2] as const;
   const half = [(max[0]! - min[0]!) / 2, (max[1]! - min[1]!) / 2] as const, reach = Math.hypot(half[0], half[1]);
-  const near = Math.max(SURROUNDINGS_CLEAR, SURROUNDINGS_NEAR * reach);
-  return { keys, center: [(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2], half, near, far: near + (SURROUNDINGS_FAR - SURROUNDINGS_NEAR) * Math.max(reach, SURROUNDINGS_CLEAR),
-    ground, lean: 1 / Math.tan(lowestPitchDeg * Math.PI / 180) };
+  // The ground the house stands on is the surroundings whose footprint covers its box. It
+  // is taken to reach the disc inscribed in that footprint (a site is often a disc, or fills
+  // its footprint); every point on that disc's edge lies at least `rim` past the box.
+  let rim = -Infinity;
+  for (const part of model.parts) if (part.role === 'context' && part.mesh.triangles > 0) {
+    const b = part.mesh.bounds;
+    if (b.min[0] > min[0]! || b.max[0] < max[0]! || b.min[2] > min[1]! || b.max[2] < max[1]!) continue;
+    const radius = Math.min(b.max[0] - b.min[0], b.max[2] - b.min[2]) / 2;
+    rim = Math.max(rim, radius - Math.hypot((b.min[0] + b.max[0]) / 2 - center[0], (b.min[2] + b.max[2]) / 2 - center[1]) - reach);
+  }
+  return { keys, center, half, ...surroundingsBand(half, rim), ground, lean: 1 / Math.tan(lowestPitchDeg * Math.PI / 180) };
 }
 
 export function partLifts(model: AtlasModel, presentation: AtlasPresentation, t: number): ReadonlyMap<string, number> {

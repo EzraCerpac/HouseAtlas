@@ -1731,6 +1731,27 @@ for (const type of ['touch', 'mouse']) {
   assert.equal(h.value().moving, false, 'lifting ends it'); assert.deepEqual(h.taps, [], 'a drag picks nothing');
 }
 
+// The surroundings have faded completely by the edge of the ground the house stands on (#439).
+{
+  const part = (key, role, min, max) => ({ role, mesh: { meshKey: key, triangles: 2, bounds: { min, max } } });
+  const house = part('house', 'structure', [-5, 0, -5], [5, 6, 5]), usual = scene.surroundingsBand([5, 5]);
+  const tree = part('tree', 'context', [8, 0, 0], [10, 8, 2]);
+  const fadeOf = parts => scene.atlasSurroundings({ parts }, 20);
+  const wide = fadeOf([house, part('plate', 'context', [-200, -.2, -200], [200, 0, 200]), tree]);
+  assert.deepEqual([wide.near, wide.far], [usual.near, usual.far], 'ground well past the fade keeps the usual band');
+  assert.deepEqual([fadeOf([house, tree]).far, fadeOf([house, part('terrace', 'context', [-6, -.2, -6], [6, 0, 5])]).far], [usual.far, usual.far],
+    'surroundings that are not the ground under the whole house, or ground that ends at the house, keep it too');
+  // A site disc whose edge lies inside the usual band, a little off the house's centre.
+  const disc = fadeOf([house, part('disc', 'context', [-18, -.2, -16], [22, 0, 24]), tree]);
+  assert.ok(disc.far < usual.far && disc.near < disc.far, `the fade ends sooner (${disc.near}–${disc.far} m against ${usual.near}–${usual.far} m)`);
+  assert.ok(Math.abs(disc.near / disc.far - usual.near / usual.far) < 1e-12, 'its start comes in in proportion');
+  for (let degrees = 0; degrees < 360; degrees += 3) {
+    const x = 2 + 20 * Math.cos(degrees * Math.PI / 180), z = 4 + 20 * Math.sin(degrees * Math.PI / 180);
+    const gap = Math.hypot(Math.max(0, Math.abs(x - disc.center[0]) - disc.half[0]), Math.max(0, Math.abs(z - disc.center[1]) - disc.half[1]));
+    assert.ok(gap >= disc.far - 1e-9, `the disc's edge at ${degrees}° is only ${gap.toFixed(2)} m past the house, before the fade ends at ${disc.far.toFixed(2)} m`);
+  }
+}
+
 console.log('PASS unified Atlas healthy: generated scene/model read through the production reader; standard loader nested, reused and '
   + 'multi-primitive transforms applied once; explicit selector binding; room picks hidden yet pickable; stacked, focused, exploded, '
   + 'mid-transition and plan picks at shared lifts; labels, duplicate names, a two-floor room, overlay joins and selection continuity. '
@@ -1745,4 +1766,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
   + 'Scalar counts and selected details retain source order. '
   + 'Actual static React graph, PlanTile and AreaValue checks retain distinct parallel self-links and mixed-direction lanes with enclosing frames, distinct floor record summaries, sibling room context, empty-floor navigation and usable property plans, and nullable area basis. '
+  + 'The surroundings fade is complete by the edge of the ground under the house. '
   + 'Generated data only; no mounted browser, GPU or device acceptance.');
