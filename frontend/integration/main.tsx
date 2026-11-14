@@ -351,6 +351,8 @@ const captureDrafts = createCaptureDraftAdapter({
   readSession: signal => nativeSessions.session(signal), editing, schemas,
   recheckSession: notifySessionChanged,
   foreground: () => document.visibilityState === "visible" && document.hasFocus(),
+  // Native places have no source record; their drafts use the native evidence owner.
+  placeEvidence: () => nativePlaces.evidence,
 });
 const quantity = createQuantityClient({
   getSessionBinding: () => currentSession && currentQuantityScope

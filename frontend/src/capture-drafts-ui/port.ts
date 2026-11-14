@@ -2,6 +2,7 @@ import type { createCaptureDrafts } from '../capture-drafts/controller';
 import type { DraftBoundary, DraftReview } from '../capture-drafts/types';
 import type { SourceRef } from '../api/generated/contracts';
 import type { StockResultEnvelope } from '../webmcp/stock';
+import type { NativeEvidencePending } from '../api/native-evidence-client';
 
 type Controller = ReturnType<typeof createCaptureDrafts>;
 export interface CaptureDraftPort {
@@ -17,13 +18,18 @@ export interface CaptureDraftPort {
   inspectUnknown: Controller['inspectUnknown'];
   discard: Controller['discard'];
   clearBeforeSignOut(): Promise<void>;
-  submit(review: DraftReview, target: SourceRef, recordId: string, signal: AbortSignal): Promise<{
-    result: StockResultEnvelope;
-    localCleanup: 'removed' | 'unconfirmed';
-  }>;
+  /** A null target is a native Atlas place; its result is the native owner's attempt. */
+  submit(review: DraftReview, target: SourceRef | null, recordId: string, signal: AbortSignal): Promise<DraftCompletion>;
+}
+export interface DraftCompletion {
+  committed: boolean;
+  result: StockResultEnvelope | NativeEvidencePending;
+  localCleanup: 'removed' | 'unconfirmed';
 }
 
-export function sameTarget(a: SourceRef, b: SourceRef): boolean {
+/** Null is a native Atlas place, which matches only another null target. */
+export function sameTarget(a: SourceRef | null, b: SourceRef | null): boolean {
+  if (a === null || b === null) return a === b;
   return a.workspaceId === b.workspaceId && a.homeId === b.homeId
     && a.key.sourceInstanceId === b.key.sourceInstanceId && a.key.collectionId === b.key.collectionId
     && a.key.sourceKind === b.key.sourceKind && a.key.externalId === b.key.externalId;

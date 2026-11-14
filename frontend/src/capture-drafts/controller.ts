@@ -1,7 +1,7 @@
-import type { PlaceEditAdmission, UploadPlaceEvidence } from '../app/editing.ts';
+import type { PlaceEditAdmission } from '../app/editing.ts';
 import type { SourceRef } from '../api/generated/contracts.ts';
 import { DRAFT_LIMITS, type CaptureSelection, type DraftBoundary, type DraftForm, type DraftHost, type DraftOwner,
-  type DraftReview, type DraftRow, type DraftStore, type DraftSubmission, type DraftSummary, type DraftUnknownInspection, type DraftUploadIntent } from './types.ts';
+  type DraftReview, type DraftRow, type DraftStore, type DraftSubmission, type DraftSummary, type DraftTargetOwner, type DraftUnknownInspection, type DraftUploadIntent } from './types.ts';
 import { digest, timestamp, validateForm, validateOwner, validateRow, validateRows, validateSource } from './validation.ts';
 import { validateDraftReceipt } from './receipt.ts';
 
@@ -15,9 +15,9 @@ function originalFile(row: DraftRow): File {
 }
 // Stable field order binds all immutable metadata as well as the original hash.
 function manifest(row: DraftRow): string {
-  const key = row.targetSourceRef.key;
+  const source = row.targetSourceRef, key = source?.key;
   return JSON.stringify([row.format, row.id, row.owner.actorId, row.owner.workspaceId, row.owner.homeId,
-    row.targetSourceRef.workspaceId, row.targetSourceRef.homeId, key.sourceInstanceId, key.collectionId, key.sourceKind, key.externalId,
+    source?.workspaceId ?? null, source?.homeId ?? null, key?.sourceInstanceId ?? null, key?.collectionId ?? null, key?.sourceKind ?? null, key?.externalId ?? null,
     row.recordId, row.original.size, row.contentType, row.lastModified, row.sha256, row.capture.schemaVersion, row.capture.selectionMethod, row.capture.selectedAt,
     row.capture.filename, row.capture.reportedContentType, row.capture.byteOrigin, row.form.statement, row.form.sourceLicense.status, row.form.sourceLicense.reference,
     row.form.reason]);
@@ -37,11 +37,61 @@ function checkAdmission(admission: PlaceEditAdmission | null, row: DraftRow): as
     || !policy.licenses.some(choice => choice.value.status === row.form.sourceLicense.status && choice.value.reference === row.form.sourceLicense.reference))
     throw new Error('Read current Atlas information and review this attachment before submitting');
 }
+type Prepared = Awaited<ReturnType<DraftTargetOwner['prepare']>>;
+interface Target {
+  admit(signal: AbortSignal): Promise<void>;
+  prepare(file: File, signal: AbortSignal): Promise<Prepared>;
+  saved(signal: AbortSignal): Promise<Pick<DraftUnknownInspection, 'savedPlace' | 'savedRevision'>>;
+}
+/** A source row uses the built-in stock upload intent and receipt checks; a
+ * row without a source uses the host's target owner, or is refused. */
+function targetFor(row: DraftRow, host: DraftHost): Target {
+  const source = row.targetSourceRef;
+  if (source === null) {
+    const owner = host.placeTarget;
+    if (!owner) throw new Error('This local draft target is unavailable');
+    const view = { owner: row.owner, recordId: row.recordId, contentType: row.contentType, sha256: row.sha256,
+      capture: structuredClone(row.capture), form: structuredClone(row.form), byteSize: row.original.size };
+    return { admit: signal => owner.admit(view, signal), prepare: (file, signal) => owner.prepare(view, file, signal),
+      saved: async signal => ({ savedPlace: null, savedRevision: await owner.revision(view, signal) }) };
+  }
+  const load = async (signal: AbortSignal) => {
+    const admission = await host.loadPlace(structuredClone(source), signal); signal.throwIfAborted(); return admission;
+  };
+  return {
+    async admit(signal) { checkAdmission(await load(signal), row); },
+    async prepare(file, signal) {
+      const admission = await load(signal); checkAdmission(admission, row);
+      const requestId = crypto.randomUUID(), idempotencyKey = crypto.randomUUID(), identityId = admission.record.payload.atlasId;
+      const intent: DraftUploadIntent = Object.freeze({
+        requestId, idempotencyKey, context: Object.freeze({ workspaceId: row.owner.workspaceId, homeId: row.owner.homeId }),
+        recordId: row.recordId, expectedRevision: admission.record.revision, guards: freezeData(structuredClone(admission.guards)),
+        file, statement: row.form.statement, sourceLicense: Object.freeze(structuredClone(row.form.sourceLicense)), reason: row.form.reason,
+        capture: Object.freeze(structuredClone(row.capture)),
+      });
+      return { requestId, idempotencyKey, handoff: intent, acknowledge(result) {
+        const response = result as Record<string, unknown> | null;
+        const scope = response?.['resolvedScope'] as Record<string, unknown> | undefined;
+        if (!response || response['status'] !== 'committed' || response['requestId'] !== requestId || response['commandId'] !== 'atlas.batch.execute'
+          || scope?.['workspaceId'] !== row.owner.workspaceId || scope?.['homeId'] !== row.owner.homeId)
+          throw new TypeError('Server acknowledgement differs from the local attempt');
+        host.validateAcknowledgement(result, intent);
+        validateDraftReceipt(result, intent, identityId, row.sha256);
+      } };
+    },
+    async saved(signal) {
+      const savedPlace = await load(signal);
+      if (savedPlace && (savedPlace.record.recordId !== row.recordId || savedPlace.record.workspaceId !== row.owner.workspaceId
+        || savedPlace.record.homeId !== row.owner.homeId)) throw new Error('Saved information scope differs from the local attempt');
+      return { savedPlace, savedRevision: savedPlace ? String(savedPlace.record.revision) : null };
+    },
+  };
+}
 /** Stores local originals and hands one foreground attempt to the capture owner.
  * It has no upload, fetch, reconnect, timer-submission or retry capability. */
 export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () => number = Date.now) {
   const reviews = new Map<object, { row: DraftRow; boundary: DraftBoundary }>();
-  let submissions = new WeakMap<object, { boundary: DraftBoundary; intent: UploadPlaceEvidence; identityId: string; generation: number; taken: boolean }>();
+  let submissions = new WeakMap<object, { boundary: DraftBoundary; prepared: Prepared; generation: number; taken: boolean }>();
   let generation = 0;
   function boundary(): DraftBoundary {
     const current = host.current();
@@ -73,10 +123,12 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
   }
   return {
     /** Opt-in is per save, never inferred from installation or past sessions. */
-    async save(input: { localId: string; selection: CaptureSelection; form: DraftForm; targetSourceRef: SourceRef; recordId: string; optedIn: true }): Promise<string> {
+    async save(input: { localId: string; selection: CaptureSelection; form: DraftForm; targetSourceRef: SourceRef | null; recordId: string; optedIn: true }): Promise<string> {
       if (input.optedIn !== true || !host.foreground()) throw new Error('Confirm saving a local unsent draft in the foreground');
       const captured = boundary(), atGeneration = generation;
-      validateSource(input.targetSourceRef); validateForm(input.form);
+      if (input.targetSourceRef === null) { if (!host.placeTarget) throw new Error('This local draft target is unavailable'); }
+      else validateSource(input.targetSourceRef);
+      validateForm(input.form);
       const file = input.selection.file, original = input.selection.original;
       if (!(file instanceof File) || !(original instanceof File) || file.size < 1 || file.size > DRAFT_LIMITS.fileBytes
         || original.size !== file.size || original.name !== file.name || original.lastModified !== file.lastModified
@@ -125,8 +177,8 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       if (await digest(row.original) !== row.sha256) throw new Error('Local original bytes no longer match');
       signal.throwIfAborted(); check(captured, atGeneration, true);
       await refresh(captured, atGeneration, signal);
-      const admission = await host.loadPlace(structuredClone(row.targetSourceRef), signal);
-      signal.throwIfAborted(); check(captured, atGeneration, true); checkAdmission(admission, row);
+      await targetFor(row, host).admit(signal);
+      signal.throwIfAborted(); check(captured, atGeneration, true);
       const token = Object.freeze({});
       // Keep a private snapshot; caller edits to displayed values cannot change submission.
       if (reviews.size >= DRAFT_LIMITS.count) reviews.delete(reviews.keys().next().value!);
@@ -142,25 +194,19 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       const captured = review.boundary, atGeneration = generation;
       signal.throwIfAborted(); check(captured, atGeneration, true); unsent(review.row);
       await refresh(captured, atGeneration, signal);
-      const admission = await host.loadPlace(structuredClone(review.row.targetSourceRef), signal);
-      signal.throwIfAborted(); check(captured, atGeneration, true); checkAdmission(admission, review.row);
-      const attempt = { requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), startedAt: new Date(now()).toISOString() };
-      const attempted: DraftRow = { ...review.row, state: 'outcome-unknown', attempt };
       // Build every fallible value before persistence. A lost handoff after the
       // marker is intentionally unknown and can only be inspected/removed.
-      const intent: DraftUploadIntent = Object.freeze({
-        requestId: attempt.requestId, idempotencyKey: attempt.idempotencyKey, context: Object.freeze({ workspaceId: captured.workspaceId, homeId: captured.homeId }),
-        recordId: attempted.recordId, expectedRevision: admission.record.revision, guards: freezeData(structuredClone(admission.guards)),
-        file: originalFile(attempted), statement: attempted.form.statement, sourceLicense: Object.freeze(structuredClone(attempted.form.sourceLicense)), reason: attempted.form.reason,
-        capture: Object.freeze(structuredClone(attempted.capture)),
-      });
-      const privateAttempt = { boundary: captured, intent, identityId: admission.record.payload.atlasId, generation: atGeneration, taken: false };
+      const prepared = await targetFor(review.row, host).prepare(originalFile(review.row), signal);
+      signal.throwIfAborted(); check(captured, atGeneration, true);
+      const attempt = { requestId: prepared.requestId, idempotencyKey: prepared.idempotencyKey, startedAt: new Date(now()).toISOString() };
+      const attempted: DraftRow = { ...review.row, state: 'outcome-unknown', attempt };
+      const privateAttempt = { boundary: captured, prepared, generation: atGeneration, taken: false };
       const submission: DraftSubmission = Object.freeze({ draftId: attempted.id, capture: Object.freeze(structuredClone(attempted.capture)), sha256: attempted.sha256,
         takeForForegroundSubmit: () => {
           signal.throwIfAborted(); check(captured, atGeneration, true);
           if (!submissions.has(submission) || privateAttempt.taken) throw new Error('Local attempt was already handed off or invalidated');
           privateAttempt.taken = true;
-          return intent;
+          return prepared.handoff;
         } });
       await store.change(rows => {
         signal.throwIfAborted(); check(captured, atGeneration, true); validateRows(rows);
@@ -183,13 +229,7 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       const privateAttempt = submissions.get(submission);
       if (!privateAttempt || !privateAttempt.taken) throw new Error('Original foreground attempt is unavailable');
       const atGeneration = privateAttempt.generation; check(privateAttempt.boundary, atGeneration);
-      const response = result as Record<string, unknown> | null;
-      const scope = response?.['resolvedScope'] as Record<string, unknown> | undefined;
-      if (!response || response['status'] !== 'committed' || response['requestId'] !== privateAttempt.intent.requestId || response['commandId'] !== 'atlas.batch.execute'
-        || scope?.['workspaceId'] !== privateAttempt.boundary.workspaceId || scope?.['homeId'] !== privateAttempt.boundary.homeId)
-        throw new TypeError('Server acknowledgement differs from the local attempt');
-      host.validateAcknowledgement(result, privateAttempt.intent);
-      validateDraftReceipt(result, privateAttempt.intent, privateAttempt.identityId, submission.sha256);
+      privateAttempt.prepared.acknowledge(result);
       // Validation belongs to this exact attempt. A response object validated
       // during an earlier acknowledgement cannot certify another attempt.
       submissions.delete(submission);
@@ -200,14 +240,14 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
           check(privateAttempt.boundary, atGeneration); validateRows(rows);
           const stored = rows.find(row => row.id === submission.draftId);
           if (!stored || !sameOwner(stored.owner, privateAttempt.boundary) || stored.state !== 'outcome-unknown'
-            || stored.attempt?.requestId !== privateAttempt.intent.requestId || stored.attempt?.idempotencyKey !== privateAttempt.intent.idempotencyKey)
+            || stored.attempt?.requestId !== privateAttempt.prepared.requestId || stored.attempt?.idempotencyKey !== privateAttempt.prepared.idempotencyKey)
             throw new Error('Local attempt no longer matches');
           return { rows: rows.filter(row => row.id !== submission.draftId), value: undefined };
         });
         check(privateAttempt.boundary, atGeneration);
         localCleanup = 'removed';
       } catch { /* The correlated commit is known; local cleanup is not. */ }
-      return { state: 'server-acknowledged', requestId: privateAttempt.intent.requestId, localCleanup };
+      return { state: 'server-acknowledged', requestId: privateAttempt.prepared.requestId, localCleanup };
     },
     /** Read-only assistance after interruption/reopen. Never turns absence or
      * current evidence into retry permission, and never reconstructs a request. */
@@ -217,12 +257,10 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       const row = await rowFor(id, captured);
       if (row.state !== 'outcome-unknown' || !row.attempt) throw new Error('No unknown local attempt exists');
       await refresh(captured, atGeneration, signal);
-      const savedPlace = await host.loadPlace(structuredClone(row.targetSourceRef), signal);
+      const saved = await targetFor(row, host).saved(signal);
       signal.throwIfAborted(); check(captured, atGeneration, true);
-      if (savedPlace && (savedPlace.record.recordId !== row.recordId || savedPlace.record.workspaceId !== captured.workspaceId
-        || savedPlace.record.homeId !== captured.homeId)) throw new Error('Saved information scope differs from the local attempt');
       return { draftId: row.id, attempt: structuredClone(row.attempt), targetSourceRef: structuredClone(row.targetSourceRef), recordId: row.recordId,
-        sha256: row.sha256, savedPlace, outcome: 'unknown', retrySafety: 'not-established' };
+        sha256: row.sha256, ...saved, outcome: 'unknown', retrySafety: 'not-established' };
     },
     /** Explicit local removal; after handoff it never cancels a server operation. */
     async discard(id: string, consent: { loseUnknownOutcome: boolean }): Promise<void> {

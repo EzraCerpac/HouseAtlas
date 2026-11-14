@@ -45,6 +45,8 @@ export interface NativeEvidenceUploadDiagnostic {
 export interface NativeEvidencePending {
   readonly prepared: NativeEvidencePrepared; readonly outcome: 'unknown' | 'not-committed' | 'committed';
   readonly receipt?: LosslessJson; readonly evidenceId?: string; readonly assetId?: string;
+  /** Present with a validated receipt: the uploaded file, whose hash, size and type the receipt matched when it returned the asset. */
+  readonly original?: { readonly name: string; readonly type: string; readonly byteSize: number };
   readonly intakeError?: { readonly code: 'upload-timeout' | 'upload-interrupted' | 'invalid-upload' | 'upload-busy'; readonly httpStatus: number };
   readonly uploadDiagnostic?: NativeEvidenceUploadDiagnostic;
 }
@@ -173,7 +175,7 @@ export function createNativeEvidenceClient(options: {
   const validator = createExactStockResultValidator();
   const admissions = new WeakSet<NativeEvidenceAdmission>();
   type Entry = { owner: object; scope: Readonly<Scope>; admission: NativeEvidenceAdmission; metadata: string;
-    digest: string; size: number; type: string; outcome: 'unknown' | 'not-committed' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string;
+    digest: string; size: number; type: string; name: string; outcome: 'unknown' | 'not-committed' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string;
     intakeError?: NativeEvidencePending['intakeError']; file?: File; uploadDiagnostic?: NativeEvidenceUploadDiagnostic };
   const custody = new WeakMap<NativeEvidencePrepared, Entry>(), submitted = new Map<NativeEvidencePrepared, Entry>();
   const listeners = new Set<() => void>();
@@ -272,7 +274,8 @@ export function createNativeEvidenceClient(options: {
     const value = await receive(response, active); current(binding, active); return decode(binding, recordId, value);
   });
   const view = (prepared: NativeEvidencePrepared, entry: Entry): NativeEvidencePending => Object.freeze({ prepared, outcome: entry.outcome,
-    ...(entry.receipt ? { receipt: entry.receipt, evidenceId: entry.evidenceId, assetId: entry.assetId } : {}),
+    ...(entry.receipt ? { receipt: entry.receipt, evidenceId: entry.evidenceId, assetId: entry.assetId,
+      original: Object.freeze({ name: entry.name, type: entry.type, byteSize: entry.size }) } : {}),
     ...(entry.intakeError ? { intakeError: entry.intakeError } : {}),
     ...(entry.uploadDiagnostic ? { uploadDiagnostic: entry.uploadDiagnostic } : {}) });
   const owned = (binding: NativePlaceBinding, prepared: NativeEvidencePrepared) => {
@@ -409,7 +412,7 @@ export function createNativeEvidenceClient(options: {
           statement, sourceLicense: license, reason, filename: selection.file.name, contentType: selection.file.type, capture } as unknown as JsonForSerialization);
         if (new TextEncoder().encode(metadata).byteLength > 64 * 1024) throw new TypeError('Native evidence metadata exceeds bound');
         const prepared = Object.freeze({ binding, recordId: latest.record.recordId, requestId });
-        custody.set(prepared, { owner, scope: binding.scope, admission: latest, metadata, digest, size: selection.file.size, type: selection.file.type, outcome: 'unknown', file: selection.file });
+        custody.set(prepared, { owner, scope: binding.scope, admission: latest, metadata, digest, size: selection.file.size, type: selection.file.type, name: selection.file.name, outcome: 'unknown', file: selection.file });
         return prepared;
       });
     },
