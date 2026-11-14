@@ -273,7 +273,7 @@ export function HomeboxRefresh({ transport = browserFetch }: { readonly transpor
   const state = useSyncExternalStore(control.subscribe, control.getSnapshot);
   if (!state.offered) return null;
   return <div><dt>HomeBox refresh</dt><dd>
-    <button type="button" className="btn" disabled={state.busy} onClick={() => { void control.press(actions.reload, () => actions.withholdHomebox?.()); }}>
+    <button type="button" className="btn" disabled={state.busy} onClick={() => { void control.press(actions.reload, on => actions.withholdHomebox?.(on ? { workspaceId, homeId } : null)); }}>
       {state.busy ? 'Refreshing from HomeBox…' : 'Refresh from HomeBox'}
     </button>
     <p role="status" aria-live="polite">{state.result ? describeRefresh(state.result, fmtDateTime, state.reconciled) : ''}</p>

@@ -1,10 +1,10 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { withholdHomebox } from './homebox-refresh.ts';
+import { shownView, type Withheld } from './homebox-refresh.ts';
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
-import type { ReadyView } from '../app/types';
+import type { ReadyView, Scope } from '../app/types';
 import type { ModelContextPort } from '../webmcp/ports';
 import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
 import type { PinnedFileClient } from '../api/pinned-file-client';
@@ -128,15 +128,16 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
   const current = geometry?.view === view && geometry.session === session ? geometry.read : { status: 'loading' as const };
   // A revocation recorded by an explicit refresh whose view re-read failed
-  // withholds HomeBox entries of exactly that view; the next view clears it.
-  const [withheldView, setWithheldView] = useState<ReadyView | null>(null);
-  const shown = useMemo(() => withheldView === view ? withholdHomebox(view) : view, [withheldView, view]);
+  // withholds HomeBox entries of every later view of that home in the same
+  // session, including one another reload delivered meanwhile.
+  const [withheld, setWithheld] = useState<Withheld | null>(null);
+  const shown = useMemo(() => shownView(view, session, withheld), [view, session, withheld]);
   const projection = useMemo(() => projectView(shown, current, currentHistory, loadMoreOperations, includeArchived), [shown, current, currentHistory, loadMoreOperations, includeArchived]);
   const archiveVisibility = useMemo(() => ({ included: includeArchived, setIncluded: (included: boolean) => {
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
     setArchive({ view, session, included });
   } }), [view, session, includeArchived]);
-  const ports = useMemo(() => ({ ...actions, offlineStorage, withholdHomebox: () => setWithheldView(view), nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, view]);
+  const ports = useMemo(() => ({ ...actions, offlineStorage, withholdHomebox: (scope: Scope | null) => setWithheld(scope ? { scope, session } : null), nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, session]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />

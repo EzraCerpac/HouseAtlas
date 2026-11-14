@@ -137,7 +137,10 @@ Editor-only `POST /api/atlas/providers/homebox/workspaces/{workspace}/homes/{hom
 registers the source if it is not yet readable, then runs one
 `homebox_refresh::refresh` with the configured header and answers
 `refreshed`, `failed` (with a cache error code), `running` or `not-configured`.
-At most one refresh runs per process. A `GET` on the same path is the
+At most one refresh runs per process. A rejected credential (401/403) is
+recorded as `access-revoked`; the existing refresh owner then refuses every
+later refresh before any GET (`reason: "access-revoked"`), and no installed path
+lifts that quarantine yet (#285). A `GET` on the same path is the
 button's admission read: it answers `available` only to an Editor whose actor
 is named in `refreshEditors` for a configured source, and the same
 `unavailable` to every other caller whether or not a source is configured. It

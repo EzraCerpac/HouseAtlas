@@ -42,7 +42,7 @@ export function decodeRefreshResult(value: unknown): RefreshResult {
   switch (body?.status) {
     case 'refreshed': return { kind: 'refreshed', refreshedAt: time(cache?.lastSuccessfulFetchAt) };
     case 'failed': return { kind: 'failed', reason: typeof body.reason === 'string' ? body.reason : null,
-      quarantined: cache?.status === 'access-revoked', lastSuccessfulFetchAt: time(cache?.lastSuccessfulFetchAt) };
+      quarantined: cache?.status === 'access-revoked' || body.reason === 'access-revoked', lastSuccessfulFetchAt: time(cache?.lastSuccessfulFetchAt) };
     case 'not-configured': return { kind: 'not-configured' };
     case 'running': return { kind: 'running' };
     default: throw new TypeError('Unrecognised HomeBox refresh answer');
@@ -64,9 +64,13 @@ export function describeRefresh(result: RefreshResult, format: (iso: string) => 
     case 'failed': {
       const reason = (result.reason && REASONS[result.reason]) ?? 'HomeBox could not be read';
       // Quarantine withdraws the saved copy; never call it current or still shown.
+      // A quarantine survives every later press: the server refuses before
+      // contacting HomeBox, so never suggest that trying again helps.
+      if (result.reason === 'access-revoked')
+        return 'Not refreshed: access to this HomeBox source is revoked, and refreshing cannot restore it on this server yet.';
       if (result.quarantined) return reconciled
-        ? `Not refreshed: ${reason}. Access revoked: the saved HomeBox copy is withheld.`
-        : `Not refreshed: ${reason}. Access revoked: HomeBox entries are withheld here until this view can be updated.`;
+        ? `Not refreshed: ${reason}. Access revoked: the saved HomeBox copy is withheld, and refreshing cannot restore it on this server yet.`
+        : `Not refreshed: ${reason}. Access revoked: HomeBox entries are withheld here, and refreshing cannot restore them on this server yet.`;
       if (!reconciled) return `Not refreshed: ${reason}.${stale}`;
       const kept = result.lastSuccessfulFetchAt ? ` The copy from ${format(result.lastSuccessfulFetchAt)} is still shown.` : '';
       return `Not refreshed: ${reason}.${kept}`;
@@ -88,6 +92,14 @@ export function withholdHomebox(view: ReadyView): ReadyView {
     caches: view.caches.map(cache => cache.owner === 'homebox'
       ? { owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked' } : cache),
   };
+}
+
+/** Which views a recorded revocation withholds: every later view of the same
+ * home in the same session, not only the object current at the press. */
+export interface Withheld { readonly scope: Scope; readonly session: string | undefined }
+export function shownView(view: ReadyView, session: string | undefined, withheld: Withheld | null): ReadyView {
+  return withheld && withheld.session === session && withheld.scope.workspaceId === view.scope.workspaceId
+    && withheld.scope.homeId === view.scope.homeId ? withholdHomebox(view) : view;
 }
 
 /** Read-only admission for the current session; sends nothing to HomeBox. */
@@ -142,7 +154,9 @@ export function createRefreshControl(options: {
       const availability = await readAvailability(options.scope, options.transport, signal);
       if (!signal?.aborted) set({ offered: availability === 'available' });
     },
-    async press(reload: () => Promise<boolean>, withhold: () => void) {
+    /** `withhold(true)` hides this home's HomeBox entries after a revocation
+     * that could not be re-read; `withhold(false)` after a successful re-read. */
+    async press(reload: () => Promise<boolean>, withhold: (on: boolean) => void) {
       if (!state.offered || state.busy) return;
       set({ busy: true, result: null, reconciled: true });
       let result: RefreshResult;
@@ -154,7 +168,8 @@ export function createRefreshControl(options: {
       let reconciled = true;
       if (result.kind === 'refreshed' || result.kind === 'failed') {
         reconciled = await reload().then(ok => ok === true, () => false);
-        if (!reconciled && result.kind === 'failed' && result.quarantined) withhold();
+        if (reconciled) withhold(false);
+        else if (result.kind === 'failed' && result.quarantined) withhold(true);
       }
       set({ busy: false, result, reconciled });
     },

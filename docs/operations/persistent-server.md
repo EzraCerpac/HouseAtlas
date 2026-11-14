@@ -152,16 +152,24 @@ HouseAtlas only sends GET requests.
    provider flags ([profile format](../providers/persistent-cached-provider-selection.md)).
 3. Signed in as one of those Editors, press **Refresh from HomeBox** in the
    **Sources** section of the home overview (also shown under Changes). Only
-   those Editors see the button, including before anything has been cached. The first press registers the source; each press
-   reads the collection once and replaces the cached copy, or records the
-   failure and keeps the previous copy. If HomeBox refuses the credential, the
-   saved copy is marked access revoked and withheld until a refresh succeeds.
+   those Editors see the button, including before anything has been cached.
+   The first press registers the source; each press reads the collection once
+   and replaces the cached copy, or records an ordinary failure (for example a
+   timeout) and keeps the previous copy.
+
+**A rejected credential cannot be recovered yet.** If HomeBox refuses the
+credential (401 or 403), or answers with records outside the configured
+collection, the cached copy is marked access revoked and HomeBox
+reads, Open file included, are withheld. Every later press is refused before
+HomeBox is contacted, even after the credential file is corrected and `serve`
+restarted. The installed binary has no path that lifts this quarantine; it is
+tracked on #285. Check the credential against HomeBox before the first press.
 
 It does not refresh on a schedule, at startup or while browsing, never writes
 to HomeBox, and does not expose refresh to MCP or WebMCP. **Open file** then
 reads one original attachment per explicit open. Removing the two fields and
-restarting returns to cached-only reads; the registered source and cached copy
-remain until changed by an owner.
+restarting returns to cached-only reads; the registered source, the cached copy
+and any quarantine remain.
 
 ## NAS launch inputs still required
 

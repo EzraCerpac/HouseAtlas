@@ -18,7 +18,9 @@ discovers two added cases:
   source, publishes a fresh cache through `homebox_refresh::refresh` in
   exactly seven GETs, the cached read then serves its rows, and Open file
   returns the exact original bytes in three more GETs. A later upstream 401 is
-  recorded as `access-revoked` and the cached read then withholds the rows.
+  recorded as `access-revoked` and the cached read then withholds the rows;
+  a later press is refused with `access-revoked` before any HomeBox request,
+  even when HomeBox would answer again.
   Every observed provider request is a GET carrying the generated header.
 - `lifecycle::persistent::provider_reads::tests::v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged`
   pins that schema 1, and schema 2 without the new fields, mount exactly as
@@ -35,9 +37,12 @@ production controller behind the button against a generated server model
 using the route's answer shapes: the admission read alone decides whether the
 button is offered (approved Editor yes; Viewer, unlisted Editor and no
 credential no, with no POST); the first refresh starts with no cache; a later
-401 re-reads the view, withholds the copy and says access is revoked; when
-that re-read returns false or rejects, HomeBox entries are withheld locally
-with the server's quarantine marker; an ordinary failure says the earlier copy
+401 re-reads the view, withholds the copy and says access is revoked and
+that refreshing cannot restore it; a later press says the same without
+reaching HomeBox; when that re-read returns false or rejects, HomeBox entries
+of the current same-home, same-session view are withheld locally with the
+server's quarantine marker, including a view another reload delivered while
+the refresh was in flight; an ordinary failure says the earlier copy
 is still shown, or that the view could not be updated; offline sends nothing;
 decoding is strict: 85 SOURCE / 1 BUILD /
 11 BROWSER (97 total). No workflow command, runner, browser entry or held

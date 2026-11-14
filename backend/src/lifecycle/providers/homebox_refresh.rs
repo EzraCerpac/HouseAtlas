@@ -30,6 +30,14 @@ impl std::fmt::Display for HostError {
     }
 }
 impl std::error::Error for HostError {}
+impl HostError {
+    /// The cache was already quarantined, so the refresh stopped before any
+    /// provider request. Pressing refresh again cannot change that.
+    pub fn quarantined(&self) -> bool {
+        matches!(self, Self::Storage(error)
+            if error.message == crate::lifecycle::providers::authority::QUARANTINED)
+    }
+}
 
 /// Only metadata exposed by the actual closed owner operations is returned.
 /// Their private reader proofs expose no statistics or generation accessor.

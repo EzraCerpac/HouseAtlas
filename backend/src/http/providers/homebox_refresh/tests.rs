@@ -464,6 +464,17 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     assert_eq!(body["reason"], "auth", "{body}");
     assert_eq!(body["cache"]["status"], "access-revoked", "{body}");
     assert_eq!(count(), 11);
+    // Quarantine holds: a later press stops before contacting HomeBox, even
+    // once HomeBox would answer again.
+    deny.store(false, Ordering::SeqCst);
+    assert_eq!(
+        post(&app, &editor).await?,
+        (
+            StatusCode::OK,
+            json!({"status":"failed","reason":"access-revoked"})
+        )
+    );
+    assert_eq!(count(), 11);
     let cached = format!(
         "/api/atlas/providers/homebox/workspaces/{}/homes/{}/sources/{}/collections/{}/cached",
         id(1),

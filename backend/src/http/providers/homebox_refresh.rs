@@ -244,6 +244,9 @@ fn run(
             "reason": cache.error.as_ref().map(|error| error.code),
             "cache": cache_facts(&cache),
         }),
+        Err(error) if error.quarantined() => {
+            json!({"status": "failed", "reason": "access-revoked"})
+        }
         Err(_) => json!({"status": "failed", "reason": "unavailable"}),
     };
     let access = access.lock().map_err(|_| unavailable())?;

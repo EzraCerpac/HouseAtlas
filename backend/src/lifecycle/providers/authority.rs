@@ -772,6 +772,8 @@ impl<G: Send + Sync> FailedHomeBoxPublication<'_, G> {
         })
     }
 }
+/// Retained quarantine refused before any GET; nothing in this workflow lifts it.
+pub(crate) const QUARANTINED: &str = "Source requires separately authorized scope revalidation";
 fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
     let (code, message) = match error {
         homebox::PublishError::ScopeMismatch | homebox::PublishError::RegistrationMismatch => (
@@ -781,10 +783,7 @@ fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
         homebox::PublishError::InvalidRetainedState => {
             ("invalid-contract", "HomeBox retained state is unavailable")
         }
-        homebox::PublishError::Quarantined => (
-            "forbidden",
-            "Source requires separately authorized scope revalidation",
-        ),
+        homebox::PublishError::Quarantined => ("forbidden", QUARANTINED),
         homebox::PublishError::StoreRejected => {
             ("upstream-unavailable", "HomeBox publication unavailable")
         }
