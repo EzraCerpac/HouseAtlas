@@ -1,8 +1,8 @@
 import type { Task } from '../data/types';
 import { dueState } from '../data/query';
-import { fmtDate } from '../data/time';
+import { DEMO_TODAY, fmtDate } from '../data/time';
 import { useStore } from '../state/store';
-import { TaskRow } from '../components/rows';
+import { TaskRow, TaskWriteNote } from '../components/rows';
 import { Note } from '../components/ui';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -62,6 +62,11 @@ export function UpkeepView() {
   const sharedCache = statuses.size === 1 && only !== undefined ? only : undefined;
   const groups = [['Overdue', overdue], ['Next two weeks', soon], ['Later', later], ['No schedule supplied', undated], ['Completed', done]] as const;
   const empty = groups.filter(([, tasks]) => !tasks.length).map(([title]) => title);
+  const emptyText: Record<string, string> = { Overdue: 'overdue', 'Next two weeks': 'due in the next two weeks', Later: 'due later', 'No schedule supplied': 'without a schedule', Completed: 'completed' };
+  const emptyPhrases = empty.map(title => emptyText[title]!);
+  const emptyLine = empty.length === groups.length ? 'No tasks.'
+    : `Nothing ${emptyPhrases.length > 1 ? `${emptyPhrases.slice(0, -1).join(', ')}, or ${emptyPhrases.at(-1)}` : emptyPhrases[0]}.`;
+  const referenceDay = house.displayNow !== undefined && fmtDate(house.displayNow) !== 'Unknown' && house.displayNow.slice(0, 10) !== DEMO_TODAY ? fmtDate(house.displayNow) : undefined;
   return (
     <div className="view">
       <header className="view-head">
@@ -69,9 +74,10 @@ export function UpkeepView() {
         <p>Maintenance records for {house.name}.</p>
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
-      <Note>Kept in HomeBox. Use the verified maintenance link in record details when available.</Note>
+      <TaskWriteNote tasks={house.tasks} />
       {sharedCache !== undefined && <p className="body-text muted">Source cache: {sharedCache} for every task.</p>}
-      {empty.length > 0 && <p className="body-text muted">{empty.length === groups.length ? 'No tasks.' : `No tasks in ${empty.join(', ')}.`}</p>}
+      {referenceDay !== undefined && <p className="body-text muted">Dates relative to {referenceDay}.</p>}
+      {empty.length > 0 && <p className="body-text muted">{emptyLine}</p>}
       <div className="tl-columns">
         <div>
           <Group title="Overdue" tasks={overdue} tone="overdue" dateOf={(t) => t.due} now={house.displayNow} sharedCache={sharedCache} />

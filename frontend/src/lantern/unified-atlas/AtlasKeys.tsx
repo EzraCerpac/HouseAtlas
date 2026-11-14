@@ -23,7 +23,6 @@ export function NetworkLensSection({ graphs, networkOn, published, availability,
   return <section className="ua-lens-section" aria-labelledby={headingId} style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
     <h3 id={headingId}><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</h3>
     {!networkOn ? <>
-      <p>The model's network records are read with the Network layer.</p>
       <button type="button" className="btn btn-small" onClick={showLayer}>Show Network layer</button>
     </> : <>
       {availability === 'partial' && <p className="ua-unplaced">Some buildings or sources are unavailable; their records are not counted.</p>}
