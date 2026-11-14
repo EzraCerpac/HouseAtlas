@@ -1289,6 +1289,11 @@ it does not execute camera state, native focus, Escape/IME or browser layout.
 Those deferred checks remain in #292; the existing compact-layer dock case
 continues to cover its separate synthetic focus and event handlers.
 
+The offline-launch browser harness retains bounded navigation/context,
+console/exception, service-worker and IndexedDB observations
+and independent DOM readback on failure,
+including the cold-tombstone reload's old and committed loader IDs.
+
 Offline browser teardown observes its owned child immediately after spawn.
 It allows up to 2 s for protocol-requested closure, then 2 s after TERM and
 3 s after KILL, always waiting for the child's close event rather than the
