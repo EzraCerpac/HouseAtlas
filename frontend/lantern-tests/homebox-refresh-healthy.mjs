@@ -46,7 +46,14 @@ function server({ role = 'editor', approved = true, configured = true } = {}) {
   model.reload = async () => { model.view = { caches: model.cache ? [{ ...model.cache }] : [] }; return true; };
   return model;
 }
-const control = model => createRefreshControl({ scope, transport: model.transport, online: () => model.online !== false });
+const SESSION = 'session-1';
+/** An attached control whose rendered home and session are `model.current` (default: the pressed ones). */
+function control(model, transport = model.transport) {
+  const refresh = createRefreshControl({ scope, session: SESSION, transport, online: () => model.online !== false,
+    current: () => model.current === undefined ? { ...scope, session: SESSION } : model.current });
+  model.detach = refresh.attach();
+  return refresh;
+}
 const say = state => state.result ? describeRefresh(state.result, format, state.reconciled) : '';
 
 // Admission: offered only to the approved Editor of a configured source.
@@ -116,7 +123,7 @@ for (const failedReload of [async () => false, async () => { throw new TypeError
   const timeout = async (path, init) => init.method === 'POST'
     ? Response.json({ status: 'failed', reason: 'timeout', cache: { status: 'error', lastSuccessfulFetchAt: model.now } })
     : model.transport(path, init);
-  const ordinary = createRefreshControl({ scope, transport: timeout, online: () => true });
+  const ordinary = control({}, timeout);
   await ordinary.check();
   await ordinary.press(failedReload, model.withhold);
   assert.equal(model.withheld, 1, 'An ordinary failure never withholds');
@@ -147,6 +154,49 @@ for (const failedReload of [async () => false, async () => { throw new TypeError
   assert.equal(shownView(view('other', { workspaceId: 'w 1', homeId: 'other' }), session, withheld).entries.length, 1);
   await refresh.press(async () => true, on => { withheld = on ? { scope, session } : null; });
   assert.equal(withheld, null);
+}
+
+// The continuation is fenced: switching home, signing out or unmounting while
+// the POST or the re-read is pending drops it. No read for the pressed home is
+// issued, nothing is withheld, no status is set, and the other home's view and
+// its pending read stay as they are. The server's own result stands.
+for (const upstream of ['ok', 'unauthorized']) {
+  const cases = {
+    'home switched': model => { model.current = { workspaceId: 'w 1', homeId: 'other', session: SESSION }; },
+    'signed out': model => { model.current = { ...scope, session: undefined }; },
+    unmounted: model => { model.detach(); },
+  };
+  for (const [name, leave] of Object.entries(cases)) for (const during of ['post', 'reload']) {
+    const model = server(), refresh = control(model);
+    await refresh.check();
+    model.upstream = upstream;
+    // An App-like owner: the shown view and a pending read that a new read would abort.
+    const app = { shown: 'other home', pending: { aborted: false }, reads: [], withheld: [] };
+    const reload = async () => {
+      if (during === 'reload') { leave(model); return false; }
+      app.reads.push('pressed home'); app.pending.aborted = true; app.shown = 'pressed home'; return true;
+    };
+    if (during === 'post') model.duringPost = () => leave(model);
+    let notified = 0;
+    refresh.subscribe(() => { notified += 1; });
+    await refresh.press(reload, on => { app.withheld.push(on); });
+    const label = `${upstream} ${name} during ${during}`;
+    assert.equal(model.refreshes, 1, label);
+    assert.deepEqual(app.reads, [], label);
+    assert.deepEqual(app, { shown: 'other home', pending: { aborted: false }, reads: [], withheld: [] }, label);
+    assert.equal(notified, 1, `${label}: only the press itself was shown`);
+    assert.equal(refresh.getSnapshot().result, null, label);
+  }
+}
+// An availability answer that arrives after the home changed is dropped too.
+{
+  const model = server();
+  const refresh = control(model, async (path, init) => {
+    model.current = { workspaceId: 'w 1', homeId: 'other', session: SESSION };
+    return model.transport(path, init);
+  });
+  await refresh.check();
+  assert.equal(refresh.getSnapshot().offered, false, 'Nothing is offered for a home no longer shown');
 }
 
 // The local stand-in matches the server's quarantine marker and drops entries.
@@ -184,4 +234,4 @@ for (const failedReload of [async () => false, async () => { throw new TypeError
   assert.deepEqual(await requestRefresh(scope, async () => { throw new TypeError('Generated network unavailable'); }, true), { kind: 'unreachable' });
 }
 
-console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, offline sends nothing, strict decoding');
+console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, a home switch, sign-out or unmount during the POST or re-read drops the whole continuation, offline sends nothing, strict decoding');

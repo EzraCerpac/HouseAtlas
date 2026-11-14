@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -26,7 +26,7 @@ import {
   unplaced,
 } from '../data/query';
 import { fmtDate, fmtDateTime, rel } from '../data/time';
-import { createRefreshControl, describeRefresh } from '../homebox-refresh.ts';
+import { createRefreshControl, describeRefresh, type RefreshToken } from '../homebox-refresh.ts';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -263,12 +263,16 @@ const browserFetch: typeof fetch = (input, init) => globalThis.fetch(input, init
 export function HomeboxRefresh({ transport = browserFetch }: { readonly transport?: typeof fetch }) {
   const { projection, actions } = useStore();
   const { workspaceId, homeId } = projection.view.scope;
-  const control = useMemo(() => createRefreshControl({ scope: { workspaceId, homeId }, transport,
-    online: () => globalThis.navigator?.onLine !== false }), [workspaceId, homeId, transport]);
+  const session = actions.session?.expiresAt;
+  // The home and session rendered now; a refresh continuation applies only while they match its press.
+  const rendered = useRef<RefreshToken | null>(null);
+  rendered.current = { workspaceId, homeId, session };
+  const control = useMemo(() => createRefreshControl({ scope: { workspaceId, homeId }, session, transport,
+    online: () => globalThis.navigator?.onLine !== false, current: () => rendered.current }), [workspaceId, homeId, session, transport]);
   useEffect(() => {
-    const abort = new AbortController();
+    const abort = new AbortController(), detach = control.attach();
     void control.check(abort.signal);
-    return () => abort.abort();
+    return () => { abort.abort(); detach(); };
   }, [control]);
   const state = useSyncExternalStore(control.subscribe, control.getSnapshot);
   if (!state.offered) return null;

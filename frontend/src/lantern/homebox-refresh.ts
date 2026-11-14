@@ -136,28 +136,45 @@ export async function requestRefresh(scope: Scope, transport: typeof fetch, onli
   }
 }
 
+/** The home and signed-in session a refresh belongs to. */
+export interface RefreshToken { readonly workspaceId: string; readonly homeId: string; readonly session: string | undefined }
+const same = (a: RefreshToken, b: RefreshToken | null) =>
+  b !== null && a.workspaceId === b.workspaceId && a.homeId === b.homeId && a.session === b.session;
+
 /** State owner behind the button. Any answer that changed durable cache state
  * (refreshed or failed) re-reads the view. If that re-read fails after a
- * revocation, `withhold` hides HomeBox entries locally so text and content agree. */
+ * revocation, `withhold` hides HomeBox entries locally so text and content agree.
+ *
+ * Every effect after an await is fenced: it applies only while the control is
+ * attached and `current()` still names the same home and session as the press.
+ * Otherwise the continuation is dropped; the server's result stands and
+ * whatever view is shown now is untouched. */
 export function createRefreshControl(options: {
   readonly scope: Scope;
+  readonly session: string | undefined;
   readonly transport: typeof fetch;
   readonly online: () => boolean;
+  readonly current: () => RefreshToken | null;
 }) {
+  const token: RefreshToken = { workspaceId: options.scope.workspaceId, homeId: options.scope.homeId, session: options.session };
+  let attached = false;
+  const live = () => attached && same(token, options.current());
   let state: RefreshState = { offered: false, busy: false, result: null, reconciled: true };
   const listeners = new Set<() => void>();
   const set = (next: Partial<RefreshState>) => { state = { ...state, ...next }; listeners.forEach(listener => listener()); };
   return {
     getSnapshot: (): RefreshState => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    /** Mounting attaches; the returned detach drops any continuation in flight. */
+    attach() { attached = true; return () => { attached = false; }; },
     async check(signal?: AbortSignal) {
       const availability = await readAvailability(options.scope, options.transport, signal);
-      if (!signal?.aborted) set({ offered: availability === 'available' });
+      if (!signal?.aborted && live()) set({ offered: availability === 'available' });
     },
     /** `withhold(true)` hides this home's HomeBox entries after a revocation
      * that could not be re-read; `withhold(false)` after a successful re-read. */
     async press(reload: () => Promise<boolean>, withhold: (on: boolean) => void) {
-      if (!state.offered || state.busy) return;
+      if (!state.offered || state.busy || !live()) return;
       set({ busy: true, result: null, reconciled: true });
       let result: RefreshResult;
       try {
@@ -165,9 +182,11 @@ export function createRefreshControl(options: {
       } catch {
         result = { kind: 'unreachable' };
       }
+      if (!live()) return;
       let reconciled = true;
       if (result.kind === 'refreshed' || result.kind === 'failed') {
         reconciled = await reload().then(ok => ok === true, () => false);
+        if (!live()) return;
         if (reconciled) withhold(false);
         else if (result.kind === 'failed' && result.quarantined) withhold(true);
       }
