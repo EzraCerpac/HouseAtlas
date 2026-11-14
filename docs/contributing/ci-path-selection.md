@@ -31,9 +31,9 @@ build cost, or that synthetic CI establishes installed/device acceptance.
 
 `docs/publication/source-manifest.json` is ignored only for *lane selection*
 when accompanied by classified files. The always-run publication verifier still
-checks every listed digest and the complete file set. Manifest-only changes run
-every lane. This avoids metadata regeneration turning every ordinary PR into
-full coverage without weakening source integrity.
+checks the complete file set, modes and owners; content is reviewed through Git.
+Manifest-only changes run every lane. This avoids metadata regeneration turning every ordinary PR into
+full coverage.
 
 The selector checks out the event merge commit with full history, then compares
 `merge-base(event base SHA, event head SHA)` to the head with NUL-delimited Git
@@ -67,19 +67,16 @@ branch plus fork-like head checked out as a synthetic merge commit.
 
 A PR whose head conflicts with its base gets no `pull_request` run of either
 workflow, so no lane is selected or skipped: nothing runs. The publication
-manifest used to make this common: it stored one `sourceDigestSha256` line that
-changed in every PR that changed a file, so once one such PR merged, every other
-open PR that changed a file conflicted there. #431, #449, #453 and #493 had no
-Actions run on their final heads while they conflicted with main in this
-manifest (#453 also in other files); their code was first tested by the
-integration PRs that absorbed them.
+manifest used to make this common: it stored a byte count and SHA-256 for every
+file, so any two PRs that changed the same file conflicted there. #431, #449,
+#453 and #493 had no Actions run on their final heads while they conflicted with
+main in this manifest (#453 also in other files); their code was first tested by
+the integration PRs that absorbed them.
 
-`verify-source.mjs` now computes and prints that aggregate instead of storing
-it, and refuses a manifest that stores it. Each row keeps its fields on separate
-lines, so PRs that change different files merge cleanly in the manifest. Two PRs
-still conflict there when they change the same file or add files whose rows
-sort next to each other. A stack merged with squash commits also conflicts on
-rows that more than one layer changed; merge commits keep each layer's base.
+The manifest (format 2) now holds one compact line per file with only its path,
+mode and owner, so changing a file's content never touches it. Two PRs conflict
+there only when they add, remove or re-mode files whose rows are adjacent. A
+branch still on format 1 conflicts on every row; the steps below upgrade it.
 
 Merge the base and regenerate the manifest, in a checkout without build output
 or other stray files (see [Publication manifest](formatting.md#publication-manifest)):
@@ -100,7 +97,7 @@ git commit
 The conflicted manifest is not JSON, so the regenerator refuses it until one
 side is taken. That side keeps its `owners` list, other top-level fields and
 existing owners; `--owners-from` only supplies owners for files the base added,
-and the merged tree supplies every byte count, digest and the file set. Owner
+and the merged tree supplies the file set and modes. Owner
 changes and new `owners` entries made on the base are not merged: the
 regenerator lists kept rows whose base owner differs, and refuses a base-added
 file whose owner is not in the kept `owners` list. Edit those rows or the

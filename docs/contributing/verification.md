@@ -864,7 +864,7 @@ hosted step logs remain the execution record.
 | --- | --- | --- | --- | --- | --- |
 | ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 33 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. Ten generated archive and metadata controls also cover pinned copy/extraction, corrupted/duplicate/symlink/bounded members, source substitution and cleanup marker/ownership validation; no root, SUID permission, installer, cleanup, helper, browser or network operation runs in these unit cases. |
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
-| ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
+| ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
 | ordinary-core / ordinary-core | Run the six controlled-interface draft durability assertions | `node --test --test-concurrency=1 frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs` | every run |  | Six existing production-store assertions through a controlled IDB interface and generated in-memory rows; no real IndexedDB, browser, native service, network, credentials, crash or retention qualification. |
 | ordinary-core / ordinary-core | Build six ordinary modules | `npm run build:ordinary` | every run |  | Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener. |
@@ -2274,7 +2274,8 @@ npm run test:ordinary
 ```
 
 `verify:publication` checks the explicit current regular-file set, modes,
-digests, logical ownership and unconfigured deployment template. Its manifest
+logical ownership and unconfigured deployment template; file content is Git's
+to review, so editing a listed file needs no manifest change. Its manifest
 is specific to this snapshot. `build:ordinary` checks syntax and six named
 module builds; declaration checks are syntax only. Its `server/` syntax checks
 and `web` build cover the JavaScript reference baseline. `check:http:ordinary` runs
@@ -4392,12 +4393,12 @@ folder and runs the actual `tools/publication/refresh-manifest.mjs` with
 `--root` there. They cover an unchanged tree (byte-for-byte no-op), edited,
 deleted and new files, owner refusal and unknown owners, executable-bit changes,
 `--check` exit codes, symlink, conflict-marker, malformed `--owners-from` and
-unsafe-path refusal, and `--owners-from` (filled new rows, reported kept owners
-and a refused base-added owner) and the removal of a stored aggregate digest; the
-expected rows are recomputed independently, and one case
-runs a temporary copy of `verify-source.mjs` (with copies of the two unfilled
-templates it reads) against the regenerated tree and checks its printed source
-digest. The cases open no network
+unsafe-path refusal, `--owners-from` (filled new rows, reported kept owners
+and a refused base-added owner), edited content leaving the manifest unchanged
+and the upgrade of a format/1 manifest; the expected rows are recomputed
+independently, and one case runs a temporary copy of `verify-source.mjs` (with
+copies of the two unfilled templates it reads) against the regenerated tree and
+checks that a content edit still passes while an unlisted file and a wrong mode fail. The cases open no network
 connection, write only their temporary folders and neither read nor write the
 repository manifest. They do not establish that the repository manifest is
 current; `verify:publication` checks that.

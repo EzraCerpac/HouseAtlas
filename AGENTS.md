@@ -1162,7 +1162,7 @@ The existing ordinary-core job also runs exactly
 `--test-concurrency=1`. Its twelve cases build tiny generated trees and
 manifests in disposable temporary folders and run the actual
 `tools/publication/refresh-manifest.mjs` against them with `--root`; one case
-checks the output with a temporary copy of the publication verifier. They open
+checks the output with a temporary copy of the publication verifier (file set and modes, not content). They open
 no network connection, write only those temporary folders and neither read nor
 write the repository manifest, which `verify:publication` alone checks.
 
