@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useSourcePorts } from '../source-ports';
-import { Empty } from '../components/ui';
+import { Empty, fmtBytes } from '../components/ui';
 import { ExampleLabel } from '../example-label';
 import { useTopology } from '../topology/TopologyProvider';
 import type { NativeEvidenceDocumentClient } from '../scans/native-evidence-document-types';
@@ -127,7 +127,7 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
         {visible.matchedSheets === 0 && visible.totalSheets > 0 && <Empty>No drawing references match this search.</Empty>}
         <ul className="electrical-library-documents">{visible.documents.map(({ document, pages }) => <li key={document.key}>
           <h3>Electrical reference PDF</h3>
-          <p className="row-meta"><ElectricalHeldStatus frame={current} document={document} /><span>{query.trim() !== '' ? `${pages.length} of ${document.pages.length} referenced sheets match` : `${document.pages.length} referenced ${document.pages.length === 1 ? 'sheet' : 'sheets'}`}</span><span>{document.byteSize.token} bytes</span></p>
+          <p className="row-meta"><ElectricalHeldStatus frame={current} document={document} /><span>{query.trim() !== '' ? `${pages.length} of ${document.pages.length} referenced sheets match` : `${document.pages.length} referenced ${document.pages.length === 1 ? 'sheet' : 'sheets'}`}</span><span title={`${document.byteSize.token} bytes`}>{fmtBytes(Number(document.byteSize.token))}</span></p>
           <details><summary>Document identity</summary><dl>
             <dt>Evidence</dt><dd>{document.evidenceId} · revision {document.evidenceRevision}</dd>
             <dt>Original asset</dt><dd>{document.assetId} · revision {document.assetRevision.token}</dd>

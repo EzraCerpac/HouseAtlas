@@ -14,6 +14,7 @@ import type { LiveAtlasPresentationPort } from '../lantern/unified-atlas/types';
 import '../lantern/styles/fonts.css';
 import '../lantern/styles/tokens.css';
 import '../lantern/styles/app.css';
+import '../lantern/styles/atlas.css';
 import './saved-host.css';
 import './saved-catalog.css';
 import '../styles/session.css';
