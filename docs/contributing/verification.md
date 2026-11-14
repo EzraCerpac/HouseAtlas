@@ -890,7 +890,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
 | ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 52 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
-| ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 24 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
+| ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 25 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
 | ordinary-core / ordinary-core | Check synthetic publication-input disposition claims (in memory only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_disposition.py -v` | every run | 29 unittest methods | Generated in-memory claim validation, operation-correlated chronology and independent evidence summaries; no payload operations, network, consumers or operational receipts. |
 | ordinary-core / ordinary-core | Check prospective storage adapter v2 (synthetic injected ports only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_adapter.py -v` | every run | 75 unittest methods | Generated fake clock, registry, resolver, ledger, readback and conditional-dispatch ports; no real custody, transport, installation, credentials or operational adoption. |
 | ordinary-core / ordinary-core | Check descriptor-backed present observations (disposable files only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_owner_ports.py -v` | every run | 57 unittest methods | Generated disposable directory descriptors, immutable file pins, explicit permits, owned local reader processes and process-local observation admission; no private input, transport, installation, mutation dispatch or operational adoption. |
@@ -1393,6 +1393,36 @@ is kept), with no body and `private, no-store`. The entry, the example worker an
 its files keep their exact addresses, and folders without an entry, unknown
 folders and a path starting with `//` stay 404 without a redirect. No listener,
 gateway, browser or service worker is involved.
+
+The default backend-library selection also discovers the four
+`lifecycle::persistent::restored_adoption_tests::` cases for
+`initialize --restore-bundle`. Each works in a disposable private folder with a
+generated loopback-local installation. That installation holds one stock
+evidence/identity/semantics batch and one generated text original uploaded
+through the actual router, captured by the actual `backup` owner:
+- `restored_bundle_is_adopted_into_a_new_data_directory_and_served` adopts the
+  bundle into a new folder. The bundle stays byte-identical, no staging folder
+  remains and the new receipt names the moved database's inode. Through the
+  actual router, the source session cookie is refused, a fresh login reads
+  equal records and the original's exact bytes, and an ordinary reopen succeeds.
+- `adoption_refuses_existing_targets_and_unverified_bundles` refuses an existing
+  empty folder (left empty) and the source data folder while its lease is held
+  (receipt unchanged). It also refuses three tampered copies: a flipped original
+  byte, a flipped database byte and an extra member. Each refusal leaves no data
+  folder and no staging.
+- `interrupted_adoption_publishes_nothing_and_a_rerun_succeeds` injects a
+  test-only failure at three points: between moving the database and the
+  originals into staging, before the receipt is written, and before the final
+  rename publishes the folder. Each leaves no data folder and no new staging,
+  and the same command then succeeds with strict reopen. A leftover staging
+  folder from a simulated hard interruption stays untouched and never blocks
+  a rerun. A trusted-proxy adoption checks that the staged build's socket path
+  does not leak into the receipt.
+- `restore_bundle_option_is_explicit_and_initialize_only` checks that the CLI
+  requires `--profile native-stock-queue-free` and an absolute path, and that
+  only `initialize` accepts the option.
+
+No listener, gateway, provider, iCloud or real backup is used.
 
 The existing default backend-library selection also invokes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.

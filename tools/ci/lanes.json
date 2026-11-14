@@ -320,7 +320,7 @@
       "toolchain": ["python3"],
       "files": ["tools/backup/test_houseatlas_backup.py"],
       "scope": "Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/backup", "pattern": "test_*.py", "expected": 24}
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/backup", "pattern": "test_*.py", "expected": 25}
     },
     {
       "id": "core.model-input-disposition",

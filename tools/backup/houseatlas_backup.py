@@ -8,7 +8,9 @@ One run:
   3. restores the bundle into a fresh folder with `restore-check`;
   4. stores each model file in iCloud once, named by its SHA-256, so an
      unchanged release adds nothing; the nightly archive only lists them;
-  5. packs the bundle and report into one archive and copies it to iCloud;
+  5. packs the bundle, the report and a copy of the server configuration (it
+     holds IDs, paths and the gateway identity policy, no secrets) into one
+     archive and copies it to iCloud;
   6. waits until iCloud reports the uploads done, evicts the local copies,
      downloads them again from iCloud, compares the bytes, repeats the
      restore check on the downloaded bundle, and rebuilds the model folders
@@ -345,7 +347,7 @@ def restore_check(binary: Path, bundle: Path, destination: Path, step: str) -> d
 
 def pack(work: Path, archive: Path) -> None:
     with tarfile.open(archive, "w:gz") as tar:
-        for name in ("bundle", "backup-report.json"):
+        for name in ("bundle", "backup-report.json", "server-config.json"):
             tar.add(work / name, arcname=name)
 
 
@@ -629,16 +631,28 @@ def write_status(folder: Path | None, update: dict) -> None:
         pass  # The backup itself stands; Settings just shows an older summary.
 
 
-def report_failure(config: Config, message: str) -> None:
+REPORT_FAILED = 3  # exit status when the backup succeeded but its notice did not go out
+
+
+def report_failure(config: Config, message: str) -> bool:
+    """Run the owner's report command. A command that cannot run or exits
+    non-zero is logged to stderr and returns False, so the run exits non-zero."""
     if not config.report_command:
-        return
+        return True
     try:
-        subprocess.run(
+        done = subprocess.run(
             [part.replace("{message}", message) for part in config.report_command],
             capture_output=True, timeout=120, check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    except (OSError, subprocess.TimeoutExpired) as error:
+        problem = {"status": "report-failed", "detail": type(error).__name__}
+    else:
+        if done.returncode == 0:
+            return True
+        problem = {"status": "report-failed", "exitCode": done.returncode,
+                   "stderr": done.stderr.decode("utf-8", "replace")[-300:]}
+    print(json.dumps(problem | {"at": now().isoformat(timespec="seconds")}), file=sys.stderr)
+    return False
 
 
 def backup(config: Config) -> dict:
@@ -675,6 +689,9 @@ def backup(config: Config) -> dict:
         "models": models,
     }
     (work / "backup-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    # The configuration this capture used, so a rebuild need not recall it.
+    shutil.copyfile(service.server_config, work / "server-config.json")
+    (work / "server-config.json").chmod(0o600)
 
     # Blobs go up before the archive that names them, so no archive in iCloud
     # ever points at a model file that is not there.
@@ -713,8 +730,9 @@ def backup(config: Config) -> dict:
     except (StepFailed, OSError, ValueError, tarfile.TarError) as error:
         partly = removed["archives"] or removed["modelFiles"]
         problem = f"Older backups were {'only partly' if partly else 'not'} cleaned up this time ({error})."
+    reported = True
     if problem:
-        report_failure(config, "HouseAtlas iCloud backup succeeded but older copies were not all cleaned up; see Settings."
+        reported = report_failure(config, "HouseAtlas iCloud backup succeeded but older copies were not all cleaned up; see Settings."
                        if removed["archives"] or removed["modelFiles"] else
                        "HouseAtlas iCloud backup succeeded but kept every older copy; see Settings.")
 
@@ -736,8 +754,10 @@ def backup(config: Config) -> dict:
         "removed": removed,
         "timings": timings,
         "finished": now().isoformat(timespec="seconds"),
-    }
+    } | ({} if reported else {"reportFailed": True})
     (state / "last-success.json").write_text(json.dumps(result, indent=2) + "\n")
+    # A later success supersedes an earlier failure; backup.error.log keeps it.
+    (state / "last-failure.json").unlink(missing_ok=True)
     write_status(shared, {
         "lastSuccess": {key: result[key] for key in (
             "finished", "recoveryPoint", "archiveBytes", "modelBytesStored")}
@@ -816,7 +836,7 @@ def main() -> int:
             report_failure(config, "HouseAtlas iCloud backup failed unexpectedly.")
             return 1
     print(json.dumps(result))
-    return 0
+    return REPORT_FAILED if result.get("reportFailed") else 0
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ class BackupScriptTest(unittest.TestCase):
         (originals / "0.blob").write_bytes(b"original")
         (originals / "0.blob").chmod(0o400)
         (work / "backup-report.json").write_text("{}")
+        (work / "server-config.json").write_text("{}")
         archive = self.root / "a.tar.gz"
         hb.pack(work, archive)
         out = hb.private_dir(self.root / "out")
@@ -264,6 +265,8 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
                 setattr(hb, name, value)
             hb.now = lambda: next(stamps)
             first = hb.backup(config)
+            stale = config.state_directory / "last-failure.json"
+            stale.write_text('{"status": "failed"}')
             second = hb.backup(config)
         finally:
             for name, value in saved.items():
@@ -276,6 +279,11 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
             names = tar.getnames()
         self.assertFalse(any(name.startswith("model") for name in names))
         self.assertIn("backup-report.json", names)
+        with tarfile.open(archive) as tar:
+            self.assertEqual(tar.extractfile("server-config.json").read(), release.server_config.read_bytes())
+            self.assertEqual(tar.getmember("server-config.json").mode & 0o777, 0o600)
+        self.assertFalse(stale.exists())
+        self.assertNotIn("reportFailed", second)
         sidecar = json.loads((icloud / f"{second['archive']}{hb.MODELS_SIDECAR}").read_text())
         self.assertEqual((sidecar["verified"], len(sidecar["blobs"])), (True, 3))
         status = json.loads((shared / "status.json").read_text())
@@ -306,6 +314,7 @@ class RetentionTest(unittest.TestCase):
         hb.private_dir(work / "bundle")
         (work / "backup-report.json").write_text(json.dumps(
             {"modelStore": hb.MODEL_STORE, "models": models}))
+        (work / "server-config.json").write_text("{}")
         target = self.icloud / f"{hb.ARCHIVE_PREFIX}{stamp}.tar.gz"
         hb.pack(work, target)
         (self.icloud / f"{target.name}.sha256").write_text("x\n")
@@ -450,6 +459,35 @@ class RetentionTest(unittest.TestCase):
         with self.assertRaises(hb.StepFailed):
             hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
         self.assertTrue(target.exists())
+
+    def test_a_failing_report_command_is_logged_and_fails_the_run(self):
+        config = type("C", (), {})()
+        for command, delivered in ((None, True), (["/usr/bin/true"], True),
+                                   (["/bin/sh", "-c", "echo nope >&2; exit 7"], False),
+                                   ([str(self.root / "missing-command")], False)):
+            config.report_command = command
+            with mock.patch("sys.stderr") as stderr:
+                self.assertEqual(hb.report_failure(config, "m"), delivered, command)
+            logged = "".join(call.args[0] for call in stderr.write.call_args_list)
+            self.assertEqual("report-failed" in logged, not delivered, command)
+            if command and "exit 7" in command[-1]:
+                self.assertIn('"exitCode": 7', logged)
+        config_file = self.root / "config.json"
+        config_file.write_text(json.dumps({
+            "serviceLabel": "x", "servicePlist": "/unused", "stateDirectory": str(self.root / "state"),
+            "icloudDirectory": str(self.root / "icloud"), "icloudHelper": "/unused",
+            "reportCommand": ["/usr/bin/false"],
+        }))
+        outcomes = [lambda config: {"status": "ok", "reportFailed": True},
+                    mock.Mock(side_effect=hb.StepFailed("stop service", "x"))]
+        for backup, status in zip(outcomes, (hb.REPORT_FAILED, 1)):
+            with mock.patch.object(hb, "backup", backup), \
+                 mock.patch.object(sys, "argv", ["houseatlas_backup.py", "--config", str(config_file)]), \
+                 mock.patch("sys.stdout"), mock.patch("sys.stderr") as stderr:
+                self.assertEqual(hb.main(), status)
+            if status == 1:
+                logged = "".join(call.args[0] for call in stderr.write.call_args_list)
+                self.assertIn("report-failed", logged)
 
     def test_status_keeps_the_last_success_when_a_run_fails(self):
         folder = self.root / "data" / hb.SHARED_FOLDER

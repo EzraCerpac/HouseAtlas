@@ -152,6 +152,27 @@ async fn run(
             ServerCommand::Initialize {
                 config,
                 provisioning,
+                restore_bundle: Some(bundle),
+            } => {
+                let report = tokio::task::spawn_blocking(move || {
+                    lifecycle::persistent::initialize_from_backup(
+                        &config,
+                        provisioning.as_deref(),
+                        &bundle,
+                    )
+                })
+                .await??;
+                println!("{}", serde_json::to_string(&report)?);
+                println!(
+                    "HouseAtlas persistent state initialized from the verified backup bundle; \
+                     accounts and sessions were not restored and start fresh; no listener or login session created"
+                );
+                Ok(())
+            }
+            ServerCommand::Initialize {
+                config,
+                provisioning,
+                restore_bundle: None,
             } => {
                 tokio::task::spawn_blocking(move || match provisioning {
                     Some(path) => lifecycle::persistent::initialize(&config, &path),

@@ -4,10 +4,12 @@ use super::Failure;
 pub mod provider_reads;
 #[cfg(test)]
 mod receipt_identity_tests;
+#[cfg(test)]
+mod restored_adoption_tests;
 use crate::{
     access as a,
     app::{Core, ReadAuthority, ServerRuntime, Store},
-    config::server::{ServerConfig, read_selected_file},
+    config::server::{ServerAuthentication, ServerConfig, read_selected_file},
     http::contracts::NativeContracts,
     storage,
 };
@@ -16,7 +18,7 @@ use std::{
     collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::Write,
-    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
+    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
 };
@@ -244,7 +246,7 @@ pub fn initialize(config: &ServerConfig, provision_path: &Path) -> Result<(), Fa
     if !config.authentication.is_password() {
         return Err("Loopback-local accepts no password provisioning file".into());
     }
-    initialize_selected(config, Some(provision_path))
+    initialize_selected(config, config, Some(provision_path), None)
 }
 
 /// Explicit fresh local identity; no secret, password or session is created.
@@ -252,12 +254,113 @@ pub fn initialize_without_password(config: &ServerConfig) -> Result<(), Failure>
     if config.authentication.is_password() {
         return Err("Password mode requires explicit provisioning".into());
     }
-    initialize_selected(config, None)
+    initialize_selected(config, config, None, None)
 }
 
-fn initialize_selected(
+/// Offline only. A new data directory adopts the database and retained
+/// originals of a `backup` bundle after the same verification and read-back as
+/// `restore-check`, then gets fresh Access state and a receipt exactly as
+/// `initialize`. Accounts and sessions are never restored. The data directory
+/// must not exist yet (so no server can hold it), and the bundle is only read.
+///
+/// The whole directory is assembled in a private staging folder beside the
+/// target and published by one no-replace rename, so the target either does
+/// not exist or is complete. Any failure removes the staging folder; a hard
+/// interruption can leave only that folder, which never blocks a rerun.
+pub fn initialize_from_backup(
     config: &ServerConfig,
     provision_path: Option<&Path>,
+    bundle: &Path,
+) -> Result<super::backup::RestoreCheckReport, Failure> {
+    if config.authentication.is_password() != provision_path.is_some() {
+        return Err("Password mode requires explicit provisioning; other modes accept none".into());
+    }
+    config.validate()?;
+    let parent = config
+        .data_directory
+        .parent()
+        .ok_or("Missing data parent")?;
+    let name = config
+        .data_directory
+        .file_name()
+        .ok_or("Missing data directory name")?;
+    if fs::canonicalize(parent)? != parent {
+        return Err("Data parent must use its canonical path".into());
+    }
+    if fs::symlink_metadata(&config.data_directory).is_ok() {
+        return Err("The new data directory must not exist yet".into());
+    }
+    let bundle = fs::canonicalize(bundle)?;
+    if bundle.starts_with(&config.data_directory) || config.data_directory.starts_with(&bundle) {
+        return Err("The backup bundle and the new data directory overlap".into());
+    }
+    let parent_directory = File::open(parent)?;
+    let staging = tempfile::Builder::new()
+        .prefix(".houseatlas-restore-")
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir_in(parent)?;
+    let restored = staging.path().join("restored");
+    let report = super::backup::restore_verified(&bundle, &restored)?;
+    // Built under the same configuration with only its folders moved into
+    // staging. The receipt is issued for `config`, and the directory rename
+    // keeps every file inode it binds.
+    let built = staging.path().join("data");
+    let mut build = config.clone();
+    build.data_directory = built.clone();
+    build.log_directory = built.join("logs");
+    if let ServerAuthentication::TrustedProxy { socket, .. } = &mut build.authentication {
+        *socket = built.join("gateway.sock");
+    }
+    initialize_selected(&build, config, provision_path, Some(&restored))?;
+    fault("before-publish")?;
+    let staged = built
+        .strip_prefix(parent)
+        .map_err(|_| "Staging left the data parent")?;
+    rustix::fs::renameat_with(
+        &parent_directory,
+        staged,
+        &parent_directory,
+        name,
+        rustix::fs::RenameFlags::NOREPLACE,
+    )
+    .map_err(|error| -> Failure {
+        if error == rustix::io::Errno::EXIST {
+            "The new data directory must not exist yet".into()
+        } else {
+            error.into()
+        }
+    })?;
+    // Make the published directory entry durable before reporting success.
+    sync(&parent_directory)?;
+    staging.close()?;
+    Ok(report)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Test-only adoption failure injection; builds use the no-op below.
+    pub(super) static ADOPTION_FAULT: std::cell::Cell<Option<&'static str>> =
+        const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+fn fault(point: &'static str) -> Result<(), Failure> {
+    if ADOPTION_FAULT.with(|fault| fault.get()) == Some(point) {
+        return Err(format!("Injected adoption fault: {point}").into());
+    }
+    Ok(())
+}
+#[cfg(not(test))]
+fn fault(_: &'static str) -> Result<(), Failure> {
+    Ok(())
+}
+
+/// `config` names the folders written; `published` is the configuration the
+/// receipt is issued for (the same one except for staged adoption).
+fn initialize_selected(
+    config: &ServerConfig,
+    published: &ServerConfig,
+    provision_path: Option<&Path>,
+    restored: Option<&Path>,
 ) -> Result<(), Failure> {
     config.validate()?;
     let users = match provision_path {
@@ -265,6 +368,17 @@ fn initialize_selected(
         None => Vec::new(),
     };
     let lease = ServerLease::acquire(config, true)?;
+    if let Some(restored) = restored {
+        for name in ["atlas.sqlite", "media"] {
+            let target = config.data_directory.join(name);
+            if fs::symlink_metadata(&target).is_ok() {
+                return Err("The new data directory already holds restored state".into());
+            }
+            fs::rename(restored.join(name), target)?;
+            fault("between-moves")?;
+        }
+        sync(&lease.directory)?;
+    }
     let vault = Arc::new(crate::media::AssetVault::open(
         &config.data_directory.join("media"),
     )?);
@@ -298,17 +412,19 @@ fn initialize_selected(
     }
     let access = Arc::new(Mutex::new(access));
     let atlas_path = config.data_directory.join("atlas.sqlite");
-    drop(open_private(&atlas_path, true, false)?);
-    let store = Store::open(
-        &atlas_path,
-        NativeContracts,
-        ReadAuthority(Arc::clone(&access)),
-        crate::media::native::NativeMediaRuntime {
-            vault,
-            server: ServerRuntime,
-        },
-        storage::StoreOptions::default(),
-    )?;
+    let authority = ReadAuthority(Arc::clone(&access));
+    let runtime = crate::media::native::NativeMediaRuntime {
+        vault,
+        server: ServerRuntime,
+    };
+    let options = storage::StoreOptions::default();
+    let store = if restored.is_some() {
+        // Strict existing-owner path: exact compiled schema, no DDL or upgrade.
+        Store::open_existing(&atlas_path, NativeContracts, authority, runtime, options)?
+    } else {
+        drop(open_private(&atlas_path, true, false)?);
+        Store::open(&atlas_path, NativeContracts, authority, runtime, options)?
+    };
     store.close()?;
     drop(access);
     for path in [&access_path, &atlas_path] {
@@ -318,7 +434,7 @@ fn initialize_selected(
     let atlas_meta = private_metadata(&atlas_path)?;
     let state = State {
         format: "houseatlas-persistent-server/1".into(),
-        configuration_digest: config.state_digest()?,
+        configuration_digest: published.state_digest()?,
         atlas_schema: storage::DATABASE_VERSION,
         access_schema: a::ACCESS_SCHEMA_VERSION,
         access_device: access_meta.dev(),
@@ -326,6 +442,7 @@ fn initialize_selected(
         atlas_device: atlas_meta.dev(),
         atlas_inode: atlas_meta.ino(),
     };
+    fault("before-receipt")?;
     let mut receipt = open_private(
         &config.data_directory.join("server-state.json"),
         true,
@@ -335,6 +452,13 @@ fn initialize_selected(
     sync(&receipt)?;
     sync(&lease.directory)?;
     lease.event(ServerEvent::Initialized)?;
+    // The new directory's own entry in its (canonical, checked) parent.
+    sync(&File::open(
+        config
+            .data_directory
+            .parent()
+            .ok_or("Missing data parent")?,
+    )?)?;
     Ok(())
 }
 

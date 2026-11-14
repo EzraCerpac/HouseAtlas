@@ -3,8 +3,9 @@
 `tools/backup/` backs up the HouseAtlas server to the owner's iCloud Drive every
 night and proves each copy restores. It covers the Atlas database and retained
 originals through the native `backup` CLI (profile `native-stock-queue-free`) and
-the served model release. Like every native bundle it excludes the Access
-database and sessions, credentials, server configuration, HomeBox originals and
+the served model release, and the archive carries a copy of the server
+configuration file (paths and IDs, no secrets). Like every native bundle it
+excludes the Access database and sessions, credentials, HomeBox originals and
 Network source state; recover those through their own private procedures.
 
 ## What one run does
@@ -26,7 +27,8 @@ Network source state; recover those through their own private procedures.
    into a new release is not stored twice. Before the nightly archive goes up, iCloud
    must report every file it names as uploaded, reused ones included, and this
    run's new files are evicted locally.
-5. Packs the bundle and report into one `.tar.gz` and copies it, with a
+5. Packs the bundle, the report and `server-config.json` (a `0600` copy of the
+   server configuration the service plist names) into one `.tar.gz` and copies it, with a
    `.sha256` file, into the configured iCloud Drive folder. The report lists the
    model files and their hashes; the archive does not carry them. Existing files
    are never overwritten.
@@ -74,7 +76,11 @@ Success writes `last-success.json` (recovery point, sizes, how many model
 files were newly stored, what retention deleted, durations) in the state directory. A blob that exists
 but no longer matches its name fails the model rebuild loudly; it is never
 replaced automatically. Any failure writes `last-failure.json` and runs the optional
-`reportCommand`. The NAS keeps the last `keepLocalArchives` archives locally.
+`reportCommand`; a later success removes `last-failure.json`. If the report
+command itself fails or times out, the job logs its exit status and the end of
+its stderr to stderr. A run that otherwise succeeded then exits with status 3
+and records `reportFailed` in its result, so a lost notice is never silent.
+The NAS keeps the last `keepLocalArchives` archives locally.
 
 ## iCloud Drive permission
 
@@ -123,7 +129,8 @@ python3 tools/backup/houseatlas_backup.py --restore-models <folder>/backup-repor
 
 It writes `releases/<version>/` with every file the served release had (modes
 0700/0600) and checks each hash and model pin. Archives made before the blob
-store carry the release in their own `model/` folder instead. To serve a restored copy, build
-a fresh data directory from it with compatible code and supply current Access
-state, configuration and credentials separately, as
-[recovery-and-rollback.md](recovery-and-rollback.md) describes.
+store carry the release in their own `model/` folder instead. To serve a
+restored copy, adopt the bundle into a new data folder with
+`houseatlas initialize --restore-bundle`, as
+[Recover the service from a backup](persistent-server.md#recover-the-service-from-a-backup)
+describes.

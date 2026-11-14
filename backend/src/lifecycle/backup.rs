@@ -319,8 +319,18 @@ pub struct RestoreCheckReport {
 /// the restored vault and compares it with the bundle. The restored state is
 /// left for the caller to inspect or remove; it is never opened or served.
 pub fn restore_check(selection: &RestoreCheckSelection) -> Result<RestoreCheckReport, Failure> {
+    restore_verified(&selection.bundle, &selection.destination)
+}
+
+/// The whole restore check into an absent `destination`: verify the bundle,
+/// restore it, then compare the restored database and every retained original
+/// with the bundle. Shared by `restore-check` and `initialize --restore-bundle`.
+pub(super) fn restore_verified(
+    bundle: &Path,
+    destination: &Path,
+) -> Result<RestoreCheckReport, Failure> {
     let budget = WorkBudget::new_offline_backup()?;
-    require_absent(&selection.destination)?;
+    require_absent(destination)?;
     let owners = QueueFreeNativeOwners::for_queue_free_profile()?;
     let peers = owners.peers()?;
     let port = NativeMediaRecovery::<
@@ -331,13 +341,13 @@ pub fn restore_check(selection: &RestoreCheckSelection) -> Result<RestoreCheckRe
         QueueFreeNativeOwners,
         QueueFreeNativeOwners,
     >::validator(&NativeContracts, peers.storage());
-    let verified = verify_recovery(&port, &selection.bundle, &budget)?;
-    let restored = restore_recovery(&port, &selection.bundle, &selection.destination, &budget)?;
+    let verified = verify_recovery(&port, bundle, &budget)?;
+    let restored = restore_recovery(&port, bundle, destination, &budget)?;
     if restored.manifest != verified.manifest {
         return Err("Restored manifest differs from the verified bundle".into());
     }
     let database = fs::read(&restored.database_path)?;
-    if database != fs::read(selection.bundle.join(&verified.manifest.database.file))?
+    if database != fs::read(bundle.join(&verified.manifest.database.file))?
         || format!("{:x}", Sha256::digest(&database)) != verified.manifest.database.sha256
     {
         return Err("Restored database differs from the bundle".into());
@@ -349,7 +359,7 @@ pub fn restore_check(selection: &RestoreCheckSelection) -> Result<RestoreCheckRe
         let Some(member) = &entry.blob else {
             continue;
         };
-        let original = fs::read(selection.bundle.join("originals").join(member))?;
+        let original = fs::read(bundle.join("originals").join(member))?;
         if vault.read_retained(record, &budget)? != original {
             return Err("Restored original differs from the bundle".into());
         }
