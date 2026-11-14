@@ -792,6 +792,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const minZ = Math.min(...b.map(row => row.bounds.min[2])), maxZ = Math.max(...b.map(row => row.bounds.max[2]));
     return { y: Math.min(...b.map(row => row.bounds.min[1])), x: minX - m - origin[0], z: minZ - m - origin[2], w: maxX - minX + 2 * m, h: maxZ - minZ + 2 * m };
   }, [model, origin]);
+  // The board ends where the surroundings start to fade (a box `near` past the house, its
+  // corners rounded by `near`), so whatever fades lies over the stage it fades into.
+  const whole = around && { x: around.center[0] - around.half[0] - around.near - origin[0], z: around.center[1] - around.half[1] - around.near - origin[2],
+    w: 2 * (around.half[0] + around.near), h: 2 * (around.half[1] + around.near), r: around.near };
   // Each building's lowest authored floor plan, as its contact shadow on the board.
   const footprints = useMemo(() => model.floorBuildings.flatMap(row => {
     const lowest = model.levelsByBuilding.get(row.buildingId)?.[0];
@@ -799,6 +803,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       .map(feature => ({ key: feature.featureId, path: relativePath(model.featureRings.get(feature.featureId)!, origin) }));
   }), [model, origin]);
   const gridId = `ua-grid-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
+  const boardClip = whole ? `url(#${gridId}-whole)` : undefined;
 
   const lift = (occurrenceId: string) => levelLift(presentation, occurrenceLiftLevel(model, occurrenceId), t);
   // Anchors glide from a room's top (or its section) down to its floor as the
@@ -1468,14 +1473,15 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <linearGradient id={`${gridId}-board`} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" className="ua-board-lit" /><stop offset="1" className="ua-board-shade" />
             </linearGradient>
+            {whole && <clipPath id={`${gridId}-whole`}><rect x={whole.x} y={whole.z} width={whole.w} height={whole.h} rx={whole.r} /></clipPath>}
           </defs>
           <g transform={`${projection.planMatrix(ground.y - BOARD_DEPTH)} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`}>
-            <rect className="ua-ground-edge" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6} />
+            <rect className="ua-ground-edge" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6} clipPath={boardClip} />
           </g>
           <g transform={`${projection.planMatrix(ground.y)} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`}>
-            <rect className="ua-ground" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6}
+            <rect className="ua-ground" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6} clipPath={boardClip}
               fill={`url(#${gridId}-board)`} vectorEffect="non-scaling-stroke" />
-            {projection.k >= 10 && planBlend < .5 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
+            {projection.k >= 10 && planBlend < .5 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} clipPath={boardClip} fill={`url(#${gridId})`} />}
             {/* One group opacity, so overlapping rooms and walls shade the board once. */}
             {planBlend < 1 && footprints.length > 0 && daylight.direct > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) * daylight.direct }}
               transform={`translate(${shadowOffset[0]} ${shadowOffset[1]})`}>

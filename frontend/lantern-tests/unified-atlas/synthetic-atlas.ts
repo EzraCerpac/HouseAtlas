@@ -188,13 +188,19 @@ const overlay = (kind: 'electrical' | 'network', roomId: string, place: number |
   nativePlaceId: place === null ? null : PLACE(place), recordIds, anchor: { kind: 'room-summary' }, ...extra,
 });
 
+/** Optional generated site ground, much wider than the surroundings' fade around the buildings. */
+const WIDE_GROUND: readonly [Vec3, Vec3] = [[40, -0.35, -10], [190, -0.25, 120]];
+
 /** Producer companion for one scope; `original` pins the generated GLB.
  * `rise` places the same publication higher in its source frame: one parent
- * node carries it in the GLB, and every companion height moves with it. The
+ * node carries it in the GLB, and every companion height moves with it.
+ * `ground` adds WIDE_GROUND to the boundary group, which then spans it. The
  * default output is unchanged. */
-export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>, rise = 0) {
-  const glb = rise === 0 ? buildAtlasGlb(NODES, MESHES, [0])
-    : buildAtlasGlb([...NODES, { name: 'Datum', translation: [0, rise, 0] as Vec3, children: [0] }], MESHES, [NODES.length]);
+export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>, rise = 0, ground = false) {
+  const nodes = ground ? [{ ...NODES[0]!, children: [...NODES[0]!.children!, NODES.length] }, ...NODES.slice(1), { name: 'Site ground', mesh: MESHES.length }] : NODES;
+  const meshes = ground ? [...MESHES, [local(box(...WIDE_GROUND), SITE)]] : MESHES;
+  const glb = rise === 0 ? buildAtlasGlb(nodes, meshes, [0])
+    : buildAtlasGlb([...nodes, { name: 'Datum', translation: [0, rise, 0] as Vec3, children: [0] }], meshes, [nodes.length]);
   const up = (point: Vec3): Vec3 => [point[0], point[1] + rise, point[2]];
   const bounds = (min: Vec3, max: Vec3) => ({ min: up(min), max: up(max) });
   const house = 'syn-building-house', studio = 'syn-building-studio', boundary = 'syn-building-boundary';
@@ -215,6 +221,7 @@ export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string;
     { artifactId: 'model', nodeIndex: 8, meshIndex: 5, primitiveIndices: [1], buildingId: studio, levelIds: ['syn-level-studio'], spaceOccurrenceId: 'syn-occ-gallery', role: 'room-pick' },
     { artifactId: 'model', nodeIndex: 9, meshIndex: 3, primitiveIndices: [0], buildingId: studio, levelIds: [], spaceOccurrenceId: null, role: 'context' },
     { artifactId: 'model', nodeIndex: 10, meshIndex: 6, primitiveIndices: [0], buildingId: boundary, levelIds: [], spaceOccurrenceId: null, role: 'context' },
+    ...ground ? [{ artifactId: 'model', nodeIndex: NODES.length, meshIndex: MESHES.length, primitiveIndices: [0], buildingId: boundary, levelIds: [], spaceOccurrenceId: null, role: 'context' }] : [],
   ];
   const companion = {
     profile: 'houseatlas.unified-atlas-publication.v1', scope,
@@ -223,7 +230,7 @@ export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string;
     frame: { units: 'm', upAxis: 'Y', horizontalAxes: ['X', 'Z'], geometryPlacement: 'gltf-world-after-node-transforms-once', physicalRegistration: null },
     buildings: [
       // Listed first and without floors: context around the buildings, never a floor stop.
-      { buildingId: boundary, label: 'Synthetic boundary wall', nativePlaceId: null, bounds: bounds([96, 0, 46], [130, 1.2, 46.3]), levelIds: [] },
+      { buildingId: boundary, label: 'Synthetic boundary wall', nativePlaceId: null, bounds: ground ? bounds(WIDE_GROUND[0], [WIDE_GROUND[1][0], 1.2, WIDE_GROUND[1][2]]) : bounds([96, 0, 46], [130, 1.2, 46.3]), levelIds: [] },
       { buildingId: house, label: 'Synthetic house', nativePlaceId: PLACE(1), bounds: bounds([100.4, -0.2, 50.4], [112.2, 5.7, 59.2]),
         levelIds: ['syn-level-ground', 'syn-level-split', 'syn-level-upper'] },
       { buildingId: studio, label: 'Synthetic studio', nativePlaceId: null, bounds: bounds([118.9, -0.2, 50], [126, 3, 56.1]), levelIds: ['syn-level-studio'] },

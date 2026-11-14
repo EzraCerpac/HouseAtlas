@@ -1480,8 +1480,15 @@ generated Atlas host, opens Plan and sends trusted wheel input at the stage
 centre. A plain wheel (two-finger scroll) must pan the plan by its deltas and a
 ctrl-wheel (Chromium's trackpad pinch) must zoom it, and the point under the
 cursor must not resolve to a hidden element such as the 3D canvas that Plan
-hides. It is in the healthy suite. It is not physical trackpad, Safari gesture
-or momentum evidence.
+hides. The same case then reopens the host with `&atlas-ground=wide`, a
+generated site ground much wider than the surroundings' fade, sets noon and
+then midnight (UTC), zooms the 3D view fully out with ctrl-wheel and pans it.
+It captures the stage twice, with and without the viewport's board and canvas,
+and compares five columns of stage pixels below the house (#439): the ground
+must show (difference at least 8), change by at most 6 per pixel, never grow
+more different from the stage further down by more than 3, and end within 4 of
+the stage behind it. It is in the healthy suite. It is not physical trackpad,
+Safari gesture, momentum, WebGPU, device or live-house evidence.
 
 ```sh
 node frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs
@@ -5660,7 +5667,8 @@ plus a closed omni bulb with nearby nonemissive metal and receivers at 6 m
 and at/beyond its finite 10 m envelope, and the `?render-probe` speed check
 (all five cases reported, drawing resumes; software-GPU timings are not device evidence),
 `unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
-unified Atlas Plan with trusted wheel input in the pinned Chrome for Testing build, and the generated Unified Atlas compact layer-details
+unified Atlas Plan with trusted wheel input in the pinned Chrome for Testing build and checks by day and night
+that a generated wide ground fades into the stage behind it with no rim, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
 place and appearance tables only, including glass-pass opacity/frost and
