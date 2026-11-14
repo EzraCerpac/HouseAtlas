@@ -112,8 +112,10 @@ fn cache_facts(cache: &s::CacheStatus) -> Value {
     })
 }
 
-/// Admission hint for the button: an Editor named by the approvals of a
-/// configured source sees `available`. Read-only; nothing is sent upstream.
+/// Admission hint for the button. Only an Editor whose actor the profile
+/// approves for this home's configured source learns `available`; every other
+/// caller gets the same `unavailable`, whether or not a source is configured.
+/// Read-only; nothing is sent upstream and nothing is written.
 pub(in crate::http) async fn availability(
     State(host): State<Host>,
     Path((workspace_id, home_id)): Path<(String, String)>,
@@ -128,17 +130,10 @@ pub(in crate::http) async fn availability(
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         crate::http::authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
-            let status = match binding(&host, &scope) {
-                None => "not-configured",
-                Some(binding)
-                    if p.principal.role() == a::Role::Editor
-                        && binding.approved.contains(p.principal.actor_id()) =>
-                {
-                    "available"
-                }
-                Some(_) => "not-approved",
-            };
-            answer(json!({ "status": status }))
+            let eligible = p.principal.role() == a::Role::Editor
+                && binding(&host, &scope)
+                    .is_some_and(|binding| binding.approved.contains(p.principal.actor_id()));
+            answer(json!({ "status": if eligible { "available" } else { "unavailable" } }))
         })
     })
     .await

@@ -112,6 +112,9 @@ export interface LanternActions {
   networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
   offlineStorage?: ReactNode;
+  /** Local display only: withhold HomeBox entries of the current view after a
+   * recorded revocation that could not be re-read. Never a read or a write. */
+  withholdHomebox?: () => void;
 }
 function initial(house: HouseData): AppState {
   return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', atlasLens: null, selection: null,

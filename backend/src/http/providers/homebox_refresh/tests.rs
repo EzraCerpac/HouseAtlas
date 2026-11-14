@@ -368,9 +368,13 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     // The button's admission read: only the approved Editor of a configured
     // source sees it, before any cache exists for that source.
     assert_eq!(available(&app, &editor).await?, "available");
-    assert_eq!(available(&app, &viewer).await?, "not-approved");
-    assert_eq!(available(&app, &unlisted).await?, "not-approved");
-    assert_eq!(available(&bare, &editor).await?, "not-configured");
+    // Every other caller gets one answer, with or without a configured source.
+    for target in [&app, &bare] {
+        for session in [&viewer, &unlisted] {
+            assert_eq!(available(target, session).await?, "unavailable");
+        }
+    }
+    assert_eq!(available(&bare, &editor).await?, "unavailable");
     // An unlisted Editor's POST is refused by the Access lifecycle rules.
     assert_eq!(
         post(&app, &unlisted).await?,

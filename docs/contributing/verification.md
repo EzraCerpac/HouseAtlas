@@ -9,9 +9,9 @@ discovers two added cases:
   reopens a disposable synthetic store with one generated lifecycle approval
   and drives the registered router against a generated loopback TLS HomeBox
   built from the checked-in stock wire fixtures. The admission `GET` answers
-  `available` only to the approved Editor (before any cache exists),
-  `not-approved` to a Viewer and to an unlisted Editor, and `not-configured`
-  without a credential. A Viewer's POST is refused (403); an unlisted Editor's
+  `available` only to the approved Editor (before any cache exists) and the
+  same `unavailable` to a Viewer and an unlisted Editor with and without a
+  configured credential. A Viewer's POST is refused (403); an unlisted Editor's
   POST is refused by the lifecycle rules; a Host without a credential answers
   `not-configured`; a set in-flight flag answers `running`; none of these
   sends anything upstream. The approved Editor's first POST registers the
@@ -35,8 +35,10 @@ production controller behind the button against a generated server model
 using the route's answer shapes: the admission read alone decides whether the
 button is offered (approved Editor yes; Viewer, unlisted Editor and no
 credential no, with no POST); the first refresh starts with no cache; a later
-401 re-reads the view, withholds the copy and says access is revoked; an
-ordinary failure says the earlier copy is still shown; offline sends nothing;
+401 re-reads the view, withholds the copy and says access is revoked; when
+that re-read returns false or rejects, HomeBox entries are withheld locally
+with the server's quarantine marker; an ordinary failure says the earlier copy
+is still shown, or that the view could not be updated; offline sends nothing;
 decoding is strict: 85 SOURCE / 1 BUILD /
 11 BROWSER (97 total). No workflow command, runner, browser entry or held
 selection is added. None of this makes a live HomeBox read or establishes

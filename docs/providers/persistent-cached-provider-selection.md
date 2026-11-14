@@ -139,8 +139,9 @@ registers the source if it is not yet readable, then runs one
 `refreshed`, `failed` (with a cache error code), `running` or `not-configured`.
 At most one refresh runs per process. A `GET` on the same path is the
 button's admission read: it answers `available` only to an Editor whose actor
-is named in `refreshEditors` for a configured source, otherwise `not-approved`
-or `not-configured`, and sends nothing upstream. It is a display hint; the POST
+is named in `refreshEditors` for a configured source, and the same
+`unavailable` to every other caller whether or not a source is configured. It
+sends nothing upstream and writes nothing. It is a display hint; the POST
 is still decided by the Access lifecycle rules. Startup still enrolls nothing, issues
 no grant and sends nothing upstream; there is no timer, retry or startup
 refresh, and MCP/WebMCP do not expose the action. Without these fields the

@@ -4,7 +4,7 @@
 // POST, and every recorded answer re-reads the view. A generated server model
 // with the route's answer shapes; no browser, network, HomeBox or credential.
 import assert from 'node:assert/strict';
-import { createRefreshControl, decodeAvailability, decodeRefreshResult, describeRefresh, requestRefresh } from '../src/lantern/homebox-refresh.ts';
+import { createRefreshControl, decodeAvailability, decodeRefreshResult, describeRefresh, requestRefresh, withholdHomebox } from '../src/lantern/homebox-refresh.ts';
 
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const format = iso => iso.slice(0, 16).replace('T', ' ');
@@ -20,7 +20,8 @@ function server({ role = 'editor', approved = true, configured = true } = {}) {
     if (path === '/api/atlas/auth/session') return Response.json({ schemaVersion: 1, actorId: 'a1', csrfToken: 'csrf-1' });
     assert.equal(path, ROUTE);
     if (init.method === 'GET')
-      return Response.json({ status: !configured ? 'not-configured' : role === 'editor' && approved ? 'available' : 'not-approved' });
+      // One answer for every ineligible caller, configured or not.
+      return Response.json({ status: configured && role === 'editor' && approved ? 'available' : 'unavailable' });
     assert.equal(init.method, 'POST');
     assert.equal(init.headers['X-Atlas-CSRF'], 'csrf-1');
     if (role !== 'editor') return new Response(null, { status: 403 });
@@ -37,18 +38,20 @@ function server({ role = 'editor', approved = true, configured = true } = {}) {
   };
   // The view the panel shows is whatever the last reload read from the server.
   model.view = { caches: [] };
+  model.withheld = 0;
+  model.withhold = () => { model.withheld += 1; };
   model.reload = async () => { model.view = { caches: model.cache ? [{ ...model.cache }] : [] }; return true; };
   return model;
 }
 const control = model => createRefreshControl({ scope, transport: model.transport, online: () => model.online !== false });
-const say = state => state.result ? describeRefresh(state.result, format) : '';
+const say = state => state.result ? describeRefresh(state.result, format, state.reconciled) : '';
 
 // Admission: offered only to the approved Editor of a configured source.
 for (const [options, offered] of [[{}, true], [{ role: 'viewer' }, false], [{ approved: false }, false], [{ configured: false }, false]]) {
   const model = server(options), refresh = control(model);
   await refresh.check();
   assert.equal(refresh.getSnapshot().offered, offered, JSON.stringify(options));
-  await refresh.press(model.reload);
+  await refresh.press(model.reload, model.withhold);
   // A control that was not offered sends no POST at all.
   if (!offered) assert.deepEqual(model.calls, [['GET', ROUTE]]);
 }
@@ -60,14 +63,14 @@ for (const [options, offered] of [[{}, true], [{ role: 'viewer' }, false], [{ ap
   await refresh.check();
   assert.equal(refresh.getSnapshot().offered, true);
   assert.equal(model.refreshes, 0, 'Checking admission sends no refresh');
-  const pressed = refresh.press(model.reload);
+  const pressed = refresh.press(model.reload, model.withhold);
   assert.equal(refresh.getSnapshot().busy, true);
   await pressed;
   assert.equal(say(refresh.getSnapshot()), 'Refreshed from HomeBox 2026-11-14 09:30.');
   assert.deepEqual(model.view.caches, [{ status: 'fresh', lastSuccessfulFetchAt: model.now, entries: ['generated entity'] }]);
 
   model.upstream = 'unauthorized';
-  await refresh.press(model.reload);
+  await refresh.press(model.reload, model.withhold);
   const state = refresh.getSnapshot();
   assert.equal(state.busy, false);
   assert.deepEqual(state.result, { kind: 'failed', reason: 'auth', quarantined: true, lastSuccessfulFetchAt: model.now });
@@ -75,13 +78,52 @@ for (const [options, offered] of [[{}, true], [{ role: 'viewer' }, false], [{ ap
   // The failed answer also re-read the view: the old rows are no longer shown.
   assert.deepEqual(model.view.caches, [{ status: 'access-revoked', lastSuccessfulFetchAt: model.now, entries: [] }]);
   assert.equal(model.refreshes, 2);
+  assert.equal(model.withheld, 0, 'A successful re-read needs no local withholding');
 
   // Offline: the press sends nothing.
   model.online = false;
   const before = model.calls.length;
-  await refresh.press(model.reload);
+  await refresh.press(model.reload, model.withhold);
   assert.equal(model.calls.length, before);
   assert.equal(say(refresh.getSnapshot()), 'Refreshing from HomeBox is unavailable offline.');
+}
+
+// The view re-read fails after a recorded 401: refused or rejected. HomeBox
+// entries are withheld locally so the text and the content agree.
+for (const failedReload of [async () => false, async () => { throw new TypeError('Generated view read failed'); }]) {
+  const model = server(), refresh = control(model);
+  await refresh.check();
+  await refresh.press(model.reload, model.withhold);
+  const shown = model.view;
+  model.upstream = 'unauthorized';
+  await refresh.press(failedReload, model.withhold);
+  const state = refresh.getSnapshot();
+  assert.equal(state.reconciled, false);
+  assert.equal(model.withheld, 1);
+  assert.equal(model.view, shown, 'The failed re-read changed nothing');
+  assert.equal(say(state), 'Not refreshed: HomeBox refused the configured credential. Access revoked: HomeBox entries are withheld here until this view can be updated.');
+  // An ordinary failure with a failed re-read says the view is out of date.
+  model.upstream = 'ok';
+  const timeout = async (path, init) => init.method === 'POST'
+    ? Response.json({ status: 'failed', reason: 'timeout', cache: { status: 'error', lastSuccessfulFetchAt: model.now } })
+    : model.transport(path, init);
+  const ordinary = createRefreshControl({ scope, transport: timeout, online: () => true });
+  await ordinary.check();
+  await ordinary.press(failedReload, model.withhold);
+  assert.equal(model.withheld, 1, 'An ordinary failure never withholds');
+  assert.equal(say(ordinary.getSnapshot()), 'Not refreshed: HomeBox did not answer in time. This view could not be updated.');
+}
+
+// The local stand-in matches the server's quarantine marker and drops entries.
+{
+  const view = { status: 'ready', scope, homeLabel: 'Generated home', now: '2026-11-14T09:30:00.000Z', canEdit: false, homes: [],
+    entries: [{ key: 'e1', source: { sourceInstanceId: 's', collectionId: 'c', sourceKind: 'homebox-entity', externalId: 'x' } }],
+    caches: [{ owner: 'homebox', status: 'fresh', displayStatus: 'fresh', sourceInstanceId: 's', collectionId: 'c', lastSuccessfulFetchAt: '2026-11-14T09:30:00.000Z' },
+      { owner: 'network', status: 'fresh', displayStatus: 'fresh' }] };
+  const withheld = withholdHomebox(view);
+  assert.deepEqual(withheld.entries, []);
+  assert.deepEqual(withheld.caches, [{ owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked' }, view.caches[1]]);
+  assert.equal(view.entries.length, 1, 'The original view is unchanged');
 }
 
 // An ordinary failure keeps the earlier copy and says so.
@@ -107,4 +149,4 @@ for (const [options, offered] of [[{}, true], [{ role: 'viewer' }, false], [{ ap
   assert.deepEqual(await requestRefresh(scope, async () => { throw new TypeError('Generated network unavailable'); }, true), { kind: 'unreachable' });
 }
 
-console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, offline sends nothing, strict decoding');
+console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries locally, offline sends nothing, strict decoding');

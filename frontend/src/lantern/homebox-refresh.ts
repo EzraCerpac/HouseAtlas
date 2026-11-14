@@ -2,7 +2,9 @@
  * decides whether the button is offered; only a press sends the refresh POST,
  * never a mount, view change or the service worker. */
 
-export type Availability = 'available' | 'not-approved' | 'not-configured';
+import type { ReadyView } from '../app/types.ts';
+
+export type Availability = 'available' | 'unavailable';
 export type RefreshResult =
   | { readonly kind: 'refreshed'; readonly refreshedAt: string | null }
   | { readonly kind: 'failed'; readonly reason: string | null; readonly quarantined: boolean; readonly lastSuccessfulFetchAt: string | null }
@@ -12,6 +14,8 @@ export interface RefreshState {
   readonly offered: boolean;
   readonly busy: boolean;
   readonly result: RefreshResult | null;
+  /** False when the view could not be re-read after a recorded answer. */
+  readonly reconciled: boolean;
 }
 interface Scope { readonly workspaceId: string; readonly homeId: string }
 
@@ -29,7 +33,7 @@ function time(value: unknown): string | null {
 
 export function decodeAvailability(value: unknown): Availability {
   const status = record(value)?.status;
-  if (status === 'available' || status === 'not-approved' || status === 'not-configured') return status;
+  if (status === 'available' || status === 'unavailable') return status;
   throw new TypeError('Unrecognised HomeBox refresh availability');
 }
 
@@ -53,13 +57,17 @@ const REASONS: Readonly<Record<string, string>> = {
   'registration-unavailable': 'the source could not be registered here',
 };
 
-export function describeRefresh(result: RefreshResult, format: (iso: string) => string): string {
+export function describeRefresh(result: RefreshResult, format: (iso: string) => string, reconciled = true): string {
+  const stale = reconciled ? '' : ' This view could not be updated.';
   switch (result.kind) {
-    case 'refreshed': return result.refreshedAt ? `Refreshed from HomeBox ${format(result.refreshedAt)}.` : 'Refreshed from HomeBox.';
+    case 'refreshed': return `${result.refreshedAt ? `Refreshed from HomeBox ${format(result.refreshedAt)}.` : 'Refreshed from HomeBox.'}${stale}`;
     case 'failed': {
       const reason = (result.reason && REASONS[result.reason]) ?? 'HomeBox could not be read';
       // Quarantine withdraws the saved copy; never call it current or still shown.
-      if (result.quarantined) return `Not refreshed: ${reason}. Access revoked: the saved HomeBox copy is withheld.`;
+      if (result.quarantined) return reconciled
+        ? `Not refreshed: ${reason}. Access revoked: the saved HomeBox copy is withheld.`
+        : `Not refreshed: ${reason}. Access revoked: HomeBox entries are withheld here until this view can be updated.`;
+      if (!reconciled) return `Not refreshed: ${reason}.${stale}`;
       const kept = result.lastSuccessfulFetchAt ? ` The copy from ${format(result.lastSuccessfulFetchAt)} is still shown.` : '';
       return `Not refreshed: ${reason}.${kept}`;
     }
@@ -69,6 +77,17 @@ export function describeRefresh(result: RefreshResult, format: (iso: string) => 
     case 'offline': return 'Refreshing from HomeBox is unavailable offline.';
     case 'unreachable': return 'Not refreshed: this server could not be reached.';
   }
+}
+
+/** The local stand-in after a revocation the view could not re-read: no
+ * HomeBox entries, and each HomeBox cache as the server's quarantine marker. */
+export function withholdHomebox(view: ReadyView): ReadyView {
+  return {
+    ...view,
+    entries: view.entries.filter(entry => entry.source.sourceKind !== 'homebox-entity'),
+    caches: view.caches.map(cache => cache.owner === 'homebox'
+      ? { owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked' } : cache),
+  };
 }
 
 /** Read-only admission for the current session; sends nothing to HomeBox. */
@@ -106,13 +125,14 @@ export async function requestRefresh(scope: Scope, transport: typeof fetch, onli
 }
 
 /** State owner behind the button. Any answer that changed durable cache state
- * (refreshed or failed) re-reads the view, so a quarantined copy is withheld. */
+ * (refreshed or failed) re-reads the view. If that re-read fails after a
+ * revocation, `withhold` hides HomeBox entries locally so text and content agree. */
 export function createRefreshControl(options: {
   readonly scope: Scope;
   readonly transport: typeof fetch;
   readonly online: () => boolean;
 }) {
-  let state: RefreshState = { offered: false, busy: false, result: null };
+  let state: RefreshState = { offered: false, busy: false, result: null, reconciled: true };
   const listeners = new Set<() => void>();
   const set = (next: Partial<RefreshState>) => { state = { ...state, ...next }; listeners.forEach(listener => listener()); };
   return {
@@ -122,17 +142,21 @@ export function createRefreshControl(options: {
       const availability = await readAvailability(options.scope, options.transport, signal);
       if (!signal?.aborted) set({ offered: availability === 'available' });
     },
-    async press(reload: () => Promise<boolean>) {
+    async press(reload: () => Promise<boolean>, withhold: () => void) {
       if (!state.offered || state.busy) return;
-      set({ busy: true, result: null });
+      set({ busy: true, result: null, reconciled: true });
       let result: RefreshResult;
       try {
         result = await requestRefresh(options.scope, options.transport, options.online());
       } catch {
         result = { kind: 'unreachable' };
       }
-      if (result.kind === 'refreshed' || result.kind === 'failed') await reload().catch(() => false);
-      set({ busy: false, result });
+      let reconciled = true;
+      if (result.kind === 'refreshed' || result.kind === 'failed') {
+        reconciled = await reload().then(ok => ok === true, () => false);
+        if (!reconciled && result.kind === 'failed' && result.quarantined) withhold();
+      }
+      set({ busy: false, result, reconciled });
     },
   };
 }
