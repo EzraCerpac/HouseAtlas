@@ -25,7 +25,9 @@ export async function loadAPI() {
     const entry = join(scratch, 'entry.ts');
     writeFileSync(entry, modules.map(path => `export * from ${JSON.stringify(join(frontend, path))};`).join('\n'));
     const result = await build({ root: frontend, configFile: false, logLevel: 'error',
-      build: { write: false, target: 'node26', minify: false, lib: { entry, formats: ['es'] } } });
+      build: { write: false, target: 'node26', minify: false, lib: { entry, formats: ['es'] },
+        // Production lazy-loads the GLB readers; this test needs them in the one bundle it imports.
+        rolldownOptions: { output: { codeSplitting: false } } } });
     const output = Array.isArray(result) ? result[0] : result;
     const chunks = output.output.filter(item => item.type === 'chunk');
     if (chunks.length !== 1) throw new Error('Expected one self-contained test API bundle');
