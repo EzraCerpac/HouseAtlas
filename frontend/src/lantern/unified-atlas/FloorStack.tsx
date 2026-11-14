@@ -36,8 +36,8 @@ function buildingMarks(model: AtlasModel, buildings: readonly { readonly buildin
  * after a choice, a tap elsewhere or Escape; on a wide stage the stack is a
  * rail of marks that widens to names on hover, focus or a click of its head.
  * Floors hang at their actual relative heights, top floor first; buildings
- * stand above them when there is more than one, and Spread floors (Exploded)
- * closes the stack in 3D. Arrow up and down on the head, or a swipe of the
+ * stand above them when there is more than one, and on a phone Spread floors
+ * (Exploded) closes the stack in 3D; a wide stage sets it beside 3D and Plan. Arrow up and down on the head, or a swipe of the
  * chip, step one floor, "All floors" standing above the top floor. */
 export function FloorStack({ model, levels, buildings, buildingNav, building, state, dispatch, chooseBuilding, shownLevel, selectionLevel, contextLevels,
   canExplode, compact, open, setOpen, head, panelId }: {

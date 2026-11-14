@@ -230,8 +230,8 @@ try {
     });
     await check('explode toggle and latest building transition', async () => {
       await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
-      // One toggle, Spread floors in the Floor Stack; its pressed state carries stacked or exploded.
-      const spread = stackRow('.ua-stack', 'Spread floors');
+      // One toggle, Spread floors beside 3D and Plan; its pressed state carries stacked or exploded.
+      const spread = `document.querySelector('.ua-tools .ua-spread')`;
       const before = await evaluate(`(${spread})?.getAttribute('aria-pressed')`);
       assert(['true', 'false'].includes(before));
       await click(spread);
@@ -241,7 +241,7 @@ try {
       for (const name of ['Synthetic studio', 'Synthetic house', 'Synthetic studio']) await click(stackRow('.ua-stack-buildings', name));
       assert.equal(await selectedRoom(), null);
       assert.equal(await evaluate(`(${stackRow('.ua-stack-buildings', 'Synthetic studio')}).getAttribute('aria-pressed')`), 'true');
-      assert.equal(await evaluate('Boolean(document.querySelector(".ua-stack-spread"))'), false);
+      assert.equal(await evaluate('Boolean(document.querySelector(".ua-spread, .ua-stack-spread"))'), false);
     });
     await check('overlay pointer activation, counts and two-floor network markers', async () => {
       await sheet(false);

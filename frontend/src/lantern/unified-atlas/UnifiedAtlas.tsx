@@ -914,6 +914,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     }
     return metrics;
   }, [live, selected, context, model, labelFonts]);
+  /** The selected 3D tag: a pill as wide as the measured name. */
+  const selectedTag = (id: string) => {
+    const advance = planTextMetrics.get(id)?.advance;
+    return advance === undefined ? null : <rect className="cifc-label-tag" x={-advance / 2 - 9} y={-13} width={advance + 18} height={26} rx={13} />;
+  };
   const labelPaper = useMemo(() => preparePlanLabelPaper(planGroups.flatMap(group => group.features.map(row => row.feature))), [planGroups]);
   // Only the fit decision looks ahead to top view. It does not alter the camera.
   const selectedNeedsStandingTag = useMemo(() => {
@@ -1399,7 +1404,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
           shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
-          canExplode={canExplode} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
+          canExplode={canExplode && compact} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
           head={stackHead} panelId={`${menuIds}-stack`} />
       </div>
 
@@ -1408,6 +1413,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {!compact && <div className="seg" role="group" aria-label="Atlas view">
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
+        </div>}
+        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack. */}
+        {!compact && canExplode && <div className="seg">
+          <button type="button" className="ua-spread" aria-pressed={state.exploded}
+            onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span>Spread floors</span></button>
         </div>}
         <div className="ctrl-group" role="group" aria-label="Camera">
           {!plan && <>
@@ -1418,9 +1428,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
-        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
-        {/* Compact: the snapshot stamp takes the free width, and one menu holds
-            the camera, the lenses, the archive filter and the other sources. */}
+        {!compact && !plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
+        {/* Compact: the snapshot stamp takes the free width, and one menu holds the
+            camera, the lighting time, the lenses, the archive filter and the other sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
@@ -1441,6 +1451,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
               <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
             </div>
+            {!plan && <div className="ua-menu-time">
+              <p className="ua-menu-label" aria-hidden="true">Lighting time</p>
+              <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />
+            </div>}
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
             {/* The host's lens row gives way on a phone; its lenses open from here. */}
@@ -1551,7 +1565,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               {label.tier === 'selected' && <circle className="ua-ripple" r={18} />}
               {label.rise > .02 && <><line x1={0} y1={0} x2={0} y2={(-LEADER * label.rise).toFixed(1)} /><circle r={3.5} /></>}
               <g transform={label.rise > 0 ? `translate(0 ${(-TAG_RISE * label.rise).toFixed(1)})` : undefined}>
-                <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>
+                {/* The selected tag is one measured pill; a stroked halo bulges around ascenders and dots. */}
+                {(label.tier === 'selected' && selectedTag(label.id)) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
                 <text textAnchor="middle" dy="0.35em">{label.text}</text>
               </g>
             </g>)}
@@ -1611,8 +1626,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
         </div>}
-        {/* Compact: one dock holds Plan and the layers, as three dots that open
-            the labelled layer chips above them. */}
+        {/* Compact: one dock holds Plan and the layers, as three dots and their
+            name that open the labelled layer chips above them. */}
         {compact ? <div className="ua-dock" onBlur={menuBlur('layers')}>
           <button type="button" className="ua-dock-btn ua-dock-view" aria-pressed={plan}
             onClick={() => dispatch({ type: 'view', view: plan ? '3d' : 'plan' })}><Icon name="rooms" size={16} /><span>Plan</span></button>
@@ -1620,7 +1635,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             aria-label={`Layers: ${LAYER_KINDS.filter(kind => state.layers[kind]).map(kind => LAYER_LABEL[kind]).join(', ') || 'none shown'}`}
             onClick={() => setMenu(value => value === 'layers' ? null : 'layers')}>
             <span className="ua-dock-dots" aria-hidden="true">{LAYER_KINDS.map(kind => <i key={kind} className={state.layers[kind] ? 'is-on' : undefined}
-              style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} />)}</span>
+              style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} />)}</span><span>Layers</span>
           </button>
           {/* A short landscape stage shows the chips inline, always open. */}
           <div id={`${menuIds}-layers`} className="layer-bar ua-dock-tray" role="group" aria-label="Layers" hidden={menu !== 'layers' && !shortLayerDetails}>

@@ -179,6 +179,8 @@
   stroke-width: 17px;
 }
 
+.lantern-host .cifc-label.is-selected .cifc-label-tag { fill: var(--lantern); }
+
 .lantern-host .cifc-label > line {
   stroke: var(--ink);
   stroke-width: 1.5;
