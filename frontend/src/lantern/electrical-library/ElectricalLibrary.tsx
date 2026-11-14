@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useSourcePorts } from '../source-ports';
 import { Empty } from '../components/ui';
+import { ExampleLabel } from '../example-label';
 import { useTopology } from '../topology/TopologyProvider';
 import type { NativeEvidenceDocumentClient } from '../scans/native-evidence-document-types';
 import type { ElectricalLibraryDocument, ElectricalLibraryFrame, ElectricalLibraryPage, ElectricalLibraryPort, ElectricalLibraryReader, ElectricalLibrarySheet } from './types';
@@ -195,6 +196,7 @@ function DrawingPending({ failed, onClose }: { readonly failed: boolean; readonl
         if (!event.nativeEvent.isComposing && !event.defaultPrevented) { event.preventDefault(); onClose(); }
       } else if (event.key === 'Tab') { event.preventDefault(); close.current?.focus(); }
     }}>
+    <ExampleLabel />
     <p role="status">{failed ? 'The drawing source is unavailable.' : 'Preparing drawing…'}</p>
     <button ref={close} type="button" className="btn btn-small" onClick={onClose}>Close drawing</button>
   </section>;

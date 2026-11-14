@@ -4,6 +4,7 @@ import type { HouseData } from '../data/types';
 import { fmtDate, fmtShortDate } from '../data/time';
 import { useSelect, useStore, type AtlasLens, type ViewId } from '../state/store';
 import { Icon } from './Icon';
+import { ExampleLabel } from '../example-label';
 import { KIND_ICON } from './ui';
 import { KIND_LABEL } from '../data/query';
 import { isArchivedEntry } from '../../app/model';
@@ -239,6 +240,7 @@ export function SearchPalette() {
   return (
     <div className="palette-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div ref={dialogRef} className="palette" role="dialog" aria-modal="true" aria-label="Search the atlas" tabIndex={-1}>
+        <ExampleLabel />
         <div className="palette-input">
           <Icon name="search" size={20} />
           <input

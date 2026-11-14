@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useSyncExternalStore, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
+import { ExampleLabel } from '../example-label';
 
 const SHORT_VIEWPORT = '(max-height: 480px)';
 const subscribe = (changed: () => void) => {
@@ -150,7 +151,7 @@ export function LayerDetailsDock({ dock, trigger, id, short, expanded, close, ch
       event.preventDefault(); close();
     }}>
     <header className="ua-layer-details-head">
-      <h2 id={`${id}-title`}>Layer details</h2>
+      <div><ExampleLabel /><h2 id={`${id}-title`}>Layer details</h2></div>
       <button ref={closeButton} type="button" className="ua-layer-details-close" aria-label="Close Layer details" onClick={close}>Close</button>
     </header>
     <div className="ua-layer-details-body">{children}</div>

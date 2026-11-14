@@ -121,6 +121,8 @@ const palette = await compile('../src/lantern/components/SearchPalette.tsx', {
   '../state/store': store, './Icon': icon, './ui': ui, '../../app/model': model,
   '../topology/TopologyProvider': topology,
   '../topology/search': new URL('../src/lantern/topology/search.ts', import.meta.url).href,
+  '../example-label': await compile('../src/lantern/example-label.tsx', {
+    react: new URL('../node_modules/react/index.js', import.meta.url).href, 'react/jsx-runtime': jsxUrl }),
 });
 const { SearchPalette } = await import(palette);
 function nodes(node) {

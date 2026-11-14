@@ -171,7 +171,7 @@ export function createCaptureDraftAdapter(options: Options) {
   };
   const drafts = () => controller ??= createCaptureDrafts((options.openStore ?? openDraftStore)(), host);
   const port: CaptureDraftPort = {
-    current, prepare: refreshBoundary, invalidate: () => invalidate(),
+    current, foreground: options.foreground, prepare: refreshBoundary, invalidate: () => invalidate(),
     unavailableReason: () => coordinationUnavailable ? 'Local drafts are disabled because cross-tab session coordination is unavailable in this browser.' : null,
     operation() {
       const operation = new AbortController(); operations.add(operation);
