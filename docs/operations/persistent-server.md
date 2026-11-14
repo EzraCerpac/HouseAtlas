@@ -153,6 +153,8 @@ HouseAtlas only sends GET requests.
 3. Signed in as one of those Editors, press **Refresh from HomeBox** in the
    **Sources** section of the home overview (also shown under Changes). Only
    those Editors see the button, including before anything has been cached.
+   The button loads when that section opens; the saved offline app holds it,
+   but offline it is not offered.
    The first press registers the source; each press reads the collection once
    and replaces the cached copy, or records an ordinary failure (for example a
    timeout) and keeps the previous copy.

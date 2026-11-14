@@ -2,7 +2,7 @@
  * decides whether the button is offered; only a press sends the refresh POST,
  * never a mount, view change or the service worker. */
 
-import type { ReadyView } from '../app/types.ts';
+import type { RefreshHostPort, RefreshToken } from './homebox-withheld.ts';
 
 export type Availability = 'available' | 'unavailable';
 export type RefreshResult =
@@ -83,25 +83,6 @@ export function describeRefresh(result: RefreshResult, format: (iso: string) => 
   }
 }
 
-/** The local stand-in after a revocation the view could not re-read: no
- * HomeBox entries, and each HomeBox cache as the server's quarantine marker. */
-export function withholdHomebox(view: ReadyView): ReadyView {
-  return {
-    ...view,
-    entries: view.entries.filter(entry => entry.source.sourceKind !== 'homebox-entity'),
-    caches: view.caches.map(cache => cache.owner === 'homebox'
-      ? { owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked' } : cache),
-  };
-}
-
-/** Which views a recorded revocation withholds: every later view of the same
- * home in the same session, not only the object current at the press. */
-export interface Withheld { readonly scope: Scope; readonly session: string | undefined }
-export function shownView(view: ReadyView, session: string | undefined, withheld: Withheld | null): ReadyView {
-  return withheld && withheld.session === session && withheld.scope.workspaceId === view.scope.workspaceId
-    && withheld.scope.homeId === view.scope.homeId ? withholdHomebox(view) : view;
-}
-
 /** Read-only admission for the current session; sends nothing to HomeBox. */
 export async function readAvailability(scope: Scope, transport: typeof fetch, signal?: AbortSignal): Promise<Availability | null> {
   try {
@@ -136,8 +117,6 @@ export async function requestRefresh(scope: Scope, transport: typeof fetch, onli
   }
 }
 
-/** The home and signed-in session a refresh belongs to. */
-export interface RefreshToken { readonly workspaceId: string; readonly homeId: string; readonly session: string | undefined }
 const same = (a: RefreshToken, b: RefreshToken | null) =>
   b !== null && a.workspaceId === b.workspaceId && a.homeId === b.homeId && a.session === b.session;
 const keyOf = (token: RefreshToken) => JSON.stringify([token.workspaceId, token.homeId, token.session ?? null]);
@@ -150,24 +129,17 @@ const IDLE: RefreshState = { offered: false, busy: false, result: null, reconcil
  * after a revocation, `withhold` hides HomeBox entries so text and content agree.
  *
  * Every effect after an await is fenced: it applies only while the host is
- * attached and `current()` still names the pressed home and session. Otherwise
+ * live and `current()` still names the pressed home and session. Otherwise
  * the rest is dropped; the server's result stands and the view now shown is
  * untouched. A button only reads this state; one that is not mounted misses
  * nothing, and a remounted one shows the refresh still running, or its result. */
-export function createRefreshOwner(options: {
+export function createRefreshOwner(options: RefreshHostPort & {
   readonly transport: typeof fetch;
   readonly online: () => boolean;
-  /** The home and session the host shows now. */
-  readonly current: () => RefreshToken | null;
-  /** Re-reads the view the host shows now. */
-  readonly reload: () => Promise<boolean>;
-  /** Hides (true) or restores (false) HomeBox entries of that home and session. */
-  readonly withhold: (token: RefreshToken, on: boolean) => void;
 }) {
-  let attached = false;
   const states = new Map<string, RefreshState>();
   const listeners = new Set<() => void>();
-  const live = (token: RefreshToken) => attached && same(token, options.current());
+  const live = (token: RefreshToken) => options.live() && same(token, options.current());
   const set = (token: RefreshToken, next: Partial<RefreshState> | null) => {
     if (next) states.set(keyOf(token), { ...(states.get(keyOf(token)) ?? IDLE), ...next });
     else states.delete(keyOf(token));
@@ -176,8 +148,6 @@ export function createRefreshOwner(options: {
   return {
     stateFor: (token: RefreshToken): RefreshState => states.get(keyOf(token)) ?? IDLE,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    /** The host attaches while mounted; detaching drops every refresh in flight. */
-    attach() { attached = true; return () => { attached = false; }; },
     async check(token: RefreshToken, signal?: AbortSignal) {
       const availability = await readAvailability(token, options.transport, signal);
       if (!signal?.aborted && live(token)) set(token, { offered: availability === 'available' });
@@ -205,3 +175,8 @@ export function createRefreshOwner(options: {
   };
 }
 export type RefreshOwner = ReturnType<typeof createRefreshOwner>;
+
+/** The host's one owner, created on first use and kept by the host. */
+export const ownerOf = (port: RefreshHostPort) => port.owner ??= createRefreshOwner({
+  ...port, transport: (input, init) => globalThis.fetch(input, init), online: () => globalThis.navigator?.onLine !== false,
+});

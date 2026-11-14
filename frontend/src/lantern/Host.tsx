@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { createRefreshOwner, shownView, type RefreshToken, type Withheld } from './homebox-refresh.ts';
+import { shownView, type RefreshHostPort, type RefreshToken, type Withheld } from './homebox-withheld.ts';
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
@@ -136,14 +136,14 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   // closing the panel never drops its result; a home or session change does.
   const rendered = useRef<{ token: RefreshToken; reload: () => Promise<boolean> }>(null);
   rendered.current = { token: { workspaceId: view.scope.workspaceId, homeId: view.scope.homeId, session }, reload: actions.reload };
-  const [homeboxRefresh] = useState(() => createRefreshOwner({
-    transport: (input, init) => globalThis.fetch(input, init),
-    online: () => globalThis.navigator?.onLine !== false,
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [homeboxRefresh] = useState<RefreshHostPort>(() => ({
+    live: () => mounted.current,
     current: () => rendered.current?.token ?? null,
     reload: () => rendered.current ? rendered.current.reload() : Promise.resolve(false),
     withhold: (token, on) => setWithheld(on ? { scope: { workspaceId: token.workspaceId, homeId: token.homeId }, session: token.session } : null),
   }));
-  useEffect(() => homeboxRefresh.attach(), [homeboxRefresh]);
   const projection = useMemo(() => projectView(shown, current, currentHistory, loadMoreOperations, includeArchived), [shown, current, currentHistory, loadMoreOperations, includeArchived]);
   const archiveVisibility = useMemo(() => ({ included: includeArchived, setIncluded: (included: boolean) => {
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;

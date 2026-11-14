@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, lazy, Suspense, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -26,7 +26,6 @@ import {
   unplaced,
 } from '../data/query';
 import { fmtDate, fmtDateTime, rel } from '../data/time';
-import { describeRefresh, type RefreshOwner } from '../homebox-refresh.ts';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -256,33 +255,21 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
   </dl></Section>;
 }
 
-/** Offered only when the server's admission read says this signed-in Editor
- * may refresh a configured source, with or without an existing cache. */
-function HomeboxRefresh() {
-  const owner = useStore().actions.homeboxRefresh;
-  return owner ? <HomeboxRefreshButton owner={owner} /> : null;
-}
+// The refresh controller and its button are not part of startup.
+const HomeboxRefreshButton = lazy(() => import('./HomeboxRefreshButton'));
 
-/** A view of the host's refresh state for this home and session; the host
- * reconciles the result whether or not this button is still mounted. */
-function HomeboxRefreshButton({ owner }: { readonly owner: RefreshOwner }) {
-  const { projection, actions } = useStore();
-  const { workspaceId, homeId } = projection.view.scope;
-  const session = actions.session?.expiresAt;
-  const token = useMemo(() => ({ workspaceId, homeId, session }), [workspaceId, homeId, session]);
-  useEffect(() => {
-    const abort = new AbortController();
-    void owner.check(token, abort.signal);
-    return () => abort.abort();
-  }, [owner, token]);
-  const state = useSyncExternalStore(owner.subscribe, () => owner.stateFor(token));
-  if (!state.offered) return null;
-  return <div><dt>HomeBox refresh</dt><dd>
-    <button type="button" className="btn" disabled={state.busy} onClick={() => { void owner.press(token); }}>
-      {state.busy ? 'Refreshing from HomeBox…' : 'Refresh from HomeBox'}
-    </button>
-    <p role="status" aria-live="polite">{state.result ? describeRefresh(state.result, fmtDateTime, state.reconciled) : ''}</p>
-  </dd></div>;
+/** Offered only when the server's admission read says this signed-in Editor
+ * may refresh a configured source, with or without an existing cache. Nothing
+ * shows while the button loads; if it cannot load (for example offline), the
+ * refresh is simply not offered. */
+function HomeboxRefresh() {
+  const port = useStore().actions.homeboxRefresh;
+  return port ? <NotOfferedOnFailure><Suspense fallback={null}><HomeboxRefreshButton port={port} /></Suspense></NotOfferedOnFailure> : null;
+}
+class NotOfferedOnFailure extends Component<{ readonly children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 // ---------------- Room ----------------

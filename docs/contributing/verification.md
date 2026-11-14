@@ -51,7 +51,8 @@ mounted afterwards shows the result; a home switch, sign-out or host teardown
 during the POST or the re-read drops the rest of the press (no re-read of the
 pressed home, no withholding, no status) and leaves the other home's view and
 pending read untouched, for both a refresh and a 401, and a late admission
-answer is dropped too; offline sends nothing;
+answer is dropped too; the lazily loaded button keeps one owner per host
+port; offline sends nothing;
 decoding is strict. With the seven native local drafts cases from #636 the
 inventory is 92 SOURCE / 1 BUILD / 11 BROWSER (104 total). No workflow command, runner, browser entry or held
 selection is added. None of this makes a live HomeBox read or establishes

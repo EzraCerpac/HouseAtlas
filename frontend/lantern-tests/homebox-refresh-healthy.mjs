@@ -4,7 +4,8 @@
 // POST, and every recorded answer re-reads the view. A generated server model
 // with the route's answer shapes; no browser, network, HomeBox or credential.
 import assert from 'node:assert/strict';
-import { createRefreshOwner, decodeAvailability, decodeRefreshResult, describeRefresh, requestRefresh, shownView, withholdHomebox } from '../src/lantern/homebox-refresh.ts';
+import { createRefreshOwner, decodeAvailability, decodeRefreshResult, describeRefresh, ownerOf, requestRefresh } from '../src/lantern/homebox-refresh.ts';
+import { shownView, withholdHomebox } from '../src/lantern/homebox-withheld.ts';
 
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const format = iso => iso.slice(0, 16).replace('T', ' ');
@@ -48,15 +49,17 @@ function server({ role = 'editor', approved = true, configured = true } = {}) {
 }
 const SESSION = 'session-1';
 const token = { ...scope, session: SESSION };
-/** The production owner as an attached host holds it, whose shown home and
+/** The production owner as a live host holds it, whose shown home and
  * session are `model.current` (default: the pressed ones), seen through one
  * button for `token`. Each press supplies the host's reload and withholding. */
 function control(model, transport = model.transport) {
+  model.live = true;
   const owner = createRefreshOwner({ transport, online: () => model.online !== false,
+    live: () => model.live,
     current: () => model.current === undefined ? token : model.current,
     reload: () => model.hostReload(),
     withhold: (pressed, on) => { assert.deepEqual(pressed, token); model.hostWithhold(on); } });
-  model.detach = owner.attach();
+  model.detach = () => { model.live = false; };
   return {
     check: signal => owner.check(token, signal),
     getSnapshot: () => owner.stateFor(token),
@@ -231,6 +234,15 @@ for (const upstream of ['ok', 'unauthorized']) {
   });
   await refresh.check();
   assert.equal(refresh.getSnapshot().offered, false, 'Nothing is offered for a home no longer shown');
+}
+
+// The lazily loaded button keeps one owner per host port, so a remounted
+// button sees the same refresh; the port itself holds no controller code.
+{
+  const port = { live: () => true, current: () => token, reload: async () => true, withhold: () => {} };
+  const first = ownerOf(port);
+  assert.equal(ownerOf(port), first);
+  assert.equal(port.owner, first);
 }
 
 // The local stand-in matches the server's quarantine marker and drops entries.
