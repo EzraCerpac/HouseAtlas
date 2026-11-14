@@ -240,7 +240,9 @@ Every prior selection, including the separate `--electrical` case, remains;
 the broad default regression suite is not enabled and each entry retains
 its 180000 ms limit. The generated fixture uses the actual stored Atlas and
 native compact layer dialog to check unchanged modal/focus/stage through an
-identical fresh-read settlement, then retirement on denial. No production
+identical fresh-read settlement, then retirement on denial. The runner waits for
+the browser child to close and retries removing its profile folder for a bounded
+time; a folder that remains still fails the case and names its path. No production
 source, workflow, sandbox or other budget changes. These authored controls are
 NOT RUN locally; final exact-head hosted execution is required. Registration
 and byte audits do not establish #292 completion or device acceptance.
@@ -5467,6 +5469,7 @@ or paint evidence. The host case requires the trace at the first animation
 callback after a trusted click, with unchanged read counters and no browser
 request; the input-to-DOM-observation time is logged as informational and
 asserted only to be finite and ordered, never as a 60 Hz or one-frame bound.
+Each no-request baseline is sampled only after all started browser requests have finished and none has begun for 300 ms.
 No local test/build/compiler, typecheck/syntax/formatter/browser ran; final composed-head hosted CI remains
 required. Earlier 81/1/9 counts describe the prior candidate. Existing #552
 source/writer and ownership boundaries remain; no new workflow or authority.
