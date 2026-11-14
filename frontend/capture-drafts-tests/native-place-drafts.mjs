@@ -53,7 +53,7 @@ const hookKey = Symbol.for('native-draft-panel-hooks'), hooks = globalThis[hookK
 const hookModule = `const h = globalThis[Symbol.for('native-draft-panel-hooks')];
 export function useState(init) { const i = h.slot++; if (!(i in h.state)) h.state[i] = init; return [h.state[i], v => { h.state[i] = typeof v === 'function' ? v(h.state[i]) : v; }]; }
 export function useRef(current) { const i = h.slot++; if (!(i in h.state)) h.state[i] = { current }; return h.state[i]; }
-export function useEffect() {}`;
+export function useEffect(effect) { if (h.effects && !h.mounted) h.effects.push(effect); }`;
 const panelOutput = await build({ configFile: false, root: here('..'), logLevel: 'error',
   build: { ssr: true, write: false, sourcemap: false, minify: false,
     rollupOptions: { input: here('../src/capture-drafts-ui/Panel.tsx'), external: ['react', 'react/jsx-runtime'] } } });
@@ -65,11 +65,17 @@ globalThis.requestAnimationFrame ??= () => 0;
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 /** One Panel instance: opt in, activate a named button, then read its visible status and listed rows. */
-function mountPanel(port, candidate = () => null) {
-  hooks.state = [];
+function mountPanel(port, candidate = () => null, { effects = false } = {}) {
+  hooks.state = []; hooks.effects = effects ? [] : null; hooks.mounted = false;
   const render = () => { hooks.slot = 0; return nodes(HookedPanel({ port, source: null, recordId: placeId, candidate, canSave: true,
     parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} })); };
+  // Optionally run the mount effects once, e.g. the invalidation subscription that clears the panel.
+  render(); for (const effect of hooks.effects ?? []) effect(); hooks.mounted = true;
   return {
+    /** Activate a button without waiting for the action to settle. */
+    press(label) { const button = render().find(node => node.type === 'button' && text(node) === label); assert(button && !button.props.disabled, label); button.props.onClick(); },
+    status: () => text(render().find(node => node.props?.role === 'status')),
+    busy: () => render()[0].props['aria-busy'],
     optIn() { render().find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } }); },
     /** Tick the checkbox whose label contains this text. */
     check(label) { const box = render().find(node => node.type === 'label' && text(node).includes(label)); nodes(box.props.children).find(node => node.type === 'input').props.onChange({ target: { checked: true } }); },
@@ -273,6 +279,20 @@ try {
     assert.equal(await shown.click('Confirm upload'), 'Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
     assert.deepEqual(shown.rows().map(listed => listed.split('Saved ')[0]), [`${original.name} · ${original.size} bytes · Outcome unknown`]);
     assert.equal(g.calls.post, 1); assert.equal(g.shared.rows[0].state, 'outcome-unknown');
+    // Adversarial: the re-list completes only after an invalidation (sign-out, scope or place
+    // change, closing the panel). Its rows and the outcome status must not reappear.
+    const h = fixture();
+    let gate = null;
+    const late = { ...h.port, list: () => gate ? gate.promise : h.port.list(), submit: async () => { throw new Error('Synthetic lost reply'); } };
+    const fenced = mountPanel(late, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }), { effects: true });
+    fenced.optIn(); await fenced.click('Save local draft'); await fenced.click(`Review ${original.name}`);
+    fenced.check('Upload this saved file');
+    gate = Promise.withResolvers(); fenced.press('Confirm upload');
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+    h.port.invalidate();
+    gate.resolve([{ ...(await h.port.list())[0], state: 'outcome-unknown' }]);
+    for (let i = 0; i < 200 && fenced.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+    assert.equal(fenced.busy(), false); assert.deepEqual(fenced.rows(), []); assert.equal(fenced.status(), '');
     await f.save();
     f.shared.lostReply = true;
     await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));

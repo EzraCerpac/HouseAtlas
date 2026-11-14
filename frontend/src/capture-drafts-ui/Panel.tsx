@@ -74,8 +74,13 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   }, error => (error as Error | null)?.name !== 'DraftLimitError' ? null : (error as DraftLimitError).limit === 'count'
     ? `Local draft not saved: this browser already holds the maximum of ${DRAFT_LIMITS.count} local drafts, including any for other places or accounts.`
     : `Local draft not saved: it would exceed the ${DRAFT_LIMITS.totalBytes / 1024 / 1024} MiB total for local drafts in this browser, including any for other places or accounts.`);
-  // The stored rows as they are now, for the current account and this place.
-  const relist = async () => { try { const rows = (await port.list()).filter(mine); setSummaries(rows); return rows; } catch { return null; } };
+  // The stored rows as they are now, for the current account and this place. Like every
+  // other action, a result arriving after this operation was invalidated is discarded.
+  const relist = async (signal: AbortSignal) => {
+    let rows: DraftSummary[];
+    try { rows = (await port.list()).filter(mine); } catch { return null; }
+    signal.throwIfAborted(); setSummaries(rows); return rows;
+  };
   const resume = (id: string) => void run(async signal => {
     setReview(null); setInspection(null); setConfirmed(false);
     if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
@@ -92,20 +97,22 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     catch (error) {
       // A failed send leaves the row as stored before sending; show that state now, without a reload.
       signal.throwIfAborted();
-      if ((await relist())?.some(row => row.id === selectedId && row.state === 'outcome-unknown')) {
+      if ((await relist(signal))?.some(row => row.id === selectedId && row.state === 'outcome-unknown')) {
         setStatus('Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
         return;
       }
       throw error;
     }
     signal.throwIfAborted();
+    // Re-list while this operation can still be invalidated, before releasing it.
+    if (!completion.committed) await relist(signal);
     // Release the foreground lease before the ordinary view refresh masks the
     // scope. Local acknowledgement already ran before this refresh.
     active.current?.release();
     if (completion.committed) {
       setSummaries([]);
       setStatus(completion.localCleanup === 'removed' ? 'Saved. The local draft was removed.' : 'Saved. Local cleanup could not be confirmed; the local attempt remains locked.');
-    } else { await relist(); setStatus('The upload was not committed. The local attempt remains locked with an unknown outcome.'); }
+    } else setStatus('The upload was not committed. The local attempt remains locked with an unknown outcome.');
     await onSubmitted(completion);
   });
   const inspect = (id: string) => void run(async signal => {
