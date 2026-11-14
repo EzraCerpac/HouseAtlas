@@ -1272,9 +1272,11 @@ check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
 triangles, contact shading) and that the view redraws afterwards.
 `?render-probe=drag` skips that check; with either address, each drag of the
-unified Atlas shows one line once the finger lifts (median and worst frame time,
-frame count, backend, moving and still pixel ratios). No CI selection drags the
-view, so that line is device evidence only, never a CI result.
+unified Atlas shows two lines once the finger lifts: median and worst frame time,
+when the worst came and its cause (settle, main thread, first frame, ratio change,
+resize or other), frames over 50 ms by cause, drawing-buffer resizes after the
+first frame, backend, moving and still pixel ratios. No CI selection drags the
+view, so those lines are device evidence only, never a CI result.
 
 The report's startup diagnostics distinguish dynamic module import, adapter
 selection/renderer construction, renderer initialization, scene-graph setup,
@@ -3064,9 +3066,12 @@ malformed/omission, denial, replay, expiry, private-intake or browser test.
 The same runner checks the pure moving-frame pixel-ratio rule MeshLayer uses
 (`canonical-ifc/move-resolution.ts`, #312): still frames keep the device ratio up
 to 2, a coarse pointer starts moving frames at one pixel per layout pixel, and
-generated GPU times move the ratio only within its floor and the still ratio. A
-generated paused touch drag stays a drag until it lifts and picks nothing. No
-renderer, GPU timing, browser or phone frame time is exercised.
+generated GPU times move the ratio only within its floor and the still ratio, by
+a motion's median and with a band a step up cannot leave. Generated drags keep one
+drawing-buffer size from their first moving frame to their last, even when a new
+ratio is learned mid-drag; the next drag takes it. A generated paused touch drag
+stays a drag until it lifts and picks nothing. No renderer, GPU timing, browser or
+phone frame time is exercised.
 
 The same named healthy runner also checks generated section targets, current
 clip visibility during a sweep, retargeting, and exact settled/reduced-motion

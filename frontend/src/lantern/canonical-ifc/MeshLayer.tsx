@@ -3,7 +3,7 @@ import type { PreparedMesh, Projection } from './geometry';
 import { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
 import type { AppearanceInput } from './mesh-appearance';
 import type { MeshScene } from './mesh-scene';
-import { adaptMoveRatio, clampMoveRatio, startMoveRatio, stillRatio } from './move-resolution';
+import { bufferSize, clampMoveRatio, motionRatio, nextMotion, startMoveRatio, stillRatio, type Motion } from './move-resolution';
 import type { DragReadout } from './render-probe';
 import { SceneBuildObservation } from './scene-build-observation';
 
@@ -39,12 +39,11 @@ const SETTLE_MS = 180, FADE_MS = 240;
 const REFINE_MS = 400;
 /** Moving frames draw at this pixel ratio (move-resolution.ts). It starts where the device
  * class suggests and adapts to the GPU time of moving frames (WebGPU only: WebGL2 has no cheap
- * way to read that time). A still view always draws at full resolution. Learned once per page,
+ * way to read that time). It is chosen when a motion starts and kept until the view is still
+ * again, so the drawing buffer never changes size in the middle of a drag; a new ratio applies
+ * to the next motion. A still view always draws at full resolution. Learned once per page,
  * so a new canvas starts where the last one settled. */
 let moveRatio: number | null = null;
-/** One moving frame in this many is timed. The GPU queue is drained first, so the time is
- * that frame's own and not the backlog of frames submitted ahead of it. */
-const MEASURE_EVERY = 8;
 /** A new stage of the scene (mesh-scene.ts STAGES) cross-fades in over this long: a copy
  * of the last frame of the stage before fades out over it. */
 const STAGE_FADE_MS = 400;
@@ -118,8 +117,12 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
     let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false, probing = false, buildMs = 0;
-    // Moving frames since the last timed one; whether the next moving frame is timed; whether drawing waits on the GPU queue (and a frame is pending).
-    let untimed = 0, timeNext = false, waiting = false, deferred = false;
+    // The motion in progress: its pixel ratio and the GPU time of its frames (WebGPU), from when each was
+    // submitted (or the frame before finished, if later) until the GPU finished it.
+    let motion: Motion | null = null, lastDone = -Infinity;
+    // A still frame (contact shading, full resolution) the GPU has not finished yet; the next one waits for it,
+    // so a drag that begins meanwhile is never queued behind more than one. Whether a waiting frame only refines.
+    let stillInFlight = false, stillWaiting: boolean | null = null;
     let observation: SceneBuildObservation | undefined;
     let clearFade: (() => void) | null = null;
     // The scene builds over several frames; releasing the canvas abandons that build.
@@ -133,15 +136,14 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
     let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
     // Whether the pending frame only refines the last one, until when refining may go on, and when the last frame was drawn.
-    let refineOnly = false, refineUntil = 0, drawnAt = 0;
+    let refineOnly = false, refineUntil = 0, drawnAt = 0, drawnSize: readonly [number, number] = [0, 0];
     // A paused drag stays a moving view; letting go redraws and starts the wait again.
     const still = () => { settle = null; if (latest.current.interacting) return; fading = performance.now(); schedule(); };
     let readout: DragReadout | null = null;
     if (PROBE) void (dragReadout ??= import('./render-probe').then(module => module.createDragReadout())).then(made => { readout = made; }, () => undefined);
     const schedule = (refine = false) => {
       if (!refine) refineOnly = false;
-      if (waiting) deferred = true;
-      if (disposed || !scene || frame !== null || document.hidden || probing || waiting) return;
+      if (disposed || !scene || frame !== null || document.hidden || probing) return;
       refineOnly = refine;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
     };
@@ -160,11 +162,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     };
     const visibility = () => { if (!document.hidden) schedule(); };
     /** The drawing buffer: layout size at `ratio` drawing-buffer pixels per layout pixel (a still frame's by default), within RENDER_LIMITS.pixels. */
-    const size = (dpr = stillRatio(window.devicePixelRatio)): [number, number] => {
-      const w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
-      const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h)));
-      return [Math.max(1, Math.floor(w * fit)), Math.max(1, Math.floor(h * fit))];
-    };
+    const size = (dpr = stillRatio(window.devicePixelRatio)): [number, number] =>
+      bufferSize(element.clientWidth, element.clientHeight, dpr, RENDER_LIMITS.pixels);
     /** The speed check takes over the canvas while it runs; normal drawing resumes after. */
     const probe = async (shownAt: number) => {
       // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in),
@@ -206,9 +205,10 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (!scene.canRender()) return;
       // A refining frame is expected to cost about what the last one did.
       const now = performance.now(), refine = refineOnly; refineOnly = false;
+      if (!moved.current && (fading !== null || shading > 0) && stillInFlight) { stillWaiting = refine; return; }
       if (!refine) refineUntil = now + REFINE_MS; else if (2 * now - drawnAt > refineUntil) return;
       if (moved.current) {
-        moved.current = false; shading = 0; fading = null; clearFade?.(); clearFade = null;
+        moved.current = false; shading = 0; fading = null; stillWaiting = null; clearFade?.(); clearFade = null;
         if (settle !== null) clearTimeout(settle); settle = null;
       }
       if (fading !== null) {
@@ -216,9 +216,12 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         if (shading < 1) schedule(); else fading = null;
       } else if (shading < 1 && settle === null && !p.interacting) settle = setTimeout(still, SETTLE_MS);
       // Frames without contact shading are the moving ones (and the moment before the view settles).
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = window.devicePixelRatio || 1, moving = shading <= 0;
       moveRatio = clampMoveRatio(moveRatio ?? startMoveRatio(dpr, window.matchMedia?.('(pointer: coarse)').matches === true), dpr);
-      const moving = shading <= 0, ratio = moving ? moveRatio : stillRatio(dpr), [w, h] = size(ratio);
+      // A still frame ends the motion; its frames' median GPU time sets the next motion's ratio.
+      const ended = motion; motion = nextMotion(motion, moving, moveRatio);
+      if (ended && !motion) moveRatio = motionRatio(moveRatio, ended.frameMs, dpr) ?? moveRatio;
+      const ratio = motion?.ratio ?? stillRatio(dpr), [w, h] = size(ratio);
       // A newly prepared stage: the frame as it was, copied and faded out over the first frame
       // of the new stage. Contact shading fades in by its own strength instead.
       const next = scene.pending();
@@ -237,25 +240,24 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
       // A moving frame is one submission at its end, so from here on the time is the GPU's
       // (plus however long this thread takes to see it finish), not this frame's encoding.
-      const submitted = performance.now();
+      const submitted = performance.now(), finished = scene.backend === 'webgpu' ? scene.finished() : null;
+      if (finished && motion && scene.complete()) {
+        const { frameMs } = motion;
+        void finished.then(() => { const done = performance.now(); frameMs.push(done - Math.max(submitted, lastDone)); lastDone = done; }, () => undefined);
+      }
+      if (finished && !moving) {
+        stillInFlight = true;
+        void finished.catch(() => undefined).finally(() => {
+          stillInFlight = false;
+          if (stillWaiting !== null) { const refining = stillWaiting; stillWaiting = null; schedule(refining); }
+        });
+      }
       if (readout) {
-        if (moving && p.interacting) readout.frame(now, scene.backend === 'webgpu' ? scene.finished() : null, ratio, stillRatio(dpr), scene.backend);
-        else readout.end();
+        const resized = w !== drawnSize[0] || h !== drawnSize[1];
+        if (moving && p.interacting) readout.frame({ start: now, submitted, finished, ratio, still: stillRatio(dpr), backend: scene.backend, resized });
+        else readout.other(finished, !moving);
       }
-      // A shaded frame drawn after a drain queues work of its own, so the pending sample waits for the next drain.
-      if (!moving) timeNext = false;
-      else if (scene.backend === 'webgpu' && scene.complete()) {
-        const timed = timeNext; timeNext = false;
-        if (timed || ++untimed >= MEASURE_EVERY) {
-          untimed = 0; waiting = true;
-          // Either drain the queue ahead of the next moving frame, or time this one on a drained queue.
-          void scene.finished().then(() => {
-            if (timed && !disposed) {
-              moveRatio = adaptMoveRatio(moveRatio ?? ratio, performance.now() - submitted, window.devicePixelRatio || 1);
-            } else timeNext = true;
-          }, () => undefined).finally(() => { waiting = false; if (deferred) { deferred = false; schedule(); } });
-        }
-      }
+      drawnSize = [w, h];
       finishFirstDraw?.();
       drawnAt = now; stale.current = false; ready();
     };
