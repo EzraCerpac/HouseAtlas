@@ -1,5 +1,6 @@
-// Rewrites the publication source manifest's file rows from the working tree, using the walk and file rules of verify-source.mjs. Reads the
-// tree and the named manifests; writes only the manifest, and nothing in --check.
+// Rewrites the publication source manifest's file rows (path, mode, owner; one line each) from the working tree, using the walk and file rules of
+// verify-source.mjs. Reads the tree and the named manifests; writes only the manifest, and nothing in --check. A format/1 manifest is upgraded to
+// format/2 (its per-file bytes and sha256 and its digest-algorithm field are dropped).
 // Never runs controls, Git or network calls.
 //
 //   node tools/publication/refresh-manifest.mjs [--check] [--root DIR]
@@ -12,7 +13,6 @@
 // another owner for a kept row is reported, not applied.
 // Exit 0: written or already current. 1: --check found drift. 2: refused, or
 // an unexpected error.
-import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,11 @@ import { parseArgs } from 'node:util';
 const manifestPath = 'docs/publication/source-manifest.json';
 const ignored = new Set(['.git', 'node_modules', 'dist']);
 const safePath = path => /^[a-zA-Z0-9._/-]+$/.test(path) && !path.split('/').some(p => p === '..' || p === '.' || !p);
-const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const format = 'houseatlas-publication-source/2', previousFormat = 'houseatlas-publication-source/1';
+// Everything but the rows is indented JSON; each row is one compact line, so a file added or removed is a one-line change.
+const serialize = manifest => '{\n' + Object.entries(manifest).map(([key, value]) => key === 'files'
+  ? `  "files": [\n${value.map(row => `    ${JSON.stringify(row)}`).join(',\n')}\n  ]`
+  : `  ${JSON.stringify(key)}: ${JSON.stringify(value, null, 2).replaceAll('\n', '\n  ')}`).join(',\n') + '\n}\n';
 
 class Refusal extends Error {}
 const refuse = message => { throw new Refusal(message); };
@@ -80,7 +84,11 @@ function refresh(argv) {
   const root = values.root === undefined ? fileURLToPath(new URL('../../', import.meta.url)) : resolve(values.root);
   const file = join(root, manifestPath);
   const { text: before, manifest } = readManifest(file, 'manifest');
-  if (manifest.format !== 'houseatlas-publication-source/1') refuse(`${manifestPath}: unexpected format ${JSON.stringify(manifest.format)}`);
+  if (manifest.format !== format && manifest.format !== previousFormat) refuse(`${manifestPath}: unexpected format ${JSON.stringify(manifest.format)}`);
+  const upgraded = manifest.format === previousFormat;
+  manifest.format = format;
+  delete manifest.sourceDigestAlgorithm;
+  delete manifest.sourceDigestSha256;
   if (JSON.stringify(manifest.self) !== JSON.stringify({ path: manifestPath, mode: '100644', digest: 'anchored-by-reviewed-tree' })) {
     refuse(`${manifestPath}: unexpected self entry`);
   }
@@ -134,16 +142,10 @@ function refresh(argv) {
 
   const unsafe = rows.map(row => row.path).filter(path => !safePath(path));
   if (unsafe.length) refuse(`paths outside [a-zA-Z0-9._/-] or with empty, . or .. segments:\n${listed(unsafe)}`);
-  manifest.files = rows.map(({ path, owner }) => {
-    const full = join(root, path), bytes = readFileSync(full);
-    return { path, mode: (lstatSync(full).mode & 0o111) ? '100755' : '100644', bytes: bytes.length, sha256: hash(bytes), owner };
-  });
-  // verify-source.mjs computes and prints the aggregate digest; a stored copy is dropped.
-  const droppedDigest = Object.hasOwn(manifest, 'sourceDigestSha256');
-  delete manifest.sourceDigestSha256;
-  const after = JSON.stringify(manifest, null, 2) + '\n';
+  manifest.files = rows.map(({ path, owner }) => ({ path, mode: (lstatSync(join(root, path)).mode & 0o111) ? '100755' : '100644', owner }));
+  const after = serialize(manifest);
 
-  const old = new Map(JSON.parse(before).files.map(row => [row.path, JSON.stringify(row)]));
+  const old = new Map(JSON.parse(before).files.map(({ path, mode, owner }) => [path, JSON.stringify({ path, mode, owner })]));
   const added = actual.filter(path => !old.has(path));
   const removed = [...old.keys()].filter(path => !present.has(path));
   const changed = manifest.files.filter(row => old.has(row.path) && old.get(row.path) !== JSON.stringify(row)).map(row => row.path);
@@ -155,11 +157,11 @@ function refresh(argv) {
     return 0;
   }
   if (values.check) {
-    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || (droppedDigest ? 'stored aggregate digest removed' : 'formatting only')}${kept}`);
+    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || (upgraded ? 'upgraded to format/2: per-file digests removed' : 'formatting only')}${kept}`);
     return 1;
   }
   writeFileSync(file, after);
-  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || (droppedDigest ? 'stored aggregate digest removed' : 'formatting only')}${kept}`);
+  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || (upgraded ? 'upgraded to format/2: per-file digests removed' : 'formatting only')}${kept}`);
   return 0;
 }
 

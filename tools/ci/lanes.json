@@ -160,8 +160,8 @@
       "run": ["npm run verify:publication"],
       "toolchain": ["node", "npm"],
       "files": ["package.json", "tools/publication/verify-source.mjs", "docs/publication/source-manifest.json"],
-      "scope": "Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template.",
-      "claims": [["docs/contributing/verification.md", "`verify:publication` checks the explicit current regular-file set, modes, digests, logical ownership and unconfigured deployment template"]]
+      "scope": "Exact regular-file set, modes and logical ownership from the source manifest, and the unconfigured deployment template.",
+      "claims": [["docs/contributing/verification.md", "`verify:publication` checks the explicit current regular-file set, modes, logical ownership and unconfigured deployment template"]]
     },
     {
       "id": "core.publication-refresh",

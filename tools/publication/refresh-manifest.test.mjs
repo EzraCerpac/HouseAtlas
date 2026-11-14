@@ -3,7 +3,6 @@
 // or written. The last case runs a temporary copy of verify-source.mjs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -14,26 +13,19 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(new URL('./refresh-manifest.mjs', import.meta.url));
 const repo = new URL('../../', import.meta.url);
 const manifestPath = 'docs/publication/source-manifest.json';
-const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const owners = ['alpha', 'beta'];
 // "src-a.txt" sorts before "src/..." by full path, after it in a per-directory walk.
 const initial = { 'README.md': 'alpha', 'src-a.txt': 'beta', 'src/run.sh': 'beta', 'src/z.json': 'alpha' };
 
-// Independent of the script: rows as verify-source.mjs checks them.
+const head = { format: 'houseatlas-publication-source/2', status: 'synthetic-test-tree', self: { path: manifestPath, mode: '100644', digest: 'anchored-by-reviewed-tree' }, owners };
+
+// Independent of the script: rows as verify-source.mjs checks them, one compact line each.
 function expectedManifest(root, ownerOf) {
-  const files = Object.keys(ownerOf).sort().map(path => {
-    const bytes = readFileSync(join(root, path));
+  const rows = Object.keys(ownerOf).sort().map(path => {
     const mode = (statSync(join(root, path)).mode & 0o111) ? '100755' : '100644';
-    return { path, mode, bytes: bytes.length, sha256: sha(bytes), owner: ownerOf[path] };
+    return `    {"path":${JSON.stringify(path)},"mode":"${mode}","owner":"${ownerOf[path]}"}`;
   });
-  return JSON.stringify({
-    format: 'houseatlas-publication-source/1',
-    status: 'synthetic-test-tree',
-    self: { path: manifestPath, mode: '100644', digest: 'anchored-by-reviewed-tree' },
-    owners,
-    sourceDigestAlgorithm: 'SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest',
-    files,
-  }, null, 2) + '\n';
+  return JSON.stringify(head, null, 2).replace(/\n}$/, `,\n  "files": [\n${rows.join(',\n')}\n  ]\n}\n`);
 }
 
 function fixture(t) {
@@ -59,34 +51,32 @@ function fixture(t) {
   };
 }
 
-test('unchanged tree is a byte-for-byte no-op and --check passes', t => {
+test('unchanged tree or edited file content is a byte-for-byte no-op and --check passes', t => {
   const f = fixture(t);
   const before = f.manifest();
-  for (const args of [[], ['--check']]) {
-    const result = f.run(...args);
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /is current \(4 rows\)/);
-    assert.equal(f.manifest(), before);
+  for (const edit of [false, true]) {
+    if (edit) f.write('src/z.json', '{"synthetic": false, "edited": true}\n');
+    for (const args of [[], ['--check']]) {
+      const result = f.run(...args);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /is current \(4 rows\)/);
+      assert.equal(f.manifest(), before);
+    }
   }
 });
 
-test('edited file updates bytes and sha256; a stored aggregate digest is dropped', t => {
+test('a format/1 manifest is upgraded: digests and the algorithm field are dropped', t => {
   const f = fixture(t);
-  const before = JSON.parse(f.manifest());
-  f.write('src/z.json', '{"synthetic": false, "edited": true}\n');
-  const result = f.run();
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /changed 1:\n {2}src\/z\.json/);
-  assert.equal(f.manifest(), expectedManifest(f.root, initial));
-  assert.notEqual(JSON.parse(f.manifest()).files.at(-1).sha256, before.files.at(-1).sha256);
-  // An older manifest that stores the aggregate is stale until the field is removed.
-  const { files, ...head } = JSON.parse(f.manifest());
-  writeFileSync(join(f.root, manifestPath), JSON.stringify({ ...head, sourceDigestSha256: '0'.repeat(64), files }, null, 2) + '\n');
+  const { files, ...rest } = JSON.parse(f.manifest());
+  const old = { ...rest, format: 'houseatlas-publication-source/1', sourceDigestAlgorithm: 'x', sourceDigestSha256: '0'.repeat(64),
+    files: files.map(row => ({ path: row.path, mode: row.mode, bytes: 1, sha256: '0'.repeat(64), owner: row.owner })) };
+  writeFileSync(join(f.root, manifestPath), JSON.stringify(old, null, 2) + '\n');
   const check = f.run('--check');
   assert.equal(check.status, 1, check.stderr);
-  assert.match(check.stdout, /is stale; a refresh would change it\nstored aggregate digest removed/);
+  assert.match(check.stdout, /is stale; a refresh would change it\nupgraded to format\/2: per-file digests removed/);
   assert.equal(f.run().status, 0);
   assert.equal(f.manifest(), expectedManifest(f.root, initial));
+  assert.equal(f.run('--check').status, 0);
 });
 
 test('deleted file drops its row', t => {
@@ -150,7 +140,7 @@ test('executable bit change is detected', t => {
 test('--check exits 1 on drift without writing, then 0 after a refresh', t => {
   const f = fixture(t);
   const before = f.manifest();
-  f.write('README.md', 'Synthetic tree, edited\n');
+  chmodSync(join(f.root, 'README.md'), 0o755);
   const check = f.run('--check');
   assert.equal(check.status, 1, check.stderr);
   assert.match(check.stdout, /is stale; a refresh would change it\nchanged 1:\n {2}README\.md/);
@@ -237,13 +227,23 @@ test('output passes a temporary copy of the actual publication verifier', t => {
     mkdirSync(dirname(join(f.root, path)), { recursive: true });
     copyFileSync(new URL(path, repo), join(f.root, path));
   }
-  f.write('src/z.json', '{"synthetic": "edited before verification"}\n');
-  const refreshed = f.run(...copied.flatMap(path => ['--owner', `${path}=alpha`]));
+    const refreshed = f.run(...copied.flatMap(path => ['--owner', `${path}=alpha`]));
   assert.equal(refreshed.status, 0, refreshed.stderr);
   const verified = spawnSync(process.execPath, [join(f.root, 'tools/publication/verify-source.mjs')], { encoding: 'utf8' });
   assert.equal(verified.status, 0, verified.stderr);
-  assert.match(verified.stdout, /7 digests/);
-  const digest = sha(Buffer.from(JSON.parse(f.manifest()).files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join('')));
-  assert.match(verified.stdout, new RegExp(`source digest ${digest} `));
+  assert.match(verified.stdout, /\(7 files\)/);
+  // Content edits need no refresh; an unlisted file or a wrong mode fails with a named cause.
+  f.write('src/z.json', '{"synthetic": "edited after verification"}\n');
+  assert.equal(spawnSync(process.execPath, [join(f.root, 'tools/publication/verify-source.mjs')], { encoding: 'utf8' }).status, 0);
+  f.write('unlisted.txt', 'x\n');
+  const unlisted = spawnSync(process.execPath, [join(f.root, 'tools/publication/verify-source.mjs')], { encoding: 'utf8' });
+  assert.notEqual(unlisted.status, 0);
+  assert.match(unlisted.stderr, /Exact source allowlist mismatch/);
+  unlinkSync(join(f.root, 'unlisted.txt'));
+  chmodSync(join(f.root, 'README.md'), 0o755);
+  const mode = spawnSync(process.execPath, [join(f.root, 'tools/publication/verify-source.mjs')], { encoding: 'utf8' });
+  assert.notEqual(mode.status, 0);
+  assert.match(mode.stderr, /README\.md: mode/);
+  chmodSync(join(f.root, 'README.md'), 0o644);
   assert.equal(f.manifest(), expectedManifest(f.root, { ...initial, ...Object.fromEntries(copied.map(path => [path, 'alpha'])) }));
 });
