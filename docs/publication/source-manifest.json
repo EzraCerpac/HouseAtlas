@@ -8714,8 +8714,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 7115,
-      "sha256": "66bbda548902245f808771c35c882f42fd4edca4982df226421dfc752d43b41b",
+      "bytes": 7365,
+      "sha256": "798c336c3c93cc588e4f0ee5bc5b7e5cee03054d0b26ce1634841c27a6a5f285",
       "owner": "web"
     },
     {
