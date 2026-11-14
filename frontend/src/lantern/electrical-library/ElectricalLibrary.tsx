@@ -39,17 +39,19 @@ export function ElectricalLibrary({ port }: { readonly port: ElectricalLibraryPo
   const current = slot?.port === port ? slot : null;
   return <section className="electrical-library" aria-labelledby={heading}>
     <div className="section-head"><h2 id={heading}>Electrical drawings</h2></div>
-    <p>Historical drawing references. Group labels do not establish current wiring.</p>
-    <label htmlFor={search}>Search electrical drawings</label>{' '}
-    <input id={search} type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} />
-    {topology.status === 'loading' ? <p role="status">Reading buildings…</p>
-      : topology.status !== 'ready' ? <Empty>Buildings could not be read. Electrical drawings are unavailable.</Empty>
-      : buildings.length === 0 ? <Empty>No reviewed building is available in this read.</Empty> : <>
-        <label htmlFor={selector}>Building</label>{' '}
+    <p className="electrical-library-note">Historical drawing references. Group labels do not establish current wiring.</p>
+    <div className="electrical-library-controls">
+      <div className="field"><label htmlFor={search}>Search electrical drawings</label>
+        <input id={search} type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} /></div>
+      {topology.status === 'ready' && buildings.length > 0 && <div className="field"><label htmlFor={selector}>Building</label>
         <select id={selector} value={building?.id ?? ''} onChange={event => setSelection(event.currentTarget.value || null)}>
           <option value="">Choose a building</option>
           {buildings.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>
+        </select></div>}
+    </div>
+    {topology.status === 'loading' ? <p role="status">Reading buildings…</p>
+      : topology.status !== 'ready' ? <Empty>Buildings could not be read. Electrical drawings are unavailable.</Empty>
+      : buildings.length === 0 ? <Empty>No reviewed building is available in this read.</Empty> : <>
         {topology.index?.data.sourceStatuses.some(status => status !== 'current') && <p role="status">Building list source: {topology.index.data.sourceStatuses.join(', ')}.</p>}
         {!building ? <Empty>Choose a building to read its drawing references.</Empty>
           : !current ? <p role="status">Preparing drawing reader…</p>
@@ -61,7 +63,7 @@ export function ElectricalLibrary({ port }: { readonly port: ElectricalLibraryPo
 
 function SheetFacts({ entry }: { readonly entry: ElectricalLibrarySheet }) {
   const source = entry.documentary;
-  return <div className="electrical-library-sheet-facts">
+  return <div className="electrical-library-sheet-facts row-meta">
     <span>Drawing date: {entry.sheet.sourceDate ?? 'Not recorded'}</span>
     {entry.rooms.length === 0 ? <span>No room association recorded</span> : entry.rooms.map(room =>
       <span key={JSON.stringify([room.packagePlaceKey, room.packagePlaceUuid, room.label, room.basis])}>{room.label} · {room.basis === 'owner-reported' ? 'Owner reported' : 'Inferred'}
@@ -113,33 +115,33 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
   const shown = opened && opened.frame === current ? opened : null;
   const visible = useMemo(() => current ? filterElectricalLibrary(current.documents, current.unlinkedSheets, query) : null, [current, query]);
   return <>
-    {message && <p role="status">{message}</p>}
-    <button type="button" className="btn btn-small" disabled={!owner} onClick={() => setAttempt(value => value + 1)}>Reload drawings</button>
+    <div className="electrical-library-status">
+      {message ? <p role="status">{message}</p> : current && <p>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>}
+      <button type="button" className="btn btn-small" disabled={!owner} onClick={() => setAttempt(value => value + 1)}>Reload drawings</button>
+    </div>
     <div ref={surface}>
       {current && visible && <>
-        <p>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>
         {current.documents.length === 0 && current.unlinkedSheets.length === 0 && <Empty>No electrical sheets are recorded in this current source.</Empty>}
         {query.trim() !== '' && <p role="status">{visible.matchedSheets} of {visible.totalSheets} sheet references match this search.</p>}
         {visible.matchedSheets === 0 && visible.totalSheets > 0 && <Empty>No drawing references match this search.</Empty>}
         <ul className="electrical-library-documents">{visible.documents.map(({ document, pages }) => <li key={document.key}>
           <h3>Electrical reference PDF</h3>
-          <ElectricalHeldStatus frame={current} document={document} />
-          <p>{query.trim() !== '' ? `${pages.length} of ${document.pages.length} referenced sheets match` : `${document.pages.length} referenced ${document.pages.length === 1 ? 'sheet' : 'sheets'}`} · {document.byteSize.token} bytes</p>
+          <p className="row-meta"><ElectricalHeldStatus frame={current} document={document} /><span>{query.trim() !== '' ? `${pages.length} of ${document.pages.length} referenced sheets match` : `${document.pages.length} referenced ${document.pages.length === 1 ? 'sheet' : 'sheets'}`}</span><span>{document.byteSize.token} bytes</span></p>
           <details><summary>Document identity</summary><dl>
             <dt>Evidence</dt><dd>{document.evidenceId} · revision {document.evidenceRevision}</dd>
             <dt>Original asset</dt><dd>{document.assetId} · revision {document.assetRevision.token}</dd>
             <dt>Original SHA-256</dt><dd>{document.sha256}</dd>
           </dl></details>
-          <ul>{pages.map(page => <li key={page.sheet.id}>
+          <ul className="electrical-library-sheets">{pages.map(page => <li key={page.sheet.id}>
             <button type="button" className="row-title" onClick={event => {
               if (reader.isCurrent(current)) setOpened({ frame: current, page, opener: event.currentTarget });
             }} aria-label={`Open ${page.sheet.title}, PDF page ${page.reference.pdfPage}`}>{page.sheet.title} · Page {page.reference.pdfPage}</button>
             <SheetFacts entry={page} />
           </li>)}</ul>
         </li>)}</ul>
-        {visible.unlinkedSheets.length > 0 && <div><h3>Sheet references</h3>
-          <p>No qualified PDF correlation is available for these sheets.</p>
-          <ul>{visible.unlinkedSheets.map(entry => <li key={entry.sheet.id}>
+        {visible.unlinkedSheets.length > 0 && <div className="electrical-library-unlinked"><h3>Sheet references</h3>
+          <p className="electrical-library-note">No qualified PDF correlation is available for these sheets.</p>
+          <ul className="electrical-library-sheets">{visible.unlinkedSheets.map(entry => <li key={entry.sheet.id}>
             {entry.sheet.title} · Referenced page {entry.sheet.pdfPage}<SheetFacts entry={entry} />
           </li>)}</ul>
         </div>}
@@ -194,7 +196,7 @@ function DrawingPending({ failed, onClose }: { readonly failed: boolean; readonl
       } else if (event.key === 'Tab') { event.preventDefault(); close.current?.focus(); }
     }}>
     <p role="status">{failed ? 'The drawing source is unavailable.' : 'Preparing drawing…'}</p>
-    <button ref={close} type="button" onClick={onClose}>Close drawing</button>
+    <button ref={close} type="button" className="btn btn-small" onClick={onClose}>Close drawing</button>
   </section>;
 }
 
@@ -213,6 +215,6 @@ function ElectricalHeldStatus({ frame, document }: { frame: ElectricalLibraryFra
     const stop = electricalLibrary.subscribeHeld?.(refresh); refresh();
     return () => { stop?.(); controller?.abort(); };
   }, [electricalLibrary, frame, document]);
-  return electricalLibrary?.heldStatus ? <p>{status === 'held' ? 'On this device' : status === 'failed-integrity'
-    ? 'Held file failed verification' : status === 'not-held' ? 'Not held on this device' : 'Device copy not verified'}</p> : null;
+  return electricalLibrary?.heldStatus ? <span>{status === 'held' ? 'On this device' : status === 'failed-integrity'
+    ? 'Held file failed verification' : status === 'not-held' ? 'Not held on this device' : 'Device copy not verified'}</span> : null;
 }

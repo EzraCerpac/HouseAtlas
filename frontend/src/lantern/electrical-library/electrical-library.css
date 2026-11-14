@@ -1,13 +1,30 @@
-.electrical-library { margin-block: 24px; }
-.electrical-library-documents { padding: 0; list-style: none; }
-.electrical-library-documents > li { margin-block: 14px; padding: 16px; border: 1px solid var(--line, #ddd); border-radius: 12px; }
-.electrical-library-documents ul > li, .electrical-library > div li { margin-block: 10px; }
-.electrical-library-sheet-facts { display: grid; gap: 4px; margin-block: 6px 12px; font-size: 13px; }
-.electrical-library dd { margin-inline-start: 0; overflow-wrap: anywhere; }
+/* Electrical drawings in the Library: the same section, field and row
+   vocabulary as Source documents. Nothing here places a sheet in a room. */
+.lantern-host .electrical-library { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--hair-2); }
+.lantern-host .filter-row + .electrical-library { margin-top: 8px; padding-top: 0; border-top: 0; }
+.lantern-host .electrical-library-note { max-width: 62ch; margin: 0 0 6px; font-size: var(--fs-s); color: var(--muted); }
+.lantern-host .electrical-library-controls { display: grid; max-width: 572px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); align-items: end; gap: 12px; margin: 14px 0 12px; }
+.lantern-host .electrical-library-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 4px; font-size: var(--fs-s); color: var(--ink-2); }
+.lantern-host .electrical-library-documents { display: grid; gap: 12px; margin: 10px 0 0; padding: 0; list-style: none; }
+.lantern-host .electrical-library-documents > li { display: grid; gap: 4px; padding: 14px 16px 4px; border: 1px solid var(--hair-2); border-radius: 12px; background: var(--card); }
+.lantern-host .electrical-library-documents h3, .lantern-host .electrical-library-unlinked > h3 { font-size: var(--fs-m); font-weight: 680; }
+.lantern-host .electrical-library details > summary { width: fit-content; font-size: var(--fs-xs); color: var(--ink-2); cursor: pointer; }
+.lantern-host .electrical-library details[open] > summary { margin-bottom: 4px; }
+.lantern-host .electrical-library dl { display: grid; gap: 2px; margin: 0; font-size: var(--fs-xs); }
+.lantern-host .electrical-library dt { color: var(--muted); }
+.lantern-host .electrical-library dd { margin: 0 0 4px; overflow-wrap: anywhere; }
+.lantern-host .electrical-library-sheets { display: grid; margin: 6px 0 0; padding: 0; list-style: none; }
+.lantern-host .electrical-library-sheets > li { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--hair); }
+.lantern-host .electrical-library-sheets .row-title { justify-self: start; font-size: var(--fs-m); font-weight: 650; line-height: 1.3; text-align: left; }
+.lantern-host .electrical-library-sheet-facts details { flex-basis: 100%; }
+.lantern-host .electrical-library-sheet-facts details p { margin: 2px 0; max-width: 72ch; }
+.lantern-host .electrical-library-unlinked { margin-top: 18px; }
+.lantern-host .electrical-library-unlinked > h3 { margin-bottom: 2px; }
+/* The drawing viewer: a near-full-screen sheet over the Library. */
 .electrical-library-backdrop { position: fixed; inset: 0; z-index: 100; background: #0006; }
 .electrical-library-backdrop .native-scene-drawing { inset: max(12px, 3vh) max(12px, calc((100vw - 1100px) / 2)); }
-.electrical-library-backdrop > .electrical-library-pending { margin: 24px; padding: 16px; background: var(--card, white); }
+.lantern-host .electrical-library-backdrop > .electrical-library-pending { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 24px; padding: 16px; border-radius: 16px; background: var(--card); }
 @media (max-width: 600px) {
-  .electrical-library-documents > li { padding: 10px; }
+  .lantern-host .electrical-library-documents > li { padding: 12px 12px 2px; }
   .electrical-library-backdrop .native-scene-drawing { inset: 6px; }
 }
