@@ -53,11 +53,16 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   };
   // Save, list and removal are local only: they use the identity this session already
   // holds, with no network read, so they work offline. Review and upload read the session.
-  const held = (refusal: string) => { if (port.current()) return true; setStatus(refusal); return false; };
-  const unheld = 'Local drafts unavailable: this browser holds no signed-in session for this home.';
+  // A held identity can still be refused for focus alone (activation without focusing the page); say which.
+  const held = (refusal: string) => {
+    if (port.current()) return true;
+    setStatus(`${refusal}: ${port.foreground() ? 'this browser holds no signed-in session for this home.' : 'this page is not in the foreground. Select the page and try again.'}`);
+    return false;
+  };
+  const unheld = 'Local drafts unavailable';
   const save = () => void run(async signal => {
     if (!optedIn) return;
-    if (!held('Local draft not saved: this browser holds no signed-in session for this home.')) return;
+    if (!held('Local draft not saved')) return;
     const input = candidate(); if (!input) return;
     await port.save(input); signal.throwIfAborted();
     setOptedIn(false); setReview(null); setConfirmed(false); onSaved();

@@ -7,6 +7,8 @@ import type { NativeEvidencePending } from '../api/native-evidence-client';
 type Controller = ReturnType<typeof createCaptureDrafts>;
 export interface CaptureDraftPort {
   current(): DraftBoundary | null;
+  /** Whether the page is visible and focused; `current()` is null without it. */
+  foreground(): boolean;
   unavailableReason(): string | null;
   prepare(signal: AbortSignal): Promise<DraftBoundary | null>;
   operation(): { controller: AbortController; release(): void };
