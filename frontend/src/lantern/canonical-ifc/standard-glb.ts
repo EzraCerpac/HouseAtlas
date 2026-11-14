@@ -28,6 +28,11 @@ export interface StandardGlb extends GlbAdmission {
   readonly counts: { readonly triangles: number; readonly vertices: number; readonly metadataOnlyNodes: number; readonly declaredTransforms: number };
 }
 
+/** This build of the loader: the URL of its own bundled module, whose name
+ * changes with any change to the loader or to anything it imports. A copy of
+ * what the loader prepared (parsed-store.ts) is only reused by the same build. */
+export const LOADER_BUILD: string = import.meta.url;
+
 const refuseUrl = (): string => { throw new GlbFormatError('load', 'The file asks for an external resource'); };
 /** GLTFLoader skips a material map whose texture resolves to null. */
 const declineTexture = () => Promise.resolve(null) as unknown as Promise<Texture>;

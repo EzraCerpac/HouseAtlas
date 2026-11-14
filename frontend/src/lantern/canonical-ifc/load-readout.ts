@@ -19,7 +19,7 @@ export function formatLoadReadout(ledger: LoadLedger, downloads: readonly ModelD
   const saved = ledger.savedReadMs !== undefined ? `Saved copy read ${seconds(ledger.savedReadMs)}` : ledger.model === undefined ? 'Saved copy read pending' : 'No saved copy read';
   return `Home ${seconds(steps.home)} · house ${seconds(steps.house)} · textures ${seconds(steps.textures)} · shaded ${seconds(steps.shaded)}\n`
     + `Model: ${model} · model download: ${download}\n`
-    + `${saved} · parse ${seconds(ledger.parseMs)} · build ${seconds(ledger.buildMs)} · ${ledger.backend === undefined ? 'renderer pending' : BACKENDS[ledger.backend] ?? ledger.backend}`;
+    + `${saved} · ${ledger.parsedCopy ? 'kept parse' : 'parse'} ${seconds(ledger.parseMs)} · build ${seconds(ledger.buildMs)} · ${ledger.backend === undefined ? 'renderer pending' : BACKENDS[ledger.backend] ?? ledger.backend}`;
 }
 /** Shows the readout over the page and returns its update; finished requests update it too. */
 export function showLoadReadout(ledger: LoadLedger): () => void {

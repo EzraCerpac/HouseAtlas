@@ -166,6 +166,17 @@ export interface PreparedMesh {
  * glass box, which light all around. */
 const AIM_SHARE = .5;
 
+/** Every buffer prepared meshes own, once each (meshes can share a texture). */
+export function meshBuffers(meshes: readonly PreparedMesh[]): ArrayBuffer[] {
+  const buffers = new Set<ArrayBuffer>();
+  const own = (array: { readonly buffer: ArrayBufferLike } | undefined) => { if (array?.buffer instanceof ArrayBuffer) buffers.add(array.buffer); };
+  for (const { vertices, materialVertices, sourceMaterial } of meshes) {
+    own(vertices); own(materialVertices);
+    if (sourceMaterial) for (const texture of [sourceMaterial.baseColorTexture, sourceMaterial.normalTexture, sourceMaterial.metallicRoughnessTexture]) own(texture?.image.rgba);
+  }
+  return [...buffers];
+}
+
 export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: MeshInput) => string | null = mesh => mesh.occurrenceId): readonly PreparedMesh[] {
   return meshes.map(mesh => {
     const triangles = mesh.indices.length / 3, vertices = new Float32Array(triangles * 18);

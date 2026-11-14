@@ -1337,6 +1337,13 @@ and stage-key function with synthetic hooks, deferred reads and geometry binding
 It checks stable stage type/key/model/selection during stored-copy failure,
 retry and identical fresh confirmation, held-copy refresh, denial retirement
 and obsolete selection completion.
+The same seam checks the parsed copy (`parsed-store.ts`): the first parse is
+kept only two frames after the first house frame, the next open draws the kept
+copy with no parse, and a kept copy that does not bind or exceeds the upload
+budget is parsed again and replaced. Over the synthetic IndexedDB disk, the
+store keeps one copy across pages, misses on another digest, length, loader
+build, actor or home, writes nothing without quota headroom or an estimate, and
+sign-out removes it, including a keep already under way.
 The seam does not mount `AtlasStage` or a dialog;
 it does not execute camera state, native focus, Escape/IME or browser layout.
 Those deferred checks remain in #292; the existing compact-layer dock case
@@ -1453,8 +1460,9 @@ three selectable lines over the page for the first Atlas open (`load-ledger.ts`,
 `load-readout.ts`): seconds from navigation start to home reads, the first house
 frame, textures drawn and fully shaded; whether the first model drawn was the
 saved copy or the fresh read, and any finished overview-model GET (MB and seconds,
-from resource timing); and the saved-copy read and verify, model parse and first
-stage build wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
+from resource timing); and the saved-copy read and verify, model parse (`kept
+parse` when the device's parsed copy was read instead) and first stage build
+wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
 its text from generated ledgers and resource rows, and its presentation seam pins
 which path is noted as the first model. Wall times include waits; readings are
 device evidence only, never a CI result.
