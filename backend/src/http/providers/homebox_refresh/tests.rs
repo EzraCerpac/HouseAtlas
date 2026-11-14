@@ -112,6 +112,20 @@ async fn post(
     };
     Ok((status, body))
 }
+async fn available(app: &axum::Router, session: &(String, String)) -> Result<String, Failure> {
+    let path = format!(
+        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/refresh",
+        id(1),
+        id(2)
+    );
+    let response = app
+        .clone()
+        .oneshot(request("GET", &path, Vec::new(), Some(&session.0), None)?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), 4096).await?)?;
+    Ok(body["status"].as_str().ok_or("status")?.to_owned())
+}
 fn fixture(name: &str) -> &'static [u8] {
     match name {
         "locations" => {
@@ -207,6 +221,28 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         },
         label: "Synthetic home".into(),
     };
+    // A second Editor whom the profile does not name.
+    let unlisted =
+        json!({"username":"synthetic-unlisted-editor","password":"Disposable-unlisted-editor"});
+    {
+        let mut boundary = access.lock().unwrap();
+        boundary.provision_user(
+            &a::CanonicalId::parse(id(8))?,
+            &a::CanonicalId::parse(id(9))?,
+            "synthetic-unlisted-editor",
+            &a::hash_password("Disposable-unlisted-editor")?,
+            None,
+        )?;
+        boundary.set_membership(
+            &a::CanonicalId::parse(id(8))?,
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(id(1))?,
+                home_id: a::CanonicalId::parse(id(2))?,
+            },
+            a::Role::Editor,
+            true,
+        )?;
+    }
     let core = Core {
         access,
         store: Arc::new(Mutex::new(store)),
@@ -253,7 +289,12 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         .ok_or("configured source")?;
     let mut file = PinnedHomeBoxFileBinding::new(Arc::clone(&source), Arc::clone(&credentials))?;
     file.certificate = Some(leaf.clone());
-    let mut refresh = HomeBoxRefreshBinding::new(Arc::clone(&source), configured, credentials)?;
+    let mut refresh = HomeBoxRefreshBinding::new(
+        Arc::clone(&source),
+        configured,
+        credentials,
+        vec![a::CanonicalId::parse(id(7))?],
+    )?;
     refresh.certificate = Some(leaf);
     // Without a selected credential the same Host answers "not configured".
     let unconfigured = Host::new(
@@ -272,6 +313,8 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     let acceptor = TlsAcceptor::from(Arc::new(tls));
     let seen = Arc::new(Mutex::new(Vec::<String>::new()));
     let observed = Arc::clone(&seen);
+    let deny = Arc::new(AtomicBool::new(false));
+    let denied = Arc::clone(&deny);
     let (stop, mut shutdown) = tokio::sync::oneshot::channel::<()>();
     let mut server = tokio::spawn(async move {
         loop {
@@ -296,12 +339,17 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
             let mut line = head.lines().next().unwrap().split_whitespace();
             assert_eq!(line.next(), Some("GET"));
             let target = line.next().unwrap().to_owned();
-            let body = respond(&target);
+            // Later the generated HomeBox refuses the credential outright.
+            let (status, body) = if denied.load(Ordering::SeqCst) {
+                ("401 Unauthorized", &b""[..])
+            } else {
+                ("200 OK", respond(&target))
+            };
             observed.lock().unwrap().push(target);
             stream
                 .write_all(
                     format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                         body.len()
                     )
                     .as_bytes(),
@@ -316,6 +364,21 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
 
     let viewer = login(&app, &receipt["login"]).await?;
     let editor = login(&app, &receipt["editorLogin"]).await?;
+    let unlisted = login(&app, &unlisted).await?;
+    // The button's admission read: only the approved Editor of a configured
+    // source sees it, before any cache exists for that source.
+    assert_eq!(available(&app, &editor).await?, "available");
+    assert_eq!(available(&app, &viewer).await?, "not-approved");
+    assert_eq!(available(&app, &unlisted).await?, "not-approved");
+    assert_eq!(available(&bare, &editor).await?, "not-configured");
+    // An unlisted Editor's POST is refused by the Access lifecycle rules.
+    assert_eq!(
+        post(&app, &unlisted).await?,
+        (
+            StatusCode::OK,
+            json!({"status":"failed","reason":"registration-unavailable"})
+        )
+    );
     // A Viewer is refused before any registration or upstream request.
     assert_eq!(post(&app, &viewer).await?.0, StatusCode::FORBIDDEN);
     // No credential selected: plain answer and nothing sent upstream.
@@ -355,7 +418,11 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
     let cached = String::from_utf8(to_bytes(response.into_body(), 1 << 20).await?.to_vec())?;
-    assert!(cached.contains(&id(2)) && cached.contains("\"fresh\""));
+    assert!(cached.contains("\"fresh\""), "{cached}");
+    assert!(
+        cached.contains(&format!("\"externalId\":\"{}\"", id(2))),
+        "{cached}"
+    );
     assert_eq!(count(), 7);
 
     // Open file: one explicit capture returns the exact original bytes.
@@ -384,6 +451,34 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(&to_bytes(response.into_body(), 4096).await?[..], ORIGINAL);
     assert_eq!(count(), 10);
+
+    // A later 401 is recorded as quarantine, and the cached read withholds rows.
+    deny.store(true, Ordering::SeqCst);
+    let (status, body) = post(&app, &editor).await?;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "failed", "{body}");
+    assert_eq!(body["reason"], "auth", "{body}");
+    assert_eq!(body["cache"]["status"], "access-revoked", "{body}");
+    assert_eq!(count(), 11);
+    let cached = format!(
+        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/sources/{}/collections/{}/cached",
+        id(1),
+        id(2),
+        id(300),
+        id(301)
+    );
+    let response = app
+        .clone()
+        .oneshot(request("GET", &cached, Vec::new(), Some(&editor.0), None)?)
+        .await?;
+    let status = response.status();
+    let cached = String::from_utf8(to_bytes(response.into_body(), 1 << 20).await?.to_vec())?;
+    assert_eq!(status, StatusCode::OK, "{cached}");
+    assert!(cached.contains("\"access-revoked\""), "{cached}");
+    assert!(
+        !cached.contains(&format!("\"externalId\":\"{}\"", id(2))),
+        "{cached}"
+    );
 
     let _ = stop.send(());
     match tokio::time::timeout(Duration::from_secs(2), &mut server).await {

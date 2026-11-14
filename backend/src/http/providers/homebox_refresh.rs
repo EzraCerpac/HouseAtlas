@@ -31,6 +31,9 @@ pub struct HomeBoxRefreshBinding {
     source: Arc<TrustedHomeBoxSource>,
     configured: Arc<ConfiguredSource>,
     credentials: Arc<NativeReadCredentialConfig>,
+    /// Actors named by the profile's lifecycle approvals. Only the admission
+    /// hint reads this; the POST itself is decided by the Access rules.
+    approved: Vec<a::CanonicalId>,
     #[cfg(test)]
     pub(crate) certificate: Option<Vec<u8>>,
 }
@@ -39,11 +42,13 @@ impl HomeBoxRefreshBinding {
         source: Arc<TrustedHomeBoxSource>,
         configured: Arc<ConfiguredSource>,
         credentials: Arc<NativeReadCredentialConfig>,
+        approved: Vec<a::CanonicalId>,
     ) -> s::Result<Self> {
         let endpoint = source.endpoint().map_err(|_| binding_error())?;
         if configured.registration() != source.registration()
             || source.registration().owner != s::SourceOwner::Homebox
             || !credentials.matches_endpoint(&endpoint)
+            || approved.is_empty()
         {
             return Err(binding_error());
         }
@@ -51,12 +56,24 @@ impl HomeBoxRefreshBinding {
             source,
             configured,
             credentials,
+            approved,
             #[cfg(test)]
             certificate: None,
         })
     }
     pub(crate) fn source(&self) -> &Arc<TrustedHomeBoxSource> {
         &self.source
+    }
+}
+fn binding<'h>(host: &'h Host, scope: &d::Scope) -> Option<&'h HomeBoxRefreshBinding> {
+    let mut bindings = host.homebox_refresh_bindings.iter().filter(|binding| {
+        let partition = binding.configured.partition();
+        partition.workspace_id.as_str() == scope.workspace_id
+            && partition.home_id.as_str() == scope.home_id
+    });
+    match (bindings.next(), bindings.next()) {
+        (Some(binding), None) => Some(binding),
+        _ => None,
     }
 }
 fn binding_error() -> s::Error {
@@ -93,6 +110,39 @@ fn cache_facts(cache: &s::CacheStatus) -> Value {
         "lastAttemptAt": cache.last_attempt_at,
         "errorCode": cache.error.as_ref().map(|error| error.code),
     })
+}
+
+/// Admission hint for the button: an Editor named by the approvals of a
+/// configured source sees `available`. Read-only; nothing is sent upstream.
+pub(in crate::http) async fn availability(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    let scope = d::Scope {
+        workspace_id,
+        home_id,
+    };
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        crate::http::authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
+            let status = match binding(&host, &scope) {
+                None => "not-configured",
+                Some(binding)
+                    if p.principal.role() == a::Role::Editor
+                        && binding.approved.contains(p.principal.actor_id()) =>
+                {
+                    "available"
+                }
+                Some(_) => "not-approved",
+            };
+            answer(json!({ "status": status }))
+        })
+    })
+    .await
+    .map_err(|_| unavailable())?
 }
 
 pub(in crate::http) async fn refresh(
@@ -139,12 +189,7 @@ fn run(
             .map_err(access_error)?;
         RequestPrincipal::new(original)
     };
-    let mut bindings = host.homebox_refresh_bindings.iter().filter(|binding| {
-        let partition = binding.configured.partition();
-        partition.workspace_id.as_str() == scope.workspace_id
-            && partition.home_id.as_str() == scope.home_id
-    });
-    let (Some(binding), None) = (bindings.next(), bindings.next()) else {
+    let Some(binding) = binding(host, &scope) else {
         // No credential selected for this home: nothing is sent upstream.
         return answer(json!({"status": "not-configured"}));
     };

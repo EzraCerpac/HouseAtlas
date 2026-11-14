@@ -137,7 +137,11 @@ Editor-only `POST /api/atlas/providers/homebox/workspaces/{workspace}/homes/{hom
 registers the source if it is not yet readable, then runs one
 `homebox_refresh::refresh` with the configured header and answers
 `refreshed`, `failed` (with a cache error code), `running` or `not-configured`.
-At most one refresh runs per process. Startup still enrolls nothing, issues
+At most one refresh runs per process. A `GET` on the same path is the
+button's admission read: it answers `available` only to an Editor whose actor
+is named in `refreshEditors` for a configured source, otherwise `not-approved`
+or `not-configured`, and sends nothing upstream. It is a display hint; the POST
+is still decided by the Access lifecycle rules. Startup still enrolls nothing, issues
 no grant and sends nothing upstream; there is no timer, retry or startup
 refresh, and MCP/WebMCP do not expose the action. Without these fields the
 behaviour is exactly schema 1.

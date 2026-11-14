@@ -151,9 +151,11 @@ HouseAtlas only sends GET requests.
    to refresh. Recompute the profile SHA256 and restart `serve` with both
    provider flags ([profile format](../providers/persistent-cached-provider-selection.md)).
 3. Signed in as one of those Editors, press **Refresh from HomeBox** in the
-   **Sources** section of the home overview (also shown under Changes). The first press registers the source; each press
+   **Sources** section of the home overview (also shown under Changes). Only
+   those Editors see the button, including before anything has been cached. The first press registers the source; each press
    reads the collection once and replaces the cached copy, or records the
-   failure and keeps the previous copy.
+   failure and keeps the previous copy. If HomeBox refuses the credential, the
+   saved copy is marked access revoked and withheld until a refresh succeeds.
 
 It does not refresh on a schedule, at startup or while browsing, never writes
 to HomeBox, and does not expose refresh to MCP or WebMCP. **Open file** then

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -26,7 +26,7 @@ import {
   unplaced,
 } from '../data/query';
 import { fmtDate, fmtDateTime, rel } from '../data/time';
-import { describeRefresh, requestRefresh, type RefreshResult } from '../homebox-refresh.ts';
+import { createRefreshControl, describeRefresh } from '../homebox-refresh.ts';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -250,7 +250,7 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
         {cache.collectionId && <code>{cache.collectionId}</code>}
       </dd>
     </div>)}
-    {projection.view.canEdit && projection.view.caches.some(cache => cache.owner === 'homebox') && <HomeboxRefresh />}
+    <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
     <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>
   </dl></Section>;
@@ -258,30 +258,25 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
 
 const browserFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
 
-/** Editor-only explicit refresh; nothing calls it except this button. */
+/** Offered only when the server's admission read says this signed-in Editor
+ * may refresh a configured source, with or without an existing cache. */
 export function HomeboxRefresh({ transport = browserFetch }: { readonly transport?: typeof fetch }) {
   const { projection, actions } = useStore();
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<RefreshResult | null>(null);
-  const refresh = async () => {
-    if (busy) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      const next = await requestRefresh(projection.view.scope, transport, globalThis.navigator?.onLine !== false);
-      setResult(next);
-      if (next.kind === 'refreshed') await actions.reload();
-    } catch {
-      setResult({ kind: 'unreachable' });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { workspaceId, homeId } = projection.view.scope;
+  const control = useMemo(() => createRefreshControl({ scope: { workspaceId, homeId }, transport,
+    online: () => globalThis.navigator?.onLine !== false }), [workspaceId, homeId, transport]);
+  useEffect(() => {
+    const abort = new AbortController();
+    void control.check(abort.signal);
+    return () => abort.abort();
+  }, [control]);
+  const state = useSyncExternalStore(control.subscribe, control.getSnapshot);
+  if (!state.offered) return null;
   return <div><dt>HomeBox refresh</dt><dd>
-    <button type="button" className="btn" disabled={busy} onClick={() => { void refresh(); }}>
-      {busy ? 'Refreshing from HomeBox…' : 'Refresh from HomeBox'}
+    <button type="button" className="btn" disabled={state.busy} onClick={() => { void control.press(actions.reload); }}>
+      {state.busy ? 'Refreshing from HomeBox…' : 'Refresh from HomeBox'}
     </button>
-    <p role="status" aria-live="polite">{result ? describeRefresh(result, fmtDateTime) : ''}</p>
+    <p role="status" aria-live="polite">{state.result ? describeRefresh(state.result, fmtDateTime) : ''}</p>
   </dd></div>;
 }
 

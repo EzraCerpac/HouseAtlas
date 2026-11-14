@@ -331,14 +331,20 @@ impl ProviderReadMounts {
                     Arc::clone(&shared),
                     Arc::clone(&credentials),
                 )?);
-                if value.refresh_editors.is_some() {
+                if let Some(editors) = &value.refresh_editors {
                     let configured = registry
                         .sources()
                         .iter()
                         .find(|source| source.registration() == &value.registration)
                         .cloned()
                         .ok_or_else(unavailable)?;
-                    refresh.push(HomeBoxRefreshBinding::new(shared, configured, credentials)?);
+                    let approved = editors.iter().map(|e| e.actor_id.clone()).collect();
+                    refresh.push(HomeBoxRefreshBinding::new(
+                        shared,
+                        configured,
+                        credentials,
+                        approved,
+                    )?);
                 }
             }
             homebox.push(source);

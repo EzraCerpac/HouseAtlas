@@ -8,13 +8,18 @@ discovers two added cases:
 - `http::providers::homebox_refresh::tests::healthy_editor_refresh_fills_cache_then_opens_original`
   reopens a disposable synthetic store with one generated lifecycle approval
   and drives the registered router against a generated loopback TLS HomeBox
-  built from the checked-in stock wire fixtures. A Viewer is refused (403); a
-  Host without a credential answers `not-configured`; a set in-flight flag
-  answers `running`; all three send nothing upstream. The approved Editor's
-  POST registers the source, publishes a fresh cache through
-  `homebox_refresh::refresh` in exactly seven GETs, the cached read then
-  serves it, and Open file returns the exact original bytes in three more
-  GETs. Every observed provider request is a GET carrying the generated header.
+  built from the checked-in stock wire fixtures. The admission `GET` answers
+  `available` only to the approved Editor (before any cache exists),
+  `not-approved` to a Viewer and to an unlisted Editor, and `not-configured`
+  without a credential. A Viewer's POST is refused (403); an unlisted Editor's
+  POST is refused by the lifecycle rules; a Host without a credential answers
+  `not-configured`; a set in-flight flag answers `running`; none of these
+  sends anything upstream. The approved Editor's first POST registers the
+  source, publishes a fresh cache through `homebox_refresh::refresh` in
+  exactly seven GETs, the cached read then serves its rows, and Open file
+  returns the exact original bytes in three more GETs. A later upstream 401 is
+  recorded as `access-revoked` and the cached read then withholds the rows.
+  Every observed provider request is a GET carrying the generated header.
 - `lifecycle::persistent::provider_reads::tests::v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged`
   pins that schema 1, and schema 2 without the new fields, mount exactly as
   before; that schema 1 refuses `credentialFile`; that an owner-only absolute
@@ -25,10 +30,14 @@ discovers two added cases:
 
 The existing `closed_profile_requires_digest_scope_owner_and_unique_registration`
 version case now uses unsupported schema 3. The frontend SOURCE list adds
-`node frontend/lantern-tests/homebox-refresh-healthy.mjs` (strict answer
-decoding, each state's sentence, the session-then-POST CSRF exchange against a
-generated transport, offline sending nothing, denial and unreachable answers,
-and the Editor-only button as the sole caller): 85 SOURCE / 1 BUILD /
+`node frontend/lantern-tests/homebox-refresh-healthy.mjs`. It drives the
+production controller behind the button against a generated server model
+using the route's answer shapes: the admission read alone decides whether the
+button is offered (approved Editor yes; Viewer, unlisted Editor and no
+credential no, with no POST); the first refresh starts with no cache; a later
+401 re-reads the view, withholds the copy and says access is revoked; an
+ordinary failure says the earlier copy is still shown; offline sends nothing;
+decoding is strict: 85 SOURCE / 1 BUILD /
 11 BROWSER (97 total). No workflow command, runner, browser entry or held
 selection is added. None of this makes a live HomeBox read or establishes
 installed acceptance, which still needs the owner's read-only credential.

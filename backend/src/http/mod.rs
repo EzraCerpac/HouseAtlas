@@ -349,7 +349,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
-        .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/refresh", post(providers::homebox_refresh::refresh).fallback(auth::post_only))
+        .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/refresh", get(providers::homebox_refresh::availability).post(providers::homebox_refresh::refresh).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
