@@ -1370,6 +1370,16 @@ when the worst came and its cause (settle, main thread, first frame, ratio chang
 resize or other), frames over 50 ms by cause, drawing-buffer resizes after the
 first frame, backend, moving and still pixel ratios. No CI selection drags the
 view, so those lines are device evidence only, never a CI result.
+`?render-probe=load` runs neither the speed check nor the drag lines; it keeps
+three selectable lines over the page for the first Atlas open (`load-ledger.ts`,
+`load-readout.ts`): seconds from navigation start to home reads, the first house
+frame, textures drawn and fully shaded; whether the first model drawn was the
+saved copy or the fresh read, and any finished overview-model GET (MB and seconds,
+from resource timing); and the saved-copy read and verify, model parse and first
+stage build wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
+its text from generated ledgers and resource rows, and its presentation seam pins
+which path is noted as the first model. Wall times include waits; readings are
+device evidence only, never a CI result.
 
 The report's startup diagnostics distinguish dynamic module import, adapter
 selection/renderer construction, renderer initialization, scene-graph setup,
