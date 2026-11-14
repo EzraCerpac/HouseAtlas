@@ -58,8 +58,9 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   };
   const save = () => void run(async signal => {
     if (!optedIn) return;
+    // Local only: binds to the identity this session already holds; no network read, so it works offline.
+    if (!port.current()) { setStatus('Local draft not saved: this browser holds no signed-in session for this home.'); return; }
     const input = candidate(); if (!input) return;
-    if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
     await port.save(input); signal.throwIfAborted();
     setOptedIn(false); setReview(null); setConfirmed(false); onSaved();
     const rows = await port.list(); signal.throwIfAborted();

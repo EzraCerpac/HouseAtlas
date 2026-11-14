@@ -125,12 +125,12 @@ export function createCaptureDraftAdapter(options: Options) {
       pending = false; quarantined = false;
       return current();
     } catch (error) {
-      // An unavailable transport masks this feature. Only a decoded different
-      // native session above triggers the existing application session reload.
+      // Only a decoded different native session above clears the held identity
+      // and triggers the existing application session reload.
       if (attempt === generation) {
-        // Keep the private comparison tuple/scope for an explicit foreground
-        // recheck, but expose no boundary or surviving review while unavailable.
-        quarantined = true; epoch = null; invalidate();
+        // An unavailable transport ends every review under a fresh epoch. The held
+        // session still binds local-only saves; review and upload need a fresh read.
+        epoch = canonical ? Object.freeze({}) : null; invalidate();
       }
       throw error;
     } finally {

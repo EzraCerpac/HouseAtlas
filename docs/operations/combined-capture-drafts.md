@@ -60,10 +60,12 @@ that epoch and the existing shared currentSession object. current() is null whil
 verification is pending and when root generation, actual committed ready scope,
 read scope, foreground state or expiry fails its fence. Unavailable or different
 session reads never default to success; late callbacks cannot publish a boundary.
-A transport failure quarantines drafts while preserving the private tuple and
-scope for an explicit foreground recheck. It invalidates review handles and exposes
-no boundary, but does not force existing clients to reload or erase a picker
-candidate. Only a decoded different or absent native session reloads the host.
+A transport failure invalidates review handles under a fresh epoch and keeps the
+held actor/scope boundary for local-only save, list and removal, so an offline
+save needs no session read; review and upload still require a fresh canonical
+read. It does not force existing clients to reload or erase a picker candidate.
+Only a decoded different or absent native session clears the held identity and
+reloads the host.
 
 App's existing committed-scope callback is forwarded through SessionApp. Main
 masks drafts before any view read. PlaceEditor keys its stateful child by complete
