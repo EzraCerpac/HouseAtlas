@@ -1,6 +1,8 @@
 /* Example page only (scope /example/). The build plugin prepends BUILD and
  * TABLE: every public file of dist/example with its size, SHA-256 and type.
- * It caches and serves only those files, under its own cache name; no API,
+ * It caches and serves only those files, under its own cache name, and
+ * answers a navigation to its scope root /example/ with a redirect to the
+ * entry; no API,
  * auth, media, root, Saved or household route is intercepted, and the only
  * other caches it removes are earlier example builds'. The example's data is
  * generated in the page. */
@@ -36,7 +38,14 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
 })()));
 self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== self.location.origin || !byPath.has(url.pathname)) return;
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // The short entry /example/ (this worker's own scope root) answers as the
+  // host does, 307 to the entry with its query, so it also opens offline.
+  if (request.mode === 'navigate' && url.pathname === '/example/') {
+    event.respondWith(Response.redirect(new URL(ENTRY + url.search, self.location.origin).href, 307));
+    return;
+  }
+  if (!byPath.has(url.pathname)) return;
   // The entry keeps its starting-state query; built files are requested without one.
   if (request.mode === 'navigate' ? url.pathname !== ENTRY : url.search !== '') return;
   // The entry and its files always come from this worker's own build, so a
