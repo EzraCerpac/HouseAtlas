@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useStore } from '../state/store';
+import { ExampleLabel } from '../example-label';
 
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
 
@@ -65,7 +66,7 @@ export function NativeActions() {
   return <div ref={panel} className="native-actions-panel lantern-tokens" hidden={!state.nativeOpen} role="dialog" aria-modal={state.nativeOpen ? true : undefined} aria-label="Atlas tools" tabIndex={-1}>
     <header className="native-actions-head">
       <button type="button" className="native-actions-close" onClick={() => dispatch({ type: 'nativeOpen', open: false })}>Close Atlas tools</button>
-      <h2 className="native-actions-title">Atlas tools</h2>
+      <div className="native-actions-heading"><ExampleLabel /><h2 className="native-actions-title">Atlas tools</h2></div>
     </header>
     <div className="native-actions-body">{actions.nativeContent}</div>
   </div>;

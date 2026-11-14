@@ -32,6 +32,9 @@ try {
       `export { PlacesContent } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/RoomsView.tsx'))};`,
       `export { UpkeepView } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/UpkeepView.tsx'))};`,
       `export { Modal } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/Modal.tsx'))};`,
+      `export { SearchPalette } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/SearchPalette.tsx'))};`,
+      `export { NativeActions } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/NativeActions.tsx'))};`,
+      `export { LayerDetailsDock } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx'))};`,
       `export { ExampleLabelContext } from ${JSON.stringify(join(root, 'frontend/src/lantern/example-label.tsx'))};`,
       `export { EXAMPLE_LABEL } from ${JSON.stringify(join(root, 'frontend/example/household.ts'))};`,
       `export { StoreProvider } from ${JSON.stringify(join(root, 'frontend/src/lantern/state/store.tsx'))};`,
@@ -174,6 +177,19 @@ try {
   assert.equal(view.homeLabel, api.EXAMPLE_LABEL);
   assert.match(dialog(view.homeLabel), /<header class="modal-head"><div><p class="example-label">Synthetic example house<\/p>/);
   assert.doesNotMatch(dialog(null), /example-label|Synthetic example house/);
+  // Phone surfaces that also cover the top bar: Search, Atlas tools and the
+  // short-viewport Layer details dialog, each rendered with and without the provider.
+  const surface = (provided, element) => api.renderToStaticMarkup(api.createElement(api.ExampleLabelContext, { value: provided },
+    api.createElement(api.StoreProvider, { projection, actions }, api.createElement(api.TopologyContextForTest.Provider, { value: context }, element))));
+  for (const [name, element, pattern] of [
+    ['Search', api.createElement(api.SearchPalette), /aria-label="Search the atlas"[^>]*><p class="example-label">Synthetic example house<\/p>/],
+    ['Atlas tools', api.createElement(api.NativeActions), /<div class="native-actions-heading"><p class="example-label">Synthetic example house<\/p><h2 class="native-actions-title">/],
+    ['Layer details', api.createElement(api.LayerDetailsDock, { dock: { current: null }, trigger: { current: null }, id: 'example-layers',
+      short: true, expanded: true, close: () => {} }, 'records'), /<header class="ua-layer-details-head"><div><p class="example-label">Synthetic example house<\/p><h2 /],
+  ]) {
+    assert.match(surface(view.homeLabel, element), pattern, `${name} carries the example label`);
+    assert.doesNotMatch(surface(null, element), /example-label|Synthetic example house/, `${name} has no label in a configured home`);
+  }
   const drawingSource = readFileSync(join(root, 'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx'), 'utf8');
   assert.match(drawingSource, /<header><div><ExampleLabel \/><h3>\{sheet\.title\}<\/h3>/, 'the drawing viewer heads with the same label');
   assert.match(readFileSync(join(root, 'frontend/example/app.tsx'), 'utf8'), /<ExampleLabelContext value=\{view\.homeLabel\}>/);
@@ -285,4 +301,4 @@ try {
   assert.ok(!world.stores.has('houseatlas-example-changed'));
   assert.equal(exampleCaches().length, 1);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-console.log('PASS fictional example files: source Documents, HomeBox original kept in memory, electrical drawing PDF, Places rows, inventory quantity and upkeep, the example label in dialog markup, and /example/ offline worker, including its short entry, across two builds (pure)');
+console.log('PASS fictional example files: source Documents, HomeBox original kept in memory, electrical drawing PDF, Places rows, inventory quantity and upkeep, the example label in dialog, Search, Atlas tools and Layer details markup, and /example/ offline worker, including its short entry, across two builds (pure)');
