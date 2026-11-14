@@ -1,6 +1,7 @@
 //! Explicit cached-provider startup selection. Startup performs no enrollment,
-//! grant or refresh; schema 2 may select an owner-only HomeBox credential file
-//! and the Editors approved to request one explicit refresh.
+//! grant or refresh; schema 2 may select an owner-only HomeBox credential file,
+//! the Editors approved to request one explicit refresh and, separately, whether
+//! those Editors may recheck a quarantined source.
 use super::{Failure, ServerLease};
 use crate::{
     access as a,
@@ -89,11 +90,17 @@ impl ProviderReadSelection {
             let registration: a::SourceRegistration =
                 serde_json::from_value(serde_json::to_value(&value.registration)?)
                     .map_err(|_| unavailable())?;
+            let recheck = value
+                .revalidate_source
+                .then_some(a::LifecycleCapability::RevalidateSource);
             for editor in value.refresh_editors.iter().flatten() {
                 for capability in [
                     a::LifecycleCapability::ConfigureSource,
                     a::LifecycleCapability::PublishCache,
-                ] {
+                ]
+                .into_iter()
+                .chain(recheck)
+                {
                     rules.push(
                         a::LifecycleRule::new(
                             editor.user_id.clone(),
@@ -141,6 +148,10 @@ struct HomeBox {
     /// Schema 2 only: Editors approved to request one explicit refresh.
     #[serde(default)]
     refresh_editors: Option<Vec<RefreshEditor>>,
+    /// Schema 2 only, absent by default: the same Editors may recheck this
+    /// source once HomeBox access was revoked (RevalidateSource).
+    #[serde(default)]
+    revalidate_source: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -208,10 +219,9 @@ struct Network {
 }
 impl Packet {
     fn validate(&self, config: &ServerConfig) -> Result<(), Failure> {
-        let extended = self
-            .homebox_cached
-            .iter()
-            .any(|v| v.credential_file.is_some() || v.refresh_editors.is_some());
+        let extended = self.homebox_cached.iter().any(|v| {
+            v.credential_file.is_some() || v.refresh_editors.is_some() || v.revalidate_source
+        });
         if !matches!(self.schema_version, 1 | 2)
             || (self.schema_version == 1 && extended)
             || self.homebox_cached.iter().any(|v| {
@@ -223,6 +233,7 @@ impl Packet {
                             || editors.len() > MAX_REFRESH_EDITORS
                             || v.credential_file.is_none()
                     })
+                    || (v.revalidate_source && v.refresh_editors.is_none())
             })
             || !digest(&self.server_configuration_digest)
             || self.server_configuration_digest != config.state_digest()?
@@ -344,6 +355,7 @@ impl ProviderReadMounts {
                         configured,
                         credentials,
                         approved,
+                        value.revalidate_source,
                     )?);
                 }
             }

@@ -1,5 +1,6 @@
-//! Disposable synthetic refresh over a generated loopback HomeBox; no live
-//! provider, real credential or user data. Every observed request is a GET.
+//! Disposable synthetic refresh and recheck over a generated loopback HomeBox;
+//! no live provider, real credential or user data. Every observed request is a
+//! GET.
 use super::*;
 use crate::{
     app::{Core, ReadAuthority, ServerRuntime, Store},
@@ -15,7 +16,7 @@ use axum::{
 use std::{
     collections::BTreeMap,
     net::{Ipv4Addr, SocketAddr},
-    sync::Mutex,
+    sync::{Mutex, atomic::AtomicU8},
     time::Duration,
 };
 use tokio::{
@@ -88,8 +89,21 @@ async fn post(
     app: &axum::Router,
     session: &(String, String),
 ) -> Result<(StatusCode, Value), Failure> {
+    send(app, session, "refresh").await
+}
+async fn recheck(
+    app: &axum::Router,
+    session: &(String, String),
+) -> Result<(StatusCode, Value), Failure> {
+    send(app, session, "recheck").await
+}
+async fn send(
+    app: &axum::Router,
+    session: &(String, String),
+    action: &str,
+) -> Result<(StatusCode, Value), Failure> {
     let path = format!(
-        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/refresh",
+        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/{action}",
         id(1),
         id(2)
     );
@@ -113,6 +127,12 @@ async fn post(
     Ok((status, body))
 }
 async fn available(app: &axum::Router, session: &(String, String)) -> Result<String, Failure> {
+    Ok(admission(app, session).await?["status"]
+        .as_str()
+        .ok_or("status")?
+        .to_owned())
+}
+async fn admission(app: &axum::Router, session: &(String, String)) -> Result<Value, Failure> {
     let path = format!(
         "/api/atlas/providers/homebox/workspaces/{}/homes/{}/refresh",
         id(1),
@@ -123,9 +143,35 @@ async fn available(app: &axum::Router, session: &(String, String)) -> Result<Str
         .oneshot(request("GET", &path, Vec::new(), Some(&session.0), None)?)
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), 4096).await?)?;
-    Ok(body["status"].as_str().ok_or("status")?.to_owned())
+    Ok(serde_json::from_slice(
+        &to_bytes(response.into_body(), 4096).await?,
+    )?)
 }
+/// The ordinary cached read a browsing caller makes; it never reaches HomeBox.
+async fn cached_read(app: &axum::Router, session: &(String, String)) -> Result<String, Failure> {
+    let path = format!(
+        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/sources/{}/collections/{}/cached",
+        id(1),
+        id(2),
+        id(300),
+        id(301)
+    );
+    let response = app
+        .clone()
+        .oneshot(request("GET", &path, Vec::new(), Some(&session.0), None)?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    Ok(String::from_utf8(
+        to_bytes(response.into_body(), 1 << 20).await?.to_vec(),
+    )?)
+}
+/// What the generated HomeBox does next.
+const ANSWER: u8 = 0;
+const UNAUTHORIZED: u8 = 1;
+const FORBIDDEN: u8 = 2;
+const WRONG_RECORD: u8 = 3;
+const STOPS_MID_READ: u8 = 4;
+const TOO_SLOW: u8 = 5;
 fn fixture(name: &str) -> &'static [u8] {
     match name {
         "locations" => {
@@ -172,7 +218,8 @@ fn respond(target: &str) -> &'static [u8] {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), Failure> {
+async fn healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lifts_quarantine()
+-> Result<(), Failure> {
     let scratch = tempfile::Builder::new()
         .prefix("homebox-refresh-")
         .tempdir()?;
@@ -189,10 +236,24 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     for capability in [
         a::LifecycleCapability::ConfigureSource,
         a::LifecycleCapability::PublishCache,
+        a::LifecycleCapability::RevalidateSource,
     ] {
         rules.push(a::LifecycleRule::new(
             a::CanonicalId::parse(id(6))?,
             a::CanonicalId::parse(id(7))?,
+            registration.clone(),
+            capability,
+            a::Action::Mutate,
+        )?);
+    }
+    // A second approved Editor (id 10/11) whose rules omit RevalidateSource.
+    for capability in [
+        a::LifecycleCapability::ConfigureSource,
+        a::LifecycleCapability::PublishCache,
+    ] {
+        rules.push(a::LifecycleRule::new(
+            a::CanonicalId::parse(id(10))?,
+            a::CanonicalId::parse(id(11))?,
             registration.clone(),
             capability,
             a::Action::Mutate,
@@ -224,24 +285,41 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     // A second Editor whom the profile does not name.
     let unlisted =
         json!({"username":"synthetic-unlisted-editor","password":"Disposable-unlisted-editor"});
+    let refresh_only =
+        json!({"username":"synthetic-refresh-editor","password":"Disposable-refresh-editor"});
     {
         let mut boundary = access.lock().unwrap();
-        boundary.provision_user(
-            &a::CanonicalId::parse(id(8))?,
-            &a::CanonicalId::parse(id(9))?,
-            "synthetic-unlisted-editor",
-            &a::hash_password("Disposable-unlisted-editor")?,
-            None,
-        )?;
-        boundary.set_membership(
-            &a::CanonicalId::parse(id(8))?,
-            &a::Scope {
-                workspace_id: a::CanonicalId::parse(id(1))?,
-                home_id: a::CanonicalId::parse(id(2))?,
-            },
-            a::Role::Editor,
-            true,
-        )?;
+        for (user, actor, name, password) in [
+            (
+                8,
+                9,
+                "synthetic-unlisted-editor",
+                "Disposable-unlisted-editor",
+            ),
+            (
+                10,
+                11,
+                "synthetic-refresh-editor",
+                "Disposable-refresh-editor",
+            ),
+        ] {
+            boundary.provision_user(
+                &a::CanonicalId::parse(id(user))?,
+                &a::CanonicalId::parse(id(actor))?,
+                name,
+                &a::hash_password(password)?,
+                None,
+            )?;
+            boundary.set_membership(
+                &a::CanonicalId::parse(id(user))?,
+                &a::Scope {
+                    workspace_id: a::CanonicalId::parse(id(1))?,
+                    home_id: a::CanonicalId::parse(id(2))?,
+                },
+                a::Role::Editor,
+                true,
+            )?;
+        }
     }
     let core = Core {
         access,
@@ -270,6 +348,7 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         serde_json::from_value(serde_json::to_value(&registration)?)?;
     let limits = hb::Limits {
         max_page_size: 2,
+        request_timeout_ms: 1_000,
         ..hb::Limits::default()
     };
     let source = Arc::new(TrustedHomeBoxSource::new_stock(
@@ -293,9 +372,16 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         Arc::clone(&source),
         configured,
         credentials,
-        vec![a::CanonicalId::parse(id(7))?],
+        vec![
+            a::CanonicalId::parse(id(7))?,
+            a::CanonicalId::parse(id(11))?,
+        ],
+        true,
     )?;
     refresh.certificate = Some(leaf);
+    // The same approval without the profile naming the recheck.
+    let mut plain = refresh.clone();
+    plain.recheck = false;
     // Without a selected credential the same Host answers "not configured".
     let unconfigured = Host::new(
         core,
@@ -308,13 +394,14 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         .with_pinned_homebox_files(vec![file])?
         .with_homebox_refresh(vec![refresh])?;
     let running = Arc::clone(&host.homebox_refresh_running);
+    let plain = router(unconfigured.clone().with_homebox_refresh(vec![plain])?);
     let (bare, app) = (router(unconfigured), router(host));
 
     let acceptor = TlsAcceptor::from(Arc::new(tls));
     let seen = Arc::new(Mutex::new(Vec::<String>::new()));
     let observed = Arc::clone(&seen);
-    let deny = Arc::new(AtomicBool::new(false));
-    let denied = Arc::clone(&deny);
+    let mode = Arc::new(AtomicU8::new(ANSWER));
+    let next = Arc::clone(&mode);
     let (stop, mut shutdown) = tokio::sync::oneshot::channel::<()>();
     let mut server = tokio::spawn(async move {
         loop {
@@ -339,14 +426,25 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
             let mut line = head.lines().next().unwrap().split_whitespace();
             assert_eq!(line.next(), Some("GET"));
             let target = line.next().unwrap().to_owned();
-            // Later the generated HomeBox refuses the credential outright.
-            let (status, body) = if denied.load(Ordering::SeqCst) {
-                ("401 Unauthorized", &b""[..])
-            } else {
-                ("200 OK", respond(&target))
+            let path = target.split('?').next().unwrap().to_owned();
+            observed.lock().unwrap().push(target.clone());
+            let (status, body) = match next.load(Ordering::SeqCst) {
+                UNAUTHORIZED => ("401 Unauthorized", &b""[..]),
+                FORBIDDEN => ("403 Forbidden", &b""[..]),
+                // A detail answered with a different record than requested.
+                WRONG_RECORD if path.ends_with(&id(2)) => ("200 OK", fixture("location")),
+                // The second item page fails after the first one succeeded.
+                STOPS_MID_READ if target.contains("page=2") => {
+                    ("500 Internal Server Error", &b""[..])
+                }
+                TOO_SLOW => {
+                    tokio::time::sleep(Duration::from_millis(1_500)).await;
+                    ("200 OK", respond(&target))
+                }
+                _ => ("200 OK", respond(&target)),
             };
-            observed.lock().unwrap().push(target);
-            stream
+            // The reader may already have given up on a slow answer.
+            let _ = stream
                 .write_all(
                     format!(
                         "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -354,9 +452,8 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
                     )
                     .as_bytes(),
                 )
-                .await
-                .unwrap();
-            stream.write_all(body).await.unwrap();
+                .await;
+            let _ = stream.write_all(body).await;
             let _ = stream.shutdown().await;
         }
     });
@@ -365,6 +462,7 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     let viewer = login(&app, &receipt["login"]).await?;
     let editor = login(&app, &receipt["editorLogin"]).await?;
     let unlisted = login(&app, &unlisted).await?;
+    let refresh_only = login(&app, &refresh_only).await?;
     // The button's admission read: only the approved Editor of a configured
     // source sees it, before any cache exists for that source.
     assert_eq!(available(&app, &editor).await?, "available");
@@ -457,7 +555,7 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     assert_eq!(count(), 10);
 
     // A later 401 is recorded as quarantine, and the cached read withholds rows.
-    deny.store(true, Ordering::SeqCst);
+    mode.store(UNAUTHORIZED, Ordering::SeqCst);
     let (status, body) = post(&app, &editor).await?;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["status"], "failed", "{body}");
@@ -466,7 +564,7 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
     assert_eq!(count(), 11);
     // Quarantine holds: a later press stops before contacting HomeBox, even
     // once HomeBox would answer again.
-    deny.store(false, Ordering::SeqCst);
+    mode.store(ANSWER, Ordering::SeqCst);
     assert_eq!(
         post(&app, &editor).await?,
         (
@@ -475,25 +573,116 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original() -> Result<(), 
         )
     );
     assert_eq!(count(), 11);
-    let cached = format!(
-        "/api/atlas/providers/homebox/workspaces/{}/homes/{}/sources/{}/collections/{}/cached",
-        id(1),
-        id(2),
-        id(300),
-        id(301)
-    );
-    let response = app
-        .clone()
-        .oneshot(request("GET", &cached, Vec::new(), Some(&editor.0), None)?)
-        .await?;
-    let status = response.status();
-    let cached = String::from_utf8(to_bytes(response.into_body(), 1 << 20).await?.to_vec())?;
-    assert_eq!(status, StatusCode::OK, "{cached}");
-    assert!(cached.contains("\"access-revoked\""), "{cached}");
+    let withheld = cached_read(&app, &editor).await?;
+    assert!(withheld.contains("\"access-revoked\""), "{withheld}");
     assert!(
-        !cached.contains(&format!("\"externalId\":\"{}\"", id(2))),
-        "{cached}"
+        !withheld.contains(&format!("\"externalId\":\"{}\"", id(2))),
+        "{withheld}"
     );
+    assert_eq!(count(), 11, "Browsing sends nothing upstream");
+
+    // Recheck admission: named only where the profile names it, and only to
+    // the approved Editor; every other caller's answer is unchanged.
+    assert_eq!(
+        admission(&app, &editor).await?,
+        json!({"status":"available","recheck":true})
+    );
+    assert_eq!(
+        admission(&plain, &editor).await?,
+        json!({"status":"available","recheck":false})
+    );
+    for session in [&viewer, &unlisted] {
+        assert_eq!(
+            admission(&app, session).await?,
+            json!({"status":"unavailable"})
+        );
+    }
+    // Refusals before any upstream request.
+    for target in [&plain, &bare] {
+        assert_eq!(
+            recheck(target, &editor).await?,
+            (StatusCode::OK, json!({"status":"not-configured"}))
+        );
+    }
+    assert_eq!(recheck(&app, &viewer).await?.0, StatusCode::FORBIDDEN);
+    // The Access rule, not the admission hint, decides: an Editor approved
+    // for refresh whose rules omit RevalidateSource is refused.
+    for session in [&unlisted, &refresh_only] {
+        assert_eq!(
+            recheck(&app, session).await?,
+            (
+                StatusCode::OK,
+                json!({"status":"failed","reason":"not-approved"})
+            )
+        );
+    }
+    running.store(true, Ordering::SeqCst);
+    assert_eq!(
+        recheck(&app, &editor).await?,
+        (StatusCode::OK, json!({"status":"running"}))
+    );
+    running.store(false, Ordering::SeqCst);
+    assert_eq!(count(), 11);
+
+    // Each failed recheck reaches HomeBox with GETs only, writes nothing, and
+    // leaves the quarantine and the stored state byte-for-byte as they were.
+    for (next, reason) in [
+        (UNAUTHORIZED, "auth"),
+        (FORBIDDEN, "auth"),
+        (WRONG_RECORD, "wrong-scope"),
+        (STOPS_MID_READ, "upstream"),
+        (TOO_SLOW, "timeout"),
+    ] {
+        mode.store(next, Ordering::SeqCst);
+        let before = count();
+        assert_eq!(
+            recheck(&app, &editor).await?,
+            (StatusCode::OK, json!({"status":"failed","reason":reason})),
+            "{reason}"
+        );
+        assert!(count() > before, "{reason}");
+        mode.store(ANSWER, Ordering::SeqCst);
+        let after = count();
+        assert_eq!(cached_read(&app, &editor).await?, withheld, "{reason}");
+        // Refresh still stops before contacting HomeBox.
+        assert_eq!(
+            post(&app, &editor).await?,
+            (
+                StatusCode::OK,
+                json!({"status":"failed","reason":"access-revoked"})
+            )
+        );
+        assert_eq!(count(), after, "{reason}");
+    }
+    // Let a slow answer finish before counting again.
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
+    // A complete read of exactly the configured source lifts the quarantine in
+    // the same commit that publishes the fresh generation.
+    let before = count();
+    let (status, body) = recheck(&app, &editor).await?;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "rechecked", "{body}");
+    assert_eq!(body["cache"]["status"], "fresh", "{body}");
+    assert_eq!(body["cache"]["errorCode"], Value::Null, "{body}");
+    assert_eq!(count(), before + 7);
+    let restored = cached_read(&app, &editor).await?;
+    assert!(restored.contains("\"fresh\""), "{restored}");
+    assert!(!restored.contains("\"access-revoked\""), "{restored}");
+    assert!(
+        restored.contains(&format!("\"externalId\":\"{}\"", id(2))),
+        "{restored}"
+    );
+    assert_eq!(count(), before + 7);
+    // A source that is not quarantined needs no recheck; nothing is sent.
+    assert_eq!(
+        recheck(&app, &editor).await?,
+        (StatusCode::OK, json!({"status":"not-needed"}))
+    );
+    assert_eq!(count(), before + 7);
+    // Ordinary refresh works again.
+    assert_eq!(post(&app, &editor).await?.1["status"], "refreshed");
+    assert_eq!(count(), before + 14);
 
     let _ = stop.send(());
     match tokio::time::timeout(Duration::from_secs(2), &mut server).await {

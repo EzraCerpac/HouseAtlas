@@ -1,11 +1,44 @@
 # HouseAtlas
 
+## HomeBox access recheck
+
+Related to #285. No case, runner or command is added; two existing default
+backend-library cases and one existing frontend SOURCE entry gain these
+synthetic checks, so the inventory is unchanged:
+
+- The route case (renamed
+  `healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lifts_quarantine`)
+  continues after the 401 quarantine. The admission `GET` adds `recheck: true`
+  only where the binding names it, and other callers' answers are unchanged.
+  Before any upstream request, a recheck is answered `not-configured` without
+  `revalidateSource` or a credential, refused (403) for a Viewer, refused by
+  the Access rules for an unlisted Editor and for an Editor approved for
+  refresh whose rules omit `RevalidateSource` (`not-approved`), and answered
+  `running` with the in-flight flag set. A 401, a 403, a detail answered with
+  a different record, a 500 on the second item page and an answer slower than
+  the request limit each reach HomeBox with GETs only, answer `failed` with
+  `auth`, `auth`, `wrong-scope`, `upstream` and `timeout`, leave the cached
+  read byte-for-byte unchanged and leave refresh refused. A complete read then
+  answers `rechecked` in seven GETs; the cached read serves fresh rows without
+  `access-revoked`, a further recheck is `not-needed` with no GET, and
+  refresh works again. Cached reads send nothing upstream.
+- The profile case (renamed
+  `v2_credential_selects_open_file_refresh_and_recheck_while_v1_is_unchanged`)
+  pins that `revalidateSource` is off by default and on only when set, and is
+  refused without `refreshEditors`, in schema 1, or when not a boolean.
+- `homebox-refresh-healthy.mjs` adds that the recheck is offered only where the
+  admission read names it and replaces the refresh wording after a
+  revocation; a failed recheck re-reads nothing and says entries stay
+  withheld; a successful one re-reads the view and clears local withholding;
+  a recheck of a source that is not revoked says nothing was rechecked; and a
+  press that is not offered sends nothing.
+
 ## HomeBox Editor refresh and configured Open file
 
 Related to #285 and #560. The existing default backend-library selection
 discovers two added cases:
 
-- `http::providers::homebox_refresh::tests::healthy_editor_refresh_fills_cache_then_opens_original`
+- `http::providers::homebox_refresh::tests::healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lifts_quarantine`
   reopens a disposable synthetic store with one generated lifecycle approval
   and drives the registered router against a generated loopback TLS HomeBox
   built from the checked-in stock wire fixtures. The admission `GET` answers
@@ -22,7 +55,7 @@ discovers two added cases:
   a later press is refused with `access-revoked` before any HomeBox request,
   even when HomeBox would answer again.
   Every observed provider request is a GET carrying the generated header.
-- `lifecycle::persistent::provider_reads::tests::v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged`
+- `lifecycle::persistent::provider_reads::tests::v2_credential_selects_open_file_refresh_and_recheck_while_v1_is_unchanged`
   pins that schema 1, and schema 2 without the new fields, mount exactly as
   before; that schema 1 refuses `credentialFile`; that an owner-only absolute
   file selects Open file and refresh; that relative, empty-approval,

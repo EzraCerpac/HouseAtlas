@@ -10,6 +10,8 @@ pub enum PublishError {
     RegistrationMismatch,
     InvalidRetainedState,
     Quarantined,
+    /// A source recheck was requested for a source that is not quarantined.
+    NotQuarantined,
     StoreRejected,
 }
 impl fmt::Display for PublishError {
@@ -21,6 +23,7 @@ impl fmt::Display for PublishError {
                 "Retained generation does not match the published contract."
             }
             Self::Quarantined => "Source requires separately authorized scope revalidation.",
+            Self::NotQuarantined => "Source is not quarantined.",
             Self::StoreRejected => "Complete-generation publication was not accepted by storage.",
         })
     }
@@ -134,6 +137,26 @@ impl<'a, P> PreparedGeneration<'a, P> {
         self,
         reader: &mut HomeBoxReader<T, K>,
     ) -> Result<StagedPublication<'a, P>, RefreshError<'a, P>> {
+        self.fetch_checked(reader, false).await
+    }
+    /// Separately authorized source recheck. Only the lifecycle owner calls
+    /// this, after capturing and revalidating its RevalidateSource grant. It is
+    /// the ordinary complete read with one difference: a quarantined
+    /// predecessor does not stop it, and a COMPLETE generation of exactly this
+    /// registration no longer carries the quarantine, so committing it clears
+    /// the quarantine in the same storage transaction. Every failure is
+    /// returned unchanged; the caller records nothing for it.
+    pub(crate) async fn fetch_revalidation<T: Transport, K: Clock>(
+        self,
+        reader: &mut HomeBoxReader<T, K>,
+    ) -> Result<StagedPublication<'a, P>, RefreshError<'a, P>> {
+        self.fetch_checked(reader, true).await
+    }
+    async fn fetch_checked<T: Transport, K: Clock>(
+        self,
+        reader: &mut HomeBoxReader<T, K>,
+        revalidate: bool,
+    ) -> Result<StagedPublication<'a, P>, RefreshError<'a, P>> {
         let partition = self.fence.partition();
         let scope = reader.scope();
         if partition.workspace_id != scope.workspace_id.as_str()
@@ -150,13 +173,23 @@ impl<'a, P> PreparedGeneration<'a, P> {
                 PublishError::RegistrationMismatch,
             ));
         }
-        // An ordinary refresh cannot turn durable quarantine into fresh access.
-        if self.previous.cache().quarantined() || self.previous.quarantine {
-            return Err(RefreshError::Publication(PublishError::Quarantined));
+        // An ordinary refresh cannot turn durable quarantine into fresh access;
+        // a recheck exists only for a quarantined source.
+        let quarantined = self.previous.cache().quarantined() || self.previous.quarantine;
+        match (revalidate, quarantined) {
+            (false, true) => return Err(RefreshError::Publication(PublishError::Quarantined)),
+            (true, false) => return Err(RefreshError::Publication(PublishError::NotQuarantined)),
+            _ => {}
         }
         let id = Uuid::parse(self.fence.reserved_generation_id())
             .map_err(|_| RefreshError::Publication(PublishError::InvalidRetainedState))?;
         let generation = match reader.fetch_generation(Some(&self.previous), id).await {
+            // The reader completed every page and detail of exactly this
+            // registration; anything outside it fails as WrongScope instead.
+            Ok(mut generation) if revalidate => {
+                generation.quarantine = false;
+                generation
+            }
             Ok(generation) => generation,
             Err(failure) => {
                 return Err(RefreshError::Read(Box::new(FailedPublication {

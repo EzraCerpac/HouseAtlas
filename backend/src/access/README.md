@@ -80,6 +80,9 @@ preimage and source version; revalidation never enables or clears quarantine.
 Source registration replacement preserves existing enabled state by default,
 checks immutable ownership and disjoint partitions in one access transaction.
 Ordinary principals have no configure-source or publish-cache capability.
+`RevalidateSource` is a third lifecycle capability, issued only from an explicit
+owner rule to a Mutate principal; it pins the partition like `PublishCache` and
+is never implied by it.
 
 The transaction guard also accepts retained grants acquired using its original
 mutation principal:

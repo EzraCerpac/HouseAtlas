@@ -1,5 +1,7 @@
-//! One explicit Editor-requested HomeBox cache refresh. Browsing never calls
-//! it; there is no timer, retry or startup refresh. HomeBox receives GETs only.
+//! One explicit Editor-requested HomeBox cache refresh, and one explicit
+//! recheck that can lift a quarantine after a complete read. Browsing never
+//! calls either; there is no timer, retry or startup refresh. HomeBox
+//! receives GETs only.
 use crate::{
     access as a,
     app::RequestPrincipal,
@@ -8,7 +10,7 @@ use crate::{
     http::{CheckedHeaders, Host, HttpFailure, HttpResult, access_error, auth, failure},
     lifecycle::providers::{
         authority::{NativeLifecycleAuthority, ProviderLease},
-        homebox_refresh::{self, RefreshOutcome},
+        homebox_refresh::{self, RecheckOutcome, RefreshOutcome},
     },
     providers::homebox::read::NativeReadCredentialConfig,
     storage as s,
@@ -34,6 +36,8 @@ pub struct HomeBoxRefreshBinding {
     /// Actors named by the profile's lifecycle approvals. Only the admission
     /// hint reads this; the POST itself is decided by the Access rules.
     approved: Vec<a::CanonicalId>,
+    /// The profile names RevalidateSource for the same approved Editors.
+    pub(crate) recheck: bool,
     #[cfg(test)]
     pub(crate) certificate: Option<Vec<u8>>,
 }
@@ -43,6 +47,7 @@ impl HomeBoxRefreshBinding {
         configured: Arc<ConfiguredSource>,
         credentials: Arc<NativeReadCredentialConfig>,
         approved: Vec<a::CanonicalId>,
+        recheck: bool,
     ) -> s::Result<Self> {
         let endpoint = source.endpoint().map_err(|_| binding_error())?;
         if configured.registration() != source.registration()
@@ -57,6 +62,7 @@ impl HomeBoxRefreshBinding {
             configured,
             credentials,
             approved,
+            recheck,
             #[cfg(test)]
             certificate: None,
         })
@@ -113,8 +119,9 @@ fn cache_facts(cache: &s::CacheStatus) -> Value {
 }
 
 /// Admission hint for the button. Only an Editor whose actor the profile
-/// approves for this home's configured source learns `available`; every other
-/// caller gets the same `unavailable`, whether or not a source is configured.
+/// approves for this home's configured source learns `available`, and whether
+/// that profile also names the source recheck; every other caller gets the
+/// same `unavailable`, whether or not a source is configured.
 /// Read-only; nothing is sent upstream and nothing is written.
 pub(in crate::http) async fn availability(
     State(host): State<Host>,
@@ -130,10 +137,14 @@ pub(in crate::http) async fn availability(
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         crate::http::authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
-            let eligible = p.principal.role() == a::Role::Editor
-                && binding(&host, &scope)
-                    .is_some_and(|binding| binding.approved.contains(p.principal.actor_id()));
-            answer(json!({ "status": if eligible { "available" } else { "unavailable" } }))
+            let eligible = binding(&host, &scope).filter(|binding| {
+                p.principal.role() == a::Role::Editor
+                    && binding.approved.contains(p.principal.actor_id())
+            });
+            answer(match eligible {
+                Some(binding) => json!({"status": "available", "recheck": binding.recheck}),
+                None => json!({"status": "unavailable"}),
+            })
         })
     })
     .await
@@ -157,6 +168,31 @@ pub(in crate::http) async fn refresh(
         .map_err(|_| unavailable())?
 }
 
+/// POST + current CSRF + Editor membership, from the caller's own session.
+fn mutation_principal(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: &d::Scope,
+) -> Result<RequestPrincipal, HttpFailure> {
+    let selected = crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let core = host.core.lock().map_err(|_| unavailable())?;
+    if !core.homes.iter().any(|home| home.scope == *scope) {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    let url = auth::url(host, uri);
+    let observed =
+        crate::http::evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
+    let original = core
+        .access
+        .lock()
+        .map_err(|_| unavailable())?
+        .authorize(&observed, &selected, a::Action::Mutate)
+        .map_err(access_error)?;
+    Ok(RequestPrincipal::new(original))
+}
+
 fn run(
     host: &Host,
     headers: &CheckedHeaders,
@@ -166,24 +202,7 @@ fn run(
     runtime: &tokio::runtime::Handle,
 ) -> HttpResult {
     let _admitted = headers.admission_permit()?;
-    let selected = crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
-    // POST + current CSRF + Editor membership, from the caller's own session.
-    let principal = {
-        let core = host.core.lock().map_err(|_| unavailable())?;
-        if !core.homes.iter().any(|home| home.scope == scope) {
-            return Err(failure(StatusCode::NOT_FOUND));
-        }
-        let url = auth::url(host, uri);
-        let observed = crate::http::evidence(&host.origin, headers, uri, &url, method)
-            .map_err(access_error)?;
-        let original = core
-            .access
-            .lock()
-            .map_err(|_| unavailable())?
-            .authorize(&observed, &selected, a::Action::Mutate)
-            .map_err(access_error)?;
-        RequestPrincipal::new(original)
-    };
+    let principal = mutation_principal(host, headers, uri, method, &scope)?;
     let Some(binding) = binding(host, &scope) else {
         // No credential selected for this home: nothing is sent upstream.
         return answer(json!({"status": "not-configured"}));
@@ -247,6 +266,93 @@ fn run(
         Err(error) if error.quarantined() => {
             json!({"status": "failed", "reason": "access-revoked"})
         }
+        Err(_) => json!({"status": "failed", "reason": "unavailable"}),
+    };
+    let access = access.lock().map_err(|_| unavailable())?;
+    principal.release(&access).map_err(access_error)?;
+    answer(response)
+}
+
+/// One explicit recheck of a quarantined source. Offered and accepted only
+/// when the pinned profile names it for this source; the same Editor approval,
+/// CSRF and single in-flight rule as refresh. Only a complete GET-only read of
+/// exactly the configured source is published, clearing the quarantine in that
+/// commit; any failure writes nothing.
+pub(in crate::http) async fn recheck(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    let runtime = tokio::runtime::Handle::current();
+    let scope = d::Scope {
+        workspace_id,
+        home_id,
+    };
+    tokio::task::spawn_blocking(move || {
+        run_recheck(&host, &headers, &uri, &method, scope, &runtime)
+    })
+    .await
+    .map_err(|_| unavailable())?
+}
+
+fn run_recheck(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: d::Scope,
+    runtime: &tokio::runtime::Handle,
+) -> HttpResult {
+    let _admitted = headers.admission_permit()?;
+    let principal = mutation_principal(host, headers, uri, method, &scope)?;
+    let Some(binding) = binding(host, &scope).filter(|binding| binding.recheck) else {
+        // The profile does not name a recheck for this home: nothing is sent.
+        return answer(json!({"status": "not-configured"}));
+    };
+    let Some(_running) = Running::acquire(&host.homebox_refresh_running) else {
+        return answer(json!({"status": "running"}));
+    };
+    let authority = NativeLifecycleAuthority;
+    let access = Arc::clone(&host.core.lock().map_err(|_| unavailable())?.access);
+    // A source this caller cannot read has never been published here, so there
+    // is no quarantine to lift; registration stays the refresh's job.
+    let readable = access
+        .lock()
+        .map_err(|_| unavailable())?
+        .authorize_source_partition(
+            principal.principal.principal(),
+            &binding.configured.partition(),
+        )
+        .is_ok();
+    if !readable {
+        return answer(json!({"status": "not-needed"}));
+    }
+    let Ok(lease) = ProviderLease::capture_revalidation(
+        &access,
+        &authority,
+        principal.principal.principal(),
+        Arc::clone(&binding.configured),
+    ) else {
+        return answer(json!({"status": "failed", "reason": "not-approved"}));
+    };
+    let lease = Arc::new(lease);
+    let outcome = runtime.block_on(homebox_refresh::recheck_configured(
+        &host.core,
+        &lease,
+        &binding.source,
+        &binding.credentials,
+        #[cfg(test)]
+        binding.certificate.as_deref(),
+    ));
+    let response = match outcome {
+        Ok(RecheckOutcome::Cleared { cache }) => {
+            json!({"status": "rechecked", "cache": cache_facts(&cache)})
+        }
+        Ok(RecheckOutcome::Kept { code }) => json!({"status": "failed", "reason": code}),
+        Err(error) if error.not_quarantined() => json!({"status": "not-needed"}),
+        Err(error) if error.changed() => json!({"status": "failed", "reason": "changed"}),
         Err(_) => json!({"status": "failed", "reason": "unavailable"}),
     };
     let access = access.lock().map_err(|_| unavailable())?;

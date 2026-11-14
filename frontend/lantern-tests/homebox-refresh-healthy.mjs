@@ -1,31 +1,45 @@
-// Healthy generated checks for the Editor-only "Refresh from HomeBox" control,
+// Healthy generated checks for the Editor-only "Refresh from HomeBox" control
+// and its "Recheck HomeBox access" replacement after a revocation,
 // driven through the production controller that the button renders: the
 // server's admission read decides whether it is offered, a press is the only
 // POST, and every recorded answer re-reads the view. A generated server model
 // with the route's answer shapes; no browser, network, HomeBox or credential.
 import assert from 'node:assert/strict';
-import { createRefreshOwner, decodeAvailability, decodeRefreshResult, describeRefresh, ownerOf, requestRefresh } from '../src/lantern/homebox-refresh.ts';
+import { createRefreshOwner, decodeAvailability, decodeRecheckResult, decodeRefreshResult, describeRefresh, ownerOf, requestRefresh } from '../src/lantern/homebox-refresh.ts';
 import { shownView, withholdHomebox } from '../src/lantern/homebox-withheld.ts';
 
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const format = iso => iso.slice(0, 16).replace('T', ' ');
 const scope = { workspaceId: 'w 1', homeId: 'h/2' };
 const ROUTE = '/api/atlas/providers/homebox/workspaces/w%201/homes/h%2F2/refresh';
+const RECHECK = '/api/atlas/providers/homebox/workspaces/w%201/homes/h%2F2/recheck';
 
-/** The route's rules over one in-memory cache: admission, CSRF POST, 401 quarantine. */
-function server({ role = 'editor', approved = true, configured = true } = {}) {
-  const model = { cache: null, upstream: 'ok', calls: [], refreshes: 0, now: '2026-11-14T09:30:00.000Z' };
+/** The routes' rules over one in-memory cache: admission, CSRF POST, 401
+ * quarantine, and the recheck where the profile names it. */
+function server({ role = 'editor', approved = true, configured = true, recheck = false } = {}) {
+  const model = { cache: null, upstream: 'ok', calls: [], refreshes: 0, rechecks: 0, now: '2026-11-14T09:30:00.000Z' };
   model.transport = async (path, init) => {
     model.calls.push([init.method, path]);
     assert.equal(init.credentials, 'same-origin');
     if (path === '/api/atlas/auth/session') return Response.json({ schemaVersion: 1, actorId: 'a1', csrfToken: 'csrf-1' });
-    assert.equal(path, ROUTE);
-    if (init.method === 'GET')
+    if (init.method === 'GET') {
+      assert.equal(path, ROUTE);
       // One answer for every ineligible caller, configured or not.
-      return Response.json({ status: configured && role === 'editor' && approved ? 'available' : 'unavailable' });
+      return Response.json(configured && role === 'editor' && approved ? { status: 'available', recheck } : { status: 'unavailable' });
+    }
     assert.equal(init.method, 'POST');
     assert.equal(init.headers['X-Atlas-CSRF'], 'csrf-1');
     if (role !== 'editor') return new Response(null, { status: 403 });
+    if (path === RECHECK) {
+      if (!configured || !recheck) return Response.json({ status: 'not-configured' });
+      if (model.cache?.status !== 'access-revoked') return Response.json({ status: 'not-needed' });
+      model.rechecks += 1;
+      // A failed recheck writes nothing; only a complete read lifts the quarantine.
+      if (model.upstream !== 'ok') return Response.json({ status: 'failed', reason: 'auth' });
+      model.cache = { status: 'fresh', lastSuccessfulFetchAt: model.now, entries: ['generated entity'] };
+      return Response.json({ status: 'rechecked', cache: { status: 'fresh', lastSuccessfulFetchAt: model.now, lastAttemptAt: model.now, errorCode: null } });
+    }
+    assert.equal(path, ROUTE);
     if (!configured) return Response.json({ status: 'not-configured' });
     if (!approved) return Response.json({ status: 'failed', reason: 'registration-unavailable' });
     // A quarantined cache is refused before any HomeBox request.
@@ -64,10 +78,10 @@ function control(model, transport = model.transport) {
     check: signal => owner.check(token, signal),
     getSnapshot: () => owner.stateFor(token),
     subscribe: owner.subscribe,
-    press(reload, withhold) { model.hostReload = reload; model.hostWithhold = withhold; return owner.press(token); },
+    press(reload, withhold, action) { model.hostReload = reload; model.hostWithhold = withhold; return owner.press(token, action); },
   };
 }
-const say = state => state.result ? describeRefresh(state.result, format, state.reconciled) : '';
+const say = state => state.result ? describeRefresh(state.result, format, state.reconciled, state.recheck) : '';
 
 // Admission: offered only to the approved Editor of a configured source.
 for (const [options, offered] of [[{}, true], [{ role: 'viewer' }, false], [{ approved: false }, false], [{ configured: false }, false]]) {
@@ -194,7 +208,7 @@ for (const upstream of ['ok', 'unauthorized']) {
     const label = `${upstream} ${name} during ${during}`;
     assert.equal(model.refreshes, 1, label);
     assert.deepEqual(app, { shown: 'other home', pending: { aborted: false }, reads: [], withheld: [] }, label);
-    assert.deepEqual(refresh.getSnapshot(), { offered: false, busy: false, result: null, reconciled: true }, `${label}: nothing kept`);
+    assert.deepEqual(refresh.getSnapshot(), { offered: false, recheck: false, busy: false, result: null, reconciled: true }, `${label}: nothing kept`);
   }
 }
 
@@ -251,8 +265,49 @@ for (const aborted of [true, false]) {
   });
   await refresh.check(button.signal);
   assert.equal(sent.aborted, aborted, 'the GET carries the button\'s signal');
-  assert.deepEqual(refresh.getSnapshot(), { offered: false, busy: false, result: null, reconciled: true }, 'no late admission is applied');
+  assert.deepEqual(refresh.getSnapshot(), { offered: false, recheck: false, busy: false, result: null, reconciled: true }, 'no late admission is applied');
   assert.deepEqual(model.calls, [['GET', ROUTE]], 'one admission read, no POST');
+}
+
+// Recheck: offered only where the server names it. After a revocation it is
+// the one way back, a failure changes nothing, and success re-reads the view.
+{
+  const model = server({ recheck: true }), refresh = control(model);
+  await refresh.check();
+  assert.deepEqual(refresh.getSnapshot(), { offered: true, recheck: true, busy: false, result: null, reconciled: true });
+  await refresh.press(model.reload, model.withhold);
+  model.upstream = 'unauthorized';
+  await refresh.press(model.reload, model.withhold);
+  assert.equal(say(refresh.getSnapshot()), 'Not refreshed: HomeBox refused the configured credential. Access revoked: the saved HomeBox copy is withheld, and only a recheck of HomeBox access can restore it.');
+  let reloads = 0;
+  const reload = async () => { reloads += 1; return model.reload(); };
+  const shown = model.view, withheld = [];
+  await refresh.press(reload, on => { withheld.push(on); }, 'recheck');
+  assert.equal(model.rechecks, 1);
+  assert.equal(reloads, 0, 'A failed recheck wrote nothing, so the view is not re-read');
+  assert.equal(model.view, shown);
+  assert.deepEqual(withheld, []);
+  assert.equal(say(refresh.getSnapshot()), 'Access not restored: HomeBox refused the configured credential. HomeBox entries stay withheld.');
+  model.upstream = 'ok';
+  await refresh.press(reload, on => { withheld.push(on); }, 'recheck');
+  assert.equal(model.rechecks, 2);
+  assert.equal(reloads, 1);
+  assert.deepEqual(withheld, [false]);
+  assert.deepEqual(model.view.caches, [{ status: 'fresh', lastSuccessfulFetchAt: model.now, entries: ['generated entity'] }]);
+  assert.equal(say(refresh.getSnapshot()), 'Access restored: refreshed from HomeBox 2026-11-14 09:30.');
+  // Nothing to recheck once access is back; the server sends nothing upstream.
+  await refresh.press(reload, () => {}, 'recheck');
+  assert.equal(model.rechecks, 2);
+  assert.equal(say(refresh.getSnapshot()), 'HomeBox access is not revoked; nothing was rechecked.');
+}
+// Where the server does not offer it, a recheck press sends nothing.
+{
+  const model = server(), refresh = control(model);
+  await refresh.check();
+  assert.equal(refresh.getSnapshot().recheck, false);
+  const before = model.calls.length;
+  await refresh.press(model.reload, model.withhold, 'recheck');
+  assert.equal(model.calls.length, before);
 }
 
 // The lazily loaded button keeps one owner per host port, so a remounted
@@ -287,8 +342,14 @@ for (const aborted of [true, false]) {
 {
   for (const bad of [null, [], {}, { status: 'fresh' }]) {
     assert.throws(() => decodeRefreshResult(bad), TypeError);
+    assert.throws(() => decodeRecheckResult(bad), TypeError);
     assert.throws(() => decodeAvailability(bad), TypeError);
   }
+  assert.throws(() => decodeAvailability({ status: 'available', recheck: 'yes' }), TypeError);
+  assert.deepEqual(decodeAvailability({ status: 'available' }), { offered: true, recheck: false });
+  assert.deepEqual(decodeRecheckResult({ status: 'failed', reason: 'wrong-scope' }), { kind: 'recheck-failed', reason: 'wrong-scope' });
+  assert.equal(describeRefresh(decodeRecheckResult({ status: 'failed', reason: 'timeout' }), format),
+    'Access not restored: HomeBox did not answer in time. HomeBox entries stay withheld.');
   const model = server();
   for (const [answer, expected] of [[{ status: 'running' }, 'A refresh is already running. Try again when it finishes.'],
     [{ status: 'not-configured' }, 'Refreshing from HomeBox is not set up on this server.']]) {
@@ -299,4 +360,4 @@ for (const aborted of [true, false]) {
   assert.deepEqual(await requestRefresh(scope, async () => { throw new TypeError('Generated network unavailable'); }, true), { kind: 'unreachable' });
 }
 
-console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, closing the panel mid-refresh still reconciles and a remount shows it running then its result, a home switch, sign-out or host teardown during the POST or re-read drops the whole continuation, a session ending during the admission read aborts it and applies nothing, offline sends nothing, strict decoding');
+console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, closing the panel mid-refresh still reconciles and a remount shows it running then its result, a home switch, sign-out or host teardown during the POST or re-read drops the whole continuation, a session ending during the admission read aborts it and applies nothing, the access recheck is offered only where the server names it, a failed recheck changes nothing and a successful one re-reads the view, offline sends nothing, strict decoding');

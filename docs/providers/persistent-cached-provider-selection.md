@@ -130,6 +130,9 @@ A schema 2 HomeBox entry may add:
   `credentialFile`. Each pair becomes an Access `LifecycleRule` for
   `ConfigureSource` and `PublishCache` on that exact registration, issued only
   to a CSRF-checked Mutate (Editor) principal of that user and actor.
+- `revalidateSource`: `true` adds a `RevalidateSource` rule for each of those
+  pairs (same registration, Mutate only). Requires `refreshEditors`; absent or
+  `false` adds nothing.
 
 With `credentialFile`, the existing Open file routes get a
 `PinnedHomeBoxFileBinding` for that source. With `refreshEditors` as well, the
@@ -139,11 +142,27 @@ registers the source if it is not yet readable, then runs one
 `refreshed`, `failed` (with a cache error code), `running` or `not-configured`.
 At most one refresh runs per process. A rejected credential (401/403) is
 recorded as `access-revoked`; the existing refresh owner then refuses every
-later refresh before any GET (`reason: "access-revoked"`), and no installed path
-lifts that quarantine yet (#285). A `GET` on the same path is the
-button's admission read: it answers `available` only to an Editor whose actor
-is named in `refreshEditors` for a configured source, and the same
-`unavailable` to every other caller whether or not a source is configured. It
+later refresh before any GET (`reason: "access-revoked"`). A `GET` on the
+same path is the button's admission read: it answers `available` (with
+`recheck` saying whether `revalidateSource` is set) only to an Editor whose
+actor is named in `refreshEditors` for a configured source, and the same
+`unavailable` to every other caller whether or not a source is configured.
+
+With `revalidateSource` as well, the Editor-only
+`POST /api/atlas/providers/homebox/workspaces/{workspace}/homes/{home}/recheck`
+is the only way to lift that quarantine. It shares the refresh's CSRF,
+in-flight and Editor admission rules; the lease additionally captures the
+`RevalidateSource` grant and revalidates it with `PublishCache` before the
+read, after it and inside the storage commit. It runs one complete GET-only
+read through the existing reader with the current header. Only a complete
+generation of exactly the configured registration is published; it replaces
+the quarantined generation and its cache status in one storage transaction.
+Every failure (`auth`, `wrong-scope`, `upstream`, `pagination`, `timeout`,
+`changed` when the stored cache moved meanwhile, `not-approved`) writes
+nothing. It answers `rechecked`, `failed`, `not-needed` (not quarantined, or
+never published here; nothing sent), `running` or `not-configured` (no
+`revalidateSource`; nothing sent). The plain cache-replacement path stays
+refused by the native Store authorization. It
 sends nothing upstream and writes nothing. It is a display hint; the POST
 is still decided by the Access lifecycle rules. Startup still enrolls nothing, issues
 no grant and sends nothing upstream; there is no timer, retry or startup
