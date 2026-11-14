@@ -235,7 +235,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       // While the view is still, each further frame averages the contact shading down to a clean result.
       const finishFirstDraw = observation?.firstDraw();
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
-      // A moving frame is one submission at its end, so from here on the time is the GPU's.
+      // A moving frame is one submission at its end, so from here on the time is the GPU's
+      // (plus however long this thread takes to see it finish), not this frame's encoding.
       const submitted = performance.now();
       if (readout) {
         if (moving && p.interacting) readout.frame(now, scene.backend === 'webgpu' ? scene.finished() : null, ratio, stillRatio(dpr), scene.backend);
