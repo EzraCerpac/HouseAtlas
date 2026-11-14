@@ -12,7 +12,7 @@ import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import { afterNextFrame } from './after-next-frame';
-import { PreparationRefused, prepareEffectPipelines } from './prepare-effect-pipelines';
+import { PreparationRefused, atContextDepth, prepareEffectPipelines } from './prepare-effect-pipelines';
 import { isGlass, type PreparedMesh, type Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import type { SceneBuildObservation } from './scene-build-observation';
@@ -745,15 +745,16 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
      * once and frames drawn meanwhile land on it. three.js draws a two-sided see-through
      * material as its back faces, then its front faces, each with its own shader, while
      * compileAsync prepares only the two-sided one. Each side is compiled here on its own
-     * stand-in object, as the frame draws each side as its own render object. */
-    const compile = async (body: Mesh, view: Camera, within: Scene, target: RenderTarget | null) => {
+     * stand-in object, as the frame draws each side as its own render object.
+     * `depth` is how deeply the frame's draw of `target` is nested (see atContextDepth). */
+    const compile = async (body: Mesh, view: Camera, within: Scene, target: RenderTarget | null, depth = 0) => {
       signal?.throwIfAborted();
       if (disposed) throw new Error('Scene released');
       const material = body.material as NodeMaterial;
       const sides = material.transparent && material.side === DoubleSide && !material.forceSinglePass ? [BackSide, FrontSide] as const : null;
       const run = (object: Mesh) => {
         const visible = object.visible; object.visible = true; renderer.setRenderTarget(target);
-        try { return renderer.compileAsync(object, view, within); } finally { renderer.setRenderTarget(null); object.visible = visible; }
+        try { return atContextDepth(renderer, depth, () => renderer.compileAsync(object, view, within)); } finally { renderer.setRenderTarget(null); object.visible = visible; }
       };
       if (!sides) await run(body);
       else for (const side of sides) {
@@ -770,9 +771,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     };
     const passOf = new Map<unknown, MeshPass | 'ghost'>(layers.map(({ pass, mesh }) => [mesh, pass]));
     /** Compiles every body of `within` (of `passes` only, when given) as `target` draws it. */
-    const prepare = async (within: Scene, view: Camera, target: RenderTarget | null, passes?: readonly (MeshPass | 'ghost')[]) => {
+    const prepare = async (within: Scene, view: Camera, target: RenderTarget | null, passes?: readonly (MeshPass | 'ghost')[], depth = 0) => {
       for (const body of within.children) if (!passes || passes.includes(passOf.get(body)!)) {
-        await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
+        await compile(body as Mesh, view, within, target, depth); if (slice.due()) await slice.next();
       }
     };
     /** Drawing waits while the effect pipelines are prepared: that preparation holds three.js's own state across frames. */
@@ -789,11 +790,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       // The contact shading passes draw the same objects into targets of their own, so they
       // need pipelines of their own too; without them the first shaded frame, once the view
       // settles, compiles them all at once. The colour pass takes the canvas's samples when
-      // its pipeline is set up; it is given them here first.
+      // its pipeline is set up; it is given them here first. Both passes draw inside the
+      // output's draw, one level deep, so they are compiled at that depth.
       shading: async () => {
         colorPass.renderTarget.samples = renderer.samples;
-        await prepare(scene, camera, colorPass.renderTarget);
-        await prepare(solidScene, solidCamera, geometryPass.renderTarget);
+        await prepare(scene, camera, colorPass.renderTarget, undefined, 1);
+        await prepare(solidScene, solidCamera, geometryPass.renderTarget, undefined, 1);
         // Preparing early only saves the first shaded frame its pause, so a clean refusal
         // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
         // as it did before. Cancellation and any other failure still end the stage.

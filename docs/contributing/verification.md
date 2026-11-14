@@ -1339,9 +1339,12 @@ from the denominator. The case requires effect draws, reuse for every such draw,
 zero unprepared effect draws and zero post-show pipeline creations for those
 materials. Pipelines are renderer-local and may be shared across materials;
 quad-object identity and ping-pong target identity are not cache contracts.
-Unused relit paths are not forced to execute. Total mesh/background creations
-and latency remain informational; this is not the deferred Mac WebGPU 100 ms
-acceptance. Existing 60/120-second completion deadlines limit hangs only.
+Unused relit paths are not forced to execute. A wrapper on three.js's node
+builder also counts mesh shader graphs built after show, which a reused cached
+pipeline would hide; the case requires none (#489), so the colour and geometry
+passes must have been prepared at the nested render-context depth they draw at.
+Total mesh/background creations and latency remain informational; this is not
+the deferred Mac WebGPU 100 ms acceptance. Existing 60/120-second completion deadlines limit hangs only.
 This extends the existing webgl2 selection; webgpu/bench stay opt-in.
 
 The same selections compare a closed synthetic omni bulb off/on over fixed
@@ -3158,7 +3161,10 @@ ratio is learned mid-drag; the next drag takes it. GPU times that finish after a
 short drag has ended still teach the next drag without changing one already
 moving. The WebGL2 drag readout charges each frame interval to the draw that
 began it, so a generated slow first frame is named as such. A generated paused touch drag
-stays a drag until it lifts and picks nothing. No renderer, GPU timing, browser or
+stays a drag until it lifts and picks nothing. It also checks, on generated parts, that the
+surroundings fade is complete by the edge of the ground under the house (#439):
+a wide ground keeps the usual band, and an off-centre site disc inside it ends
+the fade at or before every point of its edge. No renderer, GPU timing, browser or
 phone frame time is exercised.
 
 The same named healthy runner also checks generated section targets, current

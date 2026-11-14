@@ -13,7 +13,7 @@ import { GlbFormatError } from '../../src/lantern/canonical-ifc/glb-preflight';
 import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 import { loadStandardGlbInWorker } from '../../src/lantern/canonical-ifc/standard-glb-thread';
 import { sha256OffThread } from '../../integration/sha256-thread';
-import { BufferGeometry, RenderPipeline, WebGPURenderer } from 'three/webgpu';
+import { BufferGeometry, NodeBuilder, RenderPipeline, WebGPURenderer } from 'three/webgpu';
 import { OcclusionHistory } from '../../src/lantern/canonical-ifc/occlusion-history';
 import { daylightAt } from '../../src/lantern/unified-atlas/daylight';
 import { box as sampleBox, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
@@ -127,7 +127,7 @@ interface SwapWitness {
   preparation: string; error: string | null; compiling: number; prepared: Set<object>; effectMaterials: Set<object>;
   effectDraws: number; reusedEffectDraws: number; unpreparedEffectDraws: number;
   postShownEffectCreated: number; unknownEffectMaterialDraws: number;
-  runtimeCreated: number; postShownCreated: number; preparedQuadUses: number;
+  runtimeCreated: number; postShownCreated: number; postShownBuilt: number; preparedQuadUses: number;
   outputFrames: number; historyFrames: number; historyCount: number;
   fullShadeFrames: number; renderedAt: number; shown: boolean;
 }
@@ -142,7 +142,7 @@ function witness(renderer: SwapRenderer): SwapWitness {
   let row = witnesses.get(canvas); if (row) return row;
   row = { preparation: 'unobserved', error: null, compiling: 0, prepared: new Set(), effectMaterials: new Set(),
     effectDraws: 0, reusedEffectDraws: 0, unpreparedEffectDraws: 0, postShownEffectCreated: 0, unknownEffectMaterialDraws: 0,
-    runtimeCreated: 0, postShownCreated: 0, preparedQuadUses: 0, outputFrames: 0,
+    runtimeCreated: 0, postShownCreated: 0, postShownBuilt: 0, preparedQuadUses: 0, outputFrames: 0,
     historyFrames: 0, historyCount: 0, fullShadeFrames: 0, renderedAt: 0, shown: false };
   witnesses.set(canvas, row); const state = row, backend = renderer.backend;
   if (!backend || typeof backend.createRenderPipeline !== 'function' || typeof backend.draw !== 'function') {
@@ -186,6 +186,19 @@ function witness(renderer: SwapRenderer): SwapWitness {
     return result;
   });
   return state;
+}
+/** A mesh's shader graph built after show: preparation missed the render context a
+ * frame draws it in. Builds that reuse a cached backend pipeline still cost the main
+ * thread, so this counts the graph builds, not pipeline creations. */
+const counted = new WeakSet<object>();
+for (const key of ['build', 'buildAsync'] as const) {
+  const original = NodeBuilder.prototype[key] as (this: NodeBuilder, ...args: unknown[]) => unknown;
+  replaceWitness(NodeBuilder.prototype, key, function(this: NodeBuilder, ...args: unknown[]) {
+    const builder = this as unknown as { renderer?: SwapRenderer; object?: { isMesh?: boolean; isQuadMesh?: boolean } };
+    const state = builder.renderer && witnesses.get(builder.renderer.domElement);
+    if (state?.shown && builder.object?.isMesh && !builder.object.isQuadMesh && !counted.has(this)) { counted.add(this); state.postShownBuilt++; }
+    return original.apply(this, args);
+  });
 }
 const compileAsync = WebGPURenderer.prototype.compileAsync;
 replaceWitness(WebGPURenderer.prototype, 'compileAsync', async function(this: WebGPURenderer, ...args: Parameters<typeof compileAsync>) {
@@ -240,7 +253,7 @@ function watchSwap(root: HTMLElement, into: object = {}) {
     framesMeanwhile: 0, longestTaskMs: 0, buildLongestTaskMs: 0, postShownLongestTaskMs: 0,
     postShownObservationMs: 0, sphereVertices: 0, preparation: 'unobserved',
     historyFrames: 0, historyCount: 0, outputFrames: 0, fullShadeFrames: 0,
-    preparedPipelines: 0, preparedQuadUses: 0, runtimeCreated: 0, postShownCreated: 0,
+    preparedPipelines: 0, preparedQuadUses: 0, runtimeCreated: 0, postShownCreated: 0, postShownBuilt: 0,
     preparedEffectMaterials: 0, effectDraws: 0, reusedEffectDraws: 0, unpreparedEffectDraws: 0,
     postShownEffectCreated: 0, unknownEffectMaterialDraws: 0 });
   const sphereStart = spheres.vertices;
@@ -282,7 +295,7 @@ function watchSwap(root: HTMLElement, into: object = {}) {
       Object.assign(report, { preparation: state.preparation, historyFrames: state.historyFrames,
         historyCount: state.historyCount, outputFrames: state.outputFrames, fullShadeFrames: state.fullShadeFrames,
         preparedPipelines: state.prepared.size, preparedQuadUses: state.preparedQuadUses,
-        runtimeCreated: state.runtimeCreated, postShownCreated: state.postShownCreated,
+        runtimeCreated: state.runtimeCreated, postShownCreated: state.postShownCreated, postShownBuilt: state.postShownBuilt,
         preparedEffectMaterials: state.effectMaterials.size, effectDraws: state.effectDraws,
         reusedEffectDraws: state.reusedEffectDraws, unpreparedEffectDraws: state.unpreparedEffectDraws,
         postShownEffectCreated: state.postShownEffectCreated, unknownEffectMaterialDraws: state.unknownEffectMaterialDraws });
