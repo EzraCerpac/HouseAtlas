@@ -460,6 +460,7 @@
     {"path":"backend/src/lifecycle/persistent/provider_reads.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/lifecycle/persistent/provider_reads/tests.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/lifecycle/persistent/receipt_identity_tests.rs","mode":"100644","owner":"core-integration"},
+    {"path":"backend/src/lifecycle/persistent/restored_adoption_tests.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/lifecycle/provider_dispatch/README.md","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/lifecycle/provider_dispatch/archive.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/lifecycle/provider_dispatch/capture.rs","mode":"100644","owner":"core-integration"},

@@ -1378,6 +1378,28 @@ its files keep their exact addresses, and folders without an entry, unknown
 folders and a path starting with `//` stay 404 without a redirect. No listener,
 gateway, browser or service worker is involved.
 
+The default backend-library selection also discovers the three
+`lifecycle::persistent::restored_adoption_tests::` cases for
+`initialize --restore-bundle`. Each works in a disposable private folder with a
+generated loopback-local installation. That installation holds one stock
+evidence/identity/semantics batch and one generated text original uploaded
+through the actual router, captured by the actual `backup` owner:
+- `restored_bundle_is_adopted_into_a_new_data_directory_and_served` adopts the
+  bundle into a new folder. The bundle stays byte-identical, no staging folder
+  remains and the new receipt names the moved database's inode. Through the
+  actual router, the source session cookie is refused, a fresh login reads
+  equal records and the original's exact bytes, and an ordinary reopen succeeds.
+- `adoption_refuses_existing_targets_and_unverified_bundles` refuses an existing
+  empty folder (left empty) and the source data folder while its lease is held
+  (receipt unchanged). It also refuses three tampered copies: a flipped original
+  byte, a flipped database byte and an extra member. Each refusal leaves no data
+  folder and no staging.
+- `restore_bundle_option_is_explicit_and_initialize_only` checks that the CLI
+  requires `--profile native-stock-queue-free` and an absolute path, and that
+  only `initialize` accepts the option.
+
+No listener, gateway, provider, iCloud or real backup is used.
+
 The existing default backend-library selection also invokes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.
 It calls the unchanged `healthy-homebox-cache-stock` example body through actual

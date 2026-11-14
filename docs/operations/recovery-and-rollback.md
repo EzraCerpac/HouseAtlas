@@ -18,7 +18,9 @@ originals; it excludes Network source state. Current native persistence uses
 profile5, future stock activity uses profile6, and legacy JavaScript uses schema3.
 Access DB, sessions, credentials, server settings and provider originals are
 excluded.
-Supply current authority/configuration separately after restore. Provider backup
+Supply current authority/configuration separately after restore;
+`houseatlas initialize --restore-bundle` adopts a verified bundle into a new
+data folder with fresh Access ([persistent-server.md](persistent-server.md#recover-the-service-from-a-backup)). Provider backup
 is a separate source-owner operation. Restore into fresh isolated state and
 verify IDs/reservations/relations, bytes/modes, compatible schema and current
 membership before reopening. Invalidate old sessions and reconcile revocations.

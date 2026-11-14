@@ -1585,3 +1585,14 @@ built folder with its own `index.html` (`/example/`, `/example`, `/saved/`)
 answers 307 to exactly that entry, keeping a query; exact files and the root are
 unchanged, and folders without an entry or paths starting with `//` stay 404. No
 listener, gateway, browser or worker runs; no workflow command or runner is added.
+
+The default backend-library set also discovers three
+`lifecycle::persistent::restored_adoption_tests::` cases for
+`initialize --restore-bundle`. A generated loopback-local installation is
+populated through the actual router, backed up, then adopted into a new folder
+under fresh Access and a new receipt. The cases check an unchanged bundle, no
+staging, refusal of the source cookie, equal records and original bytes after a
+fresh login, and ordinary reopen. They also check refusal of an existing empty
+folder, of a held data folder and of three tampered bundles, plus the CLI option
+rules. Disposable private folders only; no listener, gateway, provider or real
+backup. No workflow command or runner is added.

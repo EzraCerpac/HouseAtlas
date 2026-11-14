@@ -69,6 +69,9 @@ pub enum ServerCommand {
     Initialize {
         config: ServerConfig,
         provisioning: Option<PathBuf>,
+        /// A verified `backup` bundle whose database and originals the new
+        /// data directory adopts (`--restore-bundle`).
+        restore_bundle: Option<PathBuf>,
     },
     Serve(ServerConfig),
     Rebind {
@@ -116,7 +119,11 @@ impl ServerCommand {
         while let Some(name) = remaining.next() {
             if !matches!(
                 name.as_str(),
-                "--server-config" | "--provisioning-file" | "--previous-server-config"
+                "--server-config"
+                    | "--provisioning-file"
+                    | "--previous-server-config"
+                    | "--restore-bundle"
+                    | "--profile"
             ) || options
                 .insert(
                     name.as_str(),
@@ -127,6 +134,24 @@ impl ServerCommand {
                 return Err("Unsupported or repeated persistent startup option".into());
             }
         }
+        let restore_bundle = match (
+            options.get("--restore-bundle"),
+            options.get("--profile").map(|v| v.as_str()),
+        ) {
+            (None, None) => None,
+            _ if mode != "initialize" => {
+                return Err("Only initialize accepts --restore-bundle".into());
+            }
+            (Some(path), Some(crate::lifecycle::backup::PROFILE)) => {
+                let path = PathBuf::from(path.as_str());
+                absolute_path(&path)?;
+                Some(path)
+            }
+            (Some(_), _) => {
+                return Err("--restore-bundle requires --profile native-stock-queue-free".into());
+            }
+            (None, Some(_)) => return Err("--profile requires --restore-bundle".into()),
+        };
         let config = ServerConfig::read(Path::new(
             options
                 .get("--server-config")
@@ -182,6 +207,7 @@ impl ServerCommand {
             Ok(Some(Self::Initialize {
                 config,
                 provisioning,
+                restore_bundle,
             }))
         }
     }

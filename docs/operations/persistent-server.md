@@ -28,6 +28,55 @@ Stable state includes access.sqlite, atlas.sqlite, media/, server-state.json, se
 
 The persistent Host mounts existing Atlas functionality using explicitly selected command profile. HomeBox, Network and AI providers remain unconfigured. It does not admit historical Media references or activate quantity writes.
 
+## Recover the service from a backup
+
+These steps take an empty machine, or one that lost its data folder, to a
+serving instance from a nightly archive ([icloud-backup.md](icloud-backup.md)).
+Never run them against a folder the live service holds.
+
+1. Build the server binary and frontend from a `main` commit whose Atlas schema
+   matches the archive. Adoption opens the restored database strictly and
+   refuses any other schema; there is no migration.
+2. Download the newest archive and its `.sha256` from the iCloud folder, check
+   the hash, and unpack the archive into a new private (`0700`) folder.
+3. Copy `server-config.json` from the archive to a private `0600` file owned by
+   the service user. Change only what differs on this machine:
+   - `dataDirectory` must name a folder that does not exist yet, with
+     `logDirectory` set to its `logs` folder.
+   - The frontend and TLS paths.
+   - The gateway `socket`, which must be `dataDirectory/gateway.sock`.
+
+   The file holds paths and IDs, not secrets.
+4. Adopt the backup into that new data folder:
+
+   ```sh
+   houseatlas initialize --server-config <config> \
+     --restore-bundle <unpacked folder>/bundle --profile native-stock-queue-free
+   ```
+
+   It repeats the full `restore-check` verification in a private folder next
+   to the data folder and moves the verified database and originals in. It
+   then creates fresh Access and a new receipt exactly as `initialize` does.
+   Old accounts and sessions are not restored, so everyone signs in again.
+   In password mode, also pass `--provisioning-file`. The command refuses an
+   existing data folder (even an empty one) and a bundle that fails
+   verification. It never changes the bundle.
+5. Rebuild the model release with `--restore-models`
+   ([icloud-backup.md](icloud-backup.md#restore)) into a new folder outside the
+   data folder.
+6. Write the service's launchd plist. It runs
+   `houseatlas serve --server-config <config>` with the model options for the
+   restored release: `--model-overview-manifest`, `--atlas-scene-manifest` and
+   `--atlas-room-links-manifest`, each with its `-sha256` pin computed from the
+   restored files. Load the plist with `launchctl bootstrap gui/$(id -u) <plist>`.
+7. In `trusted-proxy` mode, reinstall and re-enroll the separate gateway by
+   following its own instructions, and point it at the configured socket.
+8. Supply what no archive carries from your private records: provider
+   credentials, TLS material, and the `deploy-nas` and backup job settings.
+   Then reinstall the nightly backup job.
+9. Open the app, sign in, and check a few records and one original. Later
+   updates go through `tools/deploy-nas`.
+
 ## Receipt identity across reboots
 
 `server-state.json` (format `houseatlas-persistent-server/1`) binds the format,

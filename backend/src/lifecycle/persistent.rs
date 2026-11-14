@@ -4,6 +4,8 @@ use super::Failure;
 pub mod provider_reads;
 #[cfg(test)]
 mod receipt_identity_tests;
+#[cfg(test)]
+mod restored_adoption_tests;
 use crate::{
     access as a,
     app::{Core, ReadAuthority, ServerRuntime, Store},
@@ -16,7 +18,7 @@ use std::{
     collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::Write,
-    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
+    os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
 };
@@ -244,7 +246,7 @@ pub fn initialize(config: &ServerConfig, provision_path: &Path) -> Result<(), Fa
     if !config.authentication.is_password() {
         return Err("Loopback-local accepts no password provisioning file".into());
     }
-    initialize_selected(config, Some(provision_path))
+    initialize_selected(config, Some(provision_path), None)
 }
 
 /// Explicit fresh local identity; no secret, password or session is created.
@@ -252,12 +254,54 @@ pub fn initialize_without_password(config: &ServerConfig) -> Result<(), Failure>
     if config.authentication.is_password() {
         return Err("Password mode requires explicit provisioning".into());
     }
-    initialize_selected(config, None)
+    initialize_selected(config, None, None)
+}
+
+/// Offline only. A new data directory adopts the database and retained
+/// originals of a `backup` bundle after the same verification and read-back as
+/// `restore-check`, then gets fresh Access state and a receipt exactly as
+/// `initialize`. Accounts and sessions are never restored. The data directory
+/// must not exist yet (so no server can hold it), and the bundle is only read.
+pub fn initialize_from_backup(
+    config: &ServerConfig,
+    provision_path: Option<&Path>,
+    bundle: &Path,
+) -> Result<super::backup::RestoreCheckReport, Failure> {
+    if config.authentication.is_password() != provision_path.is_some() {
+        return Err("Password mode requires explicit provisioning; other modes accept none".into());
+    }
+    config.validate()?;
+    let parent = config
+        .data_directory
+        .parent()
+        .ok_or("Missing data parent")?;
+    if fs::canonicalize(parent)? != parent {
+        return Err("Data parent must use its canonical path".into());
+    }
+    if fs::symlink_metadata(&config.data_directory).is_ok() {
+        return Err("The new data directory must not exist yet".into());
+    }
+    let bundle = fs::canonicalize(bundle)?;
+    if bundle.starts_with(&config.data_directory) || config.data_directory.starts_with(&bundle) {
+        return Err("The backup bundle and the new data directory overlap".into());
+    }
+    // Staged beside the data directory, so the verified files move in by
+    // rename and keep the inodes the new receipt binds. Removed on any exit.
+    let staging = tempfile::Builder::new()
+        .prefix(".houseatlas-restore-")
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir_in(parent)?;
+    let restored = staging.path().join("restored");
+    let report = super::backup::restore_verified(&bundle, &restored)?;
+    initialize_selected(config, provision_path, Some(&restored))?;
+    staging.close()?;
+    Ok(report)
 }
 
 fn initialize_selected(
     config: &ServerConfig,
     provision_path: Option<&Path>,
+    restored: Option<&Path>,
 ) -> Result<(), Failure> {
     config.validate()?;
     let users = match provision_path {
@@ -265,6 +309,16 @@ fn initialize_selected(
         None => Vec::new(),
     };
     let lease = ServerLease::acquire(config, true)?;
+    if let Some(restored) = restored {
+        for name in ["atlas.sqlite", "media"] {
+            let target = config.data_directory.join(name);
+            if fs::symlink_metadata(&target).is_ok() {
+                return Err("The new data directory already holds restored state".into());
+            }
+            fs::rename(restored.join(name), target)?;
+        }
+        sync(&lease.directory)?;
+    }
     let vault = Arc::new(crate::media::AssetVault::open(
         &config.data_directory.join("media"),
     )?);
@@ -298,17 +352,19 @@ fn initialize_selected(
     }
     let access = Arc::new(Mutex::new(access));
     let atlas_path = config.data_directory.join("atlas.sqlite");
-    drop(open_private(&atlas_path, true, false)?);
-    let store = Store::open(
-        &atlas_path,
-        NativeContracts,
-        ReadAuthority(Arc::clone(&access)),
-        crate::media::native::NativeMediaRuntime {
-            vault,
-            server: ServerRuntime,
-        },
-        storage::StoreOptions::default(),
-    )?;
+    let authority = ReadAuthority(Arc::clone(&access));
+    let runtime = crate::media::native::NativeMediaRuntime {
+        vault,
+        server: ServerRuntime,
+    };
+    let options = storage::StoreOptions::default();
+    let store = if restored.is_some() {
+        // Strict existing-owner path: exact compiled schema, no DDL or upgrade.
+        Store::open_existing(&atlas_path, NativeContracts, authority, runtime, options)?
+    } else {
+        drop(open_private(&atlas_path, true, false)?);
+        Store::open(&atlas_path, NativeContracts, authority, runtime, options)?
+    };
     store.close()?;
     drop(access);
     for path in [&access_path, &atlas_path] {
