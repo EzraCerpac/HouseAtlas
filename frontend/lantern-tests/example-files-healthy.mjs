@@ -25,11 +25,12 @@ try {
   {
     const entry = join(scratch, 'entry.ts');
     writeFileSync(entry, [
-      `export { createExampleElectrical, createExampleHomeboxOriginals, LAMP_MANUAL, LAMP_MANUAL_BYTES } from ${JSON.stringify(join(root, 'frontend/example/files.ts'))};`,
+      `export { createExampleElectrical, createExampleHomeboxOriginals, createExampleSourceDocuments, LAMP_MANUAL, LAMP_MANUAL_BYTES } from ${JSON.stringify(join(root, 'frontend/example/files.ts'))};`,
       `export { exampleHomeView, EXAMPLE_SCOPE } from ${JSON.stringify(join(root, 'frontend/example/household.ts'))};`,
       `export { buildSyntheticAtlas } from ${JSON.stringify(join(root, 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts'))};`,
       // The Places lens content as the example mounts it, rendered to static markup.
       `export { PlacesContent } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/RoomsView.tsx'))};`,
+      `export { UpkeepView } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/UpkeepView.tsx'))};`,
       `export { StoreProvider } from ${JSON.stringify(join(root, 'frontend/src/lantern/state/store.tsx'))};`,
       `export { projectView } from ${JSON.stringify(join(root, 'frontend/src/lantern/adapters/read.ts'))};`,
       `export { buildTopologyIndex } from ${JSON.stringify(join(root, 'frontend/src/lantern/topology/model.ts'))};`,
@@ -85,6 +86,19 @@ try {
   reader.release(again.frame); reader.release(opened.frame); reader.dispose();
   assert.equal((await originals.createReader({ ...view }, signal)).status, 'retired');
 
+  // Source Documents: the production native reader lists the example's three
+  // fictional documents, and the survey's original opens as a PDF.
+  const sourceReader = await api.createExampleSourceDocuments(api.EXAMPLE_SCOPE).createReader();
+  const firstPage = await sourceReader.list(null, signal), secondPage = await sourceReader.list(firstPage.nextCursor, signal);
+  assert.deepEqual([...firstPage.documents, ...secondPage.documents].map(row => row.title),
+    ['Synthetic parcel survey', 'Synthetic outline export', 'Synthetic elevation tile']);
+  assert.equal(secondPage.nextCursor, null);
+  const [survey] = firstPage.documents;
+  assert.deepEqual(survey.availability, { original: 'available', preview: 'available' });
+  const surveyFrame = await sourceReader.openOriginal(survey.documentId, survey.revision, signal);
+  assert.ok(pdf(new Uint8Array(await sourceReader.getBlob(surveyFrame).arrayBuffer())));
+  sourceReader.release(surveyFrame); sourceReader.dispose();
+
   // Electrical drawing: the existing fictional fixture placed on the example's house building.
   const house = generated.companion.buildings.find(row => row.buildingId === 'syn-building-house');
   const electrical = await api.createExampleElectrical(view, { nativePlaceId: house.nativePlaceId, label: house.label });
@@ -136,6 +150,19 @@ try {
   for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Gallery'])
     assert.ok(names.includes(name), `Places lists ${name}`);
   assert.match(markup, /Atlas identity: /, 'the reviewed house building renders its physical facts');
+
+  // Inventory: belongings keep their source parent room; the stool's quantity is
+  // known, the sketchbook's stays unknown, and the lamp carries two upkeep entries.
+  const item = name => view.entries.find(entry => entry.kind === 'item' && entry.entity.name === name);
+  assert.deepEqual(['Fictional reading lamp', 'Fictional sketchbook', 'Fictional folding stool'].map(name => item(name).entity.quantity), ['1', null, '2']);
+  assert.deepEqual(view.entries.filter(entry => entry.kind === 'item').map(entry => view.entries.find(row => row.entity.id === entry.entity.parent.id).entity.name),
+    ['Living room', 'Study', 'Gallery']);
+  assert.deepEqual(lamp.maintenance.map(row => [row.name, row.scheduledDate, row.completedDate, row.cost]),
+    [['Fictional bulb check', '2026-02-01', null, null], ['Fictional bulb replacement', null, '2025-11-20', '4.50']]);
+  assert.deepEqual(sourceProjection.house.tasks.map(task => [task.title, task.status, task.cost]).sort(),
+    [['Fictional bulb check', 'scheduled', undefined], ['Fictional bulb replacement', 'done', '4.50']]);
+  const upkeep = api.renderToStaticMarkup(api.createElement(api.StoreProvider, { projection, actions }, api.createElement(api.UpkeepView)));
+  for (const title of ['Fictional bulb check', 'Fictional bulb replacement']) assert.ok(upkeep.includes(title), `Upkeep lists ${title}`);
 
   // Offline worker: exact table of the example's build files, served from its own cache.
   const MIME = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8' };
@@ -240,4 +267,4 @@ try {
   assert.ok(!world.stores.has('houseatlas-example-changed'));
   assert.equal(exampleCaches().length, 1);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
-console.log('PASS fictional example files: HomeBox original kept in memory, electrical drawing PDF, Places rows, and /example/ offline worker across two builds (pure)');
+console.log('PASS fictional example files: source Documents, HomeBox original kept in memory, electrical drawing PDF, Places rows, inventory quantity and upkeep, and /example/ offline worker across two builds (pure)');

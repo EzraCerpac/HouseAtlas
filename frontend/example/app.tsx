@@ -15,24 +15,16 @@ import { LanternHost } from '../src/lantern/Host';
 import type { SourceModelPort } from '../src/lantern/source-ports';
 import type { SourceDocumentsPort } from '../src/lantern/source-documents/types';
 import type { ModelOverviewSelection } from '../src/lantern/source-models/overview-types';
-import { createNativeSourceDocumentReader } from '../integration/native-source-document-reader';
 import { readUnifiedAtlas } from '../integration/unified-atlas-reader';
-import { createSyntheticDocumentServer } from '../lantern-tests/source-host-visual/synthetic-documents';
 import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/synthetic-site';
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
 import { createExampleOverlays } from './synthetic-overlays';
-import { createExampleElectrical, createExampleHomeboxOriginals } from './files';
+import { createExampleElectrical, createExampleHomeboxOriginals, createExampleSourceDocuments } from './files';
 import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart } from './household';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
 
-// One fixed local owner for the in-page document reader; not a session.
-const binding = { sessionIdentity: Object.freeze({}), expiresAt: EXPIRES, scope };
-const sourceDocuments: SourceDocumentsPort = {
-  createReader: () => createSyntheticDocumentServer(scope).then(server => createNativeSourceDocumentReader({
-    origin: server.origin, transport: server.transport, getBinding: () => binding, subscribeBinding: () => () => {},
-  })),
-};
+const sourceDocuments: SourceDocumentsPort = createExampleSourceDocuments(scope);
 
 /** One generated publication feeds both the Atlas and the Home records. The
  * home name is the persistent label on every screen of the shell. */

@@ -19,6 +19,7 @@ try {
     `export { buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS } from ${JSON.stringify(join(root, 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts'))};`,
     `export { readUnifiedAtlas } from ${JSON.stringify(join(root, 'frontend/integration/unified-atlas-reader.ts'))};`,
     `export { documentaryRoomRecords, matchesOverlayScene } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/runtime-overlays.ts'))};`,
+    `export { electricalGroups } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/electrical-group.ts'))};`,
     `export { traceToRoot } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};`,
     `export { buildGraph } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx'))};`,
   ].join('\n'));
@@ -55,16 +56,39 @@ assert.ok(Array.isArray(scene.coverage.selectable));
 const selectable = new Set(scene.coverage.selectable);
 const records = api.documentaryRoomRecords(scene, frame, selectable);
 assert.deepEqual(['syn-room-hall', 'syn-room-living'].map(id => records.rooms.get(id).electrical.length), [3, 1]);
-assert.equal(records.rooms.get('syn-room-stairs').network.length, 1);
-assert.equal(records.rooms.get('syn-room-stairs').network[0].id, 'example-access-point');
+// Network: every placed device sits in its own reviewed room; the root is in Living room.
+const networkIds = id => records.rooms.get(id).network.map(row => row.id).sort();
+assert.deepEqual(['syn-room-hall', 'syn-room-living', 'syn-room-stairs'].map(networkIds),
+  [['example-switch'], ['example-root', 'example-streaming-box'], ['example-access-point']]);
 const graph = api.buildGraph(frame.network.data);
-const trace = api.traceToRoot(graph.nodes.values(), graph.edges, 'd:example-access-point');
+assert.equal(graph.nodes.size, 4, 'the Devices list shows the four fictional devices');
+const route = from => api.traceToRoot(graph.nodes.values(), graph.edges, `d:${from}`);
+const trace = route('example-access-point');
 assert.equal(trace.status, 'traced');
 assert.deepEqual(trace.nodes, ['d:example-access-point', 'd:example-root']);
 assert.equal(trace.root, 'd:example-root');
 assert.deepEqual(trace.edges.map(edge => edge.link.id), ['example-link']);
 assert.deepEqual(trace.certain, [true]);
 assert.equal(trace.uncertain, false);
+// Hall to Living room through the switch, and a tentative hop that stays uncertain.
+assert.deepEqual(route('example-switch').nodes, ['d:example-switch', 'd:example-root']);
+const tentative = route('example-streaming-box');
+assert.deepEqual(tentative.nodes, ['d:example-streaming-box', 'd:example-switch', 'd:example-root']);
+assert.deepEqual(tentative.certain, [false, true]);
+assert.equal(tentative.uncertain, true);
+assert.equal(route('example-root').status, 'is-root');
+// Electrical: one historic drawing group spans Hall and Living room; one symbol has none.
+// The circuit/panel projection stays unsupplied: no group claims a circuit or wiring.
+assert.equal(frame.electricity.status, 'unavailable');
+const groups = api.electricalGroups(records);
+assert.equal(groups.length, 1);
+const [group] = groups;
+assert.deepEqual([group.groupId, group.label, group.missing], ['example-group-1', 'Fictional drawing group 1', 0]);
+assert.deepEqual(group.fixtureIds, ['example-symbol-0', 'example-symbol-1', 'example-symbol-3']);
+assert.deepEqual(group.members.map(row => [row.record.id, row.rooms.join()]).sort(),
+  [['example-symbol-0', 'syn-room-hall'], ['example-symbol-1', 'syn-room-hall'], ['example-symbol-3', 'syn-room-living']]);
+assert.ok(!group.members.some(row => row.record.id === 'example-symbol-2'), 'the symbol without a drawn group stays unknown');
+assert.ok(frame.electricalFixtures.data.groups.every(row => row.currentCircuitId === null && row.verifiedWiring === false));
 const mismatch = { ...frame, sourceSelection: { ...frame.sourceSelection, acceptedRoomReceiptSha256: 'f'.repeat(64) } };
 const refused = api.documentaryRoomRecords(scene, mismatch, selectable);
 assert.equal(refused.rooms.get('syn-room-stairs').network.length, 0);
@@ -101,4 +125,4 @@ for (const action of ['release', 'dispose']) {
   fresh.source.dispose();
   assert.equal(notices, 1, `${action} retires this owner once`);
 }
-console.log('PASS fictional example combined overlays: reader, room joins, trace and owner retirement (pure)');
+console.log('PASS fictional example combined overlays: reader, room joins, drawing group, network routes and owner retirement (pure)');

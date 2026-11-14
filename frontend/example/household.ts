@@ -4,8 +4,8 @@
  * and nested as the companion lists them. A room on several floors sits under
  * the floor of its first selectable part. The HomeBox copy is stale and its
  * source update times unknown; the reading lamp has one stored manual
- * (./files). Every identifier is generated here. */
-import type { Entry, ReadyView } from '../src/app/types';
+ * (./files) and two upkeep entries, the stool a quantity of 2. Every identifier is generated here. */
+import type { Entry, Maintenance, ReadyView } from '../src/app/types';
 import type { AtlasAction } from '../src/lantern/unified-atlas/scene';
 import { LAMP_MANUAL } from './files';
 
@@ -56,10 +56,16 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
     if (first !== undefined) place(room.roomId, room.label, 'room', ids.get(levelOf.get(first) ?? '') ?? null);
   }
   // HomeBox parentage is source hierarchy, not a reviewed Atlas placement.
-  for (const [roomId, name, category] of [
-    ['syn-room-living', 'Fictional reading lamp', 'Lighting'],
-    ['syn-room-study', 'Fictional sketchbook', 'Stationery'],
-    ['syn-room-gallery', 'Fictional folding stool', 'Furniture'],
+  // Quantity and upkeep are the source's own values: the stool's count is
+  // known, the sketchbook's stays unknown (null).
+  const upkeep = (entryId: string, name: string, description: string, scheduledDate: string | null, completedDate: string | null, cost: string | null): Maintenance =>
+    ({ entryId: `00000000-0000-4000-8000-0000000e0c${entryId}`, name, description, scheduledDate, completedDate, cost });
+  for (const [roomId, name, category, quantity, maintenance] of [
+    ['syn-room-living', 'Fictional reading lamp', 'Lighting', '1', [
+      upkeep('01', 'Fictional bulb check', 'Invented task; no real product.', '2026-02-01', null, null),
+      upkeep('02', 'Fictional bulb replacement', 'Invented task; cost token kept as recorded.', null, '2025-11-20', '4.50')]],
+    ['syn-room-study', 'Fictional sketchbook', 'Stationery', null, []],
+    ['syn-room-gallery', 'Fictional folding stool', 'Furniture', '2', []],
   ] as const) {
     const parent = ids.get(roomId);
     if (!parent) throw new Error(`Example room is missing: ${roomId}`);
@@ -68,9 +74,9 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
       workspaceId, homeId, key: JSON.stringify([workspaceId, homeId, SOURCE, COLLECTION, 'homebox-entity', id]),
       source: { sourceInstanceId: SOURCE, collectionId: COLLECTION, sourceKind: 'homebox-entity', externalId: id },
       entity: { id, name, description: '', entityType: { id: '00000000-0000-4000-8000-0000000e0902', name: category, isLocation: false },
-        parent: { id: parent }, archived: false, quantity: null, manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
+        parent: { id: parent }, archived: false, quantity, manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
       kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null, retrievedAt: RETRIEVED,
-      aliases: [], mobility: 'unknown', attachments: roomId === 'syn-room-living' ? [LAMP_MANUAL] : [], maintenance: [], nativeLinks: [],
+      aliases: [], mobility: 'unknown', attachments: roomId === 'syn-room-living' ? [LAMP_MANUAL] : [], maintenance: [...maintenance], nativeLinks: [],
       networkBound: false, networkStates: [], networkRelations: [],
     });
   }

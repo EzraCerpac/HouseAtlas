@@ -9,12 +9,23 @@ import type { HomeboxOriginalSource, HomeboxOriginalsPort } from '../src/lantern
 import type { SourceDocumentsPort } from '../src/lantern/source-documents/types';
 import type { OfflineBackend } from '../src/offline/live-copy-types';
 import { createLiveCopyRetention } from '../integration/live-copy-retention';
+import { createNativeSourceDocumentReader } from '../integration/native-source-document-reader';
+import { createSyntheticDocumentServer } from '../lantern-tests/source-host-visual/synthetic-documents';
 import { createSyntheticElectricalLibrary } from '../lantern-tests/electrical-library-visual/synthetic-electrical';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
 const RETRIEVED = '2026-01-03T10:15:00Z';
 /** A fixed local actor for the in-page copy store; not a session or account. */
 const SESSION: AtlasSessionInfo = Object.freeze({ schemaVersion: 1, actorId: 'example-house-local', csrfToken: 'example-unused', expiresAt: EXPIRES });
+
+/** The example's source Documents: the production native reader over the
+ * in-page synthetic document server. One fixed local owner, not a session. */
+export function createExampleSourceDocuments(scope: Readonly<{ workspaceId: string; homeId: string }>): SourceDocumentsPort {
+  const binding = { sessionIdentity: Object.freeze({}), expiresAt: EXPIRES, scope };
+  return { createReader: () => createSyntheticDocumentServer(scope).then(server => createNativeSourceDocumentReader({
+    origin: server.origin, transport: server.transport, getBinding: () => binding, subscribeBinding: () => () => {},
+  })) };
+}
 
 /** One-page vector PDF with Helvetica text lines; no font or image files. */
 export function examplePdf(lines: readonly string[]): Uint8Array<ArrayBuffer> {

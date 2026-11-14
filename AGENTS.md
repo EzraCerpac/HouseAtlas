@@ -129,8 +129,9 @@ renderer/schema/allocation code, workflows and sandbox setup remain unchanged.
 The required SOURCE list adds `example-files-healthy.mjs`: 84 SOURCE / 1 BUILD /
 11 BROWSER (96 total), limits unchanged. It reads the example house's
 generated HomeBox manual through the production verified-copy owner over an
-in-memory store and its fictional electrical drawing through the production
-Electrical Library reader, validates its topology records and renders the
+in-memory store, its source Documents list and original through the production
+reader, its inventory quantities and upkeep entries as Upkeep markup, and its
+fictional electrical drawing through the production Electrical Library reader, validates its topology records and renders the
 actual Places rows to static markup, and runs the generated `/example/` offline
 worker in a fake worker scope over temporary files. No browser, IndexedDB, network,
 native host, real household file or device behavior is exercised.
@@ -141,8 +142,8 @@ The required SOURCE list adds `example-combined-overlays-healthy.mjs`:
 180000 ms per-entry limits remain, including the explicit stored-dialog case.
 The generated control uses the production reader/projector and actual graph
 builder (exposed only in its test bundle), checking three Hall and one Living
-room electrical records, one Stairs network record and logical root tracing.
-It checks owner retirement through
+room electrical records, one drawing group across them, four network devices
+in their rooms and their logical routes to the root. It checks owner retirement through
 both signals, release and disposal. This is example-only fictional DATA,
 not native/physical/provider authority, a mounted demonstration or #591
 completion. New controls are authored and unrun locally; exact-head hosted
