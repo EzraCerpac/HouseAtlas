@@ -4,7 +4,7 @@ import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
 import type { AtlasLevel, AtlasOccurrence, AtlasRoom } from './types';
 import { PublishedOverlayDetails } from './PublishedOverlayDetails';
-import { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName } from './labels';
+import { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName, atlasScopedLevelName } from './labels';
 import type { PropertyRecords, SourceFact } from './runtime-overlays';
 import { edgeSpans, MEASURED_BASIS, MEASUREMENT_BASIS, roomArea } from './measurements';
 import { AreaValue } from './plan-presentation';
@@ -44,9 +44,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
     if (!refocus.current) return;
     refocus.current = false; heading.current?.focus();
   }, [state.occurrenceId]);
-  const levelName = (levelId: string) => {
-    return atlasLevelName(model, levelId, model.floorBuildings.length > 1);
-  };
+  // The chosen building is already named by the scope control.
+  const levelName = (levelId: string) => atlasScopedLevelName(model, levelId, state.buildingId);
   // Where a press on the whole-head opener began, and whether it became a swipe.
   const press = useRef<{ y: number; swiped: boolean } | null>(null);
   // Shown only while the panel is a sheet. A whole-head opener spans the head
@@ -78,7 +77,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       </div>
       <div className="ua-sheet-body" id={bodyId}>
         {/* Choosing from the list hands the stage back to the model. */}
-        <RoomList model={model} levels={levels} choose={key => { setOpen(false); choose(key); }} levelName={levelName} />
+        <RoomList model={model} levels={levels} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
       </div>
     </aside>;
@@ -196,16 +195,17 @@ function RoomContentsSummary({ runtime, roomId, layers }: {
   </section>;
 }
 
-export function RoomList({ model, levels, choose, levelName }: {
+/** Floor headings drop the chosen building's name; each region keeps it. */
+export function RoomList({ model, levels, choose, buildingId }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
-  readonly levelName: (levelId: string) => string;
+  readonly buildingId: string | null;
 }) {
   const coverage = model.scene.coverage;
   return <div className="ua-rooms">
     {levels.map(level => {
       const keys = level.occurrenceIds.filter(key => model.selectable.has(key));
-      return <section key={level.levelId} aria-label={levelName(level.levelId)}>
-        <h3>{levelName(level.levelId)}</h3>
+      return <section key={level.levelId} aria-label={atlasLevelName(model, level.levelId, model.floorBuildings.length > 1)}>
+        <h3>{atlasScopedLevelName(model, level.levelId, buildingId)}</h3>
         {keys.length === 0 ? <p className="ua-empty">No selectable rooms.</p>
           : <ul>{keys.map(key => {
             const occurrence = model.occurrencesById.get(key)!;

@@ -914,10 +914,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     }
     return metrics;
   }, [live, selected, context, model, labelFonts]);
-  /** The selected 3D tag: a pill as wide as the measured name. */
-  const selectedTag = (id: string) => {
+  /** The selected tag on either stage: a pill as wide as the measured name. */
+  const selectedTag = (id: string, anchor: 'start' | 'middle' | 'end' = 'middle', x = 0) => {
     const advance = planTextMetrics.get(id)?.advance;
-    return advance === undefined ? null : <rect className="cifc-label-tag" x={-advance / 2 - 9} y={-13} width={advance + 18} height={26} rx={13} />;
+    const left = x - (anchor === 'start' ? 0 : anchor === 'end' ? advance ?? 0 : (advance ?? 0) / 2);
+    return advance === undefined ? null : <rect className="cifc-label-tag" x={left - 9} y={-13} width={advance + 18} height={26} rx={13} />;
   };
   const labelPaper = useMemo(() => preparePlanLabelPaper(planGroups.flatMap(group => group.features.map(row => row.feature))), [planGroups]);
   // Only the fit decision looks ahead to top view. It does not alter the camera.
@@ -1557,7 +1558,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 {label.plan.leader.dot && <circle cx={label.anchorX} cy={label.anchorY} r={3.5} />}
               </>}
               <g transform={`translate(${label.plan.x} ${label.plan.y}) rotate(${label.plan.angle})`}>
-                <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>
+                {(label.tier === 'selected' && selectedTag(label.id, label.plan.textAnchor, label.plan.textX))
+                  || <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>}
                 <text textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>
               </g>
             </g> : <g key={label.id} className={`cifc-label is-${label.tier}`} transform={`translate(${label.x.toFixed(1)} ${label.y.toFixed(1)})`}>
@@ -1683,7 +1685,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <h3 id={`${graphId}-rooms`}>Model rooms</h3>
           {/* On a phone the lens stands where the room sheet does: choosing
               a room hands the stage and its sheet back. */}
-          <RoomList model={model} levels={listedLevels(model, state)} levelName={levelId => atlasLevelName(model, levelId, model.floorBuildings.length > 1)}
+          <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId}
             choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
         </section>
         : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}

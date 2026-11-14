@@ -93,6 +93,9 @@
 }
 
 @media (max-width: 600px) {
+  /* The list above already ends on its row padding. */
+  .lantern-host .source-docs { margin-top: 12px; }
+
   .lantern-host .source-doc-facts > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
