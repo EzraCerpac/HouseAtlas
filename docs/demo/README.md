@@ -75,8 +75,10 @@ and nothing from the example enters the app's precache or service worker. The
 signed-out screen links to it as **Example house**; signed in, **Settings**
 has **Open example house**, and the offline (Saved) app's **Settings** has
 **Example house**. The Rust host serves `dist/example/index.html` at exactly
-`/example/index.html`, signed in or out; `/example/` alone is not mapped. The
-Vite dev server serves the same page at the same path.
+`/example/index.html`, signed in or out. `/example/` and `/example` redirect
+there (307, query kept), so the page and its worker keep that one address;
+the redirect needs the network. The Vite dev server serves the same page at
+the same path.
 
 ### Files in the example
 
@@ -103,7 +105,7 @@ Library checks, placed on the house building; their room associations
 ### Opening it on a phone or Mac
 
 Once a build is deployed, open `https://<your HouseAtlas host>/example/index.html`
-in the installed app (Settings › **Open example house**, or **Example house**
+(typing `/example/` online also lands there) in the installed app (Settings › **Open example house**, or **Example house**
 on the sign-in screen) or in the browser. The page installs its own service
 worker, scoped to `/example/`, that holds every built example file. After the
 page has loaded once online and stayed open for a few seconds, it opens with

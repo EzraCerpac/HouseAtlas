@@ -1565,3 +1565,11 @@ AI-account case checks the same device tolerance and inode refusal for a selecte
 generated SQLite file. Disposable private folders only; no listener, provider,
 real data or volume remount, so no actual reboot is observed. No workflow command
 or runner is added.
+
+The default backend-library set also discovers one
+`http::response_layer::directory_index_tests::` case: through the actual router
+of a disposable loopback-local Host with generated built files and no session, a
+built folder with its own `index.html` (`/example/`, `/example`, `/saved/`)
+answers 307 to exactly that entry, keeping a query; exact files and the root are
+unchanged, and folders without an entry or paths starting with `//` stay 404. No
+listener, gateway, browser or worker runs; no workflow command or runner is added.
