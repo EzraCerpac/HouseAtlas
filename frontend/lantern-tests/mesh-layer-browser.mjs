@@ -315,6 +315,7 @@ try {
       assert.equal(value.reusedEffectDraws, value.effectDraws, label + ': not every executed effect reused a prepared pipeline');
       assert.equal(value.unpreparedEffectDraws, 0, label + ': an executed effect pipeline was unprepared');
       assert.equal(value.postShownEffectCreated, 0, label + ': an effect material created a pipeline after show');
+      assert.equal(value.postShownBuilt, 0, label + ': ' + value.postShownBuilt + ' mesh shader graphs were built on frames after show, so preparation missed their render context');
       // This is deterministic cache coverage, not a timing budget. Unrelated
       // mesh/background creations and software-GPU long tasks stay informational.
       console.log(JSON.stringify({ swapCharacterization: label, backend: expected, ...value,

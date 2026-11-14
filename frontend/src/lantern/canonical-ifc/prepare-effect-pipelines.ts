@@ -20,6 +20,21 @@ interface ContextAccess {
  * other failure can leave three.js's own render state half swapped. */
 export class PreparationRefused extends Error {}
 
+/** Runs `compile` with three.js's render contexts taken at call depth `depth`, as
+ * a draw nested that deep takes them: a pass node draws its scene inside the
+ * output quad's draw, at depth 1, and the context is part of the node builder's
+ * cache key. compileAsync takes its context before its first await, so only
+ * that synchronous part sees the change. Where the adapter does not apply, it
+ * compiles at depth 0 as before, and the first shaded frame builds the rest. */
+export function atContextDepth<T>(renderer: WebGPURenderer, depth: number, compile: () => T): T {
+  const contexts = (renderer as unknown as ContextAccess)._renderContexts;
+  if (depth === 0 || REVISION !== '186' || !contexts || typeof contexts.get !== 'function') return compile();
+  const get = contexts.get;
+  const restore = replaceMember(contexts, 'get', function(this: typeof contexts,
+    at?: RenderTarget | null, mrt?: unknown, level = depth) { return get.call(this, at, mrt, level); });
+  try { return compile(); } finally { restore(); }
+}
+
 /** Temporarily replace an instance member, preserving inherited methods too. */
 function replaceMember(owner: object, key: string, value: unknown): () => void {
   const original = Object.getOwnPropertyDescriptor(owner, key);
