@@ -7,6 +7,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshAvailabilityReads } from './refresh-availability-wait.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -32,6 +33,7 @@ let service, browser, cdp, serviceOutput = '', serviceError = '', timedOut = fal
 const requests = [], responses = [], runtimeErrors = [], inputEvidence = [], domEvidence = [], snapshots = [];
 const completed = new Set();
 let phase = 'startup';
+const refreshReads = refreshAvailabilityReads();
 async function until(check, label, ms = 20000, cleanup = false) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
@@ -52,6 +54,7 @@ class Pipe {
         const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
         if (!raw) continue;
         const message = JSON.parse(raw);
+        refreshReads.observe(message);
         if (message.id) {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
@@ -192,6 +195,7 @@ try {
   const room = initial.body.entries.find(entry => entry.kind === 'place' && entry.semanticKind === 'room');
   assert(room); assert.equal(room.entity.name, 'Synthetic cabinet');
   const prefix = '/api/atlas/stock/v3/workspaces/' + scope.workspaceId + '/homes/' + scope.homeId;
+  await refreshReads.settled(evaluate);
   phase = 'seed';
   const seeded = await evaluate(`(async () => {
     const commands=${JSON.stringify(commands)}, prefix=${JSON.stringify(prefix)}, scope=${JSON.stringify(scope)}, login=${JSON.stringify(issued.editorLogin)};

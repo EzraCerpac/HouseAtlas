@@ -6,6 +6,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshAvailabilityReads } from './refresh-availability-wait.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -259,6 +260,7 @@ const observeRead = (read, event, params) => {
   } catch { /* diagnostics never affect the flow */ }
 };
 let phase = 'startup', requestSequence = 0;
+const refreshReads = refreshAvailabilityReads();
 const observationStart = performance.now();
 const elapsedMs = () => Math.round((performance.now() - observationStart) * 1000) / 1000;
 const routeWords = new Set(('api atlas auth session login logout view rooms items homes workspaces records circuit identity asset evidence history commands media downloads availability preview original v1 v3 stock homebox entities network relations').split(' '));
@@ -292,6 +294,7 @@ class Pipe {
         const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
         if (!raw) continue;
         const message = JSON.parse(raw);
+        refreshReads.observe(message);
         if (message.method === 'Network.requestWillBeSent') {
           const url = new URL(message.params.request.url);
           if (phase.startsWith('viewer-login') && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
@@ -512,6 +515,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
+  await refreshReads.settled(evaluate);
   phase = 'editor-replacement-and-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];

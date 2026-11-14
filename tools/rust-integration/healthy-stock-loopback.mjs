@@ -6,6 +6,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshAvailabilityReads } from './refresh-availability-wait.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -28,8 +29,7 @@ let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
 let phase = 'initial-view';
 const requestPhases = new Map();
-// The app's HomeBox refresh admission GETs (HomeboxRefreshButton) not yet answered or failed.
-const pendingRefreshReads = new Set();
+const refreshReads = refreshAvailabilityReads();
 const nativeReads = new Map();
 // The `diagnostic` field is bounded transfer metadata of generated fixture reads for failure
 // messages only; the settlement oracle reads the separate requestId, bodyBytes, header and
@@ -270,6 +270,7 @@ class Pipe {
         const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
         if (!raw) continue;
         const message = JSON.parse(raw);
+        refreshReads.observe(message);
         if (message.id) {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
@@ -278,8 +279,6 @@ class Pipe {
           observedUrls.push(message.params.request.url);
           requestPhases.set(message.params.requestId, phase);
           const url = new URL(message.params.request.url);
-          if (message.params.request.method === 'GET' && /^\/api\/atlas\/providers\/homebox\/workspaces\/[^/]+\/homes\/[^/]+\/refresh$/.test(url.pathname))
-            pendingRefreshReads.add(message.params.requestId);
           if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
             requestId: applicationRequestId(url), bodyBytes: 0, contentLength: null, contentEncoding: null, errorText: null,
@@ -293,7 +292,7 @@ class Pipe {
           if (read) { read.status = response.status; observeRead(read, 'response', message.params); noteResponseHeaders(read, message.params.response); }
           responses.push({ url: response.url, status: response.status,
             requestPhase: requestPhases.get(message.params.requestId) ?? 'unknown', responsePhase: phase });
-          requestPhases.delete(message.params.requestId); pendingRefreshReads.delete(message.params.requestId);
+          requestPhases.delete(message.params.requestId);
         }
         else if (message.method === 'Network.dataReceived') {
           const read = nativeReads.get(message.params.requestId);
@@ -301,7 +300,6 @@ class Pipe {
           observeRead(read, 'data', message.params);
         }
         else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
-          if (message.method === 'Network.loadingFailed') pendingRefreshReads.delete(message.params.requestId);
           const read = nativeReads.get(message.params.requestId);
           if (read) {
             observeRead(read, message.method === 'Network.loadingFailed' ? 'failed' : 'finished', message.params);
@@ -489,12 +487,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
-  // The Sources section's HomeBox refresh admission read can start just before
-  // this point. The login below replaces the viewer session without the app being
-  // told, so the app cannot abort it, and an answer after that would be a 401 for
-  // the ended session. Wait for it as for the native reads; every response
-  // observed must still be an ordinary success.
-  await until(async () => pendingRefreshReads.size === 0, 'Viewer HomeBox refresh admission read settled before session replacement');
+  await refreshReads.settled(evaluate);
   phase = 'editor-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];

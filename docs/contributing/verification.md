@@ -5029,10 +5029,15 @@ The source repair applies the identical hosted Linux/macOS rustfmt diff across
 retains all actual native responses instead of silently stopping at12; exact
 four-read-per-lifetime and matched-snapshot assertions remain. The media fixture
 awaits the viewer's actual topology readiness and four observed successful reads
-before session replacement; unexpected401 responses remain failures. The core
-and stock loopback flows also wait for the viewer's in-flight HomeBox refresh
-admission GET before their raw editor login replaces the session the app was
-not told about; every observed response must still be an ordinary success. These
+before session replacement; unexpected401 responses remain failures. Every
+loopback flow whose raw in-page login replaces a viewer session (core, stock,
+stock-write, media, stock-history and building-ui) first waits, through the
+shared `tools/rust-integration/refresh-availability-wait.mjs`, for the viewer's
+in-flight HomeBox refresh availability GET: the app was not told about the
+replacement and cannot abort it. The wait is bounded: with nothing in flight it
+proceeds at once, or after 3 s when Sources is shown but no GET was issued, and
+a GET still in flight after 20 s fails the flow. Every observed response must
+still be an ordinary success. These
 fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
 is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry
