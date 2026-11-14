@@ -3,8 +3,9 @@
 `tools/backup/` backs up the HouseAtlas server to the owner's iCloud Drive every
 night and proves each copy restores. It covers the Atlas database and retained
 originals through the native `backup` CLI (profile `native-stock-queue-free`) and
-the served model release, and the archive carries a copy of the server
-configuration file (paths and IDs, no secrets). Like every native bundle it
+the served model release, and the archive carries copies of the server
+configuration file and the service's launchd plist (paths, IDs and pins, no
+secrets). Like every native bundle it
 excludes the Access database and sessions, credentials, HomeBox originals and
 Network source state; recover those through their own private procedures.
 
@@ -27,8 +28,9 @@ Network source state; recover those through their own private procedures.
    into a new release is not stored twice. Before the nightly archive goes up, iCloud
    must report every file it names as uploaded, reused ones included, and this
    run's new files are evicted locally.
-5. Packs the bundle, the report and `server-config.json` (a `0600` copy of the
-   server configuration the service plist names) into one `.tar.gz` and copies it, with a
+5. Packs the bundle, the report, `server-config.json` (a `0600` copy of the
+   server configuration the service plist names) and `service.plist` (a `0600`
+   copy of that plist) into one `.tar.gz` and copies it, with a
    `.sha256` file, into the configured iCloud Drive folder. The report lists the
    model files and their hashes; the archive does not carry them. Existing files
    are never overwritten.

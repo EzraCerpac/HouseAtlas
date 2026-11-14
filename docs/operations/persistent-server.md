@@ -79,23 +79,27 @@ Never run them against a folder the live service holds.
 5. Rebuild the model release with `--restore-models`
    ([icloud-backup.md](icloud-backup.md#restore)) into a new folder outside the
    data folder. Its files land in `<model folder>/releases/<version>/`.
-6. Write the service's launchd plist. It runs
-   `houseatlas serve --server-config <config>` with the model options for the
-   restored release: `--model-overview-manifest` (`publication.json`),
+6. Take `service.plist` from the archive and adapt its paths: the binary,
+   the server configuration, the restored model files, the logs and the
+   working folder. Archives made before the backup job started carrying it
+   have none; for those, write the plist yourself.
+
+   It runs `houseatlas serve --server-config <config>` with the model options
+   for the restored release: `--model-overview-manifest` (`publication.json`),
    `--atlas-scene-manifest` (`atlas-scene.json`) and
    `--atlas-room-links-manifest` (`reviewed-room-links.json`), each with its
-   `-sha256` pin computed from the restored file. When the release holds a
+   `-sha256` pin of the restored file. When the release holds a
    `display-policy.json`, also pass `--atlas-display-policy` with its
-   `-sha256` pin. If the old service selected an entry building, pass the same
-   `--atlas-entry-building-id`; no archive carries it, so take it from your
+   `-sha256` pin. Keep the old service's `--atlas-entry-building-id`, if it had
+   one. The copied plist has it; for an older archive, take it from your
    private records. Without these two options the service still starts, but
    serves the model without its reviewed display policy or entry building.
 
-   The plist needs `RunAtLoad` set to true. Without it, launchd loads the job
-   but never starts it. Also set `KeepAlive` with `SuccessfulExit` false, so a
-   crash restarts the service, plus a `0077` `Umask` and paths for its standard
-   output and error. Load the plist with
-   `launchctl bootstrap gui/$(id -u) <plist>`.
+   A plist you write needs `RunAtLoad` set to true. Without it, launchd loads
+   the job but never starts it. Also set `KeepAlive` with `SuccessfulExit`
+   false, so a crash restarts the service, plus a `0077` `Umask` and paths for
+   its standard output and error. A copied plist already has these keys. Load
+   the plist with `launchctl bootstrap gui/$(id -u) <plist>`.
 7. In `trusted-proxy` mode, reinstall and re-enroll the separate gateway by
    following its own instructions, and point it at the configured socket.
 8. Supply what no archive carries from your private records: provider
