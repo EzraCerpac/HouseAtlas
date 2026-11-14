@@ -31,6 +31,7 @@ import { createOfflineHouseAcquisition } from "./offline-house-acquisition";
 import type { SourceModelPort } from "../src/lantern/source-ports";
 import type { ElectricalLibraryPort } from "../src/lantern/electrical-library/types";
 import type { ModelOverviewSelection } from "../src/lantern/source-models/overview-types";
+import type { StoredAtlasRead } from "../src/lantern/unified-atlas/types";
 import { createAccountObservationClient } from "../src/ai/host/account-client";
 import { AccountObservationProvider } from "../src/ai/AccountObservation";
 import { detectModelContext } from "../src/webmcp/browser";
@@ -591,6 +592,9 @@ function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCach
     .then(([module, store, actor]) => module.createUnifiedAtlasCache(store, owner, actor), () => null) };
   return atlasCacheOwner.cache;
 }
+/** The stored copy read for display for the current selection; the fresh read of that
+ * selection takes its verified model bytes (withShownModel) and releases it when it ends. */
+let shownCopy: { readonly selection: ModelOverviewSelection; readonly read: Promise<StoredAtlasRead | null> } | null = null;
 const sourceModels: SourceModelPort = {
   // The unified Atlas reads the same selected publication's opt-in scene and
   // pinned model bytes; the same owner, session and expiry fence every step.
@@ -629,10 +633,12 @@ const sourceModels: SourceModelPort = {
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
       try {
         // The cache opens beside the scene GET; slow or unavailable storage never delays it.
+        const shown = shownCopy?.selection === selection ? shownCopy.read : null;
         const reader = await import('./unified-atlas-reader');
         return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
-          origin: window.location.origin, isCurrent: () => currentOverview() === selection, cache: atlasCache(selection) });
-      } finally { unsubscribe(); }
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection,
+          cache: atlasCache(selection).then(cache => (cache && shown ? reader.withShownModel(cache, shown) : cache)) });
+      } finally { unsubscribe(); if (shownCopy?.selection === selection) shownCopy = null; }
     },
     async readDetail(selection, scene, signal) {
       const controller = new AbortController();
@@ -646,13 +652,17 @@ const sourceModels: SourceModelPort = {
           origin: window.location.origin, isCurrent: () => currentOverview() === selection, store });
       } finally { unsubscribe(); }
     },
-    async stored(selection, signal) {
-      const reader = await import('./unified-atlas-reader');
-      // The fresh read waits on this display-only path, so storage that is slow to open is skipped.
-      const cache = await Promise.race([atlasCache(selection),
-        new Promise<null>(resolve => setTimeout(resolve, reader.CACHE_LOOKUP_MS, null))]);
-      signal.throwIfAborted();
-      return cache && currentOverview() === selection ? reader.readCachedUnifiedAtlas({ selection, signal, cache }) : null;
+    stored(selection, signal) {
+      const read = (async () => {
+        const reader = await import('./unified-atlas-reader');
+        // The fresh read waits on this display-only path, so storage that is slow to open is skipped.
+        const cache = await Promise.race([atlasCache(selection),
+          new Promise<null>(resolve => setTimeout(resolve, reader.CACHE_LOOKUP_MS, null))]);
+        signal.throwIfAborted();
+        return cache && currentOverview() === selection ? reader.readCachedUnifiedAtlas({ selection, signal, cache }) : null;
+      })();
+      shownCopy = { selection, read };
+      return read;
     },
   },
 };

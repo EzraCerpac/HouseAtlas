@@ -84,7 +84,12 @@ export function admitRgbPng(bytes: Uint8Array, key = 0): EmbeddedPng {
 }
 
 export interface EmbeddedImage { readonly key: number; readonly width: number; readonly height: number; readonly rgba: Uint8Array<ArrayBuffer>; readonly mipBytes: number }
-export interface EmbeddedTexture { readonly key: string; readonly image: EmbeddedImage; readonly colorRole: 'srgb' | 'data' }
+export interface EmbeddedTexture {
+  readonly key: string; readonly image: EmbeddedImage; readonly colorRole: 'srgb' | 'data';
+  /** sRGB maps only: the mean of the image's texels in linear RGB, the colour its smallest mip shows.
+   * The untextured first stage draws a mapped material as factor × this, never as its bare (often white) factor. */
+  readonly mean?: readonly [number, number, number];
+}
 export interface EmbeddedMaterial {
   readonly baseColor: SourceBaseColor; readonly metallic: number; readonly roughness: number; readonly doubleSided: boolean;
   readonly specular?: number; readonly scalarOnly?: boolean; readonly hasSpecular?: boolean; readonly shadingAttributes?: boolean;
@@ -250,14 +255,27 @@ export async function decodeRgbPng(png: EmbeddedPng, signal: AbortSignal): Promi
   signal.throwIfAborted(); return { key: png.key, width: png.width, height: png.height, rgba, mipBytes: png.mipBytes };
 }
 
+const SRGB_TO_LINEAR = Float64Array.from({ length: 256 }, (_, v) => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });
+/** Mean linear RGB of decoded sRGB texels. */
+export function meanLinearRgb(image: EmbeddedImage): readonly [number, number, number] {
+  const { rgba } = image, n = rgba.length / 4; let r = 0, g = 0, b = 0;
+  for (let at = 0; at < rgba.length; at += 4) { r += SRGB_TO_LINEAR[rgba[at]!]!; g += SRGB_TO_LINEAR[rgba[at + 1]!]!; b += SRGB_TO_LINEAR[rgba[at + 2]!]!; }
+  return Object.freeze([r / n, g / n, b / n]) as unknown as readonly [number, number, number];
+}
 export async function decodeEmbeddedMaterials(plan: EmbeddedMaterialPlan, signal: AbortSignal): Promise<ReadonlyMap<string, EmbeddedMaterial>> {
   const images: EmbeddedImage[] = []; for (const image of plan.images) images.push(await decodeRgbPng(image, signal));
   const resources = new Map<string, EmbeddedTexture>();
-  const texture = (pin: TexturePin): EmbeddedTexture => { let found = resources.get(pin.key); if (!found) { found = { key: pin.key, image: images[pin.image]!, colorRole: pin.role }; resources.set(pin.key, found); } return found; };
-  const materials = new Map<string, EmbeddedMaterial>();
-  for (const [key, pin] of plan.primitives) materials.set(key, { baseColor: pin.baseColor, metallic: pin.metallic, roughness: pin.roughness, doubleSided: pin.doubleSided, specular: pin.specular, scalarOnly: pin.scalarOnly, hasSpecular: pin.hasSpecular,
-    ...(pin.shadingAttributes !== undefined ? { shadingAttributes: pin.shadingAttributes } : {}),
-    ...(pin.baseColorTexture ? { baseColorTexture: texture(pin.baseColorTexture) } : {}), ...(pin.normalTexture ? { normalTexture: texture(pin.normalTexture) } : {}),
-    ...(pin.metallicRoughnessTexture ? { metallicRoughnessTexture: texture(pin.metallicRoughnessTexture) } : {}) });
+  const texture = (pin: TexturePin): EmbeddedTexture => { let found = resources.get(pin.key); if (!found) { const image = images[pin.image]!;
+    found = { key: pin.key, image, colorRole: pin.role, ...(pin.role === 'srgb' ? { mean: meanLinearRgb(image) } : {}) }; resources.set(pin.key, found); } return found; };
+  // One material object per source material, so every primitive drawn with it can share one GPU material.
+  const owners = new Map<MaterialPin, EmbeddedMaterial>(), materials = new Map<string, EmbeddedMaterial>();
+  for (const [key, pin] of plan.primitives) {
+    let material = owners.get(pin);
+    if (!material) owners.set(pin, material = { baseColor: pin.baseColor, metallic: pin.metallic, roughness: pin.roughness, doubleSided: pin.doubleSided, specular: pin.specular, scalarOnly: pin.scalarOnly, hasSpecular: pin.hasSpecular,
+      ...(pin.shadingAttributes !== undefined ? { shadingAttributes: pin.shadingAttributes } : {}),
+      ...(pin.baseColorTexture ? { baseColorTexture: texture(pin.baseColorTexture) } : {}), ...(pin.normalTexture ? { normalTexture: texture(pin.normalTexture) } : {}),
+      ...(pin.metallicRoughnessTexture ? { metallicRoughnessTexture: texture(pin.metallicRoughnessTexture) } : {}) });
+    materials.set(key, material);
+  }
   signal.throwIfAborted(); return materials;
 }

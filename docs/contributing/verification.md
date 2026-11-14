@@ -51,7 +51,9 @@ mounted afterwards shows the result; a home switch, sign-out or host teardown
 during the POST or the re-read drops the rest of the press (no re-read of the
 pressed home, no withholding, no status) and leaves the other home's view and
 pending read untouched, for both a refresh and a 401, and a late admission
-answer is dropped too; the lazily loaded button keeps one owner per host
+answer is dropped too; a session that ends while the admission read is in
+flight aborts that GET with the button's signal and applies no answer that
+still arrives; the lazily loaded button keeps one owner per host
 port; offline sends nothing;
 decoding is strict. With the ten native local drafts cases from #636 and the
 offline-save fix the inventory is 95 SOURCE / 1 BUILD / 11 BROWSER (107 total). No workflow command, runner, browser entry or held
@@ -1271,6 +1273,10 @@ All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
+It also checks that a fresh read given the stored copy on screen takes that copy's
+verified model bytes with no model GET while the store's own model read stalls
+past the lookup budget (alone, that read downloads the model again), and that a
+copy pinning other bytes, none or a failed read leaves the store's lookup in charge.
 Its generated presentation seam also compiles the actual `AtlasPresentation`
 and stage-key function with synthetic hooks, deferred reads and geometry binding.
 It checks stable stage type/key/model/selection during stored-copy failure,
@@ -1382,6 +1388,16 @@ when the worst came and its cause (settle, main thread, first frame, ratio chang
 resize or other), frames over 50 ms by cause, drawing-buffer resizes after the
 first frame, backend, moving and still pixel ratios. No CI selection drags the
 view, so those lines are device evidence only, never a CI result.
+`?render-probe=load` runs neither the speed check nor the drag lines; it keeps
+three selectable lines over the page for the first Atlas open (`load-ledger.ts`,
+`load-readout.ts`): seconds from navigation start to home reads, the first house
+frame, textures drawn and fully shaded; whether the first model drawn was the
+saved copy or the fresh read, and any finished overview-model GET (MB and seconds,
+from resource timing); and the saved-copy read and verify, model parse and first
+stage build wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
+its text from generated ledgers and resource rows, and its presentation seam pins
+which path is noted as the first model. Wall times include waits; readings are
+device evidence only, never a CI result.
 
 The report's startup diagnostics distinguish dynamic module import, adapter
 selection/renderer construction, renderer initialization, scene-graph setup,
@@ -4181,7 +4197,12 @@ node frontend/lantern-tests/embedded-png-material-healthy.mjs --case precedence
 These cases generate RGB PNGs and GLBs locally; global fetch is forbidden.
 They cover supported slots and color roles, image sharing, filters and Adam7,
 bounded accounting and mip chains, legacy geometry/picking and material opt-out,
-owned resource cleanup and appearance precedence. The runner compiles actual
+owned resource cleanup and appearance precedence. `slots` also checks the mean
+linear colour of a base-colour map and one decoded material object per source
+material across meshes; `precedence` checks that, before maps are drawn, a mapped
+material's state-table tone is its factor times that mean, while cut faces,
+untextured factors and viewers without source materials keep their factor.
+No GPU pixel is compared. The runner compiles actual
 production imports into an owned temporary module and removes it afterward.
 Its React hook seam and GL recorder exercise MeshLayer effects without a DOM,
 real React mount, browser, native provider or household input.
@@ -4978,7 +4999,10 @@ The source repair applies the identical hosted Linux/macOS rustfmt diff across
 retains all actual native responses instead of silently stopping at12; exact
 four-read-per-lifetime and matched-snapshot assertions remain. The media fixture
 awaits the viewer's actual topology readiness and four observed successful reads
-before session replacement; unexpected401 responses remain failures. These
+before session replacement; unexpected401 responses remain failures. The core
+and stock loopback flows also wait for the viewer's in-flight HomeBox refresh
+admission GET before their raw editor login replaces the session the app was
+not told about; every observed response must still be an ordinary success. These
 fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
 is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry

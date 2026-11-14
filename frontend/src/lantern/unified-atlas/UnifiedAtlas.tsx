@@ -9,6 +9,7 @@ import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { DETAIL_GLB_LIMITS, GlbFormatError } from '../canonical-ifc/glb-preflight';
+import { noteFirstModel, noteLoadStep } from '../canonical-ifc/load-ledger';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
 import { PITCH_3D, useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
@@ -178,6 +179,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
 
   useEffect(() => {
     if (!selection) return;
+    noteLoadStep('home');
     const controller = new AbortController(), signal = controller.signal;
     // Legacy optional host fallback. Protected read metadata takes precedence,
     // including explicit null. No private values need enter the static index.
@@ -216,10 +218,11 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       }
       storedCopy.current = null;
       try {
-        const read = await port.stored(selection, signal);
+        const began = performance.now(), read = await port.stored(selection, signal), parsing = performance.now();
         if (!read || settled) return null;
         const model = await bind(read);
         if (settled || signal.aborted) return null;
+        noteFirstModel('saved', performance.now() - parsing, parsing - began);
         storedCopy.current = { selection, read, model };
         setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start,
           stored: { storedAt: read.storedAt, refresh: fetchNow ? 'pending' : 'held' } } });
@@ -231,7 +234,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       return () => controller.abort();
     }
     void (async () => {
-      let outcome: Outcome;
+      let outcome: Outcome, parsed: number | null = null;
       try {
         const read = port.kind === 'saved' && selection.kind === 'saved' ? await port.read(selection, signal)
           : port.kind === 'live' && selection.kind === 'live' ? await port.read(selection, signal) : (() => { throw new AtlasReadError('stale'); })();
@@ -241,7 +244,9 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
           && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
-        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId, start: read.start };
+        const parsing = performance.now(), model = same ? shown.model : await bind(read);
+        if (!same) parsed = performance.now() - parsing;
+        outcome = { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start };
         storedCopy.current = null;
         refused.current = null;
       } catch (error) {
@@ -255,7 +260,9 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
           : { status: 'failed', reason };
       }
       settled = true;
-      if (!signal.aborted) setLoaded({ selection, attempt, outcome });
+      if (signal.aborted) return;
+      if (parsed !== null) noteFirstModel('fresh', parsed);
+      setLoaded({ selection, attempt, outcome });
     })();
     return () => controller.abort();
   }, [port, selection, attempt, asked]);

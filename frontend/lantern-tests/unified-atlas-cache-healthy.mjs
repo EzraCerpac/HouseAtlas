@@ -36,7 +36,7 @@ const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../s
   '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { AtlasReadError, createStartLedger } = await import(typesURL);
-const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
+const { readUnifiedAtlas, readCachedUnifiedAtlas, withShownModel, CACHE_LOOKUP_MS } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
 const { encodeStoredOverlays, decodeStoredOverlays } = await import(codecURL);
@@ -105,6 +105,33 @@ await openProcess(disk, actorA, async ({ cache }) => {
   assert.equal(read.envelopeSha256, copy.envelopeSha256, 'the fresh scene confirms the copy on screen');
   assert.equal(read.scene.model.sha256, copy.scene.model.sha256);
   assert.deepEqual(read.scene, copy.scene);
+});
+
+// A busy device: the store's second read of the model record does not answer within
+// the lookup budget. Alone, the fresh read then downloads the whole model again; given
+// the copy on screen, it takes that copy's verified bytes and no model GET.
+await openProcess(disk, actorA, async ({ cache }) => {
+  const copy = await stored(cache, v0);
+  let modelReads = 0;
+  const busy = Object.freeze({ ...cache, model: () => { modelReads++; return new Promise(() => {}); } });
+  calls.length = 0;
+  const started = Date.now(), downloaded = await fresh(busy, v0);
+  record('reopen, busy storage, no copy on screen', ['scene', 'model']);
+  assert.ok(Date.now() - started >= CACHE_LOOKUP_MS - 50, 'only after the lookup budget');
+  assert.deepEqual(Buffer.from(downloaded.model), Buffer.from(versions[0].glb));
+  calls.length = 0; modelReads = 0;
+  const read = await fresh(withShownModel(busy, Promise.resolve(copy)), v0);
+  record('reopen, busy storage, copy on screen', ['scene']);
+  assert.strictEqual(read.model, copy.model, 'the fresh read takes the bytes already on screen');
+  assert.equal(modelReads, 0, 'without a second read of the stored model');
+  // A copy pinning other bytes, or none, leaves the store's own lookup in charge.
+  const other = { ...copy, scene: { ...copy.scene, model: { ...copy.scene.model, sha256: '0'.repeat(64) } } };
+  for (const shown of [() => Promise.resolve(other), () => Promise.resolve(null), () => Promise.reject(new Error('Synthetic stored read failure'))]) {
+    calls.length = 0;
+    const own = await fresh(withShownModel(cache, shown()), v0);
+    record('reopen, copy on screen pins other bytes or none', ['scene']);
+    assert.notStrictEqual(own.model, copy.model); assert.deepEqual(Buffer.from(own.model), Buffer.from(versions[0].glb));
+  }
 });
 
 online = false;
@@ -601,7 +628,7 @@ console.log('Unified Atlas cache healthy checks passed.');
   };
   const token = Symbol.for('houseatlas.cache-presentation.synthetic');
   const jsx = dataURL('export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx;');
-  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0;
+  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0, notes = [];
   const depsEqual = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const memo = (make, deps) => {
     const i = cursor++, previous = slots[i];
@@ -630,6 +657,12 @@ console.log('Unified Atlas cache healthy checks passed.');
     admitAtlasDisplayForRead: read => read.displayConfig,
     bindAtlasModel: (scene, _glb, displayConfig) => ({ scene, displayConfig }),
     loadStandardGlb: async () => { parses++; return {}; },
+    // The ?render-probe=load ledger: which path's model reached the stage first.
+    noteLoadStep: step => notes.push(step),
+    noteFirstModel: (model, parseMs, savedReadMs) => {
+      assert.ok(parseMs >= 0 && (savedReadMs === undefined || savedReadMs >= 0)); assert.equal(savedReadMs === undefined, model === 'fresh');
+      notes.push(model);
+    },
     AtlasReadError, createStartLedger, GlbFormatError: class extends Error {},
     RENDER_LIMITS: { uploadBytes: 1024 }, PREPARED_BYTES_PER_TRIANGLE: 1,
     AtlasStage: function AtlasStage() {}, LensStatus: function LensStatus() {},
@@ -696,6 +729,14 @@ console.log('Unified Atlas cache healthy checks passed.');
     assert.equal(confirmed.props.stored, undefined);
     assert.equal(parses, 1, 'confirmation and retry do not parse another stage model');
     assert.equal(cacheCalls, 1, 'retry reuses the already displayed stored copy');
+    assert.deepEqual(notes.filter(note => note === 'saved' || note === 'fresh'), ['saved'], 'the saved copy drew first; its confirmation parsed nothing');
+    assert.equal(notes[0], 'home');
+
+    // No saved copy: the fresh read's model is the first drawn.
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(null); await settle(); freshRead.resolve({ ...copy }); await settle();
+    assert.equal(render().type, hooks.AtlasStage);
+    assert.deepEqual(notes, ['home', 'fresh'], 'a fresh read with no saved copy is noted as fresh, with its parse');
 
     // Held downloads open the copy without a fresh read. An explicit refresh
     // retains that stage, then an authorization refusal must remove it.
@@ -725,4 +766,32 @@ console.log('Unified Atlas cache healthy checks passed.');
     }
   }
   console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity passed (synthetic hooks; no DOM)');
+}
+
+// The ?render-probe=load readout's text from generated ledgers and resource timing rows.
+{
+  const { formatLoadReadout, modelDownloads } = await import(await sourceURL('../src/lantern/canonical-ifc/load-readout.ts'));
+  const base = '/api/atlas/models/v1/workspaces/w/homes/h/atlas';
+  const rows = [
+    { name: `${base}?expectedManifestSha256=x`, startTime: 900, responseEnd: 1300, encodedBodySize: 933_000 },
+    { name: `${base}/p/artifacts/model?expectedSha256=y`, startTime: 9137, responseEnd: 19197, encodedBodySize: 12_358_170 },
+    { name: `${base}/p/artifacts/model-detail?expectedSha256=z`, startTime: 20000, responseEnd: 60000, encodedBodySize: 99_000_000 },
+  ];
+  assert.deepEqual(modelDownloads(rows), [{ bytes: 12_358_170, ms: 10_060 }], 'only the overview model GET counts as a model download');
+  const warm = { steps: { home: 1320, house: 13104, textures: 18728, shaded: 28056 }, model: 'saved', savedReadMs: 1240, parseMs: 3710, buildMs: 3520, backend: 'webgpu' };
+  assert.equal(formatLoadReadout(warm, modelDownloads(rows)),
+    'Home 1.3 s · house 13.1 s · textures 18.7 s · shaded 28.1 s\n'
+    + 'Model: saved copy · model download: 12.4 MB in 10.1 s\n'
+    + 'Saved copy read 1.2 s · parse 3.7 s · build 3.5 s · WebGPU');
+  assert.equal(formatLoadReadout({ steps: { home: 2383, house: 24868 }, model: 'fresh', parseMs: 3300, buildMs: 3250, backend: 'webgl2' }, modelDownloads(rows)),
+    'Home 2.4 s · house 24.9 s · textures pending · shaded pending\n'
+    + 'Model: download · model download: 12.4 MB in 10.1 s\n'
+    + 'No saved copy read · parse 3.3 s · build 3.3 s · WebGL2');
+  assert.equal(formatLoadReadout({ steps: { home: 1000, house: 9000 }, model: 'fresh', parseMs: 3000, buildMs: 2000, backend: 'webgpu' }, []).split('\n')[1],
+    'Model: saved copy after online check · model download: none so far');
+  assert.equal(formatLoadReadout({ steps: {} }, []),
+    'Home pending · house pending · textures pending · shaded pending\n'
+    + 'Model: pending · model download: none so far\n'
+    + 'Saved copy read pending · parse pending · build pending · renderer pending');
+  console.log('load readout: step times, first model source and largest costs formatted (generated ledgers; no DOM)');
 }
