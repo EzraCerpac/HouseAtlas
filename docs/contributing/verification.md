@@ -5351,3 +5351,649 @@ hosted execution is required. No new command, selection, deadline or workflow
 is introduced; inventory remains 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
 This does not complete broader #563/#564/#565 acceptance or provide original
 inspection, live-source or runtime integration evidence.
+
+## Ordinary lane case ledger
+
+Named cases, counts, fixtures and evidence limits of the ordinary lanes, moved
+unchanged from the root `AGENTS.md`, which now holds rules only. Words such as
+"here", "below" and "earlier counts" refer to this ledger and the checkpoints it
+records. `tools/ci/lanes.json` and the generated command inventory above stay
+authoritative for what CI runs; hosted logs, not this text, establish execution.
+A PR that extends CI names the added scope in this guide.
+
+### CI manifest checker
+
+`tools/ci/lanes.json` and the generated command inventory in the verification
+guide are the authoritative list of `run:` steps in `ordinary-core.yml`,
+`rust-react-ordinary.yml` and their composite actions under `.github/actions/`.
+The ordinary-core job runs `python3 -B -I tools/ci/check_lanes.py --check`
+(Python standard library only; reads repository files, no subprocess or network)
+to compare that manifest with those files: triggers, workflow and job env, job
+runner, condition, matrix and needs, each run step's command, condition, id,
+env and options such as `continue-on-error`, and the run steps' order within each
+job, plus recorded case counts, prose claims, toolchain pins and the generated
+table. A run step that reads `steps.<id>` before an earlier step has that id is
+refused. It refuses workflow, job and run-step
+keys it does not read. `uses:` steps and their inputs, permissions, concurrency,
+job outputs, job timeouts and `fail-fast` are not compared. Its synthetic cases
+run in the existing `tools/ci` discover step. Every new or changed run step, step
+env or step option needs a matching manifest row; the check fails otherwise. It
+runs none of the listed commands.
+
+### Ordinary-core job
+
+`.github/workflows/ordinary-core.yml` also runs the 14
+synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
+`tools/deploy-nas` and `tools/backup` tests (temp folders, a fake service and
+a fake iCloud helper; no launchd, network or real data) with the runner's
+`python3` (stdlib only). The same job runs the eight existing generated
+`tools/electrical_registration/healthy.test.mjs` cases with pinned Node 26.10.0:
+known/approximate affine fits, property-wide inventory, documentary-only intake,
+reviewed withdrawal, revision reconciliation, stale current identities and
+source-uncertainty hull coverage (including malformed explicit row tolerances).
+The existing documentary-only top-level case also contains exactly four
+generated electrical-data subtests for #554: canonical panel/circuit/evidence
+joins and report/label/test distinction; unknown/stale/ambiguous/conflicting
+withholding; same-circuit contradictory tests across group/fixture overlap in
+both row orders; and exact scope/review/test coverage. They use the read schema,
+pure projector and generated fixture in `contracts/electrical-data/README.md`,
+with already pinned contracts Ajv. Original registration assertions and the
+eight-case command remain; no workflow, provider, native write or UI is added.
+The tested-state fixture is invented, never installed wiring evidence.
+These pure in-memory cases create no receipt, native authority or physical
+placement.
+The ordinary-core job also runs the sixteen explicit cases in
+`tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
+>=3.11 (stdlib only). They use generated profiles, disposable folders and owned
+synthetic child processes to check configuration refusal, sample decoding,
+receipts, deadlines and process-group cleanup. Fake build/profiler commands
+exercise cleanup only; no Cargo build, real profiler, network workload or
+runtime performance collection runs. These checks establish no profiling
+availability or benchmark result.
+
+Owner-approved finite bridge-read CI exception (28 October 2026): the existing
+ordinary-core job invokes exactly `healthy_large_read_page`,
+`denial_read_profile_bounds` and `denial_read_correlation` in
+`tools/houseatlas-mcp-bridge/test_bridge.py`. They use fake GET/session/admission
+owners and disposable synthetic journal state, with no socket, browser, native
+service, provider, credentials or write invocation. This exception adds no other
+bridge case, regression discovery, runner/workflow, live operation or access.
+Other held controls remain excluded. Exact commands and limits are in the
+verification guide; hosted logs, not registration, establish execution.
+
+The existing ordinary-core lightweight job also runs exactly
+`tools/perf/host-client/options.test.mjs` and
+`tools/perf/host-client/compare.test.mjs` with pinned Node 26.10.0 and
+`--test-concurrency=1`. These nine stdlib-only cases check explicit selection and
+resource limits, sample-qualified summaries, complete measurement-driver source
+fingerprints over generated temporary files, mismatched runner/adapter/driver/
+load rejection, unqualified errored/saturated comparisons, pacing alignment with
+a synthetic clock, MCP editor/CSRF exchanges through fake ports, and a bounded
+Node comparison subprocess from generated paths containing spaces. They launch no
+Rust host, Vite build, TLS listener, browser, request generator, fault cohort,
+profiler or performance measurement. The opt-in host-client contract, faults and
+release-measurement commands remain outside ordinary CI.
+
+The existing ordinary-core job also runs the explicit stdlib-only
+`tools/model-input-disposition/test_disposition.py` suite. Generated in-memory
+claims exercise bounded strict parsing, exact original/release identities,
+replay/conflict reconciliation, incomplete persistence and independent evidence
+summaries. No filesystem payload operation, network, consumer, receipt emission,
+service, credential or operational adoption occurs. Hosted logs establish test
+outcomes; validated claims establish no authority or custody.
+
+The same ordinary-core job also runs the 75 generated methods in
+`tools/model-input-disposition/test_storage_adapter.py` against injected fake
+clock, registry, resolver, ledger, readback and conditional-dispatch ports.
+The separately versioned prospective protocol preserves pure v1 unchanged.
+These in-memory checks perform no actual custody operation, installation,
+transport, credential access or operational adoption; the existing storage owner
+must separately qualify the concrete route, clock continuity and fence semantics.
+
+The same ordinary-core job also runs the 57 disposable methods in
+`tools/model-input-disposition/test_storage_owner_ports.py`. Generated temporary
+directories and owned isolated Python children check supplied descriptors,
+streaming pins, explicit present-only permits, prospective journal completeness,
+bounded reader/fsync/close behavior and v3 process-local admission. All filesystem
+writes and permission fixtures are confined to those disposable roots. No private
+input, NAS contact, transport, installer, credential, mutation dispatch or settled
+effect is exercised. Same-host subprocess readback is not another storage failure
+domain; source/CI success does not establish operational adoption.
+
+### Frontend and loopback lanes
+
+In `.github/workflows/rust-react-ordinary.yml` that includes
+the named Lantern healthy read;
+the existing unified Atlas healthy case also checks explicit publication-pinned
+display groups, admitted-read metadata precedence/null/no-fallback behavior,
+same-source policy key changes through the actual easing initializer/step and
+finite section conversion/settlement (no mounted hook or RAF/browser test),
+plus bounded protected display-policy responses with exact context/digest/revision,
+refusal and selection retirement; the existing cache healthy case checks policy-only
+replacement/removal, cold retention and actor separation without a browser,
+unchanged geometry/containment, both members' CPU room picks,
+union framing, retained per-part cuts through transition starts/ends and reversals,
+connecting-structure association,
+single-plan switching and actual Floor Stack server markup. Its small generated
+policy checks also refuse overlapping groups and cross-building display joins;
+no new runner, browser lane or native authority is added; the four generated
+Electrical Library selections `healthy`, `reentrant-retirement`,
+`pdf-unavailable-metadata` and `dialog-focus-restoration` (existing production
+reader/projection, fictional original bytes and fake owners; the focus helper
+uses fictional focus objects, with no React/DOM mount, PDF UI or native access).
+They cover newer-read retirement, unavailable-PDF metadata without open authority,
+and guarded opener restoration without changing the existing healthy case;
+`frontend/lantern-tests/run-healthy.mjs` with
+its explicit list, including the `offline-launch`, `hung-network` and
+`live-launch` cases in the pinned Chrome for Testing build against the built public shell
+(generated build output on a loopback listener, no backend; live-launch also
+seeds a generated Atlas and waiting outbox entry through production storage APIs,
+closes and reopens the tab, and checks cached content, exact queue retention and
+no write dispatch), and fake-child/temporary-directory shutdown and bounded
+profile-cleanup and combined-failure diagnostic checks inside the existing offline-root-entry healthy case
+(no browser or real child launch), the generated CPU
+mesh-preparation equivalence check, the `webgl2` case of
+`mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
+runner's software GPU and swaps in a second mesh set without a blank frame,
+including generated mapped-glass samples and differently tinted/frosted panes
+under reversed primitive submission order and opposite camera views,
+plus a closed omni bulb with nearby nonemissive metal and receivers at 6 m
+and at/beyond its finite 10 m envelope, and the `?render-probe` speed check
+(all five cases reported, drawing resumes; software-GPU timings are not device evidence),
+`unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
+unified Atlas Plan with trusted wheel input in the pinned Chrome for Testing build, and the generated Unified Atlas compact layer-details
+and control-names checks (compiled source and markup only, no browser), the
+generated time-of-day lighting check (sun positions for a neutral reference
+place and appearance tables only, including glass-pass opacity/frost and
+selected-pane precedence, no browser or GPU), the generated Unified Atlas
+CPU room-picking cases through transparent glass and behind opaque or
+highlighted solid panes (no browser or GPU), the generated
+embedded-PNG `four-maps-1024` case (four 1024 px maps admitted and accounted
+under the tier budget, and refused with stated MiB under a reduced GPU budget;
+no browser or GPU), the
+generated WebMCP batch-discovery descriptor check (schema bytes only), the
+synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
+browser or service, including five in-process disposal, session-replacement and
+partial-registration lifecycle cases with controlled synthetic promises, plus
+three quantity-custody cases through a companion bundle of the actual quantity
+mount with fake preview/handoff ports and no approval or submission, and three
+completed-custody cases through the actual QuantityHandoffs class with synthetic
+client promises, controlled deadlines, closure/reuse and retained pending-owner
+uncertainty, plus two actual-owner cancellation-window cases covering completed
+invocation/session abort cleanup and repeated busy-result listener retirement,
+without a React/browser mount or native/provider effect), and
+the generated offline outbox check (synthetic IndexedDB and a generated
+server, no browser or network), the generated Unified Atlas overlay feed check
+(compiled feed, stored-overlay codec and Atlas cache against a counting fake
+source owner and synthetic IndexedDB, no browser or real source), and the
+generated backup settings check (decoding and the CSRF save exchange against
+a generated transport, no browser or network); the `tools/model-bake` tests on generated
+geometry, including overview texture halving, viewer admission and selector binding of a baked generated
+unified Atlas publication and its detail tier, and their meshopt compression
+expanded by the viewer's decoder; and
+`cargo test --locked -p houseatlas-backend --lib` with its default
+(non-`#[ignore]`) set, including the three pure synthetic display-policy
+contract/options tests (no native service or private files), skipping the three quantity tests that need
+`HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
+loopback flows (including pure fake-child/clock CDP startup/framing/error cases
+inside the already admitted media flow; one 60 s startup request, unchanged
+15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide.
+The existing topology-read case exercises a partial electrical record reader
+with generated identity, location-semantics, circuit and evidence lists. It checks
+all-four snapshot equality, selected revisions, repeated reads, retirement,
+exact numeric provenance and refusal of withdrawn/disputed/superseded evidence.
+Full record/reference closure and independent electrical-review authority remain
+unavailable; the owner stays unmounted. These supplied controls are not native
+Access revocation, ongoing freshness, a verified trace or device acceptance.
+The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
+(#552): the pure network route search over generated topologies, with no DOM,
+browser, native host or source reads. The same list runs
+`unified-atlas-electrical-group-healthy.mjs`: generated documentary membership,
+room and unplaced projections, source separation and incomplete membership; no
+browser, provider, native authority or wiring assertion. That file also runs the
+#554 breaker/panel trace over the actual #557 projector and generated fixture:
+reviewed group or fixture association, then current breaker, then panel, then
+supplied room binding. It covers refusals, withheld/unknown states and static
+detail markup. No live or saved host supplies electrical data yet; the optional
+`AtlasPresentationEnvironment.electricalData` input stays unset.
+
+The existing Lantern `healthy-read.mjs` check also compares the generated client
+schema resources with their pinned full authority, checks scope/file v3/v4
+validation and rejection parity, and exercises synthetic recursive references,
+anchors, nested IDs and missing-resource refusal in process. It adds no runner,
+browser, service, network or credential use. Vite refuses stale generated bytes;
+the artifact-generation command is implementation, not runtime qualification.
+
+The same frontend runner selects the capture selection case
+`selection-cancel-reselect`, the foreground case `stale-target-preparation`,
+five generated capture-original cases: `one-shot-originals`,
+`original-offer-reused`, `original-offer-digest-mismatch`,
+`original-offer-record-change` and `original-offer-unavailable`; and five
+fake-port draft cases: `healthy-save-review-commit`,
+`existing-original-receipt-commit`, `receipt-record-closure-keeps-original`,
+`cleanup-failure-known-commit` and `reused-receipt-object-keeps-unknown`.
+The finite failure cases cover original-offer identity and per-attempt receipt
+cleanup only, with generated originals, in-memory stores/exchanges and a fetch
+trap in the draft harness. They add no listener, native service or browser.
+Other capture/draft cases and the full controller regression suite remain
+separately selected; exact commands and limits are in the verification guide.
+
+The existing generated `canonical-mesh-preparation.test.mjs` selection also
+checks the actual opt-in scene-build observation helper with a fake clock and
+renderer: phase/wait attribution, original promise/result/error preservation,
+unknown unsupported/pre-hook counters and exact owned-hook restoration. A
+fictional-element source contract calls the actual report builder to check
+viewport bounds, scrollable text and a separate Copy/Close row; it establishes
+no computed layout or device result. These contracts compile no shader, draw
+no frame and add no test selection or workflow. The same CPU file exercises the
+production frame-yield helper with controlled RAF/message-task/visibility owners
+for normal, hidden and aborted cleanup, without a browser or shader. The existing
+`?render-probe` report may include observational build/first-render-call phases;
+these are not GPU completion, witnessed paint or a phone performance result.
+The build observation ends at shell readiness; later staged preparation has
+separate timing and does not retroactively populate unobserved build phases.
+
+HomeBox same-observation reopening joins or reborrows the exact earlier capture
+within one retention owner and actual page/sign-in allocation. Sent claims stay
+spent; missing local bytes do not trigger another provider acquisition. Reader
+handles share private immutable bytes and one storage attempt, while existing
+bulk cancellation and explicit storage continuation after UI close stay distinct.
+Exact-held reads recheck the full pin, epoch, scope and association; automatic
+status cannot follow another association's valid pin. Uncertain work remains
+quarantined without replay. Finite claims/readers/interests, one pipeline and
+two resident observations bound admitted application payload; source allocation
+accounting is not a measured peak, browser/native allocation or RSS guarantee.
+Existing owner and synthetic-hook controls are authored and UNRUN until hosted
+qualification. All 95 selections, commands, limits, deadlines and trust pins
+remain unchanged. Primary issued-URL downloads, ordinary-open integration,
+whole-library and device acceptance remain separate and unfinished.
+
+HomeBox verified-copy foundation adds an optional type-only original-frame port
+through Host/state and a lazy live-host adapter. The separate preview action and
+automatic fill share private session/exact-association claims; sent success,
+refusal and unknown outcomes are not replayed. One memoized storage attempt uses
+the same immutable verified bytes and can outlive ordinary UI close, while actual
+binding retirement, expiry and explicit storage clear withdraw owned interests.
+Transaction currentness, exact-pin read-only uncertainty reconciliation, bounded
+UI URLs and inert saving preserve existing storage authority and limits.
+Both ordinary issued-URL anchors remain unchanged: their opened-file retention
+and compound whole-library/device acceptance are unfinished. Existing required
+`offline-electrical-copy.test.mjs` and `pinned-capture-read.mjs` carry generated
+owner and synthetic-hook action controls; these are authored and unrun locally,
+not a mounted UI/device result. All 83 SOURCE / 1 BUILD / 11 BROWSER selections
+(95 total), commands, deadlines, startup budgets, workflow and trust pins remain.
+
+Offline Settings displays exact HomeBox captured size hints separately from
+measured retained bytes and storage budget. Exact association identity, numeric
+deduplication, conflicting/unknown duplicates, overflow and unavailable/empty
+coverage stay explicit; hints never grant download authority or catalog completeness.
+Existing `offline-electrical-copy.test.mjs` adds four pure controls and one
+synthetic-hook Settings lifecycle control; the existing live-launch case adds
+one generated display assertion. All prior assertions and deadlines remain.
+No new selection is needed: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
+Controls are authored and unrun until exact-head hosted qualification. Mounting,
+fill limits, storage policy, provider authority and device deferral are unchanged.
+
+GPU admission and renderer reservation additionally account for one appearance
+state texture per rendered mesh set: nine RGBA32F texels per drawn instance,
+128 entries per row, or 18,432 bytes times the rounded-up row count. Repeated
+node instances count separately; a combined SiteArtifact set rounds its summed
+instance count once. Skipped empty rendering costs zero; direct scene creation
+retains its existing minimum row. The two CPU state arrays are not two GPU
+textures, and material admission must not charge the state texture twice.
+Geometry remains 72 bytes per triangle with separate prepared-geometry reporting.
+The existing 64/384 MiB limits, all 95 selections and their deadlines remain.
+State-accounting exports live in the already mapped `glb-preflight.ts`;
+there is no separate runtime state-table import. All 20 trusted harness/contract
+files retain the pinned `8f41c7d7` bytes. No workflow, pin, metric or trust-policy
+change is part of this source-only compatibility repair. Its final head still
+requires hosted qualification; earlier queued runs are not execution evidence.
+Authored existing controls cover row boundaries, repeated nodes, material/plain
+admission, combined-set release and generated artifacts straddling configured
+caps. They are unrun until exact-head hosted qualification. No private/installed
+artifact is requalified. Allocation layout and shader behavior stay unchanged;
+admission tightens at the existing caps. Transition peaks, fixed render targets
+and global memory policy remain separate. Earlier
+notes below describe their respective source checkpoints.
+
+The existing required `unified-atlas-daylight-healthy.mjs` SOURCE check adds
+generated CPU controls for lamp descriptor ranking/capping, hiding, whole and
+partial clipping, clip-boundary overrides, display lift and reappearance.
+Each of eight states poisons the receiver cells before the actual
+`writeAppearance` call and immediately requires room/shelter flags `[1, 1]`.
+The controls also retain self-emission marks and fixed global lighting inputs.
+No new runner selection is added: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total),
+with all existing assertions and 180000 ms entry limits unchanged. Source and
+metadata inspection are not execution; exact-head hosted qualification remains
+required. This CPU-only slice does not qualify GPU slots, rendered fallback,
+readiness or occurrence completeness and does not complete #339. Production
+renderer/schema/allocation code, workflows and sandbox setup remain unchanged.
+
+The required SOURCE list adds `example-files-healthy.mjs`: 84 SOURCE / 1 BUILD /
+11 BROWSER (96 total), limits unchanged. It reads the example house's
+generated HomeBox manual through the production verified-copy owner over an
+in-memory store, its source Documents list and original through the production
+reader, its inventory quantities and upkeep entries as Upkeep markup, and its
+fictional electrical drawing through the production Electrical Library reader, validates its topology records and renders the
+actual Places rows to static markup, and runs the generated `/example/` offline
+worker in a fake worker scope over temporary files. No browser, IndexedDB, network,
+native host, real household file or device behavior is exercised.
+Earlier counts below describe their respective source checkpoints.
+
+The required SOURCE list adds `example-combined-overlays-healthy.mjs`:
+83 SOURCE / 1 BUILD / 11 BROWSER (95 total). All previous entries and
+180000 ms per-entry limits remain, including the explicit stored-dialog case.
+The generated control uses the production reader/projector and actual graph
+builder (exposed only in its test bundle), checking three Hall and one Living
+room electrical records, one drawing group across them, four network devices
+in their rooms and their logical routes to the root. It checks owner retirement through
+both signals, release and disposal. This is example-only fictional DATA,
+not native/physical/provider authority, a mounted demonstration or #591
+completion. New controls are authored and unrun locally; exact-head hosted
+checks, startup/performance and existing capture remain required. No workflow,
+timeout, sandbox, persistence, production-consumer or capture change is added.
+Earlier counts below describe their respective source checkpoints.
+
+The required browser list additionally selects only
+`unified-atlas-regression/browser.mjs --stored-dialog-currentness`:
+82 SOURCE / 1 BUILD / 11 BROWSER (94 total). All previous selections,
+including `--electrical`, keep their commands and 180000 ms per-entry limits;
+the broad default regression suite is not registered. The generated case mounts
+the actual stored Atlas and native compact layer dialog, checking an identical
+fresh-read settlement without modal/focus/stage replacement and retirement on
+denial. It is authored and unrun locally, not execution or #292 acceptance.
+No production code, workflow, sandbox setting or other budget changes.
+Earlier counts below describe their respective source checkpoints.
+
+### Backend library lane
+
+Immutable Core read preparation narrows only existing HTTP read/admission
+parameters, closure bounds and necessary caller borrows from `&mut Core` to
+`&Core`. The same Core mutex guards, original authorization/release checks
+and inner Store/Access mutations remain. No root slot, generation, lease,
+capture, journal/status or release-gate behavior is added; this does not enforce
+replacement history or Send/native-owner lifetime. Existing commands,
+83 SOURCE / 1 BUILD / 11 BROWSER selections (95 total), pins and limits remain.
+No local compiler/formatter/tests ran; exact-head hosted qualification is required.
+
+Selected native suggestion inputs expose a source-owned `disclose_completed`
+method: it borrows the original terminal outcome, projects against the private
+admitted snapshot with an empty inspectable set, and rechecks the original
+native source/access owners both before and after projection. A failed second
+check withholds the entire projected DTO. Retained text/metadata never creates
+original-byte inspection authority. These are boundary checks, not an atomic
+transaction or continuing disclosure authority; original outcome/usage remain
+with their owner. The race hook is test-only. All eleven existing controls are
+preserved and six additional default-library controls are authored, unrun until
+exact-head hosted qualification. No route/root mount, inference/provider call,
+corpus/pin/runtime activation or persistence is added. Existing 83 SOURCE /
+1 BUILD / 11 BROWSER selections, workflows and all limits remain unchanged.
+
+The existing default backend-library selection discovers the generated mounted
+HomeBox offline-original case in `http::homebox_pinned_files::mounted_offline_original_tests`.
+It exercises the actual router and original owner with disposable Access and a
+generated loopback TLS peer: measured source bytes/association, anonymous and
+withdrawn access refusal, provider 503 and spent-request replay. Its dedicated
+test-only trust root admits only the generated loopback peer. Authored pending
+hosted execution; no live provider, real credentials or device are used. It does not
+establish remote freshness, in-flight revocation or consumer-store acceptance.
+No workflow or runner command is added.
+
+The existing default backend-library selection also discovers the ten generated
+`ai::suggestions::synthetic_contracts` cases listed in the verification guide.
+They check closed review-only proposal decoding, canonical target/input pins,
+bounded evidence/candidate references, current-context refusal and deterministic
+finding keys. Inputs and claims are fictional; no native owner, Access issuer,
+provider, model, credential, browser, device, socket or write port runs. These
+are structural validation cases, not classification/groundedness accuracy or
+live authorization qualification. No workflow or runner command is added.
+
+The same default backend-library module additionally contains eleven generated
+disclosure projection tests. They join validated review data to the inventory/
+document/maintenance/cited-answer/comparison display DTO and check exact evidence/contrary claims, source revision
+rechecks, owner-supplied inspection labels and non-authoritative selection keys.
+No route, original-open capability, approval or native dispatch is issued.
+The review-only browser adapter consumes this DTO with the retained #569
+controller and an explicit owner-supplied React mount. The existing healthy
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-nine
+controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-five adapter cases).
+They use generated data and the actual controller, without browser, provider,
+credentials or native writes. Registration is not execution evidence. No
+app-root, workflow, browser selection or other held selection changes.
+
+The default backend-library set additionally discovers nine generated
+`ai::suggestions::evaluation::healthy` scorer controls. They call the existing
+proposal validator over deliberately supplied fictional outputs, with source-pin
+and cited annotation checks. Classification, duplicate relationships, document
+association, abstention/unknown and validator acceptance/refusal remain separate
+integer counts; refused output is unscored, not a correct abstention. These are
+scorer controls, not a model benchmark or the separate unpublished corpus. No
+model, calibrated probability, fitted threshold, runtime/host port, provider,
+credential, browser or native write is involved. Execution is not inferred from
+test registration; see the verification guide for exact scope and limitations.
+
+The default backend-library selection also discovers thirteen generated
+`lifecycle::continuity_plan::healthy` cases. These validate observation DATA and
+an in-memory offline journal model only: historical/current cuts, every SQLite
+sidecar/absence, original receipt type, lock/staged-file identities, ordered
+preservation/publication records, permanent uncertainty and conservative metadata
+rollback candidates. They open no file, database, socket, lock or service and
+perform no restore, fsync, rename, receipt publication or startup reconciliation.
+The existing guard is unchanged. Plan success grants no authority and cannot
+authenticate a baseline or prove native exclusion/durability. Source registration
+does not establish execution; the verification guide records remaining bindings.
+
+Exact donor c020815382919e82244951c047ce8bf101b6934f (parent f7188684)
+changes only the component, README and review/source controls. Proposed-field
+and maintenance-title controls use controlled soft-wrap textareas with existing
+raw handlers, labels, states and limits intact, including4145 only for Inventory
+tags. All six owned frontend files match this donor. Four donor cases plus one
+canonical category and one session control are authored/NOT RUN; existing
+maintenance LF/TAB adapter coverage is unchanged. Admitted LF/TAB preservation
+does not promise arbitrary CR/CRLF draft bytes or executed React/DOM behavior.
+Current counts are42 synthetic-contract /10 scorer /28 retained /one counter
+plus one date-unit Rust case, and49 controller/source /25 session cases. The
+77/1/7 selection inventory, corpus/ledger, date/tag/authority fences and runtime
+gates are unchanged. No local execution or tracker metadata write occurs.
+
+Projected review source-card retrievedAt and non-null sourceDate now have the
+consumer's existing4096 UTF-16-unit fence. Exact original strings, null and
+date-only values remain unchanged; over-bound projected dates return typed
+LimitExceeded, without normalizing/truncating input or changing admission.
+The check covers cited evidence and subject-metadata fallback for all record
+features; uncited date text and source-free empty views remain unaffected.
+Three authored/NOT RUN controls cover4096/4097/4117 units, ordinary dates/null,
+uncited long inputs, all five features, a whole-DTO size counterfactual and
+UTF-16 versus UTF-8/scalar units. Counts are42 synthetic-contract /10 scorer /
+28 retained /one counter plus one date-unit Rust case; frontend49/25 and77/1/7
+selections remain unchanged. No frontend/tag repair, corpus/ledger, runtime,
+authority/currentness semantics or withheld-state redesign is changed.
+
+Inventory tag JSON has a tight 4,145 UTF-16-unit compact-display bound:
+16 tags *128 UTF-8 bytes *2 escaping units +32 string quotes +15 commas +2
+brackets. Only LF/tab control characters are admitted; six-character control
+escapes are unreachable. Unique 128-byte quote/backslash tags attain the bound.
+Two backend canonical/disclosure and one strict-session controls are authored,
+NOT RUN. Shared preparation counts are 42 synthetic-contract /10 scorer /
+28 retained /one counter Rust cases and 24 session cases. The session control
+requires the matching reviewed frontend tag-specific capacity donor before
+publication; other field limits, whole-DTO bounds and all native/runtime gates
+remain unchanged. No truncation, normalization or new source/approval is added.
+For the earlier tag-capacity increment, the donor was `f7188684d1083a611d93ea86f6a5b63fd3d73725`,
+parent474fb67c. All six owned review paths then matched it, including unchanged
+view-types/CSS. Its four authored controls bring the existing presentation
+selection to45 cases; shared session total is24. All seven new shared/donor
+controls are NOT RUN. Canonical disclosure keeps current:null and the donor
+preserves the generic current-value4096 limit and every other limit. Existing
+77 source /1 build /7 browser selections and workflows are unchanged.
+
+Inventory no-change/no-duplicate disclosure now retains evidence explicitly
+cited by validated extracted claims, so unknown/held results can show exact
+source excerpts/versions/dates for inspection instead of metadata alone.
+Uncited evidence stays omitted; claim-free fallback and all other result paths
+are unchanged. No field/candidate/selection or authority is created. Existing
+currentness/withdrawal, original-owner inspection labels and display bounds
+remain enforced. Two Rust and one existing adapter control are authored/NOT RUN.
+Current counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter
+Rust cases and 49 presentation/controller / 25 session cases. That no-suggestion
+increment added no new kind, frontend-owner source edit, runner/workflow or
+original corpus mapping.
+inv-model-only stays unbridged: #564's selected inventory-photo/description
+outcome does not require a new document-subject comparison mode just to bridge
+that fixture. Its manual is not relabelled; ordinary InventoryItem admission,
+existing duplicate/edit intents and the 5/21/6 ledger remain unchanged.
+
+Original qa-missing has one source-free structural bridge and two authored,
+NOT RUN controls in `ai::suggestions::evaluation::retained_corpus`:
+`retained_qa_missing_keeps_original_empty_retrieval_and_explicit_clarify_gap` and
+`retained_qa_missing_refuses_fabrication_and_supplied_question_replacement`.
+It preserves exact prompt, empty input/candidate/claim sets, clarify/no-answer,
+original missing-coverage explanation and no-effects annotations, with explicit
+null subject and empty display/inspection/selection lists. Scope/actor IDs,
+request/registration/authority/cancellation identifiers are generated DATA;
+hashing the retained prompt is not accepted-query digest custody or real request
+capture. Neither synthetic current pins nor epoch replacements establish actual
+cancellation/currentness, host publication, session binding or model abstention.
+There are 28 authored/unrun retained tests; all 26 earlier adapters/tests and
+four original corpus files are unchanged. Ledger is 5 scorer subsets / 21
+structural / 6 unbridged. No scorer quality or new runner/workflow is added.
+
+Explicit source-free Answer admission is structural only. Its serialize-only
+QuestionBinding pins the admitted request ID, accepted-query SHA-256,
+registration and cancellation epoch with existing actor/scope/authority epoch.
+It has no trusted host/session binding: a supplied digest or current clone is
+not authentication, active-request proof or cancellation qualification.
+Generated schema v2 requires subjectRef:null (not missing), empty sources/
+claims/ranks/statements, clarify|unknown, no-answer and bounded explicit gaps.
+Record v1 string subjects, source admission and pin bytes remain unchanged.
+Display DTO v1 emits empty sources/inspections/selections/rankings, retaining
+the shared final byte fence; no subject metadata/capability is invented.
+Six new Rust and two session controls are authored/NOT RUN: shape/versions,
+escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
+record compatibility, terminal usage/refusals and consumer retirement. Current
+counts are 42 synthetic-contract / 10 scorer / 28 retained / one counter Rust
+cases, plus 49 presentation/controller and 25 session cases. The 5/21/6 corpus
+ledger, originals, runner selections and host/root/runtime/authority owners stay
+unchanged. No inference, source write, effect, persistence or activation occurs.
+
+Inventory review additionally supports `SameProductIdentityUnknown`, serialized
+and locally disclosed as `same-product-identity-unknown`: positive product
+correspondence with physical same/distinct identity unknown. Existing three
+relationship meanings, cited-source validation, selection binding and
+once-consumed authority:none review intents remain unchanged. Source preparation
+must compose the exact reviewed #569 presentation donor before publication;
+the frontend writer retains its six review/controller files. Three new shared
+controls (canonical/disclosure, independent supplied scorer and session binding)
+are authored/unrun. Shared Rust counts are 42 synthetic-contract and 10 scorer
+tests; retained tests/ledger are 28 and 5 scorer subsets/21 structural/6 unbridged.
+Original inv-model-only stays unbridged: its Document subject cannot be silently
+relabelled as an InventoryItem. No inference, physical verification, approval,
+native resolution, runtime activation or new runner/workflow is introduced.
+For the earlier identity-unknown increment, the presentation donor was exactly
+`474fb67c6a963b9c0971a4cb564ab5004c47d98e`, descended from e5281bd9; its five
+changed owned paths were retained verbatim and CSS was unchanged. At that donor
+increment, two authored presentation cases plus the shared session case brought
+frontend selections to 41 controller/source and 20 session cases, all NOT RUN. The
+77 source / 1 build / 7 browser selection inventory and workflows are unchanged.
+
+Original maint-duplicate has one additional supplied existing-task review
+control in `ai::suggestions::evaluation::retained_corpus`:
+`retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.
+It preserves task-a/item-a/manual v1 input evidence/dates, manual subject,
+MaintenanceTask candidate and supporting item source; exact task/index selection
+stays bound to task-a. Completion, interval and baseline remain unknown. Its
+generated native targets are DATA only; no task is created or deduplicated,
+service completion inferred, authority issued or quality score calculated.
+One new test brings the retained bridge to 26 authored/unrun cases; all 25 prior
+tests/adapters, original corpus files and production/frontend code are unchanged.
+The complete ledger is five scorer subsets, twenty structural controls and
+seven unbridged originals. No runner/workflow or local execution is added.
+
+The review-only AI module also exports `disclose_completed`, a pure adapter from
+the original `InferenceOutcome` to existing canonical validation/disclosure.
+It accepts one completed assistant JSON text payload (with bounded reasoning
+metadata), rejects refusal/tool/ambiguous/noncompleted output, retains observed
+usage including unknowns, and preserves current-context and inspection fences.
+Original outcomes, diagnostics and journals remain with their owner. It does
+not bind a runtime, credential, route, dispatcher, approval or persistence.
+Five generated `ai::suggestions::synthetic_contracts::completed_proposal_*`
+cases are authored in the existing default-library selection and NOT RUN.
+They cover inventory/document projection, refusal/tools, all noncompleted
+states, usage, context/original inspection and malformed/bounded envelopes.
+Existing 25 retained-corpus tests, originals and coverage ledger are unchanged.
+No local compilation, tests, formatting or Clippy qualification was performed.
+
+Completion-envelope sizing uses `serde_json::to_writer` with a private counting
+Write sink: exact compact JSON bytes are limited to 1 MiB without allocating a
+complete serialized copy. An oversized write is refused before accounting it.
+The admitted Value and fixture data still exist; this is bounded intermediate
+serialization, not a claim of constant total memory or a security incident.
+Three additional authored/unrun controls cover exact/over envelope size,
+UTF-8/escaping and original completed_event-to-review composition with known/
+unknown usage and refusal/tool withholding. Two join synthetic_contracts; one
+is `ai::suggestions::completion::tests::bounded_json_counter_counts_utf8_and_escaping_without_retaining_bytes`.
+There are now 28 synthetic_contracts tests and this one private counter test;
+all eight completion-related tests remain NOT RUN. Existing retained corpus,
+frontend, runner/workflows and runtime/authority boundaries are unchanged.
+
+The maintenance disclosure/session composition retains donor #569 at 1aa24a45.
+Task keys bind the exact canonical proposal index and admitted candidate inputRef;
+separate tasks may refer to the same candidate. Interval/conditions/urgency and
+exact evidence are preserved. The canonical proposal has no service-history
+baseline input, so baselineDate is always null and no due date is inferred.
+The session checks the target/index and canonical UTF-8/interval bounds again
+for structured user edits, including complete editedFields value-change correspondence. Delivery
+remains authority:none intent DATA after the existing currentness/once-only
+fences; the original owner must independently validate current authority and
+edited semantics. No task scheduling, source write, real host port or app-root
+activation is bound. Two new backend projection/currentness cases and four new
+session cases are authored, NOT RUN. Existing frontend selections remain 77/1/7;
+no new command/workflow/browser lane or live inference is added. Donor README
+UNAPPLIED statements describe its six-file standalone increment; this composition
+adds the canonical disclosure/session bridge but leaves genuine host ports unbound.
+
+The maintenance edit repair shares validateMaintenanceValues between controller
+pre-consumption draft checks and session defensive validation. It retains the
+Rust canonical limits: title 256 UTF-8 bytes, up to 16 conditions of 512 bytes,
+conditional text 1024 bytes, periodic count 1..100000 and bounded unit/urgency.
+Controls including CR refuse; LF/TAB remain valid in nonempty text. Lone UTF-16
+surrogates refuse. Invalid local edits stay reviewing/editable with valid:false,
+without source checks, owner delivery or consumption. A corrected draft can be
+sent once. Actual/uncertain owner callback failure remains consumed and cannot
+replay. Inventory/document behavior and genuine current-owner gates are unchanged.
+Two new controller and two new adapter cases plus the corrected invalid-edit
+regression are authored, NOT RUN. Existing source selections remain 77/1/7;
+counts are now 25 controller / 11 adapter cases. No local tests, compilation,
+formatting, Clippy, browser/device qualification or workflow rerun was performed.
+
+Cited-answer composition preserves donor #569 eb217ae3 and its exact six paths,
+including the maintenance repair. The existing canonical disclosure/session now
+projects Answer route, ordered ranked_refs, partial/no-answer coverage, supported
+statement text/rationale/uncertainty and exact evidence. Answer-only rankings
+metadata binds each local rank key to inputRef, version and original rank index;
+rank order is not access, factual certainty or an original-open capability.
+Selections are empty and the session defensively refuses answer intent delivery;
+the donor controller refuses every edit/select/accept/reject path. Only existing
+owner-bound source inspection and local dismissal remain. Real host ports,
+question/inference/runtime binding, native effects and app activation are unbound.
+Three backend and four session cases are authored, NOT RUN. Existing SOURCE
+selections now hold 32 controller / 15 adapter cases; inventory remains 77/1/7.
+Finite DTO bounds may refuse projection rather than invent or truncate evidence.
+No model ranking, answer quality, device or end-to-end host qualification follows.
+
+Comparison composition preserves exact donor #569 e5281bd9, including prior
+answer and maintenance repairs. Canonical Contradictions findings retain the
+existing ReviewProposal finding_keys, original finding/claim order, exact claim
+text/input/evidence and qualitative uncertainty. A closed comparison-only binding
+map joins finding key/index and assertion claim/input/version/evidence IDs.
+The session checks every assertion citation against inspection input AND version;
+matching labels or arbitrary distinct strings cannot substitute another input.
+Fact dates are always null here: canonical claims have no fact-date field and
+there is no qualified independent fact-time input. Source/retrieval dates remain
+separate. No winner, correction, decision persistence or deduplication is issued.
+Controller and session refuse every comparison review-intent path; inspection
+through the original owner and local dismissal remain the only actions.
+Three backend and four session cases are authored, NOT RUN; existing selections
+now hold 39 controller/source / 19 session cases, with unchanged 77/1/7 inventory.
+Real runtime, host/root mounting, native writes, approvals and activation remain
+unbound. Reusing a finding key is correlation DATA, not a durable decision.
