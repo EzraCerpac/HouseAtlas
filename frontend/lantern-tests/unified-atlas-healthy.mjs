@@ -35,6 +35,7 @@ const { PublishedOverlayDetails, PublishedUnplacedSource } = await import(detail
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
 const pointersURL = await sourceURL('../src/lantern/canonical-ifc/stage-pointers.ts');
+const moveResolutionURL = await sourceURL('../src/lantern/canonical-ifc/move-resolution.ts');
 const labelsURL = await sourceURL('../src/lantern/unified-atlas/labels.ts');
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
 const preflightURL = await sourceURL('../src/lantern/canonical-ifc/glb-preflight.ts');
@@ -1649,12 +1650,45 @@ for (const type of ['touch', 'mouse']) {
   assert.deepEqual(h.taps, []);
 }
 
+// Moving-frame pixel ratio (MeshLayer, #312): a still frame keeps the device's ratio up to 2; moving frames start at one
+// pixel per layout pixel on a coarse pointer, adapt to GPU time within [floor, still], and never oscillate in between.
+{
+  const { stillRatio, moveFloor, startMoveRatio, adaptMoveRatio, MOVE_BUDGET_MS, MOVE_MIN_RATIO } = await import(moveResolutionURL);
+  const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: ${actual} ≠ ${expected}`);
+  assert.deepEqual([3, 2, 1.5, 1, .5, 0, NaN].map(stillRatio), [2, 2, 1.5, 1, .5, 1, 1], 'still frames: device ratio up to 2');
+  assert.deepEqual([3, 1, .5].map(moveFloor), [MOVE_MIN_RATIO, MOVE_MIN_RATIO, .5], 'moving floor, never above the still ratio');
+  assert.deepEqual([3, 2, 1, .5].map(dpr => startMoveRatio(dpr, true)), [1, 1, 1, .5], 'a phone starts moving frames at one pixel per layout pixel');
+  assert.deepEqual([3, 2, 1].map(dpr => startMoveRatio(dpr, false)), [2, 2, 1], 'a fine pointer starts at full sharpness');
+  // The iPhone's 75 ms frame at ratio 2 (#312) goes straight to the floor; an overrun by 2× drops the pixel count by about half.
+  close(adaptMoveRatio(1, 75, 3), MOVE_MIN_RATIO, 'a slow phone frame reaches the floor at once');
+  close(adaptMoveRatio(2, 2 * MOVE_BUDGET_MS, 3), 2 * Math.sqrt(.5), 'an overrun scales pixels by the budget share');
+  close(adaptMoveRatio(2, 10 * MOVE_BUDGET_MS, 3), 2 * .7, 'at most one bounded step down at once');
+  close(adaptMoveRatio(1, MOVE_BUDGET_MS * .5, 3), 1 / .85, 'well within budget: one step sharper');
+  close(adaptMoveRatio(1.5, MOVE_BUDGET_MS, 3), 1.5, 'near budget: unchanged');
+  close(adaptMoveRatio(2, 1, 3), 2, 'never sharper than a still frame');
+  close(adaptMoveRatio(MOVE_MIN_RATIO, 500, 3), MOVE_MIN_RATIO, 'never below the floor');
+  close(adaptMoveRatio(2, 1, 1), 1, 'a ratio learned on one screen is held to the next one');
+  for (let ratio = startMoveRatio(3, true), step = 0; step < 200; step++) {
+    ratio = adaptMoveRatio(ratio, [3, 9, 15, 17, 19, 40, 80][step % 7], 3);
+    assert.ok(ratio >= MOVE_MIN_RATIO && ratio <= 2, `moving ratio stays within [floor, still]: ${ratio}`);
+  }
+  // A paused drag stays a drag until the finger lifts, so MeshLayer keeps moving frames (no contact shading) meanwhile.
+  const h = gestureHarness();
+  h.handlers.onPointerDown(h.event(1, 'touch', 30, 40)); h.handlers.onPointerMove(h.event(1, 'touch', 60, 40));
+  assert.equal(h.value().moving, true, 'a drag in flight');
+  h.handlers.onPointerMove(h.event(1, 'touch', 60, 40));
+  assert.equal(h.value().moving, true, 'a still finger keeps the drag');
+  h.handlers.onPointerUp(h.event(1, 'touch', 60, 40));
+  assert.equal(h.value().moving, false, 'lifting ends it'); assert.deepEqual(h.taps, [], 'a drag picks nothing');
+}
+
 console.log('PASS unified Atlas healthy: generated scene/model read through the production reader; standard loader nested, reused and '
   + 'multi-primitive transforms applied once; explicit selector binding; room picks hidden yet pickable; stacked, focused, exploded, '
   + 'mid-transition and plan picks at shared lifts; labels, duplicate names, a two-floor room, overlay joins and selection continuity. '
   + 'Section targets, settled and reduced-motion equivalence, mid-sweep reveal agreeing across drawing, picks and room controls, '
   + 'retargeting from an intermediate cut, and the same publication 100 000 m higher. '
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
+  + 'Moving-frame pixel ratios start, adapt and stay within their floor and the still ratio; a paused drag stays a drag. '
   + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
   + 'Mixed-floor records, static React provenance output, bounded repeated binding indexes and multiple same-level plans retain their source scope/order. '
   + 'An empty record binding, a room with no occurrence, per-reason distinct unplaced counts, 8,193 selectors and nine 1,024-record bindings are admitted. '

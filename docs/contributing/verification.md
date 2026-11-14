@@ -1271,6 +1271,10 @@ house with `?render-probe` (the on-device speed check, `render-probe.ts`) and
 check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
 triangles, contact shading) and that the view redraws afterwards.
+`?render-probe=drag` skips that check; with either address, each drag of the
+unified Atlas shows one line once the finger lifts (median and worst frame time,
+frame count, backend, moving and still pixel ratios). No CI selection drags the
+view, so that line is device evidence only, never a CI result.
 
 The report's startup diagnostics distinguish dynamic module import, adapter
 selection/renderer construction, renderer initialization, scene-graph setup,
@@ -3056,6 +3060,13 @@ exploded-floor framing. Only qualified positive overlay joins are supplied;
 foreign-publication, unqualified-join and unselectable-action controls are not
 part of this ordinary runner. This adds no device cancellation, hardware failure,
 malformed/omission, denial, replay, expiry, private-intake or browser test.
+
+The same runner checks the pure moving-frame pixel-ratio rule MeshLayer uses
+(`canonical-ifc/move-resolution.ts`, #312): still frames keep the device ratio up
+to 2, a coarse pointer starts moving frames at one pixel per layout pixel, and
+generated GPU times move the ratio only within its floor and the still ratio. A
+generated paused touch drag stays a drag until it lifts and picks nothing. No
+renderer, GPU timing, browser or phone frame time is exercised.
 
 The same named healthy runner also checks generated section targets, current
 clip visibility during a sweep, retargeting, and exact settled/reduced-motion
