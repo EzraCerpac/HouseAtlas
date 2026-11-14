@@ -25,7 +25,7 @@ import {
   tasksFor,
   unplaced,
 } from '../data/query';
-import { fmtDate, fmtDateTime, rel } from '../data/time';
+import { fmtDate, fmtDateTime, fmtDateTimeReadable, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -239,21 +239,30 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
   );
 }
 
-export function Sources({ house: _house, outage: _outage }: { house: HouseData; outage: boolean }) {
+export function Sources({ house, outage: _outage }: { house: HouseData; outage: boolean }) {
   const { projection } = useStore();
+  // A reviewed shape counts here only when the data holds one.
+  const reviewedShape = house.geometry === 'reviewed' || house.spaces.some(space => space.geometry === 'reviewed');
   return <Section title="Sources"><dl className="facts sources">
     {projection.view.caches.map((cache, index) => <div key={index}>
       <dt>{cache.owner === 'homebox' ? 'HomeBox' : 'Network'}</dt>
-      <dd>{cache.displayStatus}. Last successful update: {cache.lastSuccessfulFetchAt ? fmtDateTime(cache.lastSuccessfulFetchAt) : 'Unknown'}.
-        {cache.sourceInstanceId && <code>{cache.sourceInstanceId}</code>}
-        {cache.collectionId && <code>{cache.collectionId}</code>}
+      <dd><strong className="cache-state">{cacheStatusLabel(cache.displayStatus)}</strong> · last successful update{' '}
+        {cache.lastSuccessfulFetchAt
+          ? <time className="source-time" dateTime={cache.lastSuccessfulFetchAt} title={cache.lastSuccessfulFetchAt}>{fmtDateTimeReadable(cache.lastSuccessfulFetchAt)}</time>
+          : 'unknown'}
+        {(cache.sourceInstanceId || cache.collectionId) && <details className="source-identity"><summary>Source identity</summary>
+          {cache.sourceInstanceId && <code>{cache.sourceInstanceId}</code>}
+          {cache.collectionId && <code>{cache.collectionId}</code>}
+        </details>}
       </dd>
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>
+    {!reviewedShape && <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>}
   </dl></Section>;
 }
+
+const cacheStatusLabel = (status: string) => { const text = status.replace(/-/g, ' '); return text.charAt(0).toUpperCase() + text.slice(1); };
 
 // The refresh controller and its button are not part of startup.
 const HomeboxRefreshButton = lazy(() => import('./HomeboxRefreshButton'));

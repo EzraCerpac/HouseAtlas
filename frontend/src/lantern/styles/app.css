@@ -1038,11 +1038,19 @@
   font-size: 13px;
 }
 
-.lantern-host .btn:disabled,
-.lantern-host .btn[aria-disabled='true'],
 .lantern-host .chip-btn:disabled,
 .lantern-host .ctrl-btn:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Disabled reads as flat and muted, including the primary variant. */
+.lantern-host .btn:disabled,
+.lantern-host .btn[aria-disabled='true'] {
+  background: transparent;
+  border-color: var(--hair);
+  color: var(--muted);
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
@@ -1897,8 +1905,12 @@
 
 /* Touch: results take a full finger's height; the archived records filter
    sits as one compact panel inside the results instead of a full-bleed
-   band; the keyboard guide stays, on a tighter line, for attached keyboards. */
+   band; the keyboard guide is hidden. */
 @media (pointer: coarse) {
+  .lantern-host .palette-foot {
+    display: none;
+  }
+
   .lantern-host .palette-hit {
     min-height: 48px;
     padding: 9px 10px;

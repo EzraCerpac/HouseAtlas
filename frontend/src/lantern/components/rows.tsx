@@ -49,7 +49,8 @@ export function DocList({ docs, empty, showLinked }: { docs: Doc[]; empty?: stri
   );
 }
 
-export function TaskRow({ task, showTarget }: { task: Task; showTarget?: boolean | undefined }) {
+/** `sharedCache` is a cache status the page already states once for every row. */
+export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTarget?: boolean | undefined; sharedCache?: string | undefined }) {
   const { dispatch, house, projection } = useStore();
   const entry = projection.entries.get(task.id);
   const select = useSelect();
@@ -76,7 +77,7 @@ export function TaskRow({ task, showTarget }: { task: Task; showTarget?: boolean
               {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtShortDate(task.due, house.displayNow)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
             </span>
           )}
-          {entry ? <><RecordStatus entry={entry} compact /><span>Source cache: {entry.cacheStatus}</span></>
+          {entry ? <><RecordStatus entry={entry} compact />{entry.cacheStatus !== sharedCache && <span>Source cache: {entry.cacheStatus}</span>}</>
             : <span>Source status not supplied</span>}
           {task.cost !== undefined && <span>Recorded cost {task.cost}, currency not recorded</span>}
           {showTarget && <span>{nameOf(house, task.targetId)}</span>}

@@ -133,9 +133,20 @@ export function fmtSize(kb: number) {
   return kb >= 1000 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
 }
 
+/** "785 B", "1.2 MB": decimal units, one decimal below 10. */
+export function fmtBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes, unit = 0;
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+  return `${unit === 0 || value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
 export function fmtDocSize(doc: Doc): string {
-  if (doc.byteSize !== undefined)
-    return doc.byteSize === null ? 'Recorded byte size unknown' : `${doc.byteSize} recorded bytes`;
+  if (doc.byteSize !== undefined) {
+    if (doc.byteSize === null) return 'Recorded byte size unknown';
+    const bytes = Number(doc.byteSize);
+    return Number.isFinite(bytes) ? `${fmtBytes(bytes)} recorded` : `${doc.byteSize} recorded bytes`;
+  }
   return doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : '';
 }
 
