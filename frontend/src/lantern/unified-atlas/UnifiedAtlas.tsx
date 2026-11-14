@@ -124,7 +124,8 @@ export interface AtlasPresentationEnvironment {
   /** Absent in the saved viewer, which keeps its own graph panel. */
   readonly lens?: AtlasLensHost;
   /** Reviewed breaker/panel projection from the current overlay-frame owner,
-   * replaced or withdrawn with that frame. No live or saved host supplies it yet. */
+   * replaced or withdrawn with that frame. Otherwise a current frame's own
+   * projection for the selected group's ledger is used (only the example house supplies one). */
   readonly electricalData?: ElectricalTraceSource;
 }
 interface AtlasProps {
@@ -1651,7 +1652,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
       electricalGroup={electricalGroup} canElectricalGroup={key => groups.some(group => group.members.some(member => member.record.key === key))} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupSelection(null)}
-      electricalData={electricalOn ? environment.electricalData : undefined}
+      electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
+        && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
+        && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

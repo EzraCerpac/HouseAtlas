@@ -93,7 +93,10 @@ from that frame, whose Atlas room also names the same native place. These
 checks establish consistency, not authority. The
 optional `electricalData` Atlas environment input has no live or saved supplier
 yet; the existing owners must bind genuine current inputs before any household
-trace appears.
+trace appears. An overlay frame may instead carry its own projection
+(`electricalData` on the frame), shown only while that frame is current and
+never kept in a stored copy; only the fictional example house supplies one
+(`frontend/example/electrical-data.ts`).
 
 ### Room identity join
 

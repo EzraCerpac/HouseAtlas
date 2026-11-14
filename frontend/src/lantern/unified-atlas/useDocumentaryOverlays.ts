@@ -4,7 +4,7 @@ import type { AtlasPresentationPort, AtlasPresentationSelection } from './types'
 import { createOverlayFeed, type OverlayFeed, type OverlayFeedSnapshot } from './overlay-feed';
 import { OverlayFeedEnvironmentContext } from './OverlayFeedEnvironmentContext';
 
-const OFF: OverlayFeedSnapshot = { records: null, reason: 'not-loaded', buildings: [], stored: null };
+const OFF: OverlayFeedSnapshot = { records: null, reason: 'not-loaded', buildings: [], stored: null, electricalData: [] };
 const idle = () => () => undefined, off = () => OFF;
 
 /** The documentary layers for the Atlas stage. A live Atlas keeps one feed per
@@ -23,7 +23,7 @@ export function useDocumentaryOverlays(port: AtlasPresentationPort, selection: A
   const feed = owned && owned.port === port && owned.selection === selection && owned.model === model && owned.environment === environment ? owned.feed : null;
   useEffect(() => { feed?.setActive(active); }, [feed, active]);
   const shown = useSyncExternalStore(feed ? feed.subscribe : idle, feed ? feed.snapshot : off, off);
-  if (saved) return { records: active ? saved : null, reason: active ? 'saved-documentary-snapshot' : 'not-loaded', buildings: saved.buildings, stored: null };
+  if (saved) return { records: active ? saved : null, reason: active ? 'saved-documentary-snapshot' : 'not-loaded', buildings: saved.buildings, stored: null, electricalData: [] };
   // Between turning a layer on and the feed hearing of it, the layer is loading, not unavailable.
   return !active ? { ...OFF, buildings: shown.buildings } : shown.reason === 'not-loaded' ? { ...shown, reason: 'loading' } : shown;
 }

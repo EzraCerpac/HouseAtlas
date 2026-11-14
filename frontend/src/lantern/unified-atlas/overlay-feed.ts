@@ -4,6 +4,7 @@ import type { AtlasBuilding, LiveAtlasPresentationPort, LiveAtlasSelection } fro
 import { documentaryRoomRecords, matchesOverlayScene, mergeRuntimeRecords, type PropertyRecords, type RuntimeRecords } from './runtime-overlays';
 import type { StoredBuildingOverlays } from './stored-overlays';
 import { modelUpdatesAllowed } from './model-updates';
+import type { ElectricalTraceSource } from './electrical-trace';
 
 type Handle = NonNullable<Awaited<ReturnType<NonNullable<LiveAtlasPresentationPort['createOverlays']>>>>;
 
@@ -14,6 +15,8 @@ export interface OverlayFeedSnapshot {
   readonly buildings: PropertyRecords['buildings'];
   /** The oldest stored copy on screen, when a building shows one instead of a current frame. */
   readonly stored: { readonly storedAt: string; readonly refreshing: boolean } | null;
+  /** Panel/circuit projections of current frames only; never from a stored copy. */
+  readonly electricalData: readonly ElectricalTraceSource[];
 }
 export interface OverlayFeed {
   /** The layers are on (true) or off. Sources open on the first true and stay
@@ -161,14 +164,15 @@ export function createOverlayFeed(port: LiveAtlasPresentationPort, selection: Li
     snapshot() {
       const rows = model.floorBuildings.map(building => {
         const buildingId = building.buildingId, slot = slots.get(buildingId), stored = kept.get(buildingId);
-        if (slot && current(buildingId, slot)) return { buildingId, reason: 'available', records: slot.records, storedAt: null };
-        if (stored) return { buildingId, reason: 'stored-copy', records: stored.records, storedAt: stored.storedAt };
+        if (slot && current(buildingId, slot)) return { buildingId, reason: 'available', records: slot.records, storedAt: null,
+          electricalData: slot.frame!.electricalData ?? null };
+        if (stored) return { buildingId, reason: 'stored-copy', records: stored.records, storedAt: stored.storedAt, electricalData: null };
         const reason = reasons.get(buildingId);
-        return { buildingId, reason: reason === 'available' ? 'selection-changed' : reason ?? 'not-loaded', records: null, storedAt: null };
+        return { buildingId, reason: reason === 'available' ? 'selection-changed' : reason ?? 'not-loaded', records: null, storedAt: null, electricalData: null };
       });
       const refreshing = [...slots.values()].some(slot => !slot.frame);
       // The same rows return the same snapshot, so an unchanged source never re-renders.
-      const key = [refreshing, ...rows.flatMap(row => [row.records, row.reason, row.storedAt])];
+      const key = [refreshing, ...rows.flatMap(row => [row.records, row.reason, row.storedAt, row.electricalData])];
       if (last && last.key.length === key.length && key.every((value, at) => last!.key[at] === value)) return last.snapshot;
       const aggregate = mergeRuntimeRecords(model, rows);
       const storedAt = rows.map(row => row.storedAt).filter((value): value is string => value !== null).sort()[0] ?? null;
@@ -176,7 +180,8 @@ export function createOverlayFeed(port: LiveAtlasPresentationPort, selection: Li
       const reason = storedAt !== null ? 'stored-copy' : shown ? 'available' : rows.some(row => row.reason === 'loading') ? 'loading'
         : [...new Set(rows.map(row => row.reason))].join(', ') || 'source-unavailable';
       const snapshot: OverlayFeedSnapshot = { records: shown ? aggregate : null, reason, buildings: aggregate.buildings,
-        stored: storedAt === null ? null : { storedAt, refreshing } };
+        stored: storedAt === null ? null : { storedAt, refreshing },
+        electricalData: rows.flatMap(row => row.electricalData ? [row.electricalData] : []) };
       last = { key, snapshot }; return snapshot;
     },
     dispose() {

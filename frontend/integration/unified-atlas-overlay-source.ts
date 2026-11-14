@@ -8,6 +8,7 @@ import { readDocumentarySupport, documentaryReferences } from './native-scene-do
 import { isExactDecimal, type ExactDecimal } from '../src/numeric/decimal';
 import { stringifyLosslessJson, type LosslessJson } from '../src/numeric/lossless-json';
 import type { NativeEvidenceDocumentFrame, NativeEvidenceDocumentClient } from '../src/lantern/scans/native-evidence-document-types';
+import type { ElectricalTraceSource } from '../src/lantern/unified-atlas/electrical-trace';
 export interface UnifiedAtlasOverlaySceneSelection {
   readonly workspaceId:string; readonly homeId:string; readonly revision:string;
   readonly publicationId:string; readonly semanticsSha256:string;
@@ -45,6 +46,9 @@ export interface UnifiedAtlasOverlayAvailableFrame {
   readonly electricalFixtures:NativeSceneSourceFrame['electricalFixtures'];
   readonly drawingReferences?:NativeSceneSourceFrame['drawingReferences'];
   readonly drawingProvenance?:NativeSceneSourceFrame['drawingProvenance'];
+  /** Reviewed panel/circuit projection for this frame's ledger, shown and
+   * withdrawn with this frame. Only the example house supplies one. */
+  readonly electricalData?:ElectricalTraceSource;
 }
 export type UnifiedAtlasOverlayFrame = UnifiedAtlasOverlayAvailableFrame | Readonly<{
   status:'unavailable';reason:'current-head-unread'|'no-native-building-link'|'no-current-association'|

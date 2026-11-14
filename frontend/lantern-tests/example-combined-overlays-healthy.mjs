@@ -1,7 +1,8 @@
 // Generated example owner, production reader and documentary projection only.
 // No browser, native authority, provider, real household or device evidence.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -20,6 +21,8 @@ try {
     `export { readUnifiedAtlas } from ${JSON.stringify(join(root, 'frontend/integration/unified-atlas-reader.ts'))};`,
     `export { documentaryRoomRecords, matchesOverlayScene } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/runtime-overlays.ts'))};`,
     `export { electricalGroups } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/electrical-group.ts'))};`,
+    `export { traceElectricalGroup } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/electrical-trace.ts'))};`,
+    `export { exampleElectricalInput, exampleElectricalProjection } from ${JSON.stringify(join(root, 'frontend/example/electrical-data.ts'))};`,
     `export { traceToRoot } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};`,
     `export { buildGraph } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx'))};`,
   ].join('\n'));
@@ -78,7 +81,7 @@ assert.deepEqual(tentative.certain, [false, true]);
 assert.equal(tentative.uncertain, true);
 assert.equal(route('example-root').status, 'is-root');
 // Electrical: one historic drawing group spans Hall and Living room; one symbol has none.
-// The circuit/panel projection stays unsupplied: no group claims a circuit or wiring.
+// The group itself claims no circuit or wiring; the fictional projection below does.
 assert.equal(frame.electricity.status, 'unavailable');
 const groups = api.electricalGroups(records);
 assert.equal(groups.length, 1);
@@ -89,6 +92,45 @@ assert.deepEqual(group.members.map(row => [row.record.id, row.rooms.join()]).sor
   [['example-symbol-0', 'syn-room-hall'], ['example-symbol-1', 'syn-room-hall'], ['example-symbol-3', 'syn-room-living']]);
 assert.ok(!group.members.some(row => row.record.id === 'example-symbol-2'), 'the symbol without a drawn group stays unknown');
 assert.ok(frame.electricalFixtures.data.groups.every(row => row.currentCircuitId === null && row.verifiedWiring === false));
+// Selecting the group highlights its member symbols' rooms.
+assert.deepEqual([...new Set(group.members.flatMap(row => row.rooms))].sort(), ['syn-room-hall', 'syn-room-living']);
+
+// Fictional current panel/circuit data: the actual #557 projector on the
+// example's input, with every review made current here, gives exactly the
+// projection the page ships, for exactly the ledger bytes this frame shows.
+const { createElectricalDataProjector, electricalReviewSubject } = await import(pathToFileURL(join(root, 'packages/contracts/src/electrical-data.mjs')).href);
+const json = path => JSON.parse(readFileSync(join(root, path), 'utf8'));
+const project = createElectricalDataProjector(json('contracts/electrical-data/v1.schema.json'), json('packages/contracts/schemas/atlas.v2.schema.json'));
+const traceSource = frame.electricalData, ledger = frame.electricalFixtures.data;
+const hall = scene.rooms.find(row => row.roomId === 'syn-room-hall');
+assert.equal(traceSource.ledger.sha256, createHash('sha256').update(JSON.stringify(ledger)).digest('hex'));
+assert.deepEqual(traceSource.ledger, { ...group.source, viewKey: ledger.viewKey, sha256: traceSource.ledger.sha256 });
+assert.equal(traceSource.roomBindings, frame.roomBindings);
+const input = api.exampleElectricalInput(api.EXAMPLE_SCOPE, ledger.viewKey, ledger, traceSource.ledger.sha256, hall.nativePlaceId);
+const reviews = ['panel', 'breaker', 'mapping'].flatMap(kind => input.data[`${kind}s`].map(row =>
+  ({ receipt: row.review.receipt, subject: electricalReviewSubject(input.data, kind, row) })));
+const projected = project(input.data, { ...input.context, currentReviews: reviews });
+assert.deepEqual(traceSource.projection, projected);
+assert.deepEqual(api.exampleElectricalProjection(input), projected);
+assert.deepEqual(projected.mappings.map(row => [row.status, row.verifiedWiring]), [['reviewed-association', true], ['reviewed-association', false]]);
+// Without current reviews the same projector withholds every row.
+const unreviewed = project(input.data, { ...input.context, currentReviews: [] });
+assert.ok([...unreviewed.panels, ...unreviewed.breakers, ...unreviewed.mappings].every(row => row.status === 'withheld'));
+// The Atlas trace of the selected group: A1 tested on symbol 1 (Hall), A2
+// untested with unknown rating and protection on symbol 4 (Living room),
+// symbol 2 without a circuit, and the panel's reviewed room is Hall.
+const circuits = api.traceElectricalGroup(group, traceSource);
+assert.equal(circuits.status, 'traced');
+assert.deepEqual(circuits.rows.map(row => [row.coverage.label, row.circuit.label, row.test?.observedAt ?? null,
+  row.circuit.details.ratingAmperes, row.circuit.details.protection, row.circuit.panel.label, row.circuit.panel.room]), [
+  ['Fictional symbol 1', 'Fictional circuit A1', '2026-01-02T09:00:00Z', 16, 'Fictional label: RCD 30 mA', 'Fictional panel',
+    { kind: 'room', roomId: 'syn-room-hall', nativePlaceId: hall.nativePlaceId }],
+  ['Fictional symbol 4', 'Fictional circuit A2', null, null, null, 'Fictional panel',
+    { kind: 'room', roomId: 'syn-room-hall', nativePlaceId: hall.nativePlaceId }]]);
+assert.deepEqual(circuits.uncovered, [{ fixtureId: 'example-symbol-1', label: 'Fictional symbol 2' }]);
+assert.ok(hall.occurrenceIds.some(id => selectable.has(id)), 'the panel room button selects a Hall part');
+assert.deepEqual(api.traceElectricalGroup(group, { ...traceSource, ledger: { ...traceSource.ledger, sha256: 'f'.repeat(64) } }),
+  { status: 'refused', reason: 'source-mismatch' });
 const mismatch = { ...frame, sourceSelection: { ...frame.sourceSelection, acceptedRoomReceiptSha256: 'f'.repeat(64) } };
 const refused = api.documentaryRoomRecords(scene, mismatch, selectable);
 assert.equal(refused.rooms.get('syn-room-stairs').network.length, 0);
@@ -125,4 +167,4 @@ for (const action of ['release', 'dispose']) {
   fresh.source.dispose();
   assert.equal(notices, 1, `${action} retires this owner once`);
 }
-console.log('PASS fictional example combined overlays: reader, room joins, drawing group, network routes and owner retirement (pure)');
+console.log('PASS fictional example combined overlays: reader, room joins, drawing group, tested and untested fictional circuits through the actual projector, network routes and owner retirement (pure)');
