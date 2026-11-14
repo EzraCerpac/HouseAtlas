@@ -658,7 +658,7 @@ console.log('Unified Atlas cache healthy checks passed.');
     bindAtlasModel: (scene, glb, displayConfig) => { if (glb.unbindable) throw new Error('Generated copy does not bind'); return { scene, displayConfig, glb }; },
     loadStandardGlb: async () => { parses++; return { parsed: parses, work: { triangles: 1 } }; },
     // Keeping a parsed copy waits for the first frame and two more frames.
-    firstHouseDrawn: Promise.resolve(), afterNextFrame: async () => { frames++; },
+    firstHouseDrawn: Promise.resolve(), afterNextFrame: async () => { frames++; }, PARSED_LOOKUP_MS: 5,
     // The ?render-probe=load ledger: which path's model reached the stage first.
     noteLoadStep: step => notes.push(step),
     noteFirstModel: (model, parseMs, savedReadMs, parsedCopy) => {
@@ -789,6 +789,13 @@ console.log('Unified Atlas cache healthy checks passed.');
     unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
     render(); cacheRead.resolve(copy); await settle(); await settle();
     assert.equal(parses, 3, 'a copy over the upload budget is not drawn; the parse decides');
+    // A lookup that never settles holds the parse up only until its deadline.
+    parsedStore = { read: () => new Promise(() => {}), keep() {} };
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); assert.equal(parses, 3, 'waiting on the stalled lookup');
+    await new Promise(resolve => setTimeout(resolve, 20)); await settle();
+    assert.equal(parses, 4, 'a stalled lookup is passed over and the bytes are parsed');
+    assert.equal(render().type, hooks.AtlasStage); assert.deepEqual(notes, ['home', 'saved']);
     parsedStore = null;
   } finally {
     unmount(); delete globalThis[token];
@@ -796,7 +803,7 @@ console.log('Unified Atlas cache healthy checks passed.');
       if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
     }
   }
-  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity and parsed copy keep/use/refusal passed (synthetic hooks; no DOM)');
+  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity and parsed copy keep/use/refusal/stalled lookup passed (synthetic hooks; no DOM)');
 }
 
 // The ?render-probe=load readout's text from generated ledgers and resource timing rows.
@@ -871,9 +878,13 @@ console.log('Unified Atlas cache healthy checks passed.');
   openParsedStore(ownerA, host()).keep(sha, 1234, build, glb);
   await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) }); await flush();
   assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'a keep in flight at sign-out leaves nothing');
+  const before = openParsedStore(ownerA, host());
+  await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+  before.keep(sha, 1234, build, glb); await flush();
+  assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'a store opened before sign-out keeps nothing after it');
   // The readout says when the first model came from this copy.
   const { formatLoadReadout } = await import(await sourceURL('../src/lantern/canonical-ifc/load-readout.ts'));
   assert.equal(formatLoadReadout({ steps: { home: 1200, house: 6300 }, model: 'saved', savedReadMs: 800, parseMs: 900, parsedCopy: true, buildMs: 2700, backend: 'webgpu' }, []).split('\n')[2],
     'Saved copy read 0.8 s · kept parse 0.9 s · build 2.7 s · WebGPU');
-  console.log('parsed copy: survives the page; digest/length/loader/actor/home misses; one copy; quota headroom; sign-out incl. keep in flight (synthetic IndexedDB)');
+  console.log('parsed copy: survives the page; digest/length/loader/actor/home misses; one copy; quota headroom; sign-out incl. keep in flight and later keep (synthetic IndexedDB)');
 }

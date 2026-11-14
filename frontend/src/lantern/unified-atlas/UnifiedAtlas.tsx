@@ -198,23 +198,26 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       const policy = admitAtlasDisplayForRead(read, hostDisplayConfig);
       // The read's model bytes have verified against its scene's pin. What this
       // loader build prepared from those same bytes on this device stands in for
-      // the parse; the same admission and binding run on it.
-      const [{ loadStandardGlb, LOADER_BUILD }, store] = await Promise.all([import('../canonical-ifc/standard-glb'),
-        port.kind === 'live' && selection.kind === 'live' && port.parsed ? port.parsed(selection).catch(() => null) : null]);
+      // the parse; the same admission and binding run on it. The lookup is
+      // optional and bounded: one that stalls is passed over and the bytes are parsed.
+      const deadline = new Promise<null>(resolve => setTimeout(resolve, PARSED_LOOKUP_MS, null));
+      const lookup = port.kind === 'live' && selection.kind === 'live' && port.parsed ? port.parsed(selection).catch(() => null) : null;
+      const { loadStandardGlb, LOADER_BUILD } = await import('../canonical-ifc/standard-glb');
       signal.throwIfAborted();
+      const store = LOADER_BUILD === null ? null : await Promise.race([lookup, deadline]);
       // Prepared geometry is reserved from the preflight counts before the loader allocates.
       const admit = (admission: GlbAdmission) => {
         if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
       };
       const { sha256 } = read.scene.model, bytes = read.model.byteLength;
-      const kept = await store?.read(sha256, bytes, LOADER_BUILD).catch(() => null) ?? null;
+      const kept = store && LOADER_BUILD !== null ? await Promise.race([store.read(sha256, bytes, LOADER_BUILD).catch(() => null), deadline]) : null;
       signal.throwIfAborted();
       // A copy that is refused here is parsed again below, which gives the verdict and replaces it.
       if (kept) try { admit(kept); return { model: bindAtlasModel(read.scene, kept, policy), parsedCopy: true }; } catch { /* parse */ }
       const glb = await loadStandardGlb(read.model, 'atlas', signal, admit, { embeddedPngMaterials: true });
       signal.throwIfAborted();
       // Copying it into storage holds this thread for a while, so it waits until the first frame is on screen.
-      if (store) void firstHouseDrawn.then(() => afterNextFrame()).then(() => afterNextFrame()).then(() => store.keep(sha256, bytes, LOADER_BUILD, glb), () => undefined);
+      if (store && LOADER_BUILD !== null) void firstHouseDrawn.then(() => afterNextFrame()).then(() => afterNextFrame()).then(() => store.keep(sha256, bytes, LOADER_BUILD, glb), () => undefined);
       return { model: bindAtlasModel(read.scene, glb, policy), parsedCopy: false };
     };
     // Stale while revalidate: this device's last verified copy of the same
@@ -352,6 +355,8 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
 
 // ---------------------------------------------------------------------------
 
+/** How long the parsed-copy lookup may hold up a parse, as the stored-copy lookup does (CACHE_LOOKUP_MS). */
+const PARSED_LOOKUP_MS = 3000;
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
 /** Fallback architecture, when a primitive has no explicit source base colour,
  * as an axonometric drawing in four values on the birch

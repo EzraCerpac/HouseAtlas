@@ -48,10 +48,11 @@ async function inTable<T>(factory: IDBFactory, mode: IDBTransactionMode, act: (t
   } finally { db.close(); }
 }
 
-/** The store for one signed-in actor and home. */
+/** The store for one signed-in actor and home. A removal ends it: nothing it
+ * keeps afterwards, or had under way, is written or left behind. */
 export function openParsedStore(owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string },
   host: ParsedStoreHost = browserHost()): ParsedStore {
-  const partition = JSON.stringify([owner.actorId, owner.workspaceId, owner.homeId]);
+  const partition = JSON.stringify([owner.actorId, owner.workspaceId, owner.homeId]), opened = generation;
   return Object.freeze({
     async read(sha256: string, bytes: number, loader: string) {
       if (!host.indexedDB) return null;
@@ -63,15 +64,15 @@ export function openParsedStore(owner: { readonly actorId: string; readonly work
       return Array.isArray(drawn) && Array.isArray(meshes) && drawn.length === meshes.length && work && typeof work === 'object' ? glb as StandardGlb : null;
     },
     keep(sha256: string, bytes: number, loader: string, glb: StandardGlb) {
-      const factory = host.indexedDB, started = generation;
-      if (!factory) return;
+      const factory = host.indexedDB;
+      if (!factory || opened !== generation) return;
       const size = meshBuffers(glb.meshes).reduce((total, buffer) => total + buffer.byteLength, 0);
       void (async () => {
         const estimate = await host.storage?.estimate?.();
         if (estimate?.quota === undefined || estimate.usage === undefined
-          || estimate.quota - estimate.usage < size + PARSED_STORE_HEADROOM || started !== generation) return;
+          || estimate.quota - estimate.usage < size + PARSED_STORE_HEADROOM || opened !== generation) return;
         await inTable(factory, 'readwrite', table => table.put({ slot: SLOT, owner: partition, sha256, bytes, loader, glb }));
-        if (started !== generation) await inTable(factory, 'readwrite', table => table.clear());
+        if (opened !== generation) await inTable(factory, 'readwrite', table => table.clear());
       })().catch(() => undefined);
     },
   });

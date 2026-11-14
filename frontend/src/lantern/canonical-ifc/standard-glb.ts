@@ -28,10 +28,12 @@ export interface StandardGlb extends GlbAdmission {
   readonly counts: { readonly triangles: number; readonly vertices: number; readonly metadataOnlyNodes: number; readonly declaredTransforms: number };
 }
 
-/** This build of the loader: the URL of its own bundled module, whose name
- * changes with any change to the loader or to anything it imports. A copy of
- * what the loader prepared (parsed-store.ts) is only reused by the same build. */
-export const LOADER_BUILD: string = import.meta.url;
+/** This build of the loader: the URL of its own bundled module, whose
+ * content-hashed name changes with any change to the loader or to anything it
+ * imports. A copy of what the loader prepared (parsed-store.ts) is only reused
+ * by the same build. Null where the name carries no such hash (the development
+ * server, check bundles): nothing is kept or reused there. */
+export const LOADER_BUILD: string | null = /\/standard-glb-[A-Za-z0-9_-]{8}\.js$/.test(new URL(import.meta.url).pathname) ? import.meta.url : null;
 
 const refuseUrl = (): string => { throw new GlbFormatError('load', 'The file asks for an external resource'); };
 /** GLTFLoader skips a material map whose texture resolves to null. */
