@@ -53,7 +53,7 @@ const hookKey = Symbol.for('native-draft-panel-hooks'), hooks = globalThis[hookK
 const hookModule = `const h = globalThis[Symbol.for('native-draft-panel-hooks')];
 export function useState(init) { const i = h.slot++; if (!(i in h.state)) h.state[i] = init; return [h.state[i], v => { h.state[i] = typeof v === 'function' ? v(h.state[i]) : v; }]; }
 export function useRef(current) { const i = h.slot++; if (!(i in h.state)) h.state[i] = { current }; return h.state[i]; }
-export function useEffect() {}`;
+export function useEffect(effect) { if (h.effects && !h.mounted) h.effects.push(effect); }`;
 const panelOutput = await build({ configFile: false, root: here('..'), logLevel: 'error',
   build: { ssr: true, write: false, sourcemap: false, minify: false,
     rollupOptions: { input: here('../src/capture-drafts-ui/Panel.tsx'), external: ['react', 'react/jsx-runtime'] } } });
@@ -61,15 +61,24 @@ const panelCode = panelOutput.output.find(row => row.type === 'chunk').code
   .replaceAll('from "react/jsx-runtime"', `from ${JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)}`)
   .replaceAll('from "react"', `from "data:text/javascript;base64,${Buffer.from(hookModule).toString('base64')}"`);
 const { CaptureDraftPanel: HookedPanel } = await import(`data:text/javascript;base64,${Buffer.from(panelCode).toString('base64')}`);
+globalThis.requestAnimationFrame ??= () => 0;
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 /** One Panel instance: opt in, activate a named button, then read its visible status and listed rows. */
-function mountPanel(port, candidate = () => null) {
-  hooks.state = [];
+function mountPanel(port, candidate = () => null, { effects = false, onSubmitted = async () => {} } = {}) {
+  hooks.state = []; hooks.effects = effects ? [] : null; hooks.mounted = false;
   const render = () => { hooks.slot = 0; return nodes(HookedPanel({ port, source: null, recordId: placeId, candidate, canSave: true,
-    parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} })); };
+    parentBusy: false, onBusy() {}, onSaved() {}, onSubmitted })); };
+  // Optionally run the mount effects once, e.g. the invalidation subscription that clears the panel.
+  render(); for (const effect of hooks.effects ?? []) effect(); hooks.mounted = true;
   return {
+    /** Activate a button without waiting for the action to settle. */
+    press(label) { const button = render().find(node => node.type === 'button' && text(node) === label); assert(button && !button.props.disabled, label); button.props.onClick(); },
+    status: () => text(render().find(node => node.props?.role === 'status')),
+    busy: () => render()[0].props['aria-busy'],
     optIn() { render().find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } }); },
+    /** Tick the checkbox whose label contains this text. */
+    check(label) { const box = render().find(node => node.type === 'label' && text(node).includes(label)); nodes(box.props.children).find(node => node.type === 'input').props.onChange({ target: { checked: true } }); },
     async click(label) {
       const button = render().find(node => node.type === 'button' && text(node) === label);
       assert(button && !button.props.disabled, label); button.props.onClick();
@@ -185,6 +194,20 @@ try {
     assert.deepEqual(row.owner, { actorId: 'synthetic-actor', ...scope });
     assert.deepEqual(new Uint8Array(await row.original.arrayBuffer()), new Uint8Array(await original.arrayBuffer()));
     assert.equal(f.calls.post, 0); assert.equal(f.calls.get, 0); assert.equal(f.calls.editing, 0);
+    // Browser-wide limits refuse a further save by name; nothing partial is stored.
+    const filler = (n, bytes) => ({ ...row, id: uuid(n), original: new Blob([new Uint8Array(bytes)], { type: row.contentType }) });
+    const candidate = (file, id = uuid(940)) => () => ({ localId: id, selection: { original: file, file, capture: { ...capture, filename: file.name, reportedContentType: file.type } },
+      form, targetSourceRef: null, recordId: placeId, optedIn: true });
+    f.shared.rows = [row, filler(941, 16), filler(942, 16), filler(943, 16)];
+    let panel = mountPanel(f.port, candidate(original)); panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: this browser already holds the maximum of 4 local drafts, including any for other places or accounts.');
+    assert.equal(f.shared.rows.length, 4);
+    const mib = 1024 * 1024, large = new File([new Uint8Array(3 * mib).fill(65)], 'synthetic-large.txt', { type: 'text/plain', lastModified: 42 });
+    f.shared.rows = [filler(941, 10 * mib), filler(942, 10 * mib), filler(943, 10 * mib)];
+    panel = mountPanel(f.port, candidate(large)); panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: it would exceed the 32 MiB total for local drafts in this browser, including any for other places or accounts.');
+    assert.deepEqual(f.shared.rows.map(stored => stored.id), [uuid(941), uuid(942), uuid(943)]);
+    assert.equal(f.calls.post + f.calls.get + f.calls.editing, 0);
   } else if (caseName === 'native-reopen-unsent') {
     await f.save();
     // A new adapter over the same retained rows models a reopened app.
@@ -247,6 +270,64 @@ try {
     assert.equal(f.shared.rows.length, 1); assert.equal(f.shared.rows[0].state, 'unsent');
     assert.equal(f.calls.post + other.calls.post + home.calls.post, 0); assert.equal(f.calls.editing, 0);
   } else if (caseName === 'native-lost-reply-drafts-reachable') {
+    // Through the panel: right after the lost reply the row reads Outcome unknown, without a reload.
+    const g = fixture();
+    const shown = mountPanel(g.port, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }));
+    shown.optIn(); await shown.click('Save local draft');
+    await shown.click(`Review ${original.name}`);
+    g.shared.lostReply = true; shown.check('Upload this saved file');
+    assert.equal(await shown.click('Confirm upload'), 'Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
+    assert.deepEqual(shown.rows().map(listed => listed.split('Saved ')[0]), [`${original.name} · ${original.size} bytes · Outcome unknown`]);
+    assert.equal(g.calls.post, 1); assert.equal(g.shared.rows[0].state, 'outcome-unknown');
+    // Adversarial: the re-list completes only after an invalidation (sign-out, scope or place
+    // change, closing the panel). Its rows and the outcome status must not reappear.
+    const h = fixture();
+    let gate = null;
+    const late = { ...h.port, list: () => gate ? gate.promise : h.port.list(), submit: async () => { throw new Error('Synthetic lost reply'); } };
+    const fenced = mountPanel(late, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }), { effects: true });
+    fenced.optIn(); await fenced.click('Save local draft'); await fenced.click(`Review ${original.name}`);
+    fenced.check('Upload this saved file');
+    gate = Promise.withResolvers(); fenced.press('Confirm upload');
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+    h.port.invalidate();
+    gate.resolve([{ ...(await h.port.list())[0], state: 'outcome-unknown' }]);
+    for (let i = 0; i < 200 && fenced.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+    assert.equal(fenced.busy(), false); assert.deepEqual(fenced.rows(), []); assert.equal(fenced.status(), '');
+    // The same after a non-committed receipt, when the late re-list rejects as a stale read:
+    // no status and no completion callback for the invalidated attempt.
+    const k = fixture();
+    let completions = 0;
+    const stale = { ...k.port, list: () => gate ? gate.promise : k.port.list(),
+      submit: async () => ({ committed: false, result: {}, localCleanup: 'unconfirmed' }) };
+    gate = null;
+    const quiet = mountPanel(stale, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }),
+      { effects: true, async onSubmitted() { completions++; } });
+    quiet.optIn(); await quiet.click('Save local draft'); await quiet.click(`Review ${original.name}`);
+    quiet.check('Upload this saved file');
+    gate = Promise.withResolvers(); quiet.press('Confirm upload');
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+    k.port.invalidate();
+    gate.reject(new Error('Synthetic stale read after invalidation'));
+    for (let i = 0; i < 200 && quiet.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+    assert.equal(quiet.busy(), false); assert.deepEqual(quiet.rows(), []); assert.equal(quiet.status(), ''); assert.equal(completions, 0);
+    // An invalidation landing after the re-list settles but before the action resumes
+    // (another handler on the same promise) is honoured too, on both paths.
+    for (const nonCommitted of [false, true]) {
+      const m = fixture();
+      let called = 0, held = null;
+      const between = { ...m.port, list: () => held ? held.promise : m.port.list(), submit: nonCommitted
+        ? async () => ({ committed: false, result: {}, localCleanup: 'unconfirmed' }) : async () => { throw new Error('Synthetic lost reply'); } };
+      const shown = mountPanel(between, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }),
+        { effects: true, async onSubmitted() { called++; } });
+      shown.optIn(); await shown.click('Save local draft'); await shown.click(`Review ${original.name}`);
+      shown.check('Upload this saved file');
+      held = Promise.withResolvers(); shown.press('Confirm upload');
+      for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+      held.promise.then(() => m.port.invalidate());
+      held.resolve([{ ...(await m.port.list())[0], state: 'outcome-unknown' }]);
+      for (let i = 0; i < 200 && shown.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+      assert.equal(shown.busy(), false); assert.deepEqual(shown.rows(), []); assert.equal(shown.status(), ''); assert.equal(called, 0);
+    }
     await f.save();
     f.shared.lostReply = true;
     await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));

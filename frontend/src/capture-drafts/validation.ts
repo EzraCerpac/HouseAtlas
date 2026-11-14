@@ -86,8 +86,13 @@ export function validateRows(rows: readonly DraftRow[]): void {
     if (ids.has(row.id)) throw new TypeError('Duplicate local draft identity');
     ids.add(row.id); total += row.original.size;
   }
-  if (rows.length > DRAFT_LIMITS.count || total > DRAFT_LIMITS.totalBytes)
-    throw new RangeError('Local draft storage limit reached');
+  if (rows.length > DRAFT_LIMITS.count) throw new DraftLimitError('count');
+  if (total > DRAFT_LIMITS.totalBytes) throw new DraftLimitError('total');
+}
+/** The browser-wide draft count or total-size limit refused a change; nothing was stored. */
+export class DraftLimitError extends RangeError {
+  readonly limit: 'count' | 'total';
+  constructor(limit: 'count' | 'total') { super(`Local draft ${limit} limit reached`); this.name = 'DraftLimitError'; this.limit = limit; }
 }
 export async function digest(blob: Blob): Promise<string> {
   const bytes = await blob.arrayBuffer();
