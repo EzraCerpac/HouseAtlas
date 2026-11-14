@@ -2,8 +2,8 @@
 
 Logical source modules are access, AI, contracts, core integration, domain,
 HomeBox, jobs, MCP, media, Network, operations policy, storage, web and WebMCP.
-source-manifest.json is the explicit allowlist of current regular files, modes,
-byte counts, SHA-256 hashes and logical ownership. Its own bytes are anchored by independent exact-tree
+source-manifest.json is the explicit allowlist of current regular files, modes
+and logical ownership; Git records content identity. Its own bytes are anchored by independent exact-tree
 review, avoiding a circular self-hash. Git history must start from that reviewed
 sanitized tree, with an explicitly selected nonprivate publication identity.
 
