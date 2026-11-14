@@ -24,7 +24,9 @@ assert.deepEqual(manifest.self, {path: manifestPath, mode: '100644', digest: 'an
 const expected = manifest.files.map(row => row.path);
 assert.deepEqual(expected, [...new Set(expected)].sort());
 walk(root);
-assert.deepEqual(actual.sort(), [...expected, manifestPath].sort(), 'Exact source allowlist mismatch');
+const listed = new Set([...expected, manifestPath]), present = new Set(actual);
+const unlisted = actual.filter(path => !listed.has(path)), missing = [...listed].filter(path => !present.has(path));
+assert(!unlisted.length && !missing.length, `Exact source allowlist mismatch; add or remove rows with tools/publication/refresh-manifest.mjs.\nNot in manifest: ${unlisted.join(', ') || 'none'}\nListed but absent: ${missing.join(', ') || 'none'}`);
 for (const row of manifest.files) {
   assert.deepEqual(Object.keys(row), ['path', 'mode', 'owner'], `${row.path}: rows hold only path, mode and owner`);
   assert(/^[a-zA-Z0-9._/-]+$/.test(row.path) && !row.path.split('/').some(p => p === '..' || p === '.' || !p));
