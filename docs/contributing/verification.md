@@ -51,7 +51,9 @@ mounted afterwards shows the result; a home switch, sign-out or host teardown
 during the POST or the re-read drops the rest of the press (no re-read of the
 pressed home, no withholding, no status) and leaves the other home's view and
 pending read untouched, for both a refresh and a 401, and a late admission
-answer is dropped too; the lazily loaded button keeps one owner per host
+answer is dropped too; a session that ends while the admission read is in
+flight aborts that GET with the button's signal and applies no answer that
+still arrives; the lazily loaded button keeps one owner per host
 port; offline sends nothing;
 decoding is strict. With the seven native local drafts cases from #636 the
 inventory is 92 SOURCE / 1 BUILD / 11 BROWSER (104 total). No workflow command, runner, browser entry or held
@@ -4981,7 +4983,10 @@ The source repair applies the identical hosted Linux/macOS rustfmt diff across
 retains all actual native responses instead of silently stopping at12; exact
 four-read-per-lifetime and matched-snapshot assertions remain. The media fixture
 awaits the viewer's actual topology readiness and four observed successful reads
-before session replacement; unexpected401 responses remain failures. These
+before session replacement; unexpected401 responses remain failures. The core
+and stock loopback flows also wait for the viewer's in-flight HomeBox refresh
+admission GET before their raw editor login replaces the session the app was
+not told about; every observed response must still be an ordinary success. These
 fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
 is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry

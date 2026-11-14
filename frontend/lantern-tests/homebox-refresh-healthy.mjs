@@ -236,6 +236,25 @@ for (const upstream of ['ok', 'unauthorized']) {
   assert.equal(refresh.getSnapshot().offered, false, 'Nothing is offered for a home no longer shown');
 }
 
+// The session ends (sign-out or another account) while the availability read is
+// in flight: the button's effect aborts it with the token it was asked for, the
+// GET's own signal is aborted, and an answer that still arrives is not applied.
+// Without the abort, the session fence alone still drops it.
+for (const aborted of [true, false]) {
+  const model = server(), button = new AbortController();
+  let sent;
+  const refresh = control(model, async (path, init) => {
+    sent = init.signal;
+    model.current = { ...scope, session: aborted ? undefined : 'session-2' };
+    if (aborted) button.abort();
+    return model.transport(path, init);
+  });
+  await refresh.check(button.signal);
+  assert.equal(sent.aborted, aborted, 'the GET carries the button\'s signal');
+  assert.deepEqual(refresh.getSnapshot(), { offered: false, busy: false, result: null, reconciled: true }, 'no late admission is applied');
+  assert.deepEqual(model.calls, [['GET', ROUTE]], 'one admission read, no POST');
+}
+
 // The lazily loaded button keeps one owner per host port, so a remounted
 // button sees the same refresh; the port itself holds no controller code.
 {
@@ -280,4 +299,4 @@ for (const upstream of ['ok', 'unauthorized']) {
   assert.deepEqual(await requestRefresh(scope, async () => { throw new TypeError('Generated network unavailable'); }, true), { kind: 'unreachable' });
 }
 
-console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, closing the panel mid-refresh still reconciles and a remount shows it running then its result, a home switch, sign-out or host teardown during the POST or re-read drops the whole continuation, offline sends nothing, strict decoding');
+console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, closing the panel mid-refresh still reconciles and a remount shows it running then its result, a home switch, sign-out or host teardown during the POST or re-read drops the whole continuation, a session ending during the admission read aborts it and applies nothing, offline sends nothing, strict decoding');
