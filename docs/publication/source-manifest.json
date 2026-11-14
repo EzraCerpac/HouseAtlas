@@ -1444,6 +1444,8 @@
     {"path":"frontend/src/lantern/canonical-ifc/glb-meshopt.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/glb-preflight.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/gpu-budget.ts","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/canonical-ifc/load-ledger.ts","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/canonical-ifc/load-readout.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/mesh-appearance.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/mesh-scene.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/canonical-ifc/model.ts","mode":"100644","owner":"web"},

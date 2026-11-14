@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { PreparedMesh, Projection } from './geometry';
 import { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
+import { noteFirstStage, noteLoadStep } from './load-ledger';
 import type { AppearanceInput } from './mesh-appearance';
 import type { MeshScene } from './mesh-scene';
 import { bufferSize, clampMoveRatio, endMotion, motionRatio, nextMotion, startMoveRatio, stillRatio, timeMotionFrame, type Motion } from './move-resolution';
@@ -65,9 +66,10 @@ function fadeOut(canvas: HTMLCanvasElement): () => void {
 }
 
 /** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen;
- * ?render-probe=drag skips it. Either way, each drag's frame times are shown once it ends. */
+ * ?render-probe=drag skips it. Either way, each drag's frame times are shown once it ends.
+ * ?render-probe=load shows only the load readout (load-ledger.ts), which the layer always notes. */
 const PROBE_MODE = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('render-probe') : null;
-const PROBE = PROBE_MODE !== null, PROBE_CHECK = PROBE && PROBE_MODE !== 'drag', PROBE_DELAY_MS = 1500;
+const PROBE = PROBE_MODE !== null && PROBE_MODE !== 'load', PROBE_CHECK = PROBE && PROBE_MODE !== 'drag', PROBE_DELAY_MS = 1500;
 let dragReadout: Promise<DragReadout> | null = null;
 /** The page's one check: not yet run, running on some canvas, or reported. */
 let probeState: 'idle' | 'running' | 'done' = 'idle';
@@ -134,6 +136,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const ready = () => {
       if (drawn) return;
       drawn = true; latest.current.onReady(props.meshes);
+      noteLoadStep('house'); if (scene) noteFirstStage(buildMs, scene.backend);
       if (PROBE_CHECK && probeState !== 'done') setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS);
     };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
@@ -237,7 +240,10 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         if (next === 'shading' && shading > 0) { shading = 0; fading = performance.now(); }
         if (scene.pending() !== null || fading !== null) schedule();
       }
-      if (element.dataset.stage !== scene.stage) element.dataset.stage = scene.stage;
+      if (element.dataset.stage !== scene.stage) {
+        element.dataset.stage = scene.stage;
+        if (scene.stage === 'lit') noteLoadStep('textures'); else if (scene.stage === 'shading') noteLoadStep('shaded');
+      }
       // While the view is still, each further frame averages the contact shading down to a clean result.
       const finishFirstDraw = observation?.firstDraw();
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);

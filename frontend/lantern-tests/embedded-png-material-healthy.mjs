@@ -17,7 +17,7 @@ try {
   const entry = join(scratch, 'entry.ts');
   writeFileSync(entry, `export * from ${JSON.stringify(join(frontend, 'lantern-tests/embedded-png-material-fixture.ts'))};\n`
     + `export { buildGlb } from ${JSON.stringify(join(frontend, 'lantern-tests/canonical-ifc-visual/standard-glb-sample.ts'))};\n`
-    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS,DETAIL_GLB_LIMITS,stateTableBytes,stateTableRows,addGpuBytes'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
+    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS,DETAIL_GLB_LIMITS,stateTableBytes,stateTableRows,addGpuBytes'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,decodeEmbeddedMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
       ['geometry', 'prepareMeshes,makeProjection,sourceMeshColor,pick'], ['gpu-budget', 'materialGpuResources'], ['mesh-appearance', 'writeAppearance,STATE_FLOATS,MeshPass']].map(([file, names]) => `export { ${names} } from ${JSON.stringify(join(frontend, 'src/lantern/canonical-ifc/' + file))};`).join('\n'));
   const built = await build({ root: frontend, configFile: false, logLevel: 'silent',
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
@@ -27,6 +27,10 @@ try {
   h = await import(pathToFileURL(path).href);
 } finally { rmSync(scratch, { recursive: true, force: true }); }
 const signal = () => new AbortController().signal;
+// Independent sRGB decode: the mean a base-colour map's smallest mip shows, in linear RGB.
+const linear = v => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+const meanOf = rgba => { const sum = [0, 0, 0]; for (let at = 0; at < rgba.length; at += 4) for (let c = 0; c < 3; c++) sum[c] += linear(rgba[at + c]); return sum.map(v => v / (rgba.length / 4)); };
+const close = (actual, expected, label) => { assert.equal(actual.length, expected.length, label); actual.forEach((v, i) => assert(Math.abs(v - expected[i]) < 1e-6, `${label}: ${actual} vs ${expected}`)); };
 const load = async size => { const fixture = await h.generatedMaterialGlb(size), original = fixture.bytes.slice();
   const loaded = await h.loadStandardGlb(fixture.bytes, 'generated', signal(), undefined, { embeddedPngMaterials: true });
   assert.deepEqual(fixture.bytes, original, 'material admission and loading preserve the supplied GLB bytes'); return { fixture, loaded }; };
@@ -140,6 +144,14 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
     assert.equal(loaded.meshes[2].materialVertices[corner * 9 + 8], -1);
     assert(Math.abs(loaded.meshes[2].materialVertices[corner * 9 + 4] + 1) < 1e-6);
   }
+  close(material.baseColorTexture.mean, meanOf(fixture.images[0].rgba), 'a base-colour map carries its mean linear colour');
+  assert.equal(material.normalTexture.mean, undefined); assert.equal(material.metallicRoughnessTexture.mean, undefined);
+  // Two meshes drawing one source material get one material object, so the renderer builds one GPU material for both.
+  const shared = h.readGlbContainer(fixture.bytes), json = structuredClone(shared.json);
+  json.meshes.push(structuredClone(json.meshes[0])); json.nodes.push({ mesh: 1 }); json.scenes[0].nodes.push(json.nodes.length - 1);
+  const candidate = { ...shared, json }, decoded = await h.decodeEmbeddedMaterials(h.admitEmbeddedPngMaterials(candidate, h.preflightGltf(candidate)), signal());
+  assert.strictEqual(decoded.get('1/0'), decoded.get('0/0'), 'one material object per source material across meshes');
+  assert.strictEqual(decoded.get('0/0').baseColorTexture, decoded.get('1/0').baseColorTexture);
   assert.equal(loaded.meshes[1].sourceMaterial, undefined, 'untextured primitive retains legacy appearance');
   assert.deepEqual(loaded.meshes[1].sourceBaseColor, [.2, .4, .6, .25], 'untextured BLEND retains its original factor');
 } else if (selected === 'legacy-geometry') {
@@ -175,5 +187,14 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.equal(at(0, 21), 1, 'the cutaway is flagged for the veil pass, which never samples source maps');
   assert(frame.ghosts && frame.passes.has(h.MeshPass.Unbound));
   if (selected === 'precedence') assert.deepEqual([at(0, 0), at(0, 1), at(0, 2)].map(v => Math.round(v * 255)), [255, 210, 94], 'explicit selection takes the lantern tone');
+  // Before the lit stage draws its maps, a mapped material takes factor × the map's mean, not its bare factor;
+  // its cut faces and every viewer without source materials keep the factor.
+  const factor = meshes[2].sourceMaterial.baseColor.slice(0, 3), mean = meshes[2].sourceMaterial.baseColorTexture.mean;
+  close([at(2, 0), at(2, 1), at(2, 2)], factor.map((v, i) => v * mean[i]), 'textured top tone before maps');
+  close([at(2, 4), at(2, 5), at(2, 6)], factor.map((v, i) => v * mean[i]), 'textured base tone before maps');
+  const plain = new Float32Array(table.length); h.writeAppearance(meshes, { ...props, sourceMaterials: false }, plain);
+  close([plain[2 * h.STATE_FLOATS], plain[2 * h.STATE_FLOATS + 1], plain[2 * h.STATE_FLOATS + 2]], factor, 'without source materials the factor stays');
+  close([at(2, 8), at(2, 9), at(2, 10)], [plain[2 * h.STATE_FLOATS + 8], plain[2 * h.STATE_FLOATS + 9], plain[2 * h.STATE_FLOATS + 10]], 'cut faces keep their tone');
+  close([at(1, 0), at(1, 1), at(1, 2)], [.2, .4, .6], 'an untextured factor is unchanged');
 }
 console.log(`PASS ${selected}: generated embedded-PNG material contract; no browser/GPU pixel or device qualification`);
