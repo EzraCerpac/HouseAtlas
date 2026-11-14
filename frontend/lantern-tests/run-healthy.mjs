@@ -92,7 +92,12 @@ for (const args of selected) {
   results.push({ command: args.join(' '), ok, ms });
   console.log(`${ok ? 'PASS' : 'FAIL'} ${String(ms).padStart(6)} ms  node ${args.join(' ')}`);
   if (ok) for (const line of run.stdout.split('\n')) if (line.startsWith('INFO ')) console.log('    ' + line);
-  if (!ok) process.stdout.write((run.stdout + run.stderr).split('\n').slice(-25).map(line => '    ' + line).join('\n') + '\n');
+  // Browser reports put the phase and assertion before request/cleanup details.
+  // Keep the complete failure output so those diagnostics cannot fall off a tail.
+  if (!ok) {
+    if (run.error) console.log(`    ${run.error.stack ?? run.error}`);
+    process.stdout.write(((run.stdout ?? '') + (run.stderr ?? '')).split('\n').map(line => '    ' + line).join('\n') + '\n');
+  }
 }
 const failed = results.filter(result => !result.ok);
 console.log(`\n${results.length - failed.length}/${results.length} healthy frontend checks passed`

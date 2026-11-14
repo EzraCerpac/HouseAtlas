@@ -90,7 +90,7 @@ transports (`frontend/example/files.ts`):
 | --- | --- | --- |
 | *Synthetic parcel survey*, two pages (source Document) | **Library** › **Source documents** › **Synthetic parcel survey** › **Original** | Native source Documents reader, PDF viewer |
 | Eighteen *Synthetic electrical page* drawings (electrical evidence) | **Library** › **Electrical drawings**, building *Synthetic house* | Electrical Library reader, drawing viewer |
-| *Fictional reading lamp manual*, one page (HomeBox stored file) | **Library** › **File details for Fictional reading lamp manual** › **Read and keep verified copy**; also from the reading lamp's detail | Verified-copy owner (`live-copy-retention.ts`, `readHomeboxOriginal`), PDF viewer |
+| *Fictional reading lamp manual*, one page (HomeBox stored file) | **Library** › **File details for Fictional reading lamp manual** › **Open file**; also from the reading lamp's detail | Verified-copy owner (`live-copy-retention.ts`, `readHomeboxOriginal`), PDF viewer |
 
 The manual has no issued download link, so **Download original** shows
 *File access is unavailable*; the verified copy is the only way to open it.

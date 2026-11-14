@@ -163,14 +163,19 @@ the response. A sent association is claimed synchronously for that session
 allocation (an unsent claim is released) and is not read again automatically, even with a fresh `requestId`; an unknown outcome
 reports `uncertain`. Nothing about sent requests is persisted.
 
-### Additive verified-copy foundation
+### Opening a HomeBox file keeps it
 
 The optional `homeboxOriginals` port creates an actual owned reader only after
 the host's lazy retention owner is available and its original live allocations
-still match. The separate RealPreview action reads one verified copy through the
-existing offline-original route. Both issued-URL original/pinned-copy actions
-remain unchanged: this foundation does not retain their bytes or complete
-ordinary opened-file retention. That later normal-path integration remains open.
+still match. In the file dialog, **Open file** is the primary action for a
+HomeBox stored file: it reads one verified copy through the existing
+offline-original route, shows a PDF in the sandboxed viewer (other types can be
+saved) and keeps those same bytes on this device. A reborrowed exact-held copy is
+shown as already on this device without another write. The result is stated
+beside the file: kept, not known (with a local-only check), or not kept with the
+reason, including full device storage. Files over 10 MiB are not kept and say so.
+The issued-URL **Download original** and pinned-copy actions remain as secondary
+actions and keep nothing.
 
 The reader admits opaque frames in private custody: copied/frozen ref and pin,
 original application binding, and an immutable Blob. Foreign, fabricated and
@@ -290,8 +295,7 @@ the later membership check is a separate witness, not one atomic provider lease.
 Existing LRU timestamp touches remain permitted.
 The 10 MiB original, 250 MiB store, 32-read pass, 80% automatic threshold and
 ten-second storage deadlines are unchanged.
-Both primary issued-URL actions remain unchanged;
-their same-byte retention, compound storage and device acceptance remain open.
+The secondary issued-URL actions keep nothing; device acceptance remains open.
 
 The reader schedules retirement against the captured real session expiry and
 rechecks original application bindings. `refreshHomeboxOriginals` consumes actual

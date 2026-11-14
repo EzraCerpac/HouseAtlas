@@ -1,5 +1,19 @@
 # HouseAtlas
 
+Opening a HomeBox stored file in the file dialog now keeps it on the device
+(#560): **Open file** is the primary action and reads one verified copy through
+the existing reader, which the existing retention owner stores under the same
+account witness, sign-out wipe, budget and LRU. The issued-URL download stays as
+a secondary action that keeps nothing. Two new top-level cases in the existing
+required `offline-electrical-copy.test.mjs` open and keep a generated file, then
+relaunch with a second owner that has no live session over the same in-memory
+storage: the file opens with no further request; sign-out clear and account
+replacement remove it; a quota refusal is reported and leaves it not held. The
+existing `pinned-capture-read.mjs` action harness checks the new wording,
+including the reported storage refusal and a storage attempt that rejects after
+it began, which is reported as not known rather than not kept. No browser, native service or provider
+runs. No new selection or command: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total).
+
 Offline storage cleanup of HomeBox registration marks (clear, sign-out and account
 replacement) is no longer bounded by the metadata row allowance or per-row size
 checks. Marks are never evicted and are read by key, so an account could reach

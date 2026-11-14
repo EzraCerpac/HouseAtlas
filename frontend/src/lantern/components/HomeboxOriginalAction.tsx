@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { SourcePdf } from '../source-documents/SourcePdf';
 
 export interface HomeboxOriginalActionProps { readonly docId: string; readonly port?: HomeboxOriginalsPort }
-/** Additional bounded read, not interception of either issued-URL download action. */
+/** Ordinary open of a HomeBox file: one bounded verified read that is kept on this device. */
 export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProps) {
   const { projection, house } = useStore();
   const entry = projection.entries.get(docId), attachment = projection.attachments.get(docId);
@@ -16,6 +16,7 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
   const [opened, setOpened] = useState<{ key: object; frame: HomeboxOriginalFrame; attempt: HomeboxRetentionAttempt | null } | null>(null);
   const [message, setMessage] = useState<{ key: object; text: string } | null>(null);
   const [busy, setBusy] = useState<object | null>(null), [, tick] = useState(0);
+  const [uncertain, setUncertain] = useState<object | null>(null);
   const request = useRef<AbortController | null>(null);
   const frameRef = useRef<HomeboxOriginalFrame | null>(null);
   const downloadRef = useRef<{ url: string; controller: AbortController } | null>(null);
@@ -34,7 +35,7 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
     const current = () => latest.current === key && !controller.signal.aborted;
     void port.createReader(projection.view, controller.signal).then(result => {
       if (!current()) { if (result.status === 'ok') result.value.dispose(); return; }
-      if (result.status !== 'ok') { setMessage({ key, text: `Verified-copy access unavailable (${result.status}).` }); return; }
+      if (result.status !== 'ok') { setMessage({ key, text: `Opening files here is unavailable (${result.status}).` }); return; }
       owned = result.value; unsubscribe = owned.subscribe(() => {
         if (current()) {
           if (frameRef.current && !owned!.isCurrent(frameRef.current)) clearDownload();
@@ -42,7 +43,7 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
         }
       });
       setReader({ key, reader: owned });
-    }).catch(() => { if (current()) setMessage({ key, text: 'Verified-copy access unavailable.' }); });
+    }).catch(() => { if (current()) setMessage({ key, text: 'Opening files here is unavailable.' }); });
     return () => { controller.abort(); unsubscribe?.(); clearDownload(); owned?.dispose(); if (request.current === controller) request.current = null; };
   }, [key, port, projection.view, entry, attachment]);
   useEffect(() => {
@@ -56,54 +57,66 @@ export function HomeboxOriginalAction({ docId, port }: HomeboxOriginalActionProp
   const open = async () => {
     const signal = request.current?.signal;
     if (!reader || !signal || signal.aborted || latest.current !== key || busy === key) return;
-    setBusy(key); setMessage({ key, text: 'Reading one verified copy…' });
+    setBusy(key); setMessage({ key, text: 'Opening…' });
     const ref: OfflineHomeboxAttachmentRefV1 = { source: 'homebox-attachment', sourceInstanceId: entry.source.sourceInstanceId,
       collectionId: entry.source.collectionId, entityId: entry.source.externalId, attachmentId: attachment.attachmentId };
+    // Set once storage may have started: from then on a failure cannot claim that nothing was kept.
+    let storing = false;
     try {
       const result = await reader.open(ref, signal);
       if (latest.current !== key || signal.aborted) { if (result.status === 'ok') reader.release(result.frame); return; }
       if (result.status !== 'ok') {
-        setMessage({ key, text: result.status === 'busy' ? 'A copy is already being read. No additional read started.'
-          : result.status === 'spent' ? `This session already spent this file read (${result.outcome}). No new read started. Inspect copies marked “On this device” in Library.`
-          : result.status === 'limit' ? 'This file exceeds the 10 MiB verified-copy limit. The separate original download action is unchanged.'
-          : result.status === 'unknown' ? 'Read outcome unknown. No automatic retry or alternate download was started.'
-          : `Verified copy unavailable (${result.status}). No alternate download was started.` }); return;
+        setMessage({ key, text: result.status === 'busy' || result.status === 'settling' ? 'This file is already being opened.'
+          : result.status === 'spent' ? 'This file was already requested in this session and is not requested again. Reload the page to try again.'
+          : result.status === 'limit' ? 'Over 10 MiB: too large to keep on this device. Download original opens it without keeping it.'
+          : result.status === 'unknown' ? 'Reading this file did not complete. No new copy was kept on this device. Reload the page to try again.'
+          : result.status === 'unavailable' && result.reason === 'cancellation-ownership' ? 'This file is being kept on this device in the background. Open it again shortly.'
+          : `This file could not be opened (${result.status}). No new copy was kept on this device.` }); return;
       }
       frameRef.current = result.frame;
-      // Keep-on-open is explicit tier one, independent of the whole-library preference.
+      if (result.backing === 'exact-held') {
+        // Reborrowed from the exact copy already held on this device; nothing new to store.
+        setOpened({ key, frame: result.frame, attempt: null }); setMessage({ key, text: 'On this device.' }); return;
+      }
+      // Opening keeps the same verified bytes, independent of the whole-library preference.
       const retained = reader.retain(result.frame), attempt = retained.status === 'ok' ? retained.value : null;
       setOpened({ key, frame: result.frame, attempt });
-      setMessage({ key, text: attempt ? 'Verified bytes ready. Keeping these same bytes on this device…' : `Verified bytes ready; keeping failed (${retained.status}).` });
+      setMessage({ key, text: attempt ? 'Keeping a copy on this device…' : `Not kept on this device (${retained.status}).` });
       if (attempt) {
+        storing = true;
         const stored = await attempt.result;
         if (latest.current !== key || signal.aborted) return;
-        setMessage({ key, text: stored.status === 'ok' ? 'This verified copy is on this device.'
-          : stored.status === 'uncertain' ? 'Keeping outcome unknown. Check this exact copy before any further action.'
-          : `Keeping failed (${stored.status}). Saving uses the same verified bytes only while this read remains current.` });
+        setUncertain(stored.status === 'uncertain' ? key : null);
+        setMessage({ key, text: stored.status === 'ok' ? 'Kept on this device.'
+          : stored.status === 'uncertain' ? 'Not known whether this file was kept on this device.'
+          : stored.status === 'quota' ? 'Not kept on this device: device storage is full.'
+          : `Not kept on this device (${stored.status}).` });
       }
-    } catch { if (latest.current === key && !signal.aborted) setMessage({ key, text: 'Verified-copy action failed. No automatic retry was started.' }); }
+    } catch {
+      if (latest.current !== key || signal.aborted) return;
+      if (storing) { setUncertain(key); setMessage({ key, text: 'This file was read. Not known whether it was kept on this device.' }); }
+      else setMessage({ key, text: 'This file could not be opened. No new copy was kept on this device.' });
+    }
     finally { if (latest.current === key) setBusy(null); }
   };
   const heldDownload = blob && download?.blob === blob && !download.signal.aborted ? download : null;
-  return <section aria-label="Verified HomeBox copy">
-    <h3>Verified copy for this device</h3>
-    <p>This is a separate read of up to 10 MiB, not a HomeBox version or a complete library copy. The original download actions are unchanged.</p>
-    {!currentOpen && <button className="btn" type="button" disabled={!reader || busy === key} onClick={() => void open()}>Read and keep verified copy</button>}
+  return <section aria-label="Open file">
+    {!currentOpen && <button className="btn btn-primary" type="button" disabled={!reader || busy === key} onClick={() => void open()}>Open file</button>}
     {message?.key === key && <p role="status">{message.text}</p>}
-    {opened?.key === key && !currentOpen && <p>This copy was withdrawn or its application binding changed.</p>}
+    {opened?.key === key && !currentOpen && <p>This copy was withdrawn or its sign-in changed.</p>}
     {heldDownload && <>
+      {blob!.type === 'application/pdf' ? <SourcePdf blob={blob!} title={title} signal={heldDownload.signal} />
+        : <p>No preview for this file type.</p>}
       <a className="btn" href={heldDownload.url} download={title} onClick={event => {
         if (!currentOpen || !reader?.isCurrent(currentOpen.frame)) { event.preventDefault(); clearDownload(); }
-      }}>Save these verified bytes</a>
-      {blob!.type === 'application/pdf' ? <SourcePdf blob={blob!} title={title} signal={heldDownload.signal} />
-        : <p>Preview unavailable for this type. Save the verified bytes without opening a renderer.</p>}
+      }}>Save file</a>
     </>}
-    {currentOpen?.attempt && <button className="btn" type="button" onClick={() => {
+    {currentOpen?.attempt && uncertain === key && <button className="btn" type="button" onClick={() => {
       const signal = request.current?.signal; if (!signal || !currentOpen.attempt) return;
       void currentOpen.attempt.reconcile(signal).then(result => {
         if (latest.current === key && !signal.aborted) setMessage({ key, text: result.status === 'held'
-          ? 'This exact verified copy is held on this device.' : `Exact-copy keeping status: ${result.status}. No read or write was retried.` });
+          ? 'Kept on this device.' : `Still not known whether this file is on this device (${result.status}). Nothing was read or written again.` });
       });
-    }}>Check this exact held copy</button>}
+    }}>Check this device</button>}
   </section>;
 }
