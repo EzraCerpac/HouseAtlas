@@ -121,6 +121,9 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   const kindOpen = lens?.kind ?? null;
   const reading = lens !== null && lens.reading && kind === 'map';
   const replaced = lens !== null && kind === 'document';
+  // A record open beside the lens: on a narrow sheet the lens folds to its
+  // head so the map keeps the height; Expand reads it.
+  const folded = lens !== null && !reading && kind === 'map' && selection !== null;
   // A record opened from the lens reads wide while it is open: an activation
   // inside the lens marks the selection it causes. The mark lasts only for
   // that event, so a later selection from elsewhere never counts.
@@ -213,7 +216,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
       </div>
       {sources}
     </div>
-    <div className={`atlas-workspace${lens ? ` has-lens is-${lens.kind}` : ''}${reading ? ' is-reading' : ''}${replaced ? ' is-replaced' : ''}`}>
+    <div className={`atlas-workspace${lens ? ` has-lens is-${lens.kind}` : ''}${reading ? ' is-reading' : ''}${replaced ? ' is-replaced' : ''}${folded ? ' is-folded' : ''}`}>
       {lens && <section ref={panel} id={panelId} className={`atlas-lens is-${lens.kind}`} aria-labelledby={`${panelId}-title`} onKeyDown={keys}
         onClickCapture={markLens} onKeyDownCapture={event => { if (event.key === 'Enter' || event.key === ' ') markLens(); }}>
         <header className="atlas-lens-head">

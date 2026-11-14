@@ -214,7 +214,7 @@ try {
       covered, crowded, actionCollisions,
       menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-stack-head[aria-expanded="true"]'),
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
-      view: compact ? [document.querySelector('.ua-dock-view')?.getAttribute('aria-pressed') === 'true' ? 'Plan' : '3D'] : pressed('.ua-tools [aria-label="Atlas view"] button'),
+      view: pressed(`${compact ? '.ua-dock' : '.ua-tools'} [aria-label="Atlas view"] button`),
       building, floor: [...document.querySelectorAll('.ua-stack-floors button[aria-pressed="true"]')]
         .map(node => node.getAttribute('aria-label') ?? node.querySelector('.ua-rung-name').textContent.trim()),
       exploded: document.querySelector('.ua-spread, .ua-stack-spread')?.getAttribute('aria-pressed') ?? null,
