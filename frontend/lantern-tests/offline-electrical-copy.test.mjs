@@ -1304,6 +1304,81 @@ test('clear and account replacement remove every registration mark however many 
   }
 });
 
+// #560: the ordinary file dialog opens a HomeBox file through this reader and keeps it. A second owner
+// with no live session over the same storage stands in for the offline app relaunch (saved-main).
+function offlineRelaunch(backend) {
+  return createHomeboxRetention({ factory: undefined, backend, state: () => ({ session: null, view: null }),
+    homeboxTransport: () => assert.fail('offline relaunch must not request originals'),
+    documents: () => { throw new Error('No live document authority in the retained shell'); } });
+}
+async function openAndKeep(f) {
+  const reader = f.owner.createHomeboxOriginalReader(f.state.view, currentPinnedFiles(f.state.view)).value;
+  try {
+    const opened = await reader.open(ref(), signal()); assert.equal(opened.status, 'ok');
+    const kept = reader.retain(opened.frame); assert.equal(kept.status, 'ok');
+    return await kept.value.result;
+  } finally { reader.dispose(); }
+}
+test('a HomeBox file opened online opens from the device after an offline relaunch; sign-out and account replacement remove it', async () => {
+  const f = await homeboxSetup();
+  const stored = await openAndKeep(f); assert.equal(stored.status, 'ok');
+  f.owner.close();
+  const offline = offlineRelaunch(f.backend);
+  try {
+    const handle = await readCopy(offline);
+    const status = await offline.read.homeboxStatus(handle, ref(), signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'held');
+    const blob = await offline.read.readHomeboxDocument(handle, status.value.pin, signal());
+    assert.equal(blob.status, 'ok'); assert.equal(blob.value.type, 'application/pdf');
+    assert.deepEqual(new Uint8Array(await blob.value.arrayBuffer()), pdf);
+    assert.equal(f.server.calls.length, 1, 'one original read online, none offline');
+  } finally { offline.close(); }
+  // Sign-out clears the copy through the live owner; the next offline launch holds nothing.
+  const g = await homeboxSetup();
+  try {
+    assert.equal((await openAndKeep(g)).status, 'ok');
+    assert.equal((await g.owner.storage.clear()).status, 'ok');
+  } finally { g.owner.close(); }
+  const afterSignOut = offlineRelaunch(g.backend);
+  try {
+    assert.notEqual((await afterSignOut.read.readLast(signal())).status, 'ok');
+    assert.equal(g.backend.tables().get('bytes').size, 0);
+  } finally { afterSignOut.close(); }
+  // A different account on this device, even for the same home and file listing, never sees the first account's copy.
+  const h = await homeboxSetup();
+  let first;
+  try {
+    first = await openAndKeep(h); assert.equal(first.status, 'ok');
+    const other = { actorId: 'generated-actor-other', expiresAt: '2099-01-01T00:00:00Z' };
+    h.state = { session: other, view: h.state.view };
+    assert.equal((await h.owner.observe(other, () => h.state.session === other)).status, 'ok');
+    assert.equal((await h.owner.capture(h.state.view, signal())).status, 'ok');
+  } finally { h.owner.close(); }
+  const replaced = offlineRelaunch(h.backend);
+  try {
+    const handle = await readCopy(replaced);
+    assert.equal((await replaced.read.homeboxStatus(handle, ref(), signal())).value.availability, 'not-held');
+    assert.notEqual((await replaced.read.readHomeboxDocument(handle, first.value, signal())).status, 'ok');
+    assert.equal([...h.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0,
+      'account replacement deleted the first account\'s file');
+  } finally { replaced.close(); }
+});
+
+test('a HomeBox file opened online that storage refuses reports quota and is not held after an offline relaunch', async () => {
+  const f = await homeboxSetup(), transaction = f.backend.transaction.bind(f.backend);
+  f.backend.transaction = (write, work) => transaction(write, tx => work({ ...tx, put(table, key, value) {
+    if (table === 'bytes') throw Object.assign(Error('Generated quota'), { name: 'QuotaExceededError' });
+    return tx.put(table, key, value);
+  } }));
+  assert.equal((await openAndKeep(f)).status, 'quota');
+  f.owner.close(); f.backend.transaction = transaction;
+  const offline = offlineRelaunch(f.backend);
+  try {
+    const status = await offline.read.homeboxStatus(await readCopy(offline), ref(), signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'not-held');
+  } finally { offline.close(); }
+});
+
 test('a HomeBox row stored under another association key never reports or opens as that association', async () => {
   const f = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }]));
   try {

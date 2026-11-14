@@ -24,12 +24,18 @@ export function RealPreview() {
   if (!doc || !attachment) return null;
   const close = () => dispatch({ type: 'dialog', dialog: null });
   const href = attachment.kind === 'external-link' ? safeWebUrl(attachment.url) : safeMediaUrl(attachment.downloadHref);
+  // Opening a HomeBox file here reads it once and keeps that copy on this device.
+  const opener = attachment.kind === 'stored-file' && entry?.source.sourceKind === 'homebox-entity' ? actions.homeboxOriginals : undefined;
+  const opensHere = !!opener;
   const image = attachment.kind === 'stored-file' && safeMediaUrl(attachment.previewHref) && ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'].includes(attachment.contentType?.toLowerCase() ?? '');
   return <Modal wide title={doc.title} kicker={<StorageTag doc={doc} />} onClose={close} footer={<button className="btn btn-primary" type="button" onClick={close}>Done</button>}>
     <div className="preview-layout">
       <div className="preview-stage">
-        {image && attachment.kind === 'stored-file' ? <AuthorizedImagePreview key={JSON.stringify([id, attachment.attachmentId, attachment.previewHref])} href={safeMediaUrl(attachment.previewHref)!} title={doc.title} /> : <Note>{attachment.kind === 'external-link' ? 'External address only. No stored copy is supplied.' : 'A safe image preview is unavailable.'}</Note>}
-        {href ? <a className="btn btn-primary" href={href} target="_blank" rel="noopener noreferrer">{attachment.kind === 'external-link' ? 'Open external link' : 'Download original'}</a> : <Note>File access is unavailable.</Note>}
+        {image && attachment.kind === 'stored-file' ? <AuthorizedImagePreview key={JSON.stringify([id, attachment.attachmentId, attachment.previewHref])} href={safeMediaUrl(attachment.previewHref)!} title={doc.title} /> : !opensHere && <Note>{attachment.kind === 'external-link' ? 'External address only. No stored copy is supplied.' : 'A safe image preview is unavailable.'}</Note>}
+        {opener && <Suspense fallback={null}>
+          <HomeboxOriginalAction key={id} docId={id} port={opener} />
+        </Suspense>}
+        {href ? <a className={opensHere ? 'btn' : 'btn btn-primary'} href={href} target="_blank" rel="noopener noreferrer">{attachment.kind === 'external-link' ? 'Open external link' : 'Download original'}</a> : !opensHere && <Note>File access is unavailable.</Note>}
       </div>
       <aside className="preview-aside" aria-label="Provenance"><h3>Provenance</h3><dl className="facts">
         <div><dt>Owner</dt><dd>HomeBox</dd></div>
@@ -41,9 +47,6 @@ export function RealPreview() {
         <div><dt>Retrieved</dt><dd>{entry ? fmtDateTime(entry.retrievedAt) : 'Unknown'}</dd></div>
       </dl>
         {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}
-        {attachment.kind === 'stored-file' && actions.homeboxOriginals && <Suspense fallback={null}>
-          <HomeboxOriginalAction key={id} docId={id} port={actions.homeboxOriginals} />
-        </Suspense>}
       </aside>
     </div>
   </Modal>;
