@@ -167,8 +167,10 @@ export function createAtlasSessionClient(
     });
     if (response.status === 401) return null;
     if (!response.ok) throw new AtlasReadError(response.status);
-    const value: unknown = await response.json();
-    return decodeSessionInfo(value);
+    // An answer that is not a decodable session keeps its HTTP status, so a
+    // caller can tell it apart from a transport failure, which carries none.
+    try { return decodeSessionInfo(await response.json()); }
+    catch { signal.throwIfAborted(); throw new AtlasReadError(response.status); }
   };
   const client: AtlasSessionClient = {
     session,

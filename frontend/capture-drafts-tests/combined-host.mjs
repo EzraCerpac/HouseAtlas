@@ -105,7 +105,7 @@ try {
   } else if (caseName === 'unavailable-probe-explicit-recheck') {
     const session = f.session(), previousEpoch = port.current().sessionEpoch;
     f.read(async () => { throw new Error('Synthetic read unavailable'); });
-    await assert.rejects(port.prepare(f.signal)); assert.equal(port.current(), null); assert.equal(f.calls.recheck, 0);
+    await assert.rejects(port.prepare(f.signal)); assert.notEqual(port.current().sessionEpoch, previousEpoch); assert.equal(f.calls.recheck, 0);
     f.read(async () => ({ ...f.canonical() })); await port.prepare(f.signal);
     assert(port.current()); assert.notEqual(port.current().sessionEpoch, previousEpoch); assert.equal(f.session(), session);
     assert.equal(f.calls.open, 0); assert.equal(f.calls.upload, 0);

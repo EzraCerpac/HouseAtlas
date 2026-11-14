@@ -209,7 +209,11 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   if (!eligible || !recordId || !current()) return null;
   return <div className="topology-evidence">
     {identity && <details><summary>Native identity evidence ({identity.payload.evidenceIds.length})</summary>
-      {identity.payload.evidenceIds.map(id => <div key={id}><span>Evidence ID: {id}</span><LinkedEvidence evidenceId={id} /></div>)}
+      {identity.payload.evidenceIds.map(id => {
+        // Size only from this session's validated receipt for the same evidence; otherwise unknown and not shown.
+        const sent = homeAttempts.find(attempt => attempt.outcome === 'committed' && attempt.evidenceId === id)?.original;
+        return <div key={id}><span>Evidence ID: {id}{sent && ` · Original file: ${sent.name} · ${sent.byteSize} bytes`}</span><LinkedEvidence evidenceId={id} /></div>;
+      })}
     </details>}
     <details>
       <summary>Read a native evidence request by ID</summary>

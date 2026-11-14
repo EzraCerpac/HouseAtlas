@@ -79,7 +79,7 @@ export function NativeEvidenceDocument({ client, evidenceId }: {
       aria-label={shown.frame.mode === 'inline-png' ? 'Saved PNG preview' : 'Saved original download'} onKeyDown={keys}>
       <button ref={closer} type="button" onClick={close}>Close</button>
       {shown.frame.mode === 'inline-png' ? <>
-        <p>Saved PNG preview · Atlas original {shown.frame.asset.assetId}</p>
+        <p>Saved PNG preview · Atlas original {shown.frame.asset.assetId} · {shown.frame.asset.byteSize.toString()} bytes</p>
         <div role="group" aria-label="Preview size">
           <button type="button" disabled={zoom <= 0.5} onClick={() => setZoom(value => Math.max(0.5, value / 2))}>Zoom out</button>
           <button type="button" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value * 2))}>Zoom in</button>
@@ -92,7 +92,7 @@ export function NativeEvidenceDocument({ client, evidenceId }: {
           }} style={{ width: `${zoom * 100}%`, maxWidth: 'none', height: 'auto' }} />
         </div>
       </> : <>
-        <p>This original is available as a download. An inline preview is unavailable.</p>
+        <p>Atlas original {shown.frame.asset.assetId} · {shown.frame.asset.byteSize.toString()} bytes. This original is available as a download. An inline preview is unavailable.</p>
         <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.${shown.frame.asset.contentType === 'application/pdf' ? 'pdf' : shown.frame.asset.contentType === 'image/jpeg' ? 'jpg' : shown.frame.asset.contentType === 'image/png' ? 'png' : 'txt'}`} >Download original</a>
       </>}
     </section>}

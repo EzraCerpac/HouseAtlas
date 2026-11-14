@@ -12,6 +12,9 @@ interface Options {
   getSession(): AtlasSessionInfo | null;
   getGeneration(): number;
   getReadScope(): Scope | null;
+  /** Null for 401. Rejects with a numeric HTTP `status` when the server answered
+   * (any other non-2xx, or an undecodable body), and without one only when no
+   * HTTP answer arrived (offline, transport failure or abort). */
   readSession(signal: AbortSignal): Promise<AtlasSessionInfo | null>;
   editing: AtlasEditingClient;
   schemas: StockSchemaPort;
@@ -25,6 +28,11 @@ const sameScope = (a: Scope | null, b: Scope | null) => !!a && !!b
   && a.workspaceId === b.workspaceId && a.homeId === b.homeId;
 const sameSession = (a: AtlasSessionInfo, b: AtlasSessionInfo) => a.actorId === b.actorId
   && a.csrfToken === b.csrfToken && a.expiresAt === b.expiresAt;
+/** The status a session read attached to its failure; null means no HTTP answer arrived. */
+const answerStatus = (error: unknown): number | null => {
+  const status = error && typeof error === 'object' && 'status' in error ? error.status : null;
+  return typeof status === 'number' && Number.isInteger(status) ? status : null;
+};
 const validSession = (s: AtlasSessionInfo | null): s is AtlasSessionInfo => !!s && s.schemaVersion === 1
   && !!s.actorId && !!s.csrfToken && Number.isFinite(Date.parse(s.expiresAt)) && Date.parse(s.expiresAt) > Date.now();
 
@@ -108,8 +116,10 @@ export function createCaptureDraftAdapter(options: Options) {
     // Mask only this feature. Its own canonical GET must not invalidate its
     // review or alter existing quantity/pinned/currentSession object bindings.
     pending = true;
+    let read = false;
     try {
       const fresh = await options.readSession(signal);
+      read = true;
       signal.throwIfAborted();
       if (attempt !== generation || options.getGeneration() !== root || options.getSession() !== original
         || !sameScope(scope, capturedScope) || !sameScope(capturedScope, options.getReadScope()) || !options.foreground())
@@ -125,12 +135,21 @@ export function createCaptureDraftAdapter(options: Options) {
       pending = false; quarantined = false;
       return current();
     } catch (error) {
-      // An unavailable transport masks this feature. Only a decoded different
-      // native session above triggers the existing application session reload.
       if (attempt === generation) {
-        // Keep the private comparison tuple/scope for an explicit foreground
-        // recheck, but expose no boundary or surviving review while unavailable.
-        quarantined = true; epoch = null; invalidate();
+        const status = read ? null : answerStatus(error);
+        if (status !== null && status >= 400 && status < 500) {
+          // The server answered without a current session (403 or another 4xx):
+          // clear the held identity and reload, exactly as for 401.
+          invalidateSession(); options.recheckSession();
+        } else if (!read && status === null && canonical) {
+          // No HTTP answer: every review ends under a fresh epoch. The held session
+          // still binds local-only save, list and removal; review and upload need a fresh read.
+          epoch = Object.freeze({}); invalidate();
+        } else {
+          // A 5xx, an undecodable answer or a changed context confirms no identity:
+          // no boundary until a fresh read succeeds, and no reload, as no other session was shown.
+          quarantined = true; epoch = null; invalidate();
+        }
       }
       throw error;
     } finally {

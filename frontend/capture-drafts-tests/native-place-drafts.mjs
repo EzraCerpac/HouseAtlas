@@ -11,7 +11,8 @@ import { build } from 'vite';
 
 const cases = new Set(['native-save-no-upload', 'native-reopen-unsent', 'native-review-confirm-one-upload',
   'native-form-no-draft-database', 'native-other-place-or-account-refused', 'native-lost-reply-drafts-reachable',
-  'native-reported-mime-label-upload']);
+  'native-reported-mime-label-upload', 'native-offline-save-held-identity', 'native-save-no-identity-refused',
+  'native-session-answer-classification']);
 const args = process.argv.slice(2);
 assert(args.length === 2 && args[0] === '--case' && cases.has(args[1]), 'Select exactly one named case');
 const caseName = args[1];
@@ -36,7 +37,8 @@ const outputs = await build({ configFile: false, root: here('..'), logLevel: 'er
         `export { NativePlaceEvidence } from ${JSON.stringify(here('../src/lantern/topology/NativePlaceEvidence.tsx'))};`,
         `export { CaptureDraftProvider } from ${JSON.stringify(here('../src/capture-drafts-ui/Context.tsx'))};`,
         `export { CaptureDraftPanel } from ${JSON.stringify(here('../src/capture-drafts-ui/Panel.tsx'))};`,
-        `export { selectEvidenceFile } from ${JSON.stringify(here('../src/capture-evidence/selection.ts'))};`].join('\n');
+        `export { selectEvidenceFile } from ${JSON.stringify(here('../src/capture-evidence/selection.ts'))};`,
+        `export { createAtlasSessionClient } from ${JSON.stringify(here('../src/api/client.ts'))};`].join('\n');
       return stubs.get(id) ?? null;
     } }],
   build: { ssr: true, write: false, sourcemap: false, minify: false,
@@ -44,8 +46,39 @@ const outputs = await build({ configFile: false, root: here('..'), logLevel: 'er
 let code = outputs.output.find(row => row.type === 'chunk').code;
 for (const [specifier, relative] of externals)
   code = code.replaceAll(`from "${specifier}"`, `from ${JSON.stringify(new URL(`../node_modules/${relative}`, import.meta.url).href)}`);
-const { createCaptureDraftAdapter, createNativeEvidenceClient, NativePlaceEvidence, CaptureDraftProvider, CaptureDraftPanel, selectEvidenceFile } =
+const { createCaptureDraftAdapter, createNativeEvidenceClient, NativePlaceEvidence, CaptureDraftProvider, CaptureDraftPanel, selectEvidenceFile, createAtlasSessionClient } =
   await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+// The same Panel source with slot-backed hooks: handlers are called directly, without a DOM.
+const hookKey = Symbol.for('native-draft-panel-hooks'), hooks = globalThis[hookKey] = { slot: 0, state: [] };
+const hookModule = `const h = globalThis[Symbol.for('native-draft-panel-hooks')];
+export function useState(init) { const i = h.slot++; if (!(i in h.state)) h.state[i] = init; return [h.state[i], v => { h.state[i] = typeof v === 'function' ? v(h.state[i]) : v; }]; }
+export function useRef(current) { const i = h.slot++; if (!(i in h.state)) h.state[i] = { current }; return h.state[i]; }
+export function useEffect() {}`;
+const panelOutput = await build({ configFile: false, root: here('..'), logLevel: 'error',
+  build: { ssr: true, write: false, sourcemap: false, minify: false,
+    rollupOptions: { input: here('../src/capture-drafts-ui/Panel.tsx'), external: ['react', 'react/jsx-runtime'] } } });
+const panelCode = panelOutput.output.find(row => row.type === 'chunk').code
+  .replaceAll('from "react/jsx-runtime"', `from ${JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)}`)
+  .replaceAll('from "react"', `from "data:text/javascript;base64,${Buffer.from(hookModule).toString('base64')}"`);
+const { CaptureDraftPanel: HookedPanel } = await import(`data:text/javascript;base64,${Buffer.from(panelCode).toString('base64')}`);
+const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+const text = node => typeof node === 'string' || typeof node === 'number' ? String(node) : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
+/** One Panel instance: opt in, activate a named button, then read its visible status and listed rows. */
+function mountPanel(port, candidate = () => null) {
+  hooks.state = [];
+  const render = () => { hooks.slot = 0; return nodes(HookedPanel({ port, source: null, recordId: placeId, candidate, canSave: true,
+    parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} })); };
+  return {
+    optIn() { render().find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } }); },
+    async click(label) {
+      const button = render().find(node => node.type === 'button' && text(node) === label);
+      assert(button && !button.props.disabled, label); button.props.onClick();
+      for (let i = 0; i < 200 && render()[0].props['aria-busy']; i++) await new Promise(resolve => setTimeout(resolve, 1));
+      return text(render().find(node => node.props?.role === 'status'));
+    },
+    rows: () => render().filter(node => node.type === 'li').map(text),
+  };
+}
 
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const scope = { workspaceId: uuid(900), homeId: uuid(901) }, placeId = uuid(902), identityId = uuid(903), priorEvidence = uuid(904);
@@ -68,12 +101,13 @@ const capture = { schemaVersion: 1, selectionMethod: 'file-picker', selectedAt: 
   reportedContentType: original.type, byteOrigin: 'browser-returned-unmodified' };
 const selection = { original, file: original, capture };
 const form = { statement: 'Synthetic native statement', sourceLicense: license, reason: 'Synthetic native draft fixture' };
+const offline = () => { throw new TypeError('Synthetic offline session read; no actual transport'); };
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 
 function fixture(shared = { rows: [] }, input = selection) {
   let session = { schemaVersion: 1, actorId: 'synthetic-actor', csrfToken: 'synthetic-private-marker', expiresAt: new Date(Date.now() + 600_000).toISOString() };
   let canonical = { ...session }, readScope = scope;
-  const calls = { open: 0, get: 0, post: 0, editing: 0 }, order = [];
+  const calls = { open: 0, get: 0, post: 0, editing: 0, read: 0, recheck: 0 }, order = [];
   const binding = Object.freeze({ scope: Object.freeze({ ...scope }) }), owner = {};
   const evidence = createNativeEvidenceClient({ getBinding: () => binding, owner: () => owner, subscribe: () => () => undefined,
     exchange: async (actual, route, method, signal, body, requestId) => {
@@ -112,8 +146,12 @@ function fixture(shared = { rows: [] }, input = selection) {
   const refuse = async () => { calls.editing++; throw new Error('No source editing call belongs to a native draft'); };
   const adapter = createCaptureDraftAdapter({
     getSession: () => session, getGeneration: () => 1, getReadScope: () => readScope,
-    readSession: async signal => { signal.throwIfAborted(); return { ...canonical }; },
-    foreground: () => true, recheckSession: () => undefined,
+    // The actual session client over a fake transport: `shared.answer` replaces the canonical reply.
+    readSession: createAtlasSessionClient({ session: '/api/atlas/auth/session', login: '/api/atlas/auth/login' }, async (_url, init) => {
+      calls.read++; init.signal.throwIfAborted();
+      return shared.answer ? shared.answer() : json({ ...canonical });
+    }).session,
+    foreground: () => true, recheckSession: () => { calls.recheck++; },
     schemas: { validate() { throw new Error('Stock schema validation belongs to source drafts only'); } },
     openStore: () => { calls.open++; return store; },
     editing: { replacePlace: refuse, loadPlace: refuse, uploadPlaceEvidence: refuse },
@@ -131,10 +169,10 @@ function fixture(shared = { rows: [] }, input = selection) {
   };
 }
 const opener = markup => /<button[^>]*>Add native evidence<\/button>/.exec(markup)?.[0];
-const nativeView = (f, port = f.port) => renderToStaticMarkup(createElement(CaptureDraftProvider, { port },
+const nativeView = (f, port = f.port, identities = []) => renderToStaticMarkup(createElement(CaptureDraftProvider, { port },
   createElement(NativePlaceEvidence, { client: f.evidence, binding: f.binding,
     location: { id: identityId, label: 'Synthetic room', semantics: [{ lifecycle: 'active', target: { recordId: placeId }, payload: { reviewStatus: 'accepted' } }] },
-    index: { data: { bindings: [], identities: [] } }, refresh() { throw new Error('No refresh in static rendering'); } })));
+    index: { data: { bindings: [], identities } }, refresh() { throw new Error('No refresh in static rendering'); } })));
 
 try {
   const f = fixture();
@@ -174,6 +212,10 @@ try {
     const markup = nativeView(f);
     assert(markup.includes('Native evidence saved'));
     assert(markup.includes(`Original file: ${original.name} · ${original.type} · ${original.size} bytes`), 'Saved native evidence shows name, type and size');
+    // The retained identity evidence row names the sent original's size from the validated receipt; prior evidence stays unsized.
+    const retained = nativeView(f, f.port, [{ lifecycle: 'active', target: { recordId: identityId }, payload: { kind: 'location', evidenceIds: [priorEvidence, uuid(908)] } }]);
+    assert(retained.includes(`Evidence ID: ${uuid(908)} · Original file: ${original.name} · ${original.size} bytes`), 'Retained evidence row shows the original size');
+    assert(retained.includes(`Evidence ID: ${priorEvidence}</span>`), 'Evidence without a receipt shows no guessed size');
     assert.equal(f.calls.editing, 0);
   } else if (caseName === 'native-form-no-draft-database') {
     // Static render of the native evidence row and of the draft panel as the open form mounts it.
@@ -252,6 +294,61 @@ try {
       assert.equal(q.calls.post, 1); assert.deepEqual(q.shared.rows, []);
       assert.deepEqual(q.shared.posted, { type: canonical, contentType: canonical, sha256 });
     }
+  } else if (caseName === 'native-offline-save-held-identity') {
+    // Offline after an earlier online sign-in: a foreground session probe fails, then the save reads nothing.
+    f.shared.answer = offline;
+    await assert.rejects(f.port.prepare(f.signal), /Synthetic offline/); assert.equal(f.calls.read, 1);
+    assert(f.port.current(), 'The held session still binds local saves'); assert.equal(f.calls.recheck, 0);
+    const panel = mountPanel(f.port, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }));
+    panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Unsent draft saved on this browser. Nothing was uploaded.');
+    assert.equal(f.calls.read, 1, 'Saving a local draft reads no session');
+    const [row, ...rest] = f.shared.rows;
+    assert.equal(rest.length, 0); assert.equal(row.state, 'unsent'); assert.equal(row.recordId, placeId);
+    assert.deepEqual(row.owner, { actorId: 'synthetic-actor', ...scope });
+    // Review still needs a fresh session read, which is unavailable offline.
+    await assert.rejects(f.port.review(localId, f.signal)); assert.equal(f.calls.read, 2);
+    // Listing and removal stay local: offline they read and change only this browser's rows.
+    assert.equal(await panel.click('View local drafts'), 'Local drafts loaded for this place and account.');
+    assert.deepEqual(panel.rows().map(row => row.split('Saved ')[0]), [`${original.name} · ${original.size} bytes · Unsent draft`]);
+    assert.equal(await panel.click(`Remove local ${original.name}`), 'Local file removed. This does not cancel any server operation.');
+    assert.deepEqual(f.shared.rows, []); assert.deepEqual(panel.rows(), []);
+    assert.equal(f.calls.read, 2, 'Listing and removal read no session');
+    assert.equal(f.calls.get + f.calls.post + f.calls.editing, 0);
+  } else if (caseName === 'native-save-no-identity-refused') {
+    f.adapter.invalidateSession(); f.shared.answer = offline;
+    assert.equal(f.port.current(), null);
+    let asked = 0;
+    const panel = mountPanel(f.port, () => { asked++; return { localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }; });
+    panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: this browser holds no signed-in session for this home.');
+    assert.equal(await panel.click('View local drafts'), 'Local drafts unavailable: this browser holds no signed-in session for this home.');
+    assert.equal(asked, 0); assert.deepEqual(f.shared.rows, []); assert.equal(f.calls.open, 0, 'No draft storage opens without an identity');
+    assert.equal(f.calls.read + f.calls.get + f.calls.post + f.calls.editing, 0);
+  } else if (caseName === 'native-session-answer-classification') {
+    // Each session answer through the actual session client and adapter, from a fresh held identity.
+    const outcomes = {};
+    for (const [name, answer] of [['401', () => json({}, 401)], ['403', () => json({}, 403)], ['404', () => json({}, 404)],
+      ['transport', offline], ['500', () => json({}, 500)], ['undecodable', () => new Response('not json', { status: 200 })],
+      ['invalid-session', () => json({ schemaVersion: 2 })]]) {
+      const q = fixture(); const before = q.port.current().sessionEpoch;
+      q.shared.answer = answer;
+      await assert.rejects(q.port.prepare(q.signal));
+      const held = q.port.current();
+      outcomes[name] = { held: !!held, freshEpoch: held ? held.sessionEpoch !== before : null, reload: q.calls.recheck };
+      if (held) { await q.save(); assert.deepEqual(q.shared.rows[0].owner, { actorId: 'synthetic-actor', ...scope }); }
+      else await assert.rejects(q.save());
+      if (name === '500') {
+        q.shared.answer = null; await q.port.prepare(q.signal);
+        assert(q.port.current(), 'A later valid answer restores the boundary');
+      }
+    }
+    assert.deepEqual(outcomes, {
+      401: { held: false, freshEpoch: null, reload: 1 }, 403: { held: false, freshEpoch: null, reload: 1 }, 404: { held: false, freshEpoch: null, reload: 1 },
+      transport: { held: true, freshEpoch: true, reload: 0 },
+      500: { held: false, freshEpoch: null, reload: 0 }, undecodable: { held: false, freshEpoch: null, reload: 0 },
+      'invalid-session': { held: false, freshEpoch: null, reload: 0 },
+    });
   }
   console.log(`PASS ${caseName}: synthetic native draft evidence only`);
 } finally { globalThis.fetch = realFetch; }

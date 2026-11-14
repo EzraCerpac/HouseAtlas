@@ -51,15 +51,14 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
       locked.current = false; setBusy(false); onBusy(false);
     }
   };
-  const list = async (signal: AbortSignal) => {
-    if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
-    const rows = await port.list(); signal.throwIfAborted();
-    setSummaries(rows.filter(mine));
-  };
+  // Save, list and removal are local only: they use the identity this session already
+  // holds, with no network read, so they work offline. Review and upload read the session.
+  const held = (refusal: string) => { if (port.current()) return true; setStatus(refusal); return false; };
+  const unheld = 'Local drafts unavailable: this browser holds no signed-in session for this home.';
   const save = () => void run(async signal => {
     if (!optedIn) return;
+    if (!held('Local draft not saved: this browser holds no signed-in session for this home.')) return;
     const input = candidate(); if (!input) return;
-    if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
     await port.save(input); signal.throwIfAborted();
     setOptedIn(false); setReview(null); setConfirmed(false); onSaved();
     const rows = await port.list(); signal.throwIfAborted();
@@ -96,8 +95,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     setInspection(next); setStatus('Saved information was read. This does not establish the outcome or permission to retry.');
   });
   const discard = (row: DraftSummary) => void run(async signal => {
-    if (row.state === 'outcome-unknown' && !loseUnknown) return;
-    if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
+    if ((row.state === 'outcome-unknown' && !loseUnknown) || !held(unheld)) return;
     await port.discard(row.id, { loseUnknownOutcome: loseUnknown }); signal.throwIfAborted();
     setReview(null); setInspection(null); setConfirmed(false); setLoseUnknown(false);
     const rows = await port.list(); signal.throwIfAborted();
@@ -113,7 +111,8 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     <label><input type="checkbox" checked={optedIn} disabled={disabled || !canSave} onChange={event => setOptedIn(event.target.checked)} /> Save this file and reviewed values locally without uploading</label>
     <div className="actions">
       <button type="button" disabled={disabled || !canSave || !optedIn} onClick={save}>Save local draft</button>
-      <button type="button" disabled={disabled} onClick={() => void run(async signal => { setReview(null); setInspection(null); setConfirmed(false); await list(signal); setStatus('Local drafts loaded for this place and account.'); })}>View local drafts</button>
+      <button type="button" disabled={disabled} onClick={() => void run(async signal => { setReview(null); setInspection(null); setConfirmed(false); if (!held(unheld)) return;
+        const rows = await port.list(); signal.throwIfAborted(); setSummaries(rows.filter(mine)); setStatus('Local drafts loaded for this place and account.'); })}>View local drafts</button>
     </div>
     <p role="status" aria-live="polite">{status}</p>
     {summaries.length > 0 && <ul>{summaries.map(row => <li key={row.id}>
