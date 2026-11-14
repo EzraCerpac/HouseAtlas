@@ -2211,8 +2211,10 @@
     display: none;
   }
 
+  /* Phone header controls keep a 44 × 44 px hit area. */
   .lantern-host .search-trigger {
-    width: 40px;
+    width: 44px;
+    height: 44px;
     margin-left: 0;
     border-color: transparent;
     background: transparent;
@@ -2240,7 +2242,8 @@
 
   .lantern-host .ask-btn,
   .lantern-host .shell-tools .icon-btn {
-    width: 40px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     border-color: transparent;
     background: transparent;
@@ -2431,6 +2434,8 @@
 
   .lantern-host .source-status {
     grid-template-columns: auto auto;
+    justify-content: center;
+    min-width: 44px;
     padding: 0 7px;
     column-gap: 5px;
   }
