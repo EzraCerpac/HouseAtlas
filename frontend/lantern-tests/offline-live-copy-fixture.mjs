@@ -263,8 +263,16 @@ export async function checkLiveCopyContracts() {
     lifecycle: 'active', original: { assetId: pin.assetId, revision: pin.assetRevision, sha256: pin.sha256, bytes: pin.bytes },
     availability: { original: 'available' } };
   const adapterStore = memory();
+  // Generated local draft rows: only the first is bound to the held copy's actor, workspace and home.
+  const draft = (actorId, owner, filename, state = 'unsent', expiresAt = '2099-01-01T00:00:00Z') => ({ owner: { actorId, ...owner },
+    capture: { filename }, original: { size: filename.length }, state, expiresAt });
+  const draftRows = [draft(session.actorId, scope, 'generated-held.txt'), draft('generated-other-actor', scope, 'generated-other-actor.txt'),
+    draft(session.actorId, { ...scope, homeId: uuid(99) }, 'generated-other-home.txt'),
+    draft(session.actorId, scope, 'generated-expired.txt', 'unsent', '2001-01-01T00:00:00Z'), draft(session.actorId, scope, 'generated-unknown.txt', 'outcome-unknown')];
+  let draftReads = 0;
   const retention = createLiveCopyRetention({
     factory: undefined, backend: adapterStore, state: () => state,
+    readDrafts: async () => { draftReads++; return structuredClone(draftRows); },
     atlasReference: async identity => { assert.equal(identity.actorId, session.actorId); return { version: 1, scope,
       publicationId: 'generated-publication', manifestSha256: 'a'.repeat(64), atlasActorRevision: 'generated-atlas-witness' }; },
     documents: () => ({
@@ -295,7 +303,31 @@ export async function checkLiveCopyContracts() {
   withdrawDuringBytes = true;
   assert.equal((await retention.retainDocument(pin.documentId, pin.documentRevision, signal())).status, 'retired');
   assert.equal(releases, 2, 'every acquired native frame is released');
-  assert.equal((await retention.storage.clear()).status, 'ok'); retention.close();
+  const listed = await retention.heldDrafts(ar.value.handle, signal()); assert.equal(listed.status, 'ok');
+  assert.deepEqual(listed.value, [{ filename: 'generated-held.txt', byteSize: 18, state: 'unsent', expired: false },
+    { filename: 'generated-expired.txt', byteSize: 21, state: 'unsent', expired: true },
+    { filename: 'generated-unknown.txt', byteSize: 21, state: 'outcome-unknown', expired: false }], 'only drafts bound to the held identity are listed');
+  assert(!JSON.stringify(listed.value).includes('generated-other'), 'another actor or home lists nothing');
+  assert.equal((await retention.storage.clear()).status, 'ok');
+  const reads = draftReads;
+  assert.notEqual((await retention.heldDrafts(ar.value.handle, signal())).status, 'ok', 'a cleared (tombstoned) copy lists no drafts');
+  assert.notEqual((await retention.read.readLast(signal())).status, 'ok', 'no held identity remains to list drafts for');
+  assert.equal(draftReads, reads, 'no draft read without a held identity');
+  retention.close();
   cases.push('live-copy-actual-adapter-reader-pins-and-withdrawal');
+  // A different actor observed online retires the previous copy: its handle lists nothing.
+  const actorStore = memory(), sessionA = { ...session }, sessionB = { ...session, actorId: 'generated-other-actor' };
+  const actorState = { session: sessionA, view };
+  const switching = createLiveCopyRetention({ factory: undefined, backend: actorStore, state: () => actorState,
+    readDrafts: async () => structuredClone(draftRows), documents: () => { throw new Error('Generated document trap'); } });
+  assert.equal((await switching.observe(sessionA, () => actorState.session === sessionA)).status, 'ok');
+  assert.equal((await switching.capture(view, signal())).status, 'ok');
+  const first = await switching.read.readLast(signal()); assert.equal(first.status, 'ok');
+  assert.equal((await switching.heldDrafts(first.value.handle, signal())).value.length, 3);
+  actorState.session = sessionB;
+  assert.equal((await switching.observe(sessionB, () => actorState.session === sessionB)).status, 'ok');
+  assert.notEqual((await switching.heldDrafts(first.value.handle, signal())).status, 'ok', 'a different actor retires the held listing');
+  switching.close();
+  cases.push('live-copy-held-drafts-identity-bound');
   return cases;
 }

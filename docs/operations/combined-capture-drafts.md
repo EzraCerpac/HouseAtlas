@@ -83,6 +83,22 @@ local draft actions fail closed with an availability message; basic evidence pic
 remains available. Existing quantity, pinned, topology, AI,
 native naming and capability clients retain their current binding behavior.
 
+## Held copy after an offline reload
+
+An offline reload opens the retained read-only shell, which has no session and
+mounts no draft panel. Its Changes view lists, read only, the drafts whose owner
+equals the held copy's own control record: the actor, workspace and home observed
+from an online canonical session when the copy was bound. That record is
+replaced when another actor is observed and tombstoned on sign-out or explicit
+clearing, so a retired copy lists nothing. The identity is re-read after the
+draft rows are read and the listing is dropped if it changed. It is the same
+basis the shell already uses to match the last Atlas pointer. Only name, size and
+state are shown; no file, form, attempt, review, upload or removal is offered.
+Review and upload still need the live app and a fresh session read. The listing
+reads the draft database only when it already exists and never creates it. It
+persists nothing and claims no current session: the server may since have ended
+that session, and the live app enforces this on its next read.
+
 ## README-registered qualification commands
 
 The exact named host cases and native UI positive below are registered in the

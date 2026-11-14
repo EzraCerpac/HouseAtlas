@@ -3983,6 +3983,13 @@ is not genuine device/PWA/WAN acceptance; exact current bytes still need bounded
 supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
 
+Its live-copy contracts also call the actual retention adapter's held-draft
+listing with injected generated draft rows: only rows bound to the held copy's
+actor, workspace and home are listed, with name, size and state. A cleared
+(tombstoned) copy or one retired by a different observed actor lists nothing
+and reads no draft rows without a held identity. No real IndexedDB, browser or
+React markup is involved.
+
 
 ## Named generated electrical registration cases
 

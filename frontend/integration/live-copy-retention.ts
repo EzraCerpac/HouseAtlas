@@ -2,14 +2,18 @@ import type { ElectricalLibraryReader, ElectricalLibraryFrame } from '../src/lan
 import type { NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { ReadyView } from '../src/app/types';
 import type { AtlasSessionInfo } from '../src/app/session';
+import type { DraftRow } from '../src/capture-drafts/types';
 import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame, SourceDocumentReader } from '../src/lantern/source-documents/types';
-import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineFailure, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
+import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineFailure, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort, OfflineCopyHandle } from '../src/offline/live-copy-types';
 import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, validHomeboxRef, listsAttachment, admitJson, stringPayload, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
 import type { HomeboxOriginalFrame, HomeboxOriginalReader, HomeboxOriginalOpenResult, HomeboxOriginalSource,
   HomeboxRetentionAttempt, HomeboxRetentionReconciliation, HomeboxOriginalJoinResult, HomeboxFillPass, HomeboxFillOutcome } from '../src/lantern/homebox-originals/types';
 
 type State = { readonly session: AtlasSessionInfo | null; readonly view: ReadyView | null };
+/** Display facts of one local draft row; no file, form, attempt or capability. */
+export interface HeldDraft { readonly filename: string; readonly byteSize: number; readonly state: DraftRow['state']; readonly expired: boolean }
+
 /** Stable data-only host owner. No UI, network at construction, authority recovery or outbox configuration. */
 export function createLiveCopyRetention(options: {
   readonly factory: IDBFactory | undefined; readonly backend?: OfflineBackend; readonly state: () => State;
@@ -21,6 +25,8 @@ export function createLiveCopyRetention(options: {
   readonly channel?: { postMessage(value: string): void; close(): void; onmessage: ((event: MessageEvent) => void) | null };
   /** Same-origin transport for the HomeBox offline-original GET; defaults to fetch, never configured from storage. */
   readonly homeboxTransport?: typeof fetch;
+  /** Local draft rows for the held-copy listing, read only; null or absent lists none. */
+  readonly readDrafts?: () => Promise<readonly DraftRow[] | null>;
 }) {
   const channel = options.channel;
   const quiet = () => {};
@@ -655,6 +661,21 @@ export function createLiveCopyRetention(options: {
     retire() { generation++; actor = null; observed = null; refreshHomeboxOriginals(); owner.invalidate(); },
     createHomeboxOriginalReader,
     refreshHomeboxOriginals,
+    /** Drafts bound to exactly the held copy's actor, workspace and home: the identity the copy itself
+     * is bound to, tombstoned on sign-out or actor change. Display only; no review or send capability. */
+    async heldDrafts(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<readonly HeldDraft[]>> {
+      const identity = await owner.copyIdentity(handle, signal); if (identity.status !== 'ok') return identity;
+      try {
+        const rows = await options.readDrafts?.() ?? null;
+        const latest = await owner.copyIdentity(handle, signal); if (latest.status !== 'ok') return latest;
+        if (latest.value.actorRevision !== identity.value.actorRevision) return { status: 'retired' };
+        const { actorId, scope } = identity.value, at = Date.now();
+        return { status: 'ok', value: (rows ?? []).filter(row => row.owner.actorId === actorId
+          && row.owner.workspaceId === scope.workspaceId && row.owner.homeId === scope.homeId)
+          .map(row => ({ filename: row.capture.filename, byteSize: row.original.size, state: row.state,
+            expired: row.state === 'unsent' && at >= Date.parse(row.expiresAt) })) };
+      } catch { return { status: signal.aborted ? 'aborted' : 'unavailable' }; }
+    },
     async capture(view: ReadyView, signal: AbortSignal) {
       const b = binding(); if (b.status !== 'ok') return remember(b);
       if (options.state().view !== view) return remember({ status: 'retired' } as const);
