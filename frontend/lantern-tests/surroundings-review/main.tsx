@@ -6,7 +6,7 @@ import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type MeshInput } from '../../src/lantern/canonical-ifc/geometry';
 import { GLOW_STOPS } from '../../src/lantern/canonical-ifc/mesh-appearance';
 import { daylightAt, stageBackdrop } from '../../src/lantern/unified-atlas/daylight';
-import { SURROUNDINGS_CLEAR, SURROUNDINGS_FAR, SURROUNDINGS_NEAR } from '../../src/lantern/unified-atlas/scene';
+import { surroundingsBand } from '../../src/lantern/unified-atlas/scene';
 import { box } from '../canonical-ifc-visual/standard-glb-sample';
 
 const inputs: MeshInput[] = [];
@@ -26,7 +26,7 @@ for (let i = 0; i < 18; i++) {
 const meshes = prepareMeshes(inputs), site = new Set(meshes.filter(mesh => mesh.meshKey.startsWith('site-')).map(mesh => mesh.meshKey));
 const bounds = { min: [-6.5, 0, -5.5] as const, max: [9, 6.5, 5.5] as const };
 const half = [(bounds.max[0] - bounds.min[0]) / 2, (bounds.max[2] - bounds.min[2]) / 2] as const;
-const reach = Math.hypot(...half), near = Math.max(SURROUNDINGS_CLEAR, SURROUNDINGS_NEAR * reach);
+const band = surroundingsBand(half);
 const params = new URLSearchParams(location.search);
 function Review() {
   const [night, setNight] = useState(params.get('hour') === 'night');
@@ -39,8 +39,7 @@ function Review() {
   const backdrop = stageBackdrop(daylight.dusk), percent = (n: number) => `${100 * n}%`;
   const stops = GLOW_STOPS.map(stop => `color-mix(in srgb, ${backdrop.glow} ${percent(stop.alpha)}, transparent) ${percent(stop.at)}`).join(', ');
   const background = `radial-gradient(ellipse ${backdrop.glowRadii.map(percent).join(' ')} at ${backdrop.glowAt.map(percent).join(' ')}, ${stops}), linear-gradient(176deg, ${backdrop.top}, ${backdrop.bottom})`;
-  const surroundings = { keys: site, center: [1.25, 0] as const, half, near,
-    far: near + (SURROUNDINGS_FAR - SURROUNDINGS_NEAR) * Math.max(reach, SURROUNDINGS_CLEAR), ground: 0,
+  const surroundings = { keys: site, center: [1.25, 0] as const, half, ...band, ground: 0,
     lean: 1 / Math.tan(20 * Math.PI / 180), backdrop };
   return <>
     <h1>Synthetic surroundings comparison</h1>
