@@ -3,6 +3,15 @@ import type { Claim, Doc, EntityKind, WriteStatus } from '../data/types';
 import { CLAIM_HELP, CLAIM_LABEL, KIND_LABEL, kindOf, nameOf } from '../data/query';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
+import { fmtDateTimeReadable } from '../data/time';
+
+/** A recorded timestamp, readable first, with its exact recorded text kept
+ * on a line below. Text that cannot be read stays as recorded. */
+export function RecordedTime({ value, after }: { value: string; after?: string }) {
+  const readable = fmtDateTimeReadable(value);
+  if (readable === 'Unknown' || readable === value) return <>{readable}{after}</>;
+  return <><time dateTime={value}>{readable}</time>{after}<span className="fact-help"><code>{value}</code></span></>;
+}
 
 export const KIND_ICON: Record<EntityKind, string> = {
   space: 'rooms',

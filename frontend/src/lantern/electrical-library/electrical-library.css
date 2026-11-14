@@ -1,7 +1,6 @@
 /* Electrical drawings in the Library: the same section, field and row
    vocabulary as Source documents. Nothing here places a sheet in a room. */
 .lantern-host .electrical-library { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--hair-2); }
-.lantern-host .filter-row + .electrical-library { margin-top: 8px; padding-top: 0; border-top: 0; }
 .lantern-host .electrical-library-note { max-width: 62ch; margin: 0 0 6px; font-size: var(--fs-s); color: var(--muted); }
 .lantern-host .electrical-library-controls { display: grid; max-width: 572px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); align-items: end; gap: 12px; margin: 14px 0 12px; }
 .lantern-host .electrical-library-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 4px; font-size: var(--fs-s); color: var(--ink-2); }

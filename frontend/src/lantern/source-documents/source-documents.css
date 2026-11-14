@@ -19,7 +19,17 @@
 }
 
 .lantern-host .source-docs-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
   margin-top: 12px;
+}
+
+.lantern-host .source-docs-more p {
+  margin: 0;
+  font-size: var(--fs-s);
+  color: var(--ink-2);
 }
 
 .lantern-host .source-docs-retry {
@@ -92,8 +102,30 @@
   display: block;
 }
 
+/* Hashes and receipts stay with the record, folded below its facts. */
+.lantern-host .source-doc-integrity {
+  padding-left: 14px;
+}
+
+.lantern-host .source-doc-integrity > summary {
+  width: fit-content;
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.lantern-host .source-doc-integrity[open] > summary {
+  margin-bottom: 8px;
+}
+
+.lantern-host .source-doc-integrity code {
+  font-size: var(--fs-xs);
+}
+
 @media (max-width: 600px) {
-  .lantern-host .source-doc-facts > div {
+  .lantern-host .source-doc-facts > div,
+  .lantern-host .source-doc-integrity .facts > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
   }
