@@ -4,7 +4,7 @@
 // POST, and every recorded answer re-reads the view. A generated server model
 // with the route's answer shapes; no browser, network, HomeBox or credential.
 import assert from 'node:assert/strict';
-import { createRefreshControl, decodeAvailability, decodeRefreshResult, describeRefresh, requestRefresh, shownView, withholdHomebox } from '../src/lantern/homebox-refresh.ts';
+import { createRefreshOwner, decodeAvailability, decodeRefreshResult, describeRefresh, requestRefresh, shownView, withholdHomebox } from '../src/lantern/homebox-refresh.ts';
 
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const format = iso => iso.slice(0, 16).replace('T', ' ');
@@ -47,12 +47,22 @@ function server({ role = 'editor', approved = true, configured = true } = {}) {
   return model;
 }
 const SESSION = 'session-1';
-/** An attached control whose rendered home and session are `model.current` (default: the pressed ones). */
+const token = { ...scope, session: SESSION };
+/** The production owner as an attached host holds it, whose shown home and
+ * session are `model.current` (default: the pressed ones), seen through one
+ * button for `token`. Each press supplies the host's reload and withholding. */
 function control(model, transport = model.transport) {
-  const refresh = createRefreshControl({ scope, session: SESSION, transport, online: () => model.online !== false,
-    current: () => model.current === undefined ? { ...scope, session: SESSION } : model.current });
-  model.detach = refresh.attach();
-  return refresh;
+  const owner = createRefreshOwner({ transport, online: () => model.online !== false,
+    current: () => model.current === undefined ? token : model.current,
+    reload: () => model.hostReload(),
+    withhold: (pressed, on) => { assert.deepEqual(pressed, token); model.hostWithhold(on); } });
+  model.detach = owner.attach();
+  return {
+    check: signal => owner.check(token, signal),
+    getSnapshot: () => owner.stateFor(token),
+    subscribe: owner.subscribe,
+    press(reload, withhold) { model.hostReload = reload; model.hostWithhold = withhold; return owner.press(token); },
+  };
 }
 const say = state => state.result ? describeRefresh(state.result, format, state.reconciled) : '';
 
@@ -156,15 +166,15 @@ for (const failedReload of [async () => false, async () => { throw new TypeError
   assert.equal(withheld, null);
 }
 
-// The continuation is fenced: switching home, signing out or unmounting while
-// the POST or the re-read is pending drops it. No read for the pressed home is
-// issued, nothing is withheld, no status is set, and the other home's view and
-// its pending read stay as they are. The server's own result stands.
+// The continuation is fenced: switching home, signing out or tearing down the
+// host while the POST or the re-read is pending drops it. No read for the
+// pressed home is issued, nothing is withheld, no status is kept, and the other
+// home's view and its pending read stay as they are. The server's result stands.
 for (const upstream of ['ok', 'unauthorized']) {
   const cases = {
     'home switched': model => { model.current = { workspaceId: 'w 1', homeId: 'other', session: SESSION }; },
     'signed out': model => { model.current = { ...scope, session: undefined }; },
-    unmounted: model => { model.detach(); },
+    'host torn down': model => { model.detach(); },
   };
   for (const [name, leave] of Object.entries(cases)) for (const during of ['post', 'reload']) {
     const model = server(), refresh = control(model);
@@ -177,16 +187,40 @@ for (const upstream of ['ok', 'unauthorized']) {
       app.reads.push('pressed home'); app.pending.aborted = true; app.shown = 'pressed home'; return true;
     };
     if (during === 'post') model.duringPost = () => leave(model);
-    let notified = 0;
-    refresh.subscribe(() => { notified += 1; });
     await refresh.press(reload, on => { app.withheld.push(on); });
     const label = `${upstream} ${name} during ${during}`;
     assert.equal(model.refreshes, 1, label);
-    assert.deepEqual(app.reads, [], label);
     assert.deepEqual(app, { shown: 'other home', pending: { aborted: false }, reads: [], withheld: [] }, label);
-    assert.equal(notified, 1, `${label}: only the press itself was shown`);
-    assert.equal(refresh.getSnapshot().result, null, label);
+    assert.deepEqual(refresh.getSnapshot(), { offered: false, busy: false, result: null, reconciled: true }, `${label}: nothing kept`);
   }
+}
+
+// The button is only a view of the host's state: closing the panel or
+// selecting a record in the same home mid-refresh drops nothing. The host still
+// re-reads (and withholds after a 401 whose re-read failed); a button mounted
+// meanwhile shows the refresh running and cannot start a second one, and one
+// mounted afterwards shows the result.
+for (const upstream of ['ok', 'unauthorized']) {
+  const model = server(), refresh = control(model);
+  await refresh.check();
+  model.upstream = upstream;
+  const app = { reads: 0, withheld: [] };
+  const unmount = refresh.subscribe(() => {});
+  const reload = async () => { app.reads += 1; return upstream === 'ok'; }, withhold = on => { app.withheld.push(on); };
+  let remounted;
+  model.duringPost = () => {
+    unmount();
+    remounted = refresh.getSnapshot();
+    void refresh.press(reload, withhold);
+  };
+  await refresh.press(reload, withhold);
+  assert.equal(remounted.busy, true);
+  assert.equal(model.refreshes, 1, 'One refresh at a time per home and session');
+  assert.equal(app.reads, 1);
+  assert.deepEqual(app.withheld, [upstream === 'ok' ? false : true]);
+  assert.equal(say(refresh.getSnapshot()), upstream === 'ok'
+    ? 'Refreshed from HomeBox 2026-11-14 09:30.'
+    : 'Not refreshed: HomeBox refused the configured credential. Access revoked: HomeBox entries are withheld here, and refreshing cannot restore them on this server yet.');
 }
 // An availability answer that arrives after the home changed is dropped too.
 {
@@ -234,4 +268,4 @@ for (const upstream of ['ok', 'unauthorized']) {
   assert.deepEqual(await requestRefresh(scope, async () => { throw new TypeError('Generated network unavailable'); }, true), { kind: 'unreachable' });
 }
 
-console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, a home switch, sign-out or unmount during the POST or re-read drops the whole continuation, offline sends nothing, strict decoding');
+console.log('PASS HomeBox refresh: server admission decides the button, first refresh without a cache, later 401 quarantine re-reads the view and withholds the copy, a failed re-read withholds HomeBox entries of the current same-home view, a quarantine is never presented as retryable, closing the panel mid-refresh still reconciles and a remount shows it running then its result, a home switch, sign-out or host teardown during the POST or re-read drops the whole continuation, offline sends nothing, strict decoding');

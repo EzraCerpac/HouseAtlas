@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -26,7 +26,7 @@ import {
   unplaced,
 } from '../data/query';
 import { fmtDate, fmtDateTime, rel } from '../data/time';
-import { createRefreshControl, describeRefresh, type RefreshToken } from '../homebox-refresh.ts';
+import { describeRefresh, type RefreshOwner } from '../homebox-refresh.ts';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -256,28 +256,29 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
   </dl></Section>;
 }
 
-const browserFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
-
 /** Offered only when the server's admission read says this signed-in Editor
  * may refresh a configured source, with or without an existing cache. */
-export function HomeboxRefresh({ transport = browserFetch }: { readonly transport?: typeof fetch }) {
+function HomeboxRefresh() {
+  const owner = useStore().actions.homeboxRefresh;
+  return owner ? <HomeboxRefreshButton owner={owner} /> : null;
+}
+
+/** A view of the host's refresh state for this home and session; the host
+ * reconciles the result whether or not this button is still mounted. */
+function HomeboxRefreshButton({ owner }: { readonly owner: RefreshOwner }) {
   const { projection, actions } = useStore();
   const { workspaceId, homeId } = projection.view.scope;
   const session = actions.session?.expiresAt;
-  // The home and session rendered now; a refresh continuation applies only while they match its press.
-  const rendered = useRef<RefreshToken | null>(null);
-  rendered.current = { workspaceId, homeId, session };
-  const control = useMemo(() => createRefreshControl({ scope: { workspaceId, homeId }, session, transport,
-    online: () => globalThis.navigator?.onLine !== false, current: () => rendered.current }), [workspaceId, homeId, session, transport]);
+  const token = useMemo(() => ({ workspaceId, homeId, session }), [workspaceId, homeId, session]);
   useEffect(() => {
-    const abort = new AbortController(), detach = control.attach();
-    void control.check(abort.signal);
-    return () => { abort.abort(); detach(); };
-  }, [control]);
-  const state = useSyncExternalStore(control.subscribe, control.getSnapshot);
+    const abort = new AbortController();
+    void owner.check(token, abort.signal);
+    return () => abort.abort();
+  }, [owner, token]);
+  const state = useSyncExternalStore(owner.subscribe, () => owner.stateFor(token));
   if (!state.offered) return null;
   return <div><dt>HomeBox refresh</dt><dd>
-    <button type="button" className="btn" disabled={state.busy} onClick={() => { void control.press(actions.reload, on => actions.withholdHomebox?.(on ? { workspaceId, homeId } : null)); }}>
+    <button type="button" className="btn" disabled={state.busy} onClick={() => { void owner.press(token); }}>
       {state.busy ? 'Refreshing from HomeBox…' : 'Refresh from HomeBox'}
     </button>
     <p role="status" aria-live="polite">{state.result ? describeRefresh(state.result, fmtDateTime, state.reconciled) : ''}</p>

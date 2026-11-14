@@ -1,10 +1,10 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { shownView, type Withheld } from './homebox-refresh.ts';
+import { createRefreshOwner, shownView, type RefreshToken, type Withheld } from './homebox-refresh.ts';
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
-import type { ReadyView, Scope } from '../app/types';
+import type { ReadyView } from '../app/types';
 import type { ModelContextPort } from '../webmcp/ports';
 import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
 import type { PinnedFileClient } from '../api/pinned-file-client';
@@ -132,12 +132,24 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   // session, including one another reload delivered meanwhile.
   const [withheld, setWithheld] = useState<Withheld | null>(null);
   const shown = useMemo(() => shownView(view, session, withheld), [view, session, withheld]);
+  // The explicit HomeBox refresh lives here, with the view it reconciles, so
+  // closing the panel never drops its result; a home or session change does.
+  const rendered = useRef<{ token: RefreshToken; reload: () => Promise<boolean> }>(null);
+  rendered.current = { token: { workspaceId: view.scope.workspaceId, homeId: view.scope.homeId, session }, reload: actions.reload };
+  const [homeboxRefresh] = useState(() => createRefreshOwner({
+    transport: (input, init) => globalThis.fetch(input, init),
+    online: () => globalThis.navigator?.onLine !== false,
+    current: () => rendered.current?.token ?? null,
+    reload: () => rendered.current ? rendered.current.reload() : Promise.resolve(false),
+    withhold: (token, on) => setWithheld(on ? { scope: { workspaceId: token.workspaceId, homeId: token.homeId }, session: token.session } : null),
+  }));
+  useEffect(() => homeboxRefresh.attach(), [homeboxRefresh]);
   const projection = useMemo(() => projectView(shown, current, currentHistory, loadMoreOperations, includeArchived), [shown, current, currentHistory, loadMoreOperations, includeArchived]);
   const archiveVisibility = useMemo(() => ({ included: includeArchived, setIncluded: (included: boolean) => {
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
     setArchive({ view, session, included });
   } }), [view, session, includeArchived]);
-  const ports = useMemo(() => ({ ...actions, offlineStorage, withholdHomebox: (scope: Scope | null) => setWithheld(scope ? { scope, session } : null), nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, session]);
+  const ports = useMemo(() => ({ ...actions, offlineStorage, homeboxRefresh, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />

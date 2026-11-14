@@ -43,11 +43,15 @@ reaching HomeBox; when that re-read returns false or rejects, HomeBox entries
 of the current same-home, same-session view are withheld locally with the
 server's quarantine marker, including a view another reload delivered while
 the refresh was in flight; an ordinary failure says the earlier copy
-is still shown, or that the view could not be updated; a home switch,
-sign-out or unmount during the POST or the re-read drops the rest of the
-press (no re-read of the pressed home, no withholding, no status) and leaves
-the other home's view and pending read untouched, for both a refresh and a
-401, and a late admission answer is dropped too; offline sends nothing;
+is still shown, or that the view could not be updated; the host, not the
+button, owns the refresh: closing the panel mid-refresh in the same home still
+re-reads the view (and withholds after a 401 whose re-read failed), a button
+mounted meanwhile shows it running and cannot start a second one, and one
+mounted afterwards shows the result; a home switch, sign-out or host teardown
+during the POST or the re-read drops the rest of the press (no re-read of the
+pressed home, no withholding, no status) and leaves the other home's view and
+pending read untouched, for both a refresh and a 401, and a late admission
+answer is dropped too; offline sends nothing;
 decoding is strict: 85 SOURCE / 1 BUILD /
 11 BROWSER (97 total). No workflow command, runner, browser entry or held
 selection is added. None of this makes a live HomeBox read or establishes

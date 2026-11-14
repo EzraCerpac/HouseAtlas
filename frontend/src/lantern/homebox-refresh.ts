@@ -140,57 +140,68 @@ export async function requestRefresh(scope: Scope, transport: typeof fetch, onli
 export interface RefreshToken { readonly workspaceId: string; readonly homeId: string; readonly session: string | undefined }
 const same = (a: RefreshToken, b: RefreshToken | null) =>
   b !== null && a.workspaceId === b.workspaceId && a.homeId === b.homeId && a.session === b.session;
+const keyOf = (token: RefreshToken) => JSON.stringify([token.workspaceId, token.homeId, token.session ?? null]);
+const IDLE: RefreshState = { offered: false, busy: false, result: null, reconciled: true };
 
-/** State owner behind the button. Any answer that changed durable cache state
- * (refreshed or failed) re-reads the view. If that re-read fails after a
- * revocation, `withhold` hides HomeBox entries locally so text and content agree.
+/** Refresh state and reconciliation, owned by the host that owns the view, not
+ * by the button: closing the panel or selecting a record never drops a result.
+ * One refresh at a time per home and session. Any answer that changed durable
+ * cache state (refreshed or failed) re-reads the view; if that re-read fails
+ * after a revocation, `withhold` hides HomeBox entries so text and content agree.
  *
- * Every effect after an await is fenced: it applies only while the control is
- * attached and `current()` still names the same home and session as the press.
- * Otherwise the continuation is dropped; the server's result stands and
- * whatever view is shown now is untouched. */
-export function createRefreshControl(options: {
-  readonly scope: Scope;
-  readonly session: string | undefined;
+ * Every effect after an await is fenced: it applies only while the host is
+ * attached and `current()` still names the pressed home and session. Otherwise
+ * the rest is dropped; the server's result stands and the view now shown is
+ * untouched. A button only reads this state; one that is not mounted misses
+ * nothing, and a remounted one shows the refresh still running, or its result. */
+export function createRefreshOwner(options: {
   readonly transport: typeof fetch;
   readonly online: () => boolean;
+  /** The home and session the host shows now. */
   readonly current: () => RefreshToken | null;
+  /** Re-reads the view the host shows now. */
+  readonly reload: () => Promise<boolean>;
+  /** Hides (true) or restores (false) HomeBox entries of that home and session. */
+  readonly withhold: (token: RefreshToken, on: boolean) => void;
 }) {
-  const token: RefreshToken = { workspaceId: options.scope.workspaceId, homeId: options.scope.homeId, session: options.session };
   let attached = false;
-  const live = () => attached && same(token, options.current());
-  let state: RefreshState = { offered: false, busy: false, result: null, reconciled: true };
+  const states = new Map<string, RefreshState>();
   const listeners = new Set<() => void>();
-  const set = (next: Partial<RefreshState>) => { state = { ...state, ...next }; listeners.forEach(listener => listener()); };
+  const live = (token: RefreshToken) => attached && same(token, options.current());
+  const set = (token: RefreshToken, next: Partial<RefreshState> | null) => {
+    if (next) states.set(keyOf(token), { ...(states.get(keyOf(token)) ?? IDLE), ...next });
+    else states.delete(keyOf(token));
+    listeners.forEach(listener => listener());
+  };
   return {
-    getSnapshot: (): RefreshState => state,
+    stateFor: (token: RefreshToken): RefreshState => states.get(keyOf(token)) ?? IDLE,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    /** Mounting attaches; the returned detach drops any continuation in flight. */
+    /** The host attaches while mounted; detaching drops every refresh in flight. */
     attach() { attached = true; return () => { attached = false; }; },
-    async check(signal?: AbortSignal) {
-      const availability = await readAvailability(options.scope, options.transport, signal);
-      if (!signal?.aborted && live()) set({ offered: availability === 'available' });
+    async check(token: RefreshToken, signal?: AbortSignal) {
+      const availability = await readAvailability(token, options.transport, signal);
+      if (!signal?.aborted && live(token)) set(token, { offered: availability === 'available' });
     },
-    /** `withhold(true)` hides this home's HomeBox entries after a revocation
-     * that could not be re-read; `withhold(false)` after a successful re-read. */
-    async press(reload: () => Promise<boolean>, withhold: (on: boolean) => void) {
-      if (!state.offered || state.busy || !live()) return;
-      set({ busy: true, result: null, reconciled: true });
+    async press(token: RefreshToken) {
+      const state = states.get(keyOf(token));
+      if (!state?.offered || state.busy || !live(token)) return;
+      set(token, { busy: true, result: null, reconciled: true });
       let result: RefreshResult;
       try {
-        result = await requestRefresh(options.scope, options.transport, options.online());
+        result = await requestRefresh(token, options.transport, options.online());
       } catch {
         result = { kind: 'unreachable' };
       }
-      if (!live()) return;
+      if (!live(token)) return set(token, null);
       let reconciled = true;
       if (result.kind === 'refreshed' || result.kind === 'failed') {
-        reconciled = await reload().then(ok => ok === true, () => false);
-        if (!live()) return;
-        if (reconciled) withhold(false);
-        else if (result.kind === 'failed' && result.quarantined) withhold(true);
+        reconciled = await options.reload().then(ok => ok === true, () => false);
+        if (!live(token)) return set(token, null);
+        if (reconciled) options.withhold(token, false);
+        else if (result.kind === 'failed' && result.quarantined) options.withhold(token, true);
       }
-      set({ busy: false, result, reconciled });
+      set(token, { busy: false, result, reconciled });
     },
   };
 }
+export type RefreshOwner = ReturnType<typeof createRefreshOwner>;
