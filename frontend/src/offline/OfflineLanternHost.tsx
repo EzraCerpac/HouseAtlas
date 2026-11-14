@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { LiveCopyRetention } from '../../integration/live-copy-retention';
+import type { HeldDraft, LiveCopyRetention } from '../../integration/live-copy-retention';
 import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalAvailability, OfflineHomeboxAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
@@ -127,7 +127,7 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
           {view === 'upkeep' && <OfflineUpkeep snapshot={snapshot} />}
           {view === 'library' && <OfflineLibrary owner={owner} selection={selection} openDocument={openDocument} />}
           {view === 'changes' && <><h2>Waiting changes</h2><p>{outbox.loaded ? `${count} changes waiting on this device.` : 'Reading waiting changes…'}</p>
-            <p>Open live to review and send waiting changes after signing in.</p><h2>Operation history</h2><p>Operation history is not held on this device. Open live to read it.</p></>}
+            <p>Open live to review and send waiting changes after signing in.</p><HeldDrafts owner={owner} selection={selection} /><h2>Operation history</h2><p>Operation history is not held on this device. Open live to read it.</p></>}
         </div>}
     </main>
     {view === 'library' && reading && <ReopenedDocument
@@ -136,6 +136,22 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
       onPosition={position => changePresentation(state => rememberReadingPosition(state, selection.generation, readingDocumentKey(reading.request), position))} />}
     {settings && <Modal title="Settings" onClose={() => setSettings(false)}><div className="settings"><OfflineStorageSettings controls={owner} /><a className="btn" href="/saved/index.html" onClick={markSavedEntry}>Saved house copies</a><a className="btn" href="/example/index.html">Example house</a></div></Modal>}
   </div>;
+}
+
+/** Unsent local drafts bound to this held copy's account and home; read only, shown only when some exist. */
+function HeldDrafts({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
+  const [rows, setRows] = useState<readonly HeldDraft[] | 'unreadable' | null>(null);
+  useEffect(() => {
+    setRows(null); // A new selection never shows the previous one's rows.
+    void owner.heldDrafts(selection.handle, selection.signal).then(result => {
+      if (!selection.signal.aborted) setRows(result.status === 'ok' ? result.value : result.status === 'unavailable' ? 'unreadable' : null);
+    });
+  }, [owner, selection]);
+  if (rows === 'unreadable') return <><h2>Local drafts</h2><p>Local drafts on this browser could not be read.</p></>;
+  if (!rows?.length) return null;
+  return <><h2>Local drafts</h2><ul>{rows.map((row, index) => <li key={index}>{row.filename} · {row.byteSize} bytes · {row.state === 'unsent'
+    ? row.expired ? 'Expired unsent draft' : 'Unsent draft' : 'Outcome unknown'}</li>)}</ul>
+    <p>Kept only on this browser for this account and home. Open live and sign in to review and send them.</p></>;
 }
 
 function OfflineUpkeep({ snapshot }: { snapshot: OfflineViewSnapshotV1 }) {
