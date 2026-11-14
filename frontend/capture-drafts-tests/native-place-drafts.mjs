@@ -12,7 +12,7 @@ import { build } from 'vite';
 const cases = new Set(['native-save-no-upload', 'native-reopen-unsent', 'native-review-confirm-one-upload',
   'native-form-no-draft-database', 'native-other-place-or-account-refused', 'native-lost-reply-drafts-reachable',
   'native-reported-mime-label-upload', 'native-offline-save-held-identity', 'native-save-no-identity-refused',
-  'native-session-answer-classification']);
+  'native-session-answer-classification', 'native-restart-unfocused-held-identity']);
 const args = process.argv.slice(2);
 assert(args.length === 2 && args[0] === '--case' && cases.has(args[1]), 'Select exactly one named case');
 const caseName = args[1];
@@ -151,7 +151,7 @@ function fixture(shared = { rows: [] }, input = selection) {
       calls.read++; init.signal.throwIfAborted();
       return shared.answer ? shared.answer() : json({ ...canonical });
     }).session,
-    foreground: () => true, recheckSession: () => { calls.recheck++; },
+    foreground: () => shared.focused !== false, recheckSession: () => { calls.recheck++; },
     schemas: { validate() { throw new Error('Stock schema validation belongs to source drafts only'); } },
     openStore: () => { calls.open++; return store; },
     editing: { replacePlace: refuse, loadPlace: refuse, uploadPlaceEvidence: refuse },
@@ -325,6 +325,23 @@ try {
     assert.equal(await panel.click('View local drafts'), 'Local drafts unavailable: this browser holds no signed-in session for this home.');
     assert.equal(asked, 0); assert.deepEqual(f.shared.rows, []); assert.equal(f.calls.open, 0, 'No draft storage opens without an identity');
     assert.equal(f.calls.read + f.calls.get + f.calls.post + f.calls.editing, 0);
+  } else if (caseName === 'native-restart-unfocused-held-identity') {
+    // A relaunched browser: the page load's 200 session read holds the identity, but the
+    // page is visible without focus (activation that never focused the window).
+    await f.save();
+    f.shared.focused = false;
+    const reopened = fixture(f.shared);
+    assert.equal(reopened.port.current(), null);
+    const panel = mountPanel(reopened.port, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }));
+    assert.equal(await panel.click('View local drafts'), 'Local drafts unavailable: this page is not in the foreground. Select the page and try again.');
+    panel.optIn();
+    assert.equal(await panel.click('Save local draft'), 'Local draft not saved: this page is not in the foreground. Select the page and try again.');
+    assert.equal(reopened.calls.open, 0); assert.deepEqual(panel.rows(), []);
+    // Focus alone restores it: the held identity is the load's, with no sign-in or further session read.
+    f.shared.focused = true;
+    assert.equal(await panel.click('View local drafts'), 'Local drafts loaded for this place and account.');
+    assert.deepEqual(panel.rows().map(row => row.split('Saved ')[0]), [`${original.name} · ${original.size} bytes · Unsent draft`]);
+    assert.equal(reopened.calls.read + reopened.calls.recheck + reopened.calls.get + reopened.calls.post + reopened.calls.editing, 0);
   } else if (caseName === 'native-session-answer-classification') {
     // Each session answer through the actual session client and adapter, from a fresh held identity.
     const outcomes = {};
