@@ -43,9 +43,13 @@ export function validateRow(value: unknown): asserts value is DraftRow {
   keys(value, ['format', 'id', 'owner', 'targetSourceRef', 'recordId', 'original', 'contentType', 'lastModified',
     'sha256', 'capture', 'form', 'createdAt', 'expiresAt', 'state', 'attempt']);
   if (value['format'] !== 'houseatlas-local-capture-draft/1') throw new TypeError('Local draft version is unavailable');
-  id(value['id']); id(value['recordId']); validateOwner(value['owner']); validateSource(value['targetSourceRef']);
+  id(value['id']); id(value['recordId']); validateOwner(value['owner']);
+  // Null names a native Atlas place: its recordId within the owner's home.
   const owner = value['owner'], source = value['targetSourceRef'];
-  if (owner.workspaceId !== source.workspaceId || owner.homeId !== source.homeId) throw new TypeError('Local draft scope differs');
+  if (source !== null) {
+    validateSource(source);
+    if (owner.workspaceId !== source.workspaceId || owner.homeId !== source.homeId) throw new TypeError('Local draft scope differs');
+  }
   const blob = value['original'];
   if (!(blob instanceof Blob) || blob.size < 1 || blob.size > DRAFT_LIMITS.fileBytes)
     throw new TypeError('Local original bytes are unavailable');
@@ -67,7 +71,8 @@ export function validateRow(value: unknown): asserts value is DraftRow {
     if (value['attempt'] !== null) throw new TypeError('Local unsent state is incompatible');
   } else if (value['state'] === 'outcome-unknown') {
     const attempt = value['attempt']; keys(attempt, ['requestId', 'idempotencyKey', 'startedAt']);
-    id(attempt['requestId']); id(attempt['idempotencyKey']); timestamp(attempt['startedAt']);
+    id(attempt['requestId']); timestamp(attempt['startedAt']);
+    if (source !== null || attempt['idempotencyKey'] !== null) id(attempt['idempotencyKey']);
   } else throw new TypeError('Local draft state is incompatible');
   const { original: _, ...metadata } = value;
   if (new TextEncoder().encode(JSON.stringify(metadata)).byteLength > DRAFT_LIMITS.metadataBytes)

@@ -38,7 +38,8 @@ export interface DraftCapture {
 export type DraftUploadIntent = UploadPlaceEvidence & { readonly capture: DraftCapture };
 export interface DraftAttempt {
   readonly requestId: string;
-  readonly idempotencyKey: string;
+  /** Null when the target's own upload owner keeps its idempotency key private. */
+  readonly idempotencyKey: string | null;
   readonly startedAt: string;
 }
 /** Internal IndexedDB row. It contains no server record/admission/credentials. */
@@ -46,7 +47,8 @@ export interface DraftRow {
   readonly format: 'houseatlas-local-capture-draft/1';
   readonly id: string;
   readonly owner: DraftOwner;
-  readonly targetSourceRef: SourceRef;
+  /** Null for a native Atlas place, which has no source record. */
+  readonly targetSourceRef: SourceRef | null;
   readonly recordId: string;
   readonly original: Blob;
   readonly contentType: string;
@@ -62,7 +64,7 @@ export interface DraftRow {
 }
 export interface DraftSummary {
   readonly id: string;
-  readonly targetSourceRef: SourceRef;
+  readonly targetSourceRef: SourceRef | null;
   readonly recordId: string;
   readonly filename: string;
   readonly byteSize: number;
@@ -76,7 +78,7 @@ export interface DraftReview {
   readonly token: object;
   readonly file: File;
   readonly form: DraftForm;
-  readonly targetSourceRef: SourceRef;
+  readonly targetSourceRef: SourceRef | null;
   readonly recordId: string;
   readonly capture: DraftCapture;
   readonly sha256: string;
@@ -86,17 +88,20 @@ export interface DraftSubmission {
   readonly capture: DraftCapture;
   readonly sha256: string;
   /** One-use synchronous handoff, immediately before the host invokes upload.
-   * Calling this does not submit. The host must never copy/retry its result. */
-  takeForForegroundSubmit(): DraftUploadIntent;
+   * Calling this does not submit. The host must never copy/retry its result.
+   * A source target yields DraftUploadIntent; another target yields its owner's prepared handoff. */
+  takeForForegroundSubmit(): unknown;
 }
 export interface DraftUnknownInspection {
   readonly draftId: string;
   readonly attempt: DraftAttempt;
-  readonly targetSourceRef: SourceRef;
+  readonly targetSourceRef: SourceRef | null;
   readonly recordId: string;
   readonly sha256: string;
   /** Fresh saved information is observation only, not proof of this outcome. */
   readonly savedPlace: PlaceEditAdmission | null;
+  /** Current place revision from that fresh read, for any target. */
+  readonly savedRevision: string | null;
   readonly outcome: 'unknown';
   readonly retrySafety: 'not-established';
 }
@@ -111,7 +116,27 @@ export interface DraftHost {
   loadPlace(source: SourceRef, signal: AbortSignal): Promise<PlaceEditAdmission | null>;
   /** Actual schema/correlation validator for the server's upload result. */
   validateAcknowledgement(result: unknown, intent: UploadPlaceEvidence): void;
+  /** Owner for drafts whose targetSourceRef is null. Without it they are refused. */
+  placeTarget?: DraftTargetOwner;
 }
+/** Fresh admission and the final upload owner for a target without a source.
+ * The controller persists the outcome-unknown marker between prepare() and
+ * the single handoff; it never learns which upload the handoff starts. */
+export interface DraftTargetOwner {
+  /** Fresh read; throws unless the place is active and admits this file and form. */
+  admit(target: DraftTargetRow, signal: AbortSignal): Promise<void>;
+  /** Fresh admission and the owner's own one-shot preparation. Sends nothing. */
+  prepare(target: DraftTargetRow, file: File, signal: AbortSignal): Promise<{
+    readonly requestId: string;
+    readonly idempotencyKey: string | null;
+    readonly handoff: object;
+    /** Throws unless result is this handoff's validated committed outcome. */
+    acknowledge(result: unknown): void;
+  }>;
+  /** Observation only: the current place revision, or null when unreadable. */
+  revision(target: DraftTargetRow, signal: AbortSignal): Promise<string | null>;
+}
+export type DraftTargetRow = Pick<DraftRow, 'owner' | 'recordId' | 'contentType' | 'sha256' | 'capture' | 'form'> & { readonly byteSize: number };
 /** Every mutation callback is synchronous, atomic, and serialized across tabs. */
 export interface DraftStore {
   read(): Promise<readonly DraftRow[]>;

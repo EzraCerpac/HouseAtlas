@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Scope, SourceRef } from '../api/generated/contracts';
 import type { DraftReview, DraftSummary, DraftUnknownInspection } from '../capture-drafts/types';
-import type { StockResultEnvelope } from '../webmcp/stock';
-import { sameTarget, type CaptureDraftPort } from './port';
+import { sameTarget, type CaptureDraftPort, type DraftCompletion } from './port';
 
 type SaveInput = Parameters<CaptureDraftPort['save']>[0];
-export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, parentBusy, onBusy, onSaved, onSubmitted }: {
-  port: CaptureDraftPort; source: SourceRef; recordId: string | undefined;
-  candidate(): SaveInput | null; canSave: boolean; parentBusy: boolean;
+export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, canUpload = true, parentBusy, onBusy, onSaved, onSubmitted }: {
+  /** Null for a native Atlas place; its drafts are matched by recordId. */
+  port: CaptureDraftPort; source: SourceRef | null; recordId: string | undefined;
+  candidate(): SaveInput | null; canSave: boolean;
+  /** False blocks Confirm upload only; listing, review, inspection and removal stay available. */
+  canUpload?: boolean; parentBusy: boolean;
   onBusy(busy: boolean): void; onSaved(): void;
-  onSubmitted(result: StockResultEnvelope, localCleanup: 'removed' | 'unconfirmed'): Promise<void>;
+  onSubmitted(completion: DraftCompletion): Promise<void>;
 }) {
   const [summaries, setSummaries] = useState<readonly DraftSummary[]>([]);
   const [review, setReview] = useState<DraftReview | null>(null);
@@ -22,6 +24,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   const locked = useRef(false);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const sourceKey = JSON.stringify(source);
+  const mine = (row: DraftSummary) => sameTarget(row.targetSourceRef, source) && (source !== null || row.recordId === recordId);
   useEffect(() => {
     if (!review) { setOriginalUrl(null); return; }
     const url = URL.createObjectURL(review.file); setOriginalUrl({ file: review.file, url });
@@ -51,7 +54,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
   const list = async (signal: AbortSignal) => {
     if (!(await port.prepare(signal))) throw new Error('Current boundary is unavailable');
     const rows = await port.list(); signal.throwIfAborted();
-    setSummaries(rows.filter(row => sameTarget(row.targetSourceRef, source)));
+    setSummaries(rows.filter(mine));
   };
   const save = () => void run(async signal => {
     if (!optedIn) return;
@@ -60,7 +63,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     await port.save(input); signal.throwIfAborted();
     setOptedIn(false); setReview(null); setConfirmed(false); onSaved();
     const rows = await port.list(); signal.throwIfAborted();
-    setSummaries(rows.filter(row => sameTarget(row.targetSourceRef, source)));
+    setSummaries(rows.filter(mine));
     setStatus('Unsent draft saved on this browser. Nothing was uploaded.');
   });
   const resume = (id: string) => void run(async signal => {
@@ -72,18 +75,18 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     requestAnimationFrame(() => { if (!signal.aborted) reviewHeading.current?.focus(); });
   });
   const submit = () => void run(async signal => {
-    if (!review || !confirmed || !recordId) return;
+    if (!review || !confirmed || !recordId || !canUpload) return;
     const selected = review; setReview(null); setConfirmed(false);
     const completion = await port.submit(selected, source, recordId, signal);
     signal.throwIfAborted();
     // Release the foreground lease before the ordinary view refresh masks the
     // scope. Local acknowledgement already ran before this refresh.
     active.current?.release();
-    if (completion.result['status'] === 'committed') {
+    if (completion.committed) {
       setSummaries([]);
       setStatus(completion.localCleanup === 'removed' ? 'Saved. The local draft was removed.' : 'Saved. Local cleanup could not be confirmed; the local attempt remains locked.');
     } else setStatus('The upload was not committed. The local attempt remains locked with an unknown outcome.');
-    await onSubmitted(completion.result, completion.localCleanup);
+    await onSubmitted(completion);
   });
   const inspect = (id: string) => void run(async signal => {
     setReview(null); setConfirmed(false); setInspection(null);
@@ -98,7 +101,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     await port.discard(row.id, { loseUnknownOutcome: loseUnknown }); signal.throwIfAborted();
     setReview(null); setInspection(null); setConfirmed(false); setLoseUnknown(false);
     const rows = await port.list(); signal.throwIfAborted();
-    setSummaries(rows.filter(next => sameTarget(next.targetSourceRef, source)));
+    setSummaries(rows.filter(mine));
     setStatus('Local file removed. This does not cancel any server operation.');
   });
   const unavailable = port.unavailableReason();
@@ -136,13 +139,13 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
       </dl>
       <p>These saved values are fixed for this attempt. To change them, remove this unsent draft and select the file again. Browser selection time does not establish device capture time.</p>
       <label><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event => setConfirmed(event.target.checked)} /> Upload this saved file and these values to this Atlas place once</label>
-      <div className="actions"><button type="button" disabled={disabled || !confirmed} onClick={submit}>Confirm upload</button>
+      <div className="actions"><button type="button" disabled={disabled || !confirmed || !canUpload} onClick={submit}>Confirm upload</button>
         <button type="button" disabled={disabled} onClick={() => { port.invalidate(); setReview(null); setConfirmed(false); setStatus('Review cancelled. The unsent local draft remains.'); }}>Cancel review</button></div>
     </section>}
     {inspection && <section aria-label="Unknown capture outcome">
       <h4>Outcome unknown</h4>
       <p>Request {inspection.attempt.requestId} · Started {inspection.attempt.startedAt}</p>
-      <p>{inspection.savedPlace ? `Current Atlas revision: ${inspection.savedPlace.record.revision}.` : 'Current Atlas place information is unavailable.'} Retry safety is not established. This draft cannot be uploaded again.</p>
+      <p>{inspection.savedRevision !== null ? `Current Atlas revision: ${inspection.savedRevision}.` : 'Current Atlas place information is unavailable.'} Retry safety is not established. This draft cannot be uploaded again.</p>
     </section>}
   </div>;
 }

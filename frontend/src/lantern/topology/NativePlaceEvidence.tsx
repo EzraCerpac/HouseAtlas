@@ -6,6 +6,9 @@ import type { EvidenceSelection } from '../../capture-evidence/selection';
 import { stringifyLosslessJson, type JsonForSerialization } from '../../numeric/lossless-json';
 import type { Location, TopologyIndex } from './model';
 import { LinkedEvidence } from '../components/LinkedEvidence';
+import { useCaptureDrafts } from '../../capture-drafts-ui/Context';
+import { CaptureDraftPanel } from '../../capture-drafts-ui/Panel';
+import type { CaptureDraftPort, DraftCompletion } from '../../capture-drafts-ui/port';
 
 function UploadObservation({ value }: { value: NativeEvidenceUploadDiagnostic }) {
   const phase = { 'starting-transport': 'Starting transport', 'waiting-for-response-headers': 'Waiting for response headers',
@@ -24,7 +27,8 @@ function UploadObservation({ value }: { value: NativeEvidenceUploadDiagnostic })
   </details>;
 }
 
-/** A native record row owns no source fallback, persistence or submitted-request replay. */
+/** A native record row owns no source fallback or submitted-request replay. Local
+ * unsent drafts persist only through the shared draft panel after explicit opt-in. */
 export function NativePlaceEvidence({ client, binding, location, index, refresh }: {
   client: NativeEvidenceClient; binding: NativePlaceBinding; location: Location; index: TopologyIndex; refresh(): void;
 }) {
@@ -34,6 +38,8 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   const [inspections, setInspections] = useState<ReadonlyMap<NativeEvidencePrepared, NativeEvidenceAdmission>>(new Map());
   const [requestId, setRequestId] = useState(''), [requestObservation, setRequestObservation] = useState<NativeEvidenceRequestObservation | null>(null);
   const [, changed] = useState(0);
+  const drafts = useCaptureDrafts();
+  const evidenceForm = useRef<HTMLFormElement>(null), localSelection = useRef<{ selection: EvidenceSelection; id: string } | null>(null);
   const active = useRef<AbortController | null>(null), submitting = useRef(false);
   const opener = useRef<HTMLButtonElement>(null), heading = useRef<HTMLHeadingElement>(null), restoreOpener = useRef(false);
   const classification = location.semantics.length === 1 ? location.semantics[0] : undefined;
@@ -47,6 +53,9 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   const attempts = homeAttempts.filter(attempt => attempt.prepared.recordId === recordId);
   const unknown = homeAttempts.some(attempt => attempt.outcome === 'unknown');
   useEffect(() => client.subscribePending(() => changed(v => v + 1)), [client]);
+  useEffect(() => drafts?.subscribeInvalidation(reason => {
+    if (reason === 'boundary') { setSelection(null); localSelection.current = null; }
+  }), [drafts]);
   useLayoutEffect(() => {
     const clear = () => {
       active.current?.abort(); active.current = null; submitting.current = false;
@@ -180,6 +189,23 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
       if (live(controller)) setStatus('The requested native evidence record could not be validated or read. Its outcome remains unknown.');
     } finally { finish(controller); }
   };
+  const draftCandidate = (): Parameters<CaptureDraftPort['save']>[0] | null => {
+    const form = evidenceForm.current, policy = admission?.attachmentPolicy;
+    if (!form || !selection || !recordId || !policy || !admission.canAttachEvidence || !form.reportValidity()) return null;
+    const fields = new FormData(form), statement = String(fields.get('statement') ?? '').trim(), reason = String(fields.get('reason') ?? '').trim();
+    if (fields.get('license') !== '0' || !statement || [...statement].length > 4096 || !reason || [...reason].length > admission.maximumReasonCodePoints) {
+      setStatus('Select the license and check the statement and reason limits.'); return null;
+    }
+    if (localSelection.current?.selection !== selection) localSelection.current = { selection, id: crypto.randomUUID() };
+    return { localId: localSelection.current.id, selection, form: { statement, sourceLicense: policy.licenses[0]!.value, reason },
+      targetSourceRef: null, recordId, optedIn: true };
+  };
+  const draftSubmitted = async ({ committed, localCleanup }: DraftCompletion) => {
+    if (!committed) return;
+    const suffix = localCleanup === 'unconfirmed' ? ' Local cleanup could not be confirmed; view local drafts before any further action.' : '';
+    setSelection(null); localSelection.current = null; setAdmission(null); setOpen(false); restoreOpener.current = true;
+    setStatus(`Saved native evidence. Reloading Atlas records…${suffix}`); refresh();
+  };
   if (!eligible || !recordId || !current()) return null;
   return <div className="topology-evidence">
     {identity && <details><summary>Native identity evidence ({identity.payload.evidenceIds.length})</summary>
@@ -199,13 +225,15 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
         <pre>{stringifyLosslessJson(requestObservation.observed)}</pre>
       </details>}
     </details>
-    {!open && <button ref={opener} type="button" disabled={busy || unknown} onClick={() => void load()}>Add native evidence</button>}
+    {/* An unknown attempt blocks upload, not local draft management. */}
+    {!open && <button ref={opener} type="button" disabled={busy || (unknown && !drafts)} onClick={() => void load()}>Add native evidence</button>}
     {unknown && !attempts.some(attempt => attempt.outcome === 'unknown') && <p role="status">A native evidence submission in this home has unknown completion. Do not resend; inspect saved information in its originating row.</p>}
     <p role="status" aria-live="polite">{status}</p>
     {open && <section aria-label={`Native evidence for ${location.label}`} aria-busy={busy}>
       <h3 ref={heading} tabIndex={-1}>Add native evidence</h3>
       <p>Atlas identity: {location.id} · classification: {recordId}</p>
-      {admission?.canAttachEvidence && admission.attachmentPolicy && <form className="session-form" onSubmit={event => void submit(event)}>
+      {unknown && <p role="status">Upload is unavailable while a native evidence submission in this home has unknown completion. Local drafts can still be reviewed or removed.</p>}
+      {admission?.canAttachEvidence && admission.attachmentPolicy && <form ref={evidenceForm} className="session-form" onSubmit={event => void submit(event)}>
         <EvidencePicker policy={admission.attachmentPolicy} busy={busy || unknown} value={selection} onChange={setSelection} />
         <label><span>Evidence statement (maximum 4096 characters)</span><textarea name="statement" required disabled={busy || unknown} /></label>
         <p className="body-text muted">Evidence basis is unknown. The fact date is not supplied; the server records retrieval time. Browser selection labels are unverified.</p>
@@ -215,6 +243,10 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
         <label><span>Reason (maximum 1024 characters)</span><input name="reason" required disabled={busy || unknown} /></label>
         <button type="submit" disabled={busy || unknown || !selection}>Upload native evidence</button>
       </form>}
+      {drafts && <CaptureDraftPanel port={drafts} source={null} recordId={recordId} candidate={draftCandidate}
+        canSave={!!selection && !!admission?.canAttachEvidence && !!admission.attachmentPolicy && !unknown} canUpload={!unknown} parentBusy={busy}
+        onBusy={value => { submitting.current = value; setBusy(value); }} onSaved={() => { setSelection(null); localSelection.current = null; }}
+        onSubmitted={draftSubmitted} />}
       {!admission && <button type="button" disabled={busy} onClick={() => void load()}>Reload native admission</button>}
       <button type="button" onClick={() => {
         active.current?.abort(); active.current = null; submitting.current = false; restoreOpener.current = true;
@@ -239,6 +271,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
           : 'The server rejected the uploaded file or its metadata.'} No evidence was saved (HTTP {attempt.intakeError?.httpStatus ?? 'unknown'}). Review the form and start a new upload to try again.</p>
       </> : <>
         <p>Evidence ID: {attempt.evidenceId} · original asset ID: {attempt.assetId}</p>
+        {attempt.original && <p>Original file: {attempt.original.name} · {attempt.original.type} · {attempt.original.byteSize} bytes</p>}
         <button type="button" disabled={busy} onClick={() => void original(attempt)}>Check original download</button>
         {offers.get(attempt.prepared) && <a href={offers.get(attempt.prepared)} download rel="noopener" referrerPolicy="same-origin" onClick={event => { if (!current()) event.preventDefault(); }}>Download original</a>}
         {attempt.receipt && <details><summary>Native command receipt</summary><pre>{stringifyLosslessJson(attempt.receipt)}</pre></details>}

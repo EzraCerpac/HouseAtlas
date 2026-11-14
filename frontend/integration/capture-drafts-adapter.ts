@@ -4,7 +4,8 @@ import type { AtlasEditingClient } from '../src/app/editing.ts';
 import type { StockSchemaPort } from '../src/webmcp/stock.ts';
 import { createCaptureDrafts } from '../src/capture-drafts/controller.ts';
 import { openDraftStore } from '../src/capture-drafts/indexeddb.ts';
-import type { DraftBoundary, DraftHost, DraftStore } from '../src/capture-drafts/types.ts';
+import type { DraftBoundary, DraftHost, DraftStore, DraftTargetOwner, DraftTargetRow, DraftUploadIntent } from '../src/capture-drafts/types.ts';
+import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared } from '../src/api/native-evidence-client.ts';
 import { sameTarget, type CaptureDraftPort } from '../src/capture-drafts-ui/port.ts';
 
 interface Options {
@@ -17,6 +18,8 @@ interface Options {
   recheckSession(): void;
   foreground(): boolean;
   openStore?: () => DraftStore;
+  /** Native place evidence owner; drafts without a source use it for admission and upload. */
+  placeEvidence?: () => NativeEvidenceClient | null;
 }
 const sameScope = (a: Scope | null, b: Scope | null) => !!a && !!b
   && a.workspaceId === b.workspaceId && a.homeId === b.homeId;
@@ -24,6 +27,43 @@ const sameSession = (a: AtlasSessionInfo, b: AtlasSessionInfo) => a.actorId === 
   && a.csrfToken === b.csrfToken && a.expiresAt === b.expiresAt;
 const validSession = (s: AtlasSessionInfo | null): s is AtlasSessionInfo => !!s && s.schemaVersion === 1
   && !!s.actorId && !!s.csrfToken && Number.isFinite(Date.parse(s.expiresAt)) && Date.parse(s.expiresAt) > Date.now();
+
+/** Native places: fresh admission and the one upload come from the native
+ * evidence owner, which prepares, sends once and validates its own receipt. */
+function nativePlaceTarget(evidence: () => NativeEvidenceClient | null): DraftTargetOwner {
+  async function admit(target: DraftTargetRow, signal: AbortSignal): Promise<NativeEvidenceAdmission> {
+    const client = evidence(), binding = client?.getBinding();
+    if (!client || !binding || binding.scope.workspaceId !== target.owner.workspaceId || binding.scope.homeId !== target.owner.homeId)
+      throw new Error('Select the draft home before reviewing this native place draft');
+    const admission = await client.load(binding, target.recordId, signal);
+    signal.throwIfAborted();
+    const policy = admission.attachmentPolicy;
+    if (admission.record.recordId !== target.recordId || !admission.canAttachEvidence || !policy
+      || target.byteSize > policy.maximumBytes || !policy.contentTypes.includes(target.contentType)
+      || !policy.licenses.some(choice => choice.value.status === target.form.sourceLicense.status && choice.value.reference === target.form.sourceLicense.reference))
+      throw new Error('Read current Atlas information and review this attachment before submitting');
+    return admission;
+  }
+  return {
+    async admit(target, signal) { await admit(target, signal); },
+    async prepare(target, file, signal) {
+      const admission = await admit(target, signal), client = evidence()!;
+      // The row keeps the canonical type; the browser-returned original carries the reported label of the unchanged claim.
+      const original = new File([file], file.name, { type: target.capture.reportedContentType, lastModified: file.lastModified });
+      const prepared = await client.prepare(admission, { selection: { original, file, capture: structuredClone(target.capture) },
+        statement: target.form.statement, reason: target.form.reason, sourceLicense: structuredClone(target.form.sourceLicense) }, signal);
+      return { requestId: prepared.requestId, idempotencyKey: null, handoff: prepared, acknowledge(result) {
+        const pending = result as NativeEvidencePending | null;
+        if (!pending || pending.prepared !== prepared || pending.outcome !== 'committed' || !pending.receipt)
+          throw new TypeError('Server acknowledgement differs from the local attempt');
+      } };
+    },
+    async revision(target, signal) {
+      try { return (await admit(target, signal)).record.revision.token; }
+      catch { signal.throwIfAborted(); return null; }
+    },
+  };
+}
 
 /** Native profile only: canonical GET's private CSRF marker is stable for the
  * exact HttpOnly cookie. Login receipts do not seed this continuity tuple.
@@ -108,6 +148,7 @@ export function createCaptureDraftAdapter(options: Options) {
         || resolved['workspaceId'] !== intent.context.workspaceId || resolved['homeId'] !== intent.context.homeId)
         throw new TypeError('A committed correlated acknowledgement is required');
     },
+    ...(options.placeEvidence ? { placeTarget: nativePlaceTarget(options.placeEvidence) } : {}),
   };
   const drafts = () => controller ??= createCaptureDrafts((options.openStore ?? openDraftStore)(), host);
   const port: CaptureDraftPort = {
@@ -130,26 +171,36 @@ export function createCaptureDraftAdapter(options: Options) {
         await drafts().clearAccount({ loseLocalCaptures: true });
       } finally { operation.release(); }
     },
-    async submit(review, target: SourceRef, recordId, signal) {
+    async submit(review, target: SourceRef | null, recordId, signal) {
       if (!sameTarget(review.targetSourceRef, target) || review.recordId !== recordId)
         throw new Error('This draft belongs to another Atlas place');
+      if (target === null) {
+        const evidence = options.placeEvidence?.();
+        if (!evidence) throw new Error('Native evidence upload is unavailable');
+        const submission = await drafts().beginAttempt(review.token, { confirmed: true }, signal);
+        // The native owner sends at most once and validates its own receipt.
+        const result = await evidence.commit(submission.takeForForegroundSubmit() as NativeEvidencePrepared, signal);
+        if (result.outcome !== 'committed') return { committed: false, result, localCleanup: 'unconfirmed' };
+        const completion = await drafts().acknowledge(submission, result);
+        return { committed: true, result, localCleanup: completion.localCleanup };
+      }
       const upload = options.editing.uploadPlaceEvidence;
       if (!upload) throw new Error('Evidence upload is unavailable');
       const submission = await drafts().beginAttempt(review.token, { confirmed: true }, signal);
       // No await, copy, retention, retry or alternative dispatch between these
       // two operations. The controller already persisted outcome-unknown.
-      const result = await upload(submission.takeForForegroundSubmit(), signal);
+      const result = await upload(submission.takeForForegroundSubmit() as DraftUploadIntent, signal);
       // The actual upload client already checks schema and request correlation.
       // Recheck the closed receipt before the UI can report a known commit.
       options.schemas.validate('#/$defs/result_atlas_batch_execute', result);
       const resolved = result['resolvedScope'] as Record<string, unknown>;
       if (result['commandId'] !== 'atlas.batch.execute' || resolved['workspaceId'] !== target.workspaceId || resolved['homeId'] !== target.homeId)
         throw new TypeError('Attachment completion scope differs');
-      if (result['status'] !== 'committed') return { result, localCleanup: 'unconfirmed' };
+      if (result['status'] !== 'committed') return { committed: false, result, localCleanup: 'unconfirmed' };
       // The controller distinguishes a known commit from failed local cleanup
       // within this acknowledgement, after validating this attempt's identity.
       const completion = await drafts().acknowledge(submission, result);
-      return { result, localCleanup: completion.localCleanup };
+      return { committed: true, result, localCleanup: completion.localCleanup };
     },
   };
   return {
