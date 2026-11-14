@@ -823,6 +823,9 @@
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
 
+/* Spread floors beside 3D and Plan: the view's one toggle, in the same segment. */
+.lantern-host .ua-spread { display: inline-flex; align-items: center; gap: 6px; }
+
 /* Lighting time: a chip in the Floor Stack's family. Drag sideways on it to
    move through today; a tap unfolds a strip of the day's sky below it. */
 .lantern-host .ua-time { position: relative; flex: none; }
@@ -972,6 +975,28 @@
   padding: 0 12px 0 10px;
   color: var(--ink);
   font-weight: 650;
+}
+
+.lantern-host .ua-menu-time {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 2px 0 8px;
+  border-bottom: 1px solid var(--hair);
+}
+
+/* In the menu the strip unfolds in place, below the label and the chip. */
+.lantern-host .ua-menu-time .ua-time { display: contents; }
+.lantern-host .ua-menu-time .ua-time-paper { box-shadow: none; backdrop-filter: none; }
+.lantern-host .ua-menu-time .ua-time-card {
+  grid-column: 1 / -1;
+  position: static;
+  width: auto;
+  padding: 2px 4px 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .lantern-host .ua-menu-check {
