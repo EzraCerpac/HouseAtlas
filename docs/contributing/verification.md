@@ -1,5 +1,19 @@
 # HouseAtlas
 
+## HomeBox registration cleanup
+
+Offline storage cleanup of HomeBox registration marks (clear, sign-out and account
+replacement) is no longer bounded by the metadata row allowance or per-row size
+checks. Marks are never evicted and are read by key, so an account could reach
+more of them than the old scan accepted, which rolled back every deletion and
+left stored data behind. Cleanup now removes marks by key only. Admission and read
+limits are unchanged. One new top-level case in the existing required
+`offline-electrical-copy.test.mjs` seeds 2,057 synthetic marks plus the witness
+and requires clear and account replacement to remove all stored data. It uses the
+file's in-memory backend, with no browser or native service. The case is authored
+and UNRUN in hosted CI until exact-head qualification. No new selection or
+command: 83 SOURCE / 1 BUILD / 11 BROWSER (95 total), deadlines and pins remain.
+
 ## HomeBox same-observation reopening
 
 Reviewed donor history `444d66bf` then `bcaedb3f`, based on qualified main

@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 109852,
-      "sha256": "d62488b3eb0136fd18cfde0a8fa594cc8de22d4c6c27f75ff17fcb0489b39ea2",
+      "bytes": 110726,
+      "sha256": "9f6fe25c95b321ca7669abfe0d17cb34d0ccfce98f77e4b53813028a762e9357",
       "owner": "core-integration"
     },
     {
@@ -6635,8 +6635,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 343611,
-      "sha256": "76fd76bbb8c84b8400c3e7669625d3dd6438e8410d70c48ada9a60a2896716c3",
+      "bytes": 344518,
+      "sha256": "995eb53ce8d320a36f49905b33f825e43d5c6e9799453c1452bc5e33d4dc2e2c",
       "owner": "core-integration"
     },
     {
@@ -8567,8 +8567,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 104001,
-      "sha256": "a8d7b9cf6ca4421c28ce40dc56add847ad6bad35a51a90e9a02274fe17811407",
+      "bytes": 105748,
+      "sha256": "4e8ea403a6bef90277d7a2636936294c84b68cc8b859db8a0707c74b32f75db6",
       "owner": "web"
     },
     {
@@ -11108,8 +11108,8 @@
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 62213,
-      "sha256": "466c9e24f4b5ad7119ae1d9d41d6692e1e75ee82b8471ced690d14dddc2f516e",
+      "bytes": 62281,
+      "sha256": "2701b71948bcf67bb5ea51bd9a2b22b0ac7cc8b16fdfc9be85a18d78becd462b",
       "owner": "web"
     },
     {
