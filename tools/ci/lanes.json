@@ -112,7 +112,7 @@
       "toolchain": ["python3"],
       "files": ["tools/ci/check_lanes.py", "tools/ci/lanes.json", "docs/contributing/verification.md"],
       "scope": "This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command.",
-      "claims": [["AGENTS.md", "python3 -B -I tools/ci/check_lanes.py --check"]]
+      "claims": [["docs/contributing/verification.md", "python3 -B -I tools/ci/check_lanes.py --check"]]
     },
     {
       "id": "core.runtime",
@@ -176,7 +176,7 @@
       "scope": "The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written.",
       "cases": {"counter": "node-test-toplevel", "files": ["tools/publication/refresh-manifest.test.mjs"], "expected": 12},
       "claims": [
-        ["AGENTS.md", "twelve cases build tiny generated trees"],
+        ["docs/contributing/verification.md", "the twelve\ncases of the [manifest regenerator]"],
         ["docs/contributing/verification.md", "node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs"]
       ]
     },
@@ -202,7 +202,7 @@
       "scope": "Six existing production-store assertions through a controlled IDB interface and generated in-memory rows; no real IndexedDB, browser, native service, network, credentials, crash or retention qualification.",
       "claims": [
         [
-          "AGENTS.md",
+          "docs/contributing/verification.md",
           "exactly the six existing"
         ],
         [
@@ -263,7 +263,7 @@
       "scope": "Generated pure in-memory registration cases; no receipt, native authority or physical placement.",
       "cases": {"counter": "node-test-toplevel", "files": ["tools/electrical_registration/healthy.test.mjs"], "expected": 8},
       "claims": [
-        ["AGENTS.md", "The same job runs the eight existing generated"],
+        ["docs/contributing/verification.md", "The same job runs the eight existing generated"],
         [".github/workflows/ordinary-core.yml", "eight named synthetic electrical registration cases"]
       ]
     },
@@ -280,7 +280,7 @@
       "scope": "Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler.",
       "cases": {"counter": "node-test-toplevel", "files": ["tools/perf/host-client/options.test.mjs", "tools/perf/host-client/compare.test.mjs"], "expected": 9},
       "claims": [
-        ["AGENTS.md", "These nine stdlib-only cases"],
+        ["docs/contributing/verification.md", "These nine stdlib-only cases"],
         ["docs/contributing/verification.md", "The nine cases check"]
       ]
     },
@@ -384,7 +384,7 @@
       "files": ["tools/homebox-quantity-seed-report/test_report.py"],
       "scope": "Synthetic HomeBox quantity seed report unit tests; prints the runner Python version.",
       "cases": {"counter": "python-unittest-methods", "dir": "tools/homebox-quantity-seed-report", "pattern": "test_report.py", "expected": 14},
-      "claims": [["AGENTS.md", "also runs the 14 synthetic `tools/homebox-quantity-seed-report` unit tests"]]
+      "claims": [["docs/contributing/verification.md", "also runs the 14 synthetic `tools/homebox-quantity-seed-report` unit tests"]]
     },
     {
       "id": "core.runtime-profile",
@@ -399,7 +399,7 @@
       "scope": "Asserts Python >=3.11, then configuration refusal, sample decoding, receipts, deadlines and process-group cleanup with fake build/profiler commands.",
       "cases": {"counter": "python-unittest-methods", "dir": "tools/perf/runtime-profile", "pattern": "test_runtime_profile.py", "expected": 16},
       "claims": [
-        ["AGENTS.md", "also runs the sixteen explicit cases"],
+        ["docs/contributing/verification.md", "also runs the sixteen explicit cases"],
         ["docs/contributing/verification.md", "also runs the sixteen explicit cases"]
       ]
     },
@@ -416,7 +416,7 @@
       "scope": "Owner-approved finite exception: fake GET/session/admission owners and disposable journal state; no socket, write or provider.",
       "cases": {"counter": "python-argparse-choices", "file": "tools/houseatlas-mcp-bridge/test_bridge.py", "expected": 3},
       "claims": [
-        ["AGENTS.md", "invokes exactly `healthy_large_read_page`"],
+        ["docs/contributing/verification.md", "invokes exactly `healthy_large_read_page`"],
         ["docs/contributing/verification.md", "approved exactly these three existing selections"]
       ]
     },
@@ -611,7 +611,7 @@
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`.",
       "cases": {"counter": "cargo-skip", "expected": 3},
-      "claims": [["AGENTS.md", "skipping the three quantity tests that need"]]
+      "claims": [["docs/contributing/verification.md", "skipping the three quantity tests that need"]]
     },
     {
       "id": "rr.unit-tests.timing-summary",
@@ -665,7 +665,7 @@
       "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 84, "BUILD": 1, "BROWSER": 11}},
       "claims": [
         ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],
-        ["AGENTS.md", "`frontend/lantern-tests/run-healthy.mjs` with\nits explicit list"]
+        ["docs/contributing/verification.md", "`frontend/lantern-tests/run-healthy.mjs` with\nits explicit list"]
       ]
     },
     {
