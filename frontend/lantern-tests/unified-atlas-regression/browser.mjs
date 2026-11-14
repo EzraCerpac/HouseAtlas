@@ -247,19 +247,41 @@ try {
       await sheet(false);
       await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       await click(button('.layer-bar button', 'Electrical'));
-      assert.equal(await evaluate('document.querySelectorAll(".ua-marker").length'), 2);
+      // The second marker joins a frame or two after the toggle; wait for that settled state.
+      await until('document.querySelectorAll(".ua-marker").length === 2', 'two electrical markers');
+      // The camera is still easing into the building; click the marker only once it holds still.
+      let held = '', stillFor = 0;
+      for (let tries = 0; stillFor < 3; tries++) {
+        assert(tries < 100, 'Hall marker never held still');
+        const rect = await evaluate('JSON.stringify(document.querySelector(".ua-marker[aria-label^=\'Hall:\']")?.getBoundingClientRect() ?? null)');
+        stillFor = rect !== 'null' && rect === held ? stillFor + 1 : 0; held = rect;
+        await wait(60);
+      }
       await click('document.querySelector(".ua-marker[aria-label^=\'Hall:\']")');
       assert.equal(await selectedRoom(), 'Hall');
       assert.match(await evaluate('document.querySelector(".ua-inspector").textContent'), /3 records/);
       await click(stackRow('.ua-stack-floors', 'All floors'));
+      // All floors steps out of the room, and a room pick would scope to its own floor; the layers below stay on all floors.
+      assert.equal(await selectedRoom(), null);
+      // Layers are independent toggles: Network adds to Electrical rather than replacing it.
       await click(button('.layer-bar button', 'Network'));
-      assert.equal(await evaluate('document.querySelectorAll(".ua-marker").length'), 2);
+      await until('document.querySelectorAll(".ua-marker").length === 4', 'electrical and network markers together');
+      assert.deepEqual(await evaluate('Array.from(document.querySelectorAll(".layer-bar button")).map(b=>b.getAttribute("aria-pressed"))'), ['true', 'true', 'false']);
+      await click(button('.layer-bar button', 'Electrical'));
+      await until('document.querySelectorAll(".ua-marker").length === 2', 'two network markers');
       const pressed = await evaluate('Array.from(document.querySelectorAll(".layer-bar button")).map(b=>b.getAttribute("aria-pressed"))');
-      assert.deepEqual(pressed, ['false', 'false', 'true']);
-      assert.equal(await selectedRoom(), 'Hall');
+      assert.deepEqual(pressed, ['false', 'true', 'false']);
+      assert.deepEqual(await evaluate('Array.from(document.querySelectorAll(".ua-marker")).map(m=>m.getAttribute("aria-label")).sort()'),
+        ['Stairs: 1 network record, Ground floor, Synthetic house', 'Stairs: 1 network record, Upper floor, Synthetic house']);
+      assert.equal(await selectedRoom(), null);
     });
     await check('keyboard Enter selects a projected label; Escape clears', async () => {
-      await click(button('.layer-bar button', 'Rooms'));
+      // There is no Rooms layer: the plain room view is every layer off, and Network is the one still on.
+      await click(button('.layer-bar button', 'Network'));
+      await until('document.querySelectorAll(".ua-marker").length === 0', 'no overlay markers');
+      // Room names show only for a focused floor, so step into the Ground floor where Hall is.
+      await click(stackRow('.ua-stack-floors', 'Ground floor'));
+      await until('Boolean(document.querySelector(\'button[data-atlas-occurrence="syn-occ-hall"]\'))', 'Hall label on the Ground floor');
       await evaluate(`document.querySelector('button[data-atlas-occurrence="syn-occ-hall"]').focus()`);
       await key('Enter', 'Enter', 13);
       assert.equal(await selectedRoom(), 'Hall');
