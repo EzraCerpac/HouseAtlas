@@ -351,6 +351,9 @@ fn run_recheck(
             json!({"status": "rechecked", "cache": cache_facts(&cache)})
         }
         Ok(RecheckOutcome::Kept { code }) => json!({"status": "failed", "reason": code}),
+        Ok(RecheckOutcome::RecordsMissing) => {
+            json!({"status": "failed", "reason": "records-missing"})
+        }
         Err(error) if error.not_quarantined() => json!({"status": "not-needed"}),
         Err(error) if error.changed() => json!({"status": "failed", "reason": "changed"}),
         Err(_) => json!({"status": "failed", "reason": "unavailable"}),

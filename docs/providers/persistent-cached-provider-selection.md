@@ -155,11 +155,14 @@ in-flight and Editor admission rules; the lease additionally captures the
 `RevalidateSource` grant and revalidates it with `PublishCache` before the
 read, after it and inside the storage commit. It runs one complete GET-only
 read through the existing reader with the current header. Only a complete
-generation of exactly the configured registration is published; it replaces
-the quarantined generation and its cache status in one storage transaction.
-Every failure (`auth`, `wrong-scope`, `upstream`, `pagination`, `timeout`,
-`changed` when the stored cache moved meanwhile, `not-approved`) writes
-nothing. It answers `rechecked`, `failed`, `not-needed` (not quarantined, or
+generation of exactly the configured registration that still contains every
+entity the quarantined generation retains is published; it replaces the
+quarantined generation and its cache status in one storage transaction. A
+reviewed allowlist skips other records, so without that last rule a credential
+that sees only unrelated records would read an empty generation. Every failure
+(`auth`, `wrong-scope`, `upstream`, `pagination`, `timeout`,
+`records-missing`, `changed` when the stored cache moved meanwhile,
+`not-approved`) writes nothing. It answers `rechecked`, `failed`, `not-needed` (not quarantined, or
 never published here; nothing sent), `running` or `not-configured` (no
 `revalidateSource`; nothing sent). The plain cache-replacement path stays
 refused by the native Store authorization. It

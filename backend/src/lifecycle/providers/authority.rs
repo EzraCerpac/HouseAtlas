@@ -724,6 +724,8 @@ pub enum HomeBoxPublicationOutcome<'lease, G: Send + Sync> {
 pub enum HomeBoxRevalidationOutcome<'lease, G: Send + Sync> {
     Complete(Box<StagedHomeBoxPublication<'lease, G>>),
     Failed(homebox::ErrorCode),
+    /// The read completed but lacks entities the quarantined generation holds.
+    RecordsMissing,
 }
 impl<'lease, G: Send + Sync> PreparedHomeBoxPublication<'lease, G> {
     /// The reader repeats full registration/coverage and quarantine checks
@@ -794,6 +796,9 @@ impl<'lease, G: Send + Sync> PreparedHomeBoxPublication<'lease, G> {
             Err(homebox::RefreshError::Read(failed)) => Ok(HomeBoxRevalidationOutcome::Failed(
                 failed.failure().error.code,
             )),
+            Err(homebox::RefreshError::Publication(homebox::PublishError::RecordsMissing)) => {
+                Ok(HomeBoxRevalidationOutcome::RecordsMissing)
+            }
             Err(homebox::RefreshError::Publication(error)) => Err(homebox_publication_error(error)),
         }
     }
@@ -864,6 +869,10 @@ fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
         }
         homebox::PublishError::Quarantined => ("forbidden", QUARANTINED),
         homebox::PublishError::NotQuarantined => ("forbidden", NOT_QUARANTINED),
+        homebox::PublishError::RecordsMissing => (
+            "forbidden",
+            "HomeBox recheck did not read every retained entity",
+        ),
         homebox::PublishError::StoreRejected => {
             ("upstream-unavailable", "HomeBox publication unavailable")
         }

@@ -16,8 +16,10 @@ synthetic checks, so the inventory is unchanged:
   refresh whose rules omit `RevalidateSource` (`not-approved`), and answered
   `running` with the in-flight flag set. A 401, a 403, a detail answered with
   a different record, a 500 on the second item page and an answer slower than
-  the request limit each reach HomeBox with GETs only, answer `failed` with
-  `auth`, `auth`, `wrong-scope`, `upstream` and `timeout`, leave the cached
+  the request limit, plus a complete read whose records are all ones the
+  allowlist never reviewed, each reach HomeBox with GETs only, answer `failed`
+  with `auth`, `auth`, `wrong-scope`, `upstream`, `timeout` and
+  `records-missing`, leave the cached
   read byte-for-byte unchanged and leave refresh refused. A complete read then
   answers `rechecked` in seven GETs; the cached read serves fresh rows without
   `access-revoked`, a further recheck is `not-needed` with no GET, and

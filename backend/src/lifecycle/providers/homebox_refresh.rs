@@ -58,6 +58,9 @@ pub enum RecheckOutcome {
     /// The read failed. Nothing was written: the quarantine and the last good
     /// state stay exactly as stored.
     Kept { code: read::ErrorCode },
+    /// The read completed but lacks entities the quarantined generation holds,
+    /// so it does not confirm the same source. Nothing was written.
+    RecordsMissing,
 }
 
 /// Only metadata exposed by the actual closed owner operations is returned.
@@ -206,6 +209,7 @@ pub async fn recheck_configured(
             }
         }
         HomeBoxRevalidationOutcome::Failed(code) => RecheckOutcome::Kept { code },
+        HomeBoxRevalidationOutcome::RecordsMissing => RecheckOutcome::RecordsMissing,
     };
     lease
         .revalidate(&authority)

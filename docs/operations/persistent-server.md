@@ -169,10 +169,12 @@ SHA256 and restart. After correcting the credential file and restarting, one
 of those Editors presses **Recheck HomeBox access**, shown in place of the
 refresh button while access is revoked. It reads the whole collection once
 with GETs only; access returns only when that complete read finds exactly the
-configured collection, and the fresh copy replaces the withheld one in the
-same commit. Any failure (refused credential, records outside the
-collection, an incomplete read, a timeout, another refresh running) writes
-nothing and says why. Without `revalidateSource` there is no way back on the
+configured collection and every record the withheld copy holds, and the fresh
+copy replaces the withheld one in the same commit. Any failure (refused
+credential, records outside the collection, saved records missing from the
+read, an incomplete read, a timeout, another refresh running) writes nothing
+and says why. If saved records were deleted in HomeBox while access was
+revoked, the recheck keeps refusing. Without `revalidateSource` there is no way back on the
 installed binary, so check the credential against HomeBox before the first
 press.
 

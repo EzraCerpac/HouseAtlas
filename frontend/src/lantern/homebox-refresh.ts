@@ -85,6 +85,7 @@ const REASONS: Readonly<Record<string, string>> = {
   'size-limit': 'the read exceeded its size limit',
   transport: 'HomeBox could not be reached',
   changed: 'the saved copy changed during the check',
+  'records-missing': 'HomeBox did not return every record saved for this source',
 };
 
 /** `recheck` says whether this caller is offered the access recheck, which

@@ -105,7 +105,8 @@ refuses retained quarantine and cannot reenable a source. The crate-private
 `fetch_revalidation` is the separately qualified path: called only by the lifecycle
 owner under a `RevalidateSource` grant, it runs the same complete read for a
 quarantined predecessor (and refuses one that is not quarantined); only a complete
-generation is staged without the quarantine, and its failures are never committed. Failed full fetches return `RefreshError<'p, P>::Read(Box<FailedPublication<'p, P>>)`.
+generation that still holds every retained entity is staged without the quarantine,
+and its failures are never committed. Failed full fetches return `RefreshError<'p, P>::Read(Box<FailedPublication<'p, P>>)`.
 This handoff privately retains the unchanged original principal, actual pre-fetch
 fence and immutable `FailedRead` proposal. `failure()`, `principal()` and `fence()`
 allow borrowed inspection; it has no Clone, Deserialize, mutable accessor or raw

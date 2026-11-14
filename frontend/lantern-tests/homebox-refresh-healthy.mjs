@@ -350,6 +350,8 @@ for (const aborted of [true, false]) {
   assert.deepEqual(decodeRecheckResult({ status: 'failed', reason: 'wrong-scope' }), { kind: 'recheck-failed', reason: 'wrong-scope' });
   assert.equal(describeRefresh(decodeRecheckResult({ status: 'failed', reason: 'timeout' }), format),
     'Access not restored: HomeBox did not answer in time. HomeBox entries stay withheld.');
+  assert.equal(describeRefresh(decodeRecheckResult({ status: 'failed', reason: 'records-missing' }), format),
+    'Access not restored: HomeBox did not return every record saved for this source. HomeBox entries stay withheld.');
   const model = server();
   for (const [answer, expected] of [[{ status: 'running' }, 'A refresh is already running. Try again when it finishes.'],
     [{ status: 'not-configured' }, 'Refreshing from HomeBox is not set up on this server.']]) {

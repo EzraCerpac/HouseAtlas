@@ -12,6 +12,9 @@ pub enum PublishError {
     Quarantined,
     /// A source recheck was requested for a source that is not quarantined.
     NotQuarantined,
+    /// A recheck's complete read lacks entities retained by the quarantined
+    /// generation, so it does not confirm the same source.
+    RecordsMissing,
     StoreRejected,
 }
 impl fmt::Display for PublishError {
@@ -24,6 +27,7 @@ impl fmt::Display for PublishError {
             }
             Self::Quarantined => "Source requires separately authorized scope revalidation.",
             Self::NotQuarantined => "Source is not quarantined.",
+            Self::RecordsMissing => "Source recheck read lacks retained entities.",
             Self::StoreRejected => "Complete-generation publication was not accepted by storage.",
         })
     }
@@ -143,8 +147,9 @@ impl<'a, P> PreparedGeneration<'a, P> {
     /// this, after capturing and revalidating its RevalidateSource grant. It is
     /// the ordinary complete read with one difference: a quarantined
     /// predecessor does not stop it, and a COMPLETE generation of exactly this
-    /// registration no longer carries the quarantine, so committing it clears
-    /// the quarantine in the same storage transaction. Every failure is
+    /// registration that still holds every retained entity no longer carries
+    /// the quarantine, so committing it clears the quarantine in the same
+    /// storage transaction. Every failure is
     /// returned unchanged; the caller records nothing for it.
     pub(crate) async fn fetch_revalidation<T: Transport, K: Clock>(
         self,
@@ -184,9 +189,14 @@ impl<'a, P> PreparedGeneration<'a, P> {
         let id = Uuid::parse(self.fence.reserved_generation_id())
             .map_err(|_| RefreshError::Publication(PublishError::InvalidRetainedState))?;
         let generation = match reader.fetch_generation(Some(&self.previous), id).await {
-            // The reader completed every page and detail of exactly this
-            // registration; anything outside it fails as WrongScope instead.
+            // The reader completed every page and detail of this registration;
+            // a reviewed allowlist silently skips other records, so a read that
+            // sees none of the retained entities could still "succeed". Lift
+            // the quarantine only when every retained entity was read again.
             Ok(mut generation) if revalidate => {
+                if !generation.missing_external_ids.is_empty() {
+                    return Err(RefreshError::Publication(PublishError::RecordsMissing));
+                }
                 generation.quarantine = false;
                 generation
             }

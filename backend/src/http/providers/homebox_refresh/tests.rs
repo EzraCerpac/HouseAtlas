@@ -172,6 +172,16 @@ const FORBIDDEN: u8 = 2;
 const WRONG_RECORD: u8 = 3;
 const STOPS_MID_READ: u8 = 4;
 const TOO_SLOW: u8 = 5;
+const UNRELATED: u8 = 6;
+/// The same stock pages with every record replaced by one this source never
+/// reviewed: a reviewed-allowlist read skips them all and finds nothing.
+fn unrelated(body: &[u8]) -> Vec<u8> {
+    String::from_utf8(body.to_vec())
+        .unwrap()
+        .replace(&id(1), &id(8))
+        .replace(&id(2), &id(9))
+        .into_bytes()
+}
 fn fixture(name: &str) -> &'static [u8] {
     match name {
         "locations" => {
@@ -428,20 +438,21 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lift
             let target = line.next().unwrap().to_owned();
             let path = target.split('?').next().unwrap().to_owned();
             observed.lock().unwrap().push(target.clone());
-            let (status, body) = match next.load(Ordering::SeqCst) {
-                UNAUTHORIZED => ("401 Unauthorized", &b""[..]),
-                FORBIDDEN => ("403 Forbidden", &b""[..]),
+            let (status, body): (_, Vec<u8>) = match next.load(Ordering::SeqCst) {
+                UNAUTHORIZED => ("401 Unauthorized", Vec::new()),
+                FORBIDDEN => ("403 Forbidden", Vec::new()),
                 // A detail answered with a different record than requested.
-                WRONG_RECORD if path.ends_with(&id(2)) => ("200 OK", fixture("location")),
+                WRONG_RECORD if path.ends_with(&id(2)) => ("200 OK", fixture("location").to_vec()),
                 // The second item page fails after the first one succeeded.
                 STOPS_MID_READ if target.contains("page=2") => {
-                    ("500 Internal Server Error", &b""[..])
+                    ("500 Internal Server Error", Vec::new())
                 }
                 TOO_SLOW => {
                     tokio::time::sleep(Duration::from_millis(1_500)).await;
-                    ("200 OK", respond(&target))
+                    ("200 OK", respond(&target).to_vec())
                 }
-                _ => ("200 OK", respond(&target)),
+                UNRELATED => ("200 OK", unrelated(respond(&target))),
+                _ => ("200 OK", respond(&target).to_vec()),
             };
             // The reader may already have given up on a slow answer.
             let _ = stream
@@ -453,7 +464,7 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lift
                     .as_bytes(),
                 )
                 .await;
-            let _ = stream.write_all(body).await;
+            let _ = stream.write_all(&body).await;
             let _ = stream.shutdown().await;
         }
     });
@@ -631,6 +642,9 @@ async fn healthy_editor_refresh_fills_cache_then_opens_original_and_recheck_lift
         (FORBIDDEN, "auth"),
         (WRONG_RECORD, "wrong-scope"),
         (STOPS_MID_READ, "upstream"),
+        // A complete read that holds none of the retained records does not
+        // confirm the same source, so the quarantine stays.
+        (UNRELATED, "records-missing"),
         (TOO_SLOW, "timeout"),
     ] {
         mode.store(next, Ordering::SeqCst);
