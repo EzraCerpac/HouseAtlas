@@ -651,6 +651,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         }
       }
     }
+    // One GPU material per source material, pass and pane roughness: primitives that share a
+    // source material share its pipeline, so its node graph is built and compiled once, not per primitive.
+    const sourceMaterials = new Map<Source, Map<string, NodeMaterial>>();
+    const sourceMaterial = (pass: MeshPass, textured: NonNullable<Parameters<typeof opaque>[0]> & { roughness?: number }) => {
+      let built = sourceMaterials.get(textured.source);
+      if (!built) sourceMaterials.set(textured.source, built = new Map());
+      const key = `${pass}/${textured.roughness ?? ''}`;
+      let material = built.get(key);
+      if (!material) { built.set(key, material = make(pass, textured)); owned.push(material); }
+      return material;
+    };
     for (const [index, mesh] of meshes.entries()) {
       if (!textured(index)) continue;
       // The extra attribute stream follows the mesh's own vertices, so a textured mesh stays one piece.
@@ -658,12 +669,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       if (!geometry) continue;
       const maps = Object.fromEntries(Object.entries({ base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) }).filter(([, map]) => map));
       const pass = mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
-      const material = make(pass, { source, maps }); owned.push(material);
+      const material = sourceMaterial(pass, { source, maps });
       add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
-      if (glazed(index)) {
-        const glassMaterial = make(MeshPass.Glass, { source, maps, roughness: mesh.sourceRoughness ?? 0 }); owned.push(glassMaterial);
-        addGlass(geometry, index, glassMaterial);
-      }
+      if (glazed(index)) addGlass(geometry, index, sourceMaterial(MeshPass.Glass, { source, maps, roughness: mesh.sourceRoughness ?? 0 }));
     }
 
     const corner = new Vector3();

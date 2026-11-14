@@ -121,6 +121,20 @@ export async function readCachedUnifiedAtlas(options: {
   }
 }
 
+/** `cache`, except that model bytes come from `shown`, the stored copy on screen, when
+ * the fresh scene pins the same digest and length. Those bytes already hashed to that
+ * digest and the fresh read hashes them again; this only avoids a second read of the
+ * same record, which on a busy device can outlast the lookup budget and fall back to
+ * downloading the whole model again. */
+export function withShownModel(cache: UnifiedAtlasCache, shown: Promise<StoredAtlasRead | null>): UnifiedAtlasCache {
+  // A failed stored read is no copy; it never surfaces here as an error.
+  const settled = shown.catch(() => null);
+  return Object.freeze({ ...cache, async model(sha256: string, bytes: number) {
+    const copy = await settled;
+    return copy && copy.scene.model.sha256 === sha256 && copy.model.byteLength === bytes ? copy.model : cache.model(sha256, bytes);
+  } });
+}
+
 interface ReadOptions {
   readonly selection: ModelOverviewSelection; readonly signal: AbortSignal; readonly origin: string;
   readonly isCurrent: () => boolean; readonly transport?: typeof fetch;

@@ -1255,6 +1255,10 @@ All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
+It also checks that a fresh read given the stored copy on screen takes that copy's
+verified model bytes with no model GET while the store's own model read stalls
+past the lookup budget (alone, that read downloads the model again), and that a
+copy pinning other bytes, none or a failed read leaves the store's lookup in charge.
 Its generated presentation seam also compiles the actual `AtlasPresentation`
 and stage-key function with synthetic hooks, deferred reads and geometry binding.
 It checks stable stage type/key/model/selection during stored-copy failure,
@@ -4165,7 +4169,12 @@ node frontend/lantern-tests/embedded-png-material-healthy.mjs --case precedence
 These cases generate RGB PNGs and GLBs locally; global fetch is forbidden.
 They cover supported slots and color roles, image sharing, filters and Adam7,
 bounded accounting and mip chains, legacy geometry/picking and material opt-out,
-owned resource cleanup and appearance precedence. The runner compiles actual
+owned resource cleanup and appearance precedence. `slots` also checks the mean
+linear colour of a base-colour map and one decoded material object per source
+material across meshes; `precedence` checks that, before maps are drawn, a mapped
+material's state-table tone is its factor times that mean, while cut faces,
+untextured factors and viewers without source materials keep their factor.
+No GPU pixel is compared. The runner compiles actual
 production imports into an owned temporary module and removes it afterward.
 Its React hook seam and GL recorder exercise MeshLayer effects without a DOM,
 real React mount, browser, native provider or household input.

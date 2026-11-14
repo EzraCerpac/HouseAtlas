@@ -36,7 +36,7 @@ const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../s
   '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { AtlasReadError, createStartLedger } = await import(typesURL);
-const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
+const { readUnifiedAtlas, readCachedUnifiedAtlas, withShownModel, CACHE_LOOKUP_MS } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
 const { encodeStoredOverlays, decodeStoredOverlays } = await import(codecURL);
@@ -105,6 +105,33 @@ await openProcess(disk, actorA, async ({ cache }) => {
   assert.equal(read.envelopeSha256, copy.envelopeSha256, 'the fresh scene confirms the copy on screen');
   assert.equal(read.scene.model.sha256, copy.scene.model.sha256);
   assert.deepEqual(read.scene, copy.scene);
+});
+
+// A busy device: the store's second read of the model record does not answer within
+// the lookup budget. Alone, the fresh read then downloads the whole model again; given
+// the copy on screen, it takes that copy's verified bytes and no model GET.
+await openProcess(disk, actorA, async ({ cache }) => {
+  const copy = await stored(cache, v0);
+  let modelReads = 0;
+  const busy = Object.freeze({ ...cache, model: () => { modelReads++; return new Promise(() => {}); } });
+  calls.length = 0;
+  const started = Date.now(), downloaded = await fresh(busy, v0);
+  record('reopen, busy storage, no copy on screen', ['scene', 'model']);
+  assert.ok(Date.now() - started >= CACHE_LOOKUP_MS - 50, 'only after the lookup budget');
+  assert.deepEqual(Buffer.from(downloaded.model), Buffer.from(versions[0].glb));
+  calls.length = 0; modelReads = 0;
+  const read = await fresh(withShownModel(busy, Promise.resolve(copy)), v0);
+  record('reopen, busy storage, copy on screen', ['scene']);
+  assert.strictEqual(read.model, copy.model, 'the fresh read takes the bytes already on screen');
+  assert.equal(modelReads, 0, 'without a second read of the stored model');
+  // A copy pinning other bytes, or none, leaves the store's own lookup in charge.
+  const other = { ...copy, scene: { ...copy.scene, model: { ...copy.scene.model, sha256: '0'.repeat(64) } } };
+  for (const shown of [() => Promise.resolve(other), () => Promise.resolve(null), () => Promise.reject(new Error('Synthetic stored read failure'))]) {
+    calls.length = 0;
+    const own = await fresh(withShownModel(cache, shown()), v0);
+    record('reopen, copy on screen pins other bytes or none', ['scene']);
+    assert.notStrictEqual(own.model, copy.model); assert.deepEqual(Buffer.from(own.model), Buffer.from(versions[0].glb));
+  }
 });
 
 online = false;

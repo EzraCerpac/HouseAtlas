@@ -253,8 +253,12 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
       // output. Authored grass/glazing/roof colours precede fallback
       // site and pitch tones, without changing any geometry or picks.
       // An opt-in share keeps dimmed context in its own hue.
-      top = mix([source[0], source[1], source[2]], linearRgb(PAPER), dim * SOURCE_DIM);
-      base = top; cut = mix(top, linearRgb(CUT), .18); shade = [0, 0, 0];
+      // A mapped material's texture draws only from the lit stage on; until then (and wherever
+      // the map is not drawn) it takes its factor times the map's mean, not the bare factor.
+      const mean = p.sourceMaterials ? mesh.sourceMaterial?.baseColorTexture?.mean : undefined;
+      const factor: Rgb = [source[0], source[1], source[2]];
+      top = mix(mean ? [factor[0] * mean[0], factor[1] * mean[1], factor[2] * mean[2]] : factor, linearRgb(PAPER), dim * SOURCE_DIM);
+      base = top; cut = mix(mix(factor, linearRgb(PAPER), dim * SOURCE_DIM), linearRgb(CUT), .18); shade = [0, 0, 0];
     } else if (mesh.occurrenceId !== null) {
       const tint = mesh.occurrenceId === p.selectedOccurrenceId ? LANTERN : p.contextOccurrenceIds.includes(mesh.occurrenceId) ? CONTEXT
         : p.tints.has(mesh.occurrenceId) ? rgb(p.tints.get(mesh.occurrenceId)!) : ROOM;
