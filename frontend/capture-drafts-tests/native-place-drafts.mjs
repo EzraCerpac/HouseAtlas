@@ -310,6 +310,24 @@ try {
     gate.reject(new Error('Synthetic stale read after invalidation'));
     for (let i = 0; i < 200 && quiet.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
     assert.equal(quiet.busy(), false); assert.deepEqual(quiet.rows(), []); assert.equal(quiet.status(), ''); assert.equal(completions, 0);
+    // An invalidation landing after the re-list settles but before the action resumes
+    // (another handler on the same promise) is honoured too, on both paths.
+    for (const nonCommitted of [false, true]) {
+      const m = fixture();
+      let called = 0, held = null;
+      const between = { ...m.port, list: () => held ? held.promise : m.port.list(), submit: nonCommitted
+        ? async () => ({ committed: false, result: {}, localCleanup: 'unconfirmed' }) : async () => { throw new Error('Synthetic lost reply'); } };
+      const shown = mountPanel(between, () => ({ localId, selection, form, targetSourceRef: null, recordId: placeId, optedIn: true }),
+        { effects: true, async onSubmitted() { called++; } });
+      shown.optIn(); await shown.click('Save local draft'); await shown.click(`Review ${original.name}`);
+      shown.check('Upload this saved file');
+      held = Promise.withResolvers(); shown.press('Confirm upload');
+      for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1));
+      held.promise.then(() => m.port.invalidate());
+      held.resolve([{ ...(await m.port.list())[0], state: 'outcome-unknown' }]);
+      for (let i = 0; i < 200 && shown.busy(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+      assert.equal(shown.busy(), false); assert.deepEqual(shown.rows(), []); assert.equal(shown.status(), ''); assert.equal(called, 0);
+    }
     await f.save();
     f.shared.lostReply = true;
     await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));

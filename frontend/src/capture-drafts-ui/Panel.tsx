@@ -97,7 +97,8 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     catch (error) {
       // A failed send leaves the row as stored before sending; show that state now, without a reload.
       signal.throwIfAborted();
-      if ((await relist(signal))?.some(row => row.id === selectedId && row.state === 'outcome-unknown')) {
+      const rows = await relist(signal); signal.throwIfAborted();
+      if (rows?.some(row => row.id === selectedId && row.state === 'outcome-unknown')) {
         setStatus('Upload outcome unknown: the server may have saved this file. It will not be sent again automatically. Read its saved information before any further action.');
         return;
       }
@@ -105,7 +106,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     }
     signal.throwIfAborted();
     // Re-list while this operation can still be invalidated, before releasing it.
-    if (!completion.committed) await relist(signal);
+    if (!completion.committed) { await relist(signal); signal.throwIfAborted(); }
     // Release the foreground lease before the ordinary view refresh masks the
     // scope. Local acknowledgement already ran before this refresh.
     active.current?.release();
