@@ -9,6 +9,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshAvailabilityReads } from './refresh-availability-wait.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -33,6 +34,7 @@ let service, browser, cdp, stopBrowser, serviceFailure, serviceClosed = false, p
 let serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
 let phase = 'bootstrap';
+const refreshReads = refreshAvailabilityReads();
 const requestPhases = new Map();
 const nativeReads = new Map();
 // The `diagnostic` field is bounded transfer metadata of generated fixture reads for failure
@@ -291,6 +293,7 @@ try {
   browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   stopBrowser = trackOfflineBrowser(browser);
   cdp = new BrowserPipe(browser, message => {
+    refreshReads.observe(message);
     if (message.method === 'Network.requestWillBeSent') {
       observedUrls.push(message.params.request.url);
       requestPhases.set(message.params.requestId, { method: message.params.request.method, requestPhase: phase });
@@ -495,6 +498,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
+  await refreshReads.settled(evaluate);
   phase = 'editor-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];

@@ -7,6 +7,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync, readdirSy
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { refreshAvailabilityReads } from './refresh-availability-wait.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -37,6 +38,7 @@ assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
 let phase = 'initial-view';
+const refreshReads = refreshAvailabilityReads();
 const requestPhases = new Map();
 const nativeReads = new Map();
 // The `diagnostic` field is bounded transfer metadata of generated fixture reads for failure
@@ -278,6 +280,7 @@ class Pipe {
         const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
         if (!raw) continue;
         const message = JSON.parse(raw);
+        refreshReads.observe(message);
         if (message.id) {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
@@ -504,6 +507,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
+  await refreshReads.settled(evaluate);
   phase = 'editor-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];
