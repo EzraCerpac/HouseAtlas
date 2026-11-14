@@ -1,16 +1,32 @@
+import { useState } from 'react';
 import { useStore } from '../state/store';
 import { Empty } from '../components/ui';
 import { Sources } from '../components/DetailPanel';
 
+/** The same reload as Settings; the failure it answers stays beside it. */
+function ReloadHistory() {
+  const { actions } = useStore();
+  const [state, setState] = useState<'idle' | 'reloading' | 'failed'>('idle');
+  const reload = async () => {
+    if (state === 'reloading') return;
+    setState('reloading');
+    try { setState((await actions.reload()) ? 'idle' : 'failed'); } catch { setState('failed'); }
+  };
+  return <>
+    <button type="button" className="btn" onClick={reload} disabled={state === 'reloading'}>{state === 'reloading' ? 'Reloading saved information…' : 'Reload saved information'}</button>
+    {state === 'failed' && <p className="body-text" role="status">The reload did not succeed.</p>}
+  </>;
+}
+
 export function ChangesView() {
-  const { house, dispatch, projection } = useStore();
+  const { house, dispatch, projection, actions } = useStore();
   const history = projection.operationHistory;
   const events = history.status === 'ready' ? [...(history.earlierPages ?? []), history.page].flatMap(page => page.entries) : [];
   return <div className="view"><header className="view-head view-head-row"><h1>Changes</h1>
-      <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button></header>
+      {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
     <div className="changes-grid"><section className="section"><header className="section-head"><h3>Operation history</h3></header>
       {history.status === 'loading' && <p className="body-text" role="status">Loading operation history…</p>}
-      {history.status === 'unavailable' && <p className="body-text" role="status">Operation history could not be loaded. Reload the saved view to retry.</p>}
+      {history.status === 'unavailable' && <><p className="body-text" role="status">Operation history could not be loaded.</p><ReloadHistory /></>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>

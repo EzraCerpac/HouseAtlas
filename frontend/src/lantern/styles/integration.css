@@ -53,7 +53,10 @@
 .lantern-integration .save-copy > .save-copy-status:empty { margin-top: 0; }
 .lantern-integration .save-copy-open { display: inline-flex; align-items: center; min-height: 44px; color: var(--link); font-weight: 650; text-underline-offset: 3px; }
 
-.lantern-host .sources dd code { display: block; margin-top: 4px; }
+.lantern-host .sources dd code { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+.lantern-host .sources .source-time { white-space: nowrap; }
+.lantern-host .source-identity { margin-top: 4px; }
+.lantern-host .source-identity summary { cursor: pointer; color: var(--muted); font-size: var(--fs-xs); }
 
 /* While the app shell is shown the document never scrolls or rubber-bands;
    the shell's sheets, rail and panels scroll internally. The viewport-sized

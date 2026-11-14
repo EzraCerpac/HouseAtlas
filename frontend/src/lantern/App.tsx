@@ -200,6 +200,7 @@ export function App() {
     if (active && active !== document.body && !details?.contains(active)) return;
     (target?.isConnected && target.getClientRects().length && !details?.contains(target) ? target : document.getElementById('main'))?.focus();
   }, [sheetExpanded]);
+  const hasTools = actions.nativeContent != null;
   const openTools = () => dispatch({ type: 'nativeOpen', open: true });
   const openSettings = () => dispatch({ type: 'settingsOpen', open: true });
   const toggleOverview = () => {
@@ -242,10 +243,10 @@ export function App() {
         <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
         {/* Atlas tools holds the saved house copy and the native tools; on
             phones it shares one menu with Settings. */}
-        <button ref={toolsButton} type="button" className="tools-btn" aria-haspopup="dialog" onClick={openTools}>
+        {hasTools && <button ref={toolsButton} type="button" className="tools-btn" aria-haspopup="dialog" onClick={openTools}>
           <Icon name="tools" size={18} />
           <span className="tools-label">Atlas tools</span>
-        </button>
+        </button>}
         {/* No in-app assistant is mounted without a host AI binding, so Ask hides. */}
         {aiAvailable && <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
           <Icon name="ask" size={18} />
@@ -254,8 +255,8 @@ export function App() {
         <button ref={settingsButton} type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={openSettings}>
           <Icon name="settings" size={20} />
         </button>
-        <ShellMenu items={[{ label: 'Atlas tools', icon: 'tools', open: openTools, equivalent: toolsButton },
-          { label: 'Settings', icon: 'settings', open: openSettings, equivalent: settingsButton }]} />
+        <ShellMenu items={[...(hasTools ? [{ label: 'Atlas tools', icon: 'tools' as const, open: openTools, equivalent: toolsButton }] : []),
+          { label: 'Settings', icon: 'settings' as const, open: openSettings, equivalent: settingsButton }]} />
       </div>
 
       <main id="main" className="main" tabIndex={-1} inert={recordCovers}>
