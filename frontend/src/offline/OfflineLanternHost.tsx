@@ -142,6 +142,7 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
 function HeldDrafts({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
   const [rows, setRows] = useState<readonly HeldDraft[] | 'unreadable' | null>(null);
   useEffect(() => {
+    setRows(null); // A new selection never shows the previous one's rows.
     void owner.heldDrafts(selection.handle, selection.signal).then(result => {
       if (!selection.signal.aborted) setRows(result.status === 'ok' ? result.value : result.status === 'unavailable' ? 'unreadable' : null);
     });

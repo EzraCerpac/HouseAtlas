@@ -3,14 +3,17 @@ import { SavedAtlasHost } from '../src/offline/SavedAtlasHost';
 import { OfflineLanternHost } from '../src/offline/OfflineLanternHost';
 import { createLiveCopyRetention } from './live-copy-retention';
 import { savedEntryMarked } from '../src/offline/saved-entry';
-import { DRAFT_DATABASE, openDraftStore } from '../src/capture-drafts/indexeddb';
+import { DRAFT_DATABASE } from '../src/capture-drafts/indexeddb';
+import { readExistingStore } from '../src/capture-drafts/read-existing';
+import { validateRows } from '../src/capture-drafts/validation';
+import type { DraftRow } from '../src/capture-drafts/types';
 // The live app's own last Atlas copy, shown while no saved copy is open.
 const openLastCopy = (signal: AbortSignal) => import('./last-atlas-copy').then(module => module.openLastAtlasCopy(globalThis.indexedDB, signal, globalThis));
-/** Read-only draft rows for the held-copy listing; never creates the draft database. */
-async function readDraftRows(factory: IDBFactory) {
-  if (!factory.databases || !(await factory.databases()).some(row => row.name === DRAFT_DATABASE)) return null;
-  const store = openDraftStore(factory);
-  try { return await store.read(); } finally { store.close(); }
+/** Read-only draft rows for the held-copy listing; never creates or upgrades the draft database. */
+async function readDraftRows(factory: IDBFactory): Promise<readonly DraftRow[] | null> {
+  const rows = await readExistingStore(factory, DRAFT_DATABASE, 'drafts', 1) as DraftRow[] | null;
+  if (rows) validateRows(rows);
+  return rows;
 }
 const element = document.getElementById('root');
 if (!element) throw new Error('Saved Atlas root missing');

@@ -3987,8 +3987,14 @@ Its live-copy contracts also call the actual retention adapter's held-draft
 listing with injected generated draft rows: only rows bound to the held copy's
 actor, workspace and home are listed, with name, size and state. A cleared
 (tombstoned) copy or one retired by a different observed actor lists nothing
-and reads no draft rows without a held identity. No real IndexedDB, browser or
-React markup is involved.
+and reads no draft rows without a held identity; another workspace lists nothing;
+an identity replaced or a copy cleared during the draft read lists nothing. The
+existing-only draft reader runs against a generated IndexedDB factory: an
+existing database is read and closed; an unlisted one is not opened; a database
+deleted between enumeration and open has its creation aborted and none remains,
+whether or not the factory leaves a version-0 entry; a blocked open, a version
+change or another version list nothing and hold no connection. No real
+IndexedDB, browser or React markup is involved.
 
 
 ## Named generated electrical registration cases

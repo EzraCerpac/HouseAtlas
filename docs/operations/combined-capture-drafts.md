@@ -95,7 +95,11 @@ draft rows are read and the listing is dropped if it changed. It is the same
 basis the shell already uses to match the last Atlas pointer. Only name, size and
 state are shown; no file, form, attempt, review, upload or removal is offered.
 Review and upload still need the live app and a fresh session read. The listing
-reads the draft database only when it already exists and never creates it. It
+reads the draft database only when it already exists: it opens without a version,
+aborts any upgrade (including first creation, when another tab deleted the
+database after enumeration), removes a version-0 database such an abort may
+leave, treats a block or version change as nothing held and closes its connection
+before returning. It
 persists nothing and claims no current session: the server may since have ended
 that session, and the live app enforces this on its next read.
 

@@ -268,6 +268,7 @@ export async function checkLiveCopyContracts() {
     capture: { filename }, original: { size: filename.length }, state, expiresAt });
   const draftRows = [draft(session.actorId, scope, 'generated-held.txt'), draft('generated-other-actor', scope, 'generated-other-actor.txt'),
     draft(session.actorId, { ...scope, homeId: uuid(99) }, 'generated-other-home.txt'),
+    draft(session.actorId, { ...scope, workspaceId: uuid(98) }, 'generated-other-workspace.txt'),
     draft(session.actorId, scope, 'generated-expired.txt', 'unsent', '2001-01-01T00:00:00Z'), draft(session.actorId, scope, 'generated-unknown.txt', 'outcome-unknown')];
   let draftReads = 0;
   const retention = createLiveCopyRetention({
@@ -307,7 +308,7 @@ export async function checkLiveCopyContracts() {
   assert.deepEqual(listed.value, [{ filename: 'generated-held.txt', byteSize: 18, state: 'unsent', expired: false },
     { filename: 'generated-expired.txt', byteSize: 21, state: 'unsent', expired: true },
     { filename: 'generated-unknown.txt', byteSize: 21, state: 'outcome-unknown', expired: false }], 'only drafts bound to the held identity are listed');
-  assert(!JSON.stringify(listed.value).includes('generated-other'), 'another actor or home lists nothing');
+  assert(!JSON.stringify(listed.value).includes('generated-other'), 'another actor, workspace or home lists nothing');
   assert.equal((await retention.storage.clear()).status, 'ok');
   const reads = draftReads;
   assert.notEqual((await retention.heldDrafts(ar.value.handle, signal())).status, 'ok', 'a cleared (tombstoned) copy lists no drafts');
@@ -318,16 +319,102 @@ export async function checkLiveCopyContracts() {
   // A different actor observed online retires the previous copy: its handle lists nothing.
   const actorStore = memory(), sessionA = { ...session }, sessionB = { ...session, actorId: 'generated-other-actor' };
   const actorState = { session: sessionA, view };
+  let duringRead = null;
   const switching = createLiveCopyRetention({ factory: undefined, backend: actorStore, state: () => actorState,
-    readDrafts: async () => structuredClone(draftRows), documents: () => { throw new Error('Generated document trap'); } });
+    readDrafts: async () => { const step = duringRead; duringRead = null; await step?.(); return structuredClone(draftRows); },
+    documents: () => { throw new Error('Generated document trap'); } });
   assert.equal((await switching.observe(sessionA, () => actorState.session === sessionA)).status, 'ok');
   assert.equal((await switching.capture(view, signal())).status, 'ok');
   const first = await switching.read.readLast(signal()); assert.equal(first.status, 'ok');
   assert.equal((await switching.heldDrafts(first.value.handle, signal())).value.length, 3);
+  // The identity is replaced while the draft rows are being read: the re-read drops the listing.
+  duringRead = async () => { actorState.session = sessionB;
+    assert.equal((await switching.observe(sessionB, () => actorState.session === sessionB)).status, 'ok'); };
+  assert.notEqual((await switching.heldDrafts(first.value.handle, signal())).status, 'ok', 'an identity replaced during the read lists nothing');
+  actorState.session = sessionA;
+  assert.equal((await switching.observe(sessionA, () => actorState.session === sessionA)).status, 'ok');
+  assert.equal((await switching.capture(view, signal())).status, 'ok');
+  const again = await switching.read.readLast(signal()); assert.equal(again.status, 'ok');
+  assert.equal((await switching.heldDrafts(again.value.handle, signal())).value.length, 3);
+  // The copy is retired (cleared) while the rows are being read: nothing is listed.
+  duringRead = async () => { assert.equal((await switching.storage.clear()).status, 'ok'); };
+  assert.notEqual((await switching.heldDrafts(again.value.handle, signal())).status, 'ok', 'a copy retired during the read lists nothing');
+  actorState.session = sessionA;
+  assert.equal((await switching.observe(sessionA, () => actorState.session === sessionA)).status, 'ok');
+  assert.equal((await switching.capture(view, signal())).status, 'ok');
+  const third = await switching.read.readLast(signal()); assert.equal(third.status, 'ok');
   actorState.session = sessionB;
   assert.equal((await switching.observe(sessionB, () => actorState.session === sessionB)).status, 'ok');
-  assert.notEqual((await switching.heldDrafts(first.value.handle, signal())).status, 'ok', 'a different actor retires the held listing');
+  assert.notEqual((await switching.heldDrafts(third.value.handle, signal())).status, 'ok', 'a different actor retires the held listing');
   switching.close();
   cases.push('live-copy-held-drafts-identity-bound');
+
+  // The production existing-only draft reader against a generated IndexedDB factory.
+  const readerSource = readFileSync(new URL('../src/capture-drafts/read-existing.ts', import.meta.url), 'utf8');
+  const readerCode = stripTypeScriptTypes(readerSource);
+  assert(!/^\s*import(?:\s|['"])/m.test(readerCode), 'the existing-only reader has no runtime imports');
+  const { readExistingStore } = await import(dataModule(readerCode));
+  function generatedFactory({ leaveAbortedCreation = false, enumerate = true } = {}) {
+    const dbs = new Map(), log = { opens: 0, live: 0, created: 0, upgradesCompleted: 0 };
+    const state = { afterEnumerate: null, blockNext: false, versionChangeOnRead: false };
+    const factory = {
+      ...(enumerate ? { async databases() {
+        const list = [...dbs].map(([name, db]) => ({ name, version: db.version }));
+        const step = state.afterEnumerate; state.afterEnumerate = null; step?.(); return list;
+      } } : {}),
+      open(name) {
+        log.opens++; const request = { transaction: null };
+        setImmediate().then(() => {
+          if (state.blockNext) { state.blockNext = false; request.onblocked?.(); }
+          let db = dbs.get(name);
+          if (!db) {
+            db = { version: 0, stores: new Map() }; dbs.set(name, db); log.created++;
+            let aborted = false; request.transaction = { abort() { aborted = true; } };
+            request.onupgradeneeded?.({ oldVersion: 0, newVersion: 1 });
+            if (aborted) { if (!leaveAbortedCreation) dbs.delete(name); request.error = new Error('Generated AbortError'); request.onerror?.(); return; }
+            db.version = 1; log.upgradesCompleted++;
+          }
+          log.live++;
+          const connection = { version: db.version, objectStoreNames: { contains: store => db.stores.has(store) }, closed: false,
+            close() { if (!this.closed) { this.closed = true; log.live--; } },
+            transaction(store) {
+              const tx = {}, all = {};
+              tx.objectStore = () => ({ getAll() {
+                setImmediate().then(() => {
+                  if (state.versionChangeOnRead) { connection.onversionchange?.(); tx.error = new Error('Generated closed'); tx.onabort?.(); return; }
+                  all.result = structuredClone(db.stores.get(store)); tx.oncomplete?.();
+                }); return all; } });
+              return tx;
+            } };
+          request.result = connection; request.onsuccess?.();
+        });
+        return request;
+      },
+      deleteDatabase(name) { const removal = {}; setImmediate().then(() => { dbs.delete(name); removal.onsuccess?.(); }); return removal; },
+    };
+    const existing = () => dbs.set('generated-drafts', { version: 1, stores: new Map([['drafts', [{ id: 'generated-row' }]]]) });
+    return { factory, dbs, log, state, existing };
+  }
+  const readGenerated = g => readExistingStore(g.factory, 'generated-drafts', 'drafts', 1);
+  let g = generatedFactory(); g.existing();
+  assert.deepEqual(await readGenerated(g), [{ id: 'generated-row' }]); assert.equal(g.log.live, 0, 'no handle outlives the read');
+  g = generatedFactory();
+  assert.equal(await readGenerated(g), null); assert.equal(g.log.opens, 0, 'an unlisted database is not opened');
+  for (const leaveAbortedCreation of [false, true]) {
+    // Deleted by another tab between enumeration and open: the open's creation is aborted, nothing remains.
+    g = generatedFactory({ leaveAbortedCreation }); g.existing(); g.state.afterEnumerate = () => g.dbs.delete('generated-drafts');
+    assert.equal(await readGenerated(g), null);
+    assert.equal(g.dbs.has('generated-drafts'), false, 'no database exists afterwards'); assert.equal(g.log.upgradesCompleted, 0);
+    assert.equal(g.log.live, 0);
+  }
+  g = generatedFactory({ enumerate: false });
+  assert.equal(await readGenerated(g), null); assert.equal(g.dbs.size, 0, 'without enumeration the aborted creation leaves nothing');
+  g = generatedFactory(); g.existing(); g.state.blockNext = true;
+  assert.equal(await readGenerated(g), null); await setImmediate(); await setImmediate(); assert.equal(g.log.live, 0, 'a blocked open closes promptly');
+  g = generatedFactory(); g.existing(); g.state.versionChangeOnRead = true;
+  assert.equal(await readGenerated(g), null); assert.equal(g.log.live, 0, 'a version change closes and lists nothing');
+  g = generatedFactory(); g.dbs.set('generated-drafts', { version: 2, stores: new Map([['drafts', []]]) });
+  assert.equal(await readGenerated(g), null); assert.equal(g.log.live, 0); assert.equal(g.dbs.get('generated-drafts').version, 2);
+  cases.push('held-drafts-existing-only-reader');
   return cases;
 }

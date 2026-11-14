@@ -1418,6 +1418,7 @@
     {"path":"frontend/src/capture-drafts-ui/port.ts","mode":"100644","owner":"core-integration"},
     {"path":"frontend/src/capture-drafts/controller.ts","mode":"100644","owner":"core-integration"},
     {"path":"frontend/src/capture-drafts/indexeddb.ts","mode":"100644","owner":"core-integration"},
+    {"path":"frontend/src/capture-drafts/read-existing.ts","mode":"100644","owner":"core-integration"},
     {"path":"frontend/src/capture-drafts/receipt.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/capture-drafts/types.ts","mode":"100644","owner":"core-integration"},
     {"path":"frontend/src/capture-drafts/validation.ts","mode":"100644","owner":"core-integration"},
