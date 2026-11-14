@@ -225,12 +225,14 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
         <pre>{stringifyLosslessJson(requestObservation.observed)}</pre>
       </details>}
     </details>
-    {!open && <button ref={opener} type="button" disabled={busy || unknown} onClick={() => void load()}>Add native evidence</button>}
+    {/* An unknown attempt blocks upload, not local draft management. */}
+    {!open && <button ref={opener} type="button" disabled={busy || (unknown && !drafts)} onClick={() => void load()}>Add native evidence</button>}
     {unknown && !attempts.some(attempt => attempt.outcome === 'unknown') && <p role="status">A native evidence submission in this home has unknown completion. Do not resend; inspect saved information in its originating row.</p>}
     <p role="status" aria-live="polite">{status}</p>
     {open && <section aria-label={`Native evidence for ${location.label}`} aria-busy={busy}>
       <h3 ref={heading} tabIndex={-1}>Add native evidence</h3>
       <p>Atlas identity: {location.id} · classification: {recordId}</p>
+      {unknown && <p role="status">Upload is unavailable while a native evidence submission in this home has unknown completion. Local drafts can still be reviewed or removed.</p>}
       {admission?.canAttachEvidence && admission.attachmentPolicy && <form ref={evidenceForm} className="session-form" onSubmit={event => void submit(event)}>
         <EvidencePicker policy={admission.attachmentPolicy} busy={busy || unknown} value={selection} onChange={setSelection} />
         <label><span>Evidence statement (maximum 4096 characters)</span><textarea name="statement" required disabled={busy || unknown} /></label>
@@ -242,7 +244,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
         <button type="submit" disabled={busy || unknown || !selection}>Upload native evidence</button>
       </form>}
       {drafts && <CaptureDraftPanel port={drafts} source={null} recordId={recordId} candidate={draftCandidate}
-        canSave={!!selection && !!admission?.canAttachEvidence && !!admission.attachmentPolicy && !unknown} parentBusy={busy}
+        canSave={!!selection && !!admission?.canAttachEvidence && !!admission.attachmentPolicy && !unknown} canUpload={!unknown} parentBusy={busy}
         onBusy={value => { submitting.current = value; setBusy(value); }} onSaved={() => { setSelection(null); localSelection.current = null; }}
         onSubmitted={draftSubmitted} />}
       {!admission && <button type="button" disabled={busy} onClick={() => void load()}>Reload native admission</button>}

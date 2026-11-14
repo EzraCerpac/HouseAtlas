@@ -3,12 +3,15 @@
 // bundled with Vite. Synthetic files, an in-memory draft store and a fake
 // native exchange only: no listener, browser, IndexedDB, network or provider.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { build } from 'vite';
 
 const cases = new Set(['native-save-no-upload', 'native-reopen-unsent', 'native-review-confirm-one-upload',
-  'native-form-no-draft-database', 'native-other-place-or-account-refused']);
+  'native-form-no-draft-database', 'native-other-place-or-account-refused', 'native-lost-reply-drafts-reachable',
+  'native-reported-mime-label-upload']);
 const args = process.argv.slice(2);
 assert(args.length === 2 && args[0] === '--case' && cases.has(args[1]), 'Select exactly one named case');
 const caseName = args[1];
@@ -32,7 +35,8 @@ const outputs = await build({ configFile: false, root: here('..'), logLevel: 'er
         `export { createNativeEvidenceClient } from ${JSON.stringify(here('../src/api/native-evidence-client.ts'))};`,
         `export { NativePlaceEvidence } from ${JSON.stringify(here('../src/lantern/topology/NativePlaceEvidence.tsx'))};`,
         `export { CaptureDraftProvider } from ${JSON.stringify(here('../src/capture-drafts-ui/Context.tsx'))};`,
-        `export { CaptureDraftPanel } from ${JSON.stringify(here('../src/capture-drafts-ui/Panel.tsx'))};`].join('\n');
+        `export { CaptureDraftPanel } from ${JSON.stringify(here('../src/capture-drafts-ui/Panel.tsx'))};`,
+        `export { selectEvidenceFile } from ${JSON.stringify(here('../src/capture-evidence/selection.ts'))};`].join('\n');
       return stubs.get(id) ?? null;
     } }],
   build: { ssr: true, write: false, sourcemap: false, minify: false,
@@ -40,7 +44,7 @@ const outputs = await build({ configFile: false, root: here('..'), logLevel: 'er
 let code = outputs.output.find(row => row.type === 'chunk').code;
 for (const [specifier, relative] of externals)
   code = code.replaceAll(`from "${specifier}"`, `from ${JSON.stringify(new URL(`../node_modules/${relative}`, import.meta.url).href)}`);
-const { createCaptureDraftAdapter, createNativeEvidenceClient, NativePlaceEvidence, CaptureDraftProvider, CaptureDraftPanel } =
+const { createCaptureDraftAdapter, createNativeEvidenceClient, NativePlaceEvidence, CaptureDraftProvider, CaptureDraftPanel, selectEvidenceFile } =
   await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -66,7 +70,7 @@ const selection = { original, file: original, capture };
 const form = { statement: 'Synthetic native statement', sourceLicense: license, reason: 'Synthetic native draft fixture' };
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 
-function fixture(shared = { rows: [] }) {
+function fixture(shared = { rows: [] }, input = selection) {
   let session = { schemaVersion: 1, actorId: 'synthetic-actor', csrfToken: 'synthetic-private-marker', expiresAt: new Date(Date.now() + 600_000).toISOString() };
   let canonical = { ...session }, readScope = scope;
   const calls = { open: 0, get: 0, post: 0, editing: 0 }, order = [];
@@ -80,9 +84,11 @@ function fixture(shared = { rows: [] }) {
       assert.equal(method, 'POST'); assert.equal(route, `${base}/evidence`);
       assert.equal(shared.rows[0].state, 'outcome-unknown', 'Durable unknown marker precedes the native POST');
       assert.equal(shared.rows[0].attempt.requestId, requestId);
+      if (shared.lostReply) throw new Error('Synthetic lost reply; no actual transport');
       const metadata = JSON.parse(body.get('metadata')), file = body.get('file');
-      assert.equal(file.name, original.name); assert.deepEqual(new Uint8Array(await file.arrayBuffer()), new Uint8Array(await original.arrayBuffer()));
-      assert.equal(metadata.statement, form.statement); assert.equal(metadata.reason, form.reason); assert.deepEqual(metadata.capture, capture);
+      assert.equal(file.name, input.original.name); assert.deepEqual(new Uint8Array(await file.arrayBuffer()), new Uint8Array(await input.original.arrayBuffer()));
+      assert.equal(metadata.statement, form.statement); assert.equal(metadata.reason, form.reason); assert.deepEqual(metadata.capture, input.capture);
+      shared.posted = { type: file.type, contentType: metadata.contentType, sha256: createHash('sha256').update(new Uint8Array(await file.arrayBuffer())).digest('hex') };
       const evidenceId = uuid(908), assetId = uuid(909);
       return json({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId, resolvedScope: scope, status: 'committed',
         replayed: false, operationId: uuid(910), data: { auditIds: [uuid(911), uuid(912)], requestDigest: 'a'.repeat(64), records: [
@@ -116,7 +122,7 @@ function fixture(shared = { rows: [] }) {
   adapter.observeCanonical(session); adapter.setScope(scope);
   const signal = new AbortController().signal;
   return { adapter, port: adapter.port, evidence, binding, calls, order, signal, shared,
-    save: (recordId = placeId) => adapter.port.save({ localId, selection, form, targetSourceRef: null, recordId, optedIn: true }),
+    save: (recordId = placeId) => adapter.port.save({ localId, selection: input, form, targetSourceRef: null, recordId, optedIn: true }),
     changeAccount() {
       adapter.invalidateSession(); session = { ...session, actorId: 'synthetic-other-actor' }; canonical = { ...session };
       adapter.observeCanonical(session); adapter.setScope(scope);
@@ -124,6 +130,7 @@ function fixture(shared = { rows: [] }) {
     changeHome() { readScope = { ...scope, homeId: uuid(930) }; adapter.setScope(readScope); },
   };
 }
+const opener = markup => /<button[^>]*>Add native evidence<\/button>/.exec(markup)?.[0];
 const nativeView = (f, port = f.port) => renderToStaticMarkup(createElement(CaptureDraftProvider, { port },
   createElement(NativePlaceEvidence, { client: f.evidence, binding: f.binding,
     location: { id: identityId, label: 'Synthetic room', semantics: [{ lifecycle: 'active', target: { recordId: placeId }, payload: { reviewStatus: 'accepted' } }] },
@@ -197,6 +204,54 @@ try {
     await assert.rejects(f.port.review(localId, f.signal), /unavailable for this account/);
     assert.equal(f.shared.rows.length, 1); assert.equal(f.shared.rows[0].state, 'unsent');
     assert.equal(f.calls.post + other.calls.post + home.calls.post, 0); assert.equal(f.calls.editing, 0);
+  } else if (caseName === 'native-lost-reply-drafts-reachable') {
+    await f.save();
+    f.shared.lostReply = true;
+    await assert.rejects(f.port.submit(await f.port.review(localId, f.signal), null, placeId, f.signal));
+    assert.equal(f.calls.post, 1); assert.equal(f.shared.rows[0].state, 'outcome-unknown');
+    assert.equal(f.evidence.pending(f.binding)[0].outcome, 'unknown');
+    // Closed state after the lost reply (static markup: no click). The opener stays
+    // enabled so the form, with upload blocked, can mount the draft panel again.
+    const closed = nativeView(f);
+    assert(opener(closed) && !opener(closed).includes('disabled'), 'Draft management stays reachable');
+    assert(closed.includes('Native evidence completion unknown'));
+    // Without a draft port the unknown attempt still blocks the opener as before.
+    const plain = renderToStaticMarkup(createElement(NativePlaceEvidence, { client: f.evidence, binding: f.binding,
+      location: { id: identityId, label: 'Synthetic room', semantics: [{ lifecycle: 'active', target: { recordId: placeId }, payload: { reviewStatus: 'accepted' } }] },
+      index: { data: { bindings: [], identities: [] } }, refresh() {} }));
+    assert(opener(plain).includes('disabled'));
+    // The draft panel as the reopened form mounts it: upload blocked, management kept.
+    const panel = renderToStaticMarkup(createElement(CaptureDraftPanel, { port: f.port, source: null, recordId: placeId,
+      candidate: () => null, canSave: false, canUpload: false, parentBusy: false, onBusy() {}, onSaved() {}, async onSubmitted() {} }));
+    assert(/<button type="button">View local drafts<\/button>/.test(panel));
+    // Controller paths behind those controls: the retained file is listed, inspected and removable.
+    await f.port.prepare(f.signal);
+    const [summary] = await f.port.list();
+    assert.equal(summary.state, 'outcome-unknown'); assert.equal(summary.byteSize, original.size);
+    const inspection = await f.port.inspectUnknown(localId, f.signal);
+    assert.equal(inspection.retrySafety, 'not-established'); assert.equal(inspection.savedRevision, '1');
+    assert.deepEqual(inspection.attempt, f.shared.rows[0].attempt);
+    await assert.rejects(f.port.review(localId, f.signal), /outcome is unknown/);
+    await assert.rejects(f.port.discard(localId, { loseUnknownOutcome: false }));
+    await f.port.discard(localId, { loseUnknownOutcome: true });
+    assert.deepEqual(f.shared.rows, []);
+    assert.equal(f.calls.post, 1, 'Inspection and removal send nothing');
+  } else if (caseName === 'native-reported-mime-label-upload') {
+    // Browser labels the direct native upload accepts: none, and a JPEG alias.
+    const pdf = new File(['%PDF-1.7\nSynthetic unlabelled draft bytes\n'], 'synthetic-unlabelled.pdf', { type: '', lastModified: 43 });
+    const jpeg = new File([readFileSync(new URL('../capture-evidence-tests/fixtures/synthetic-photo.jpg', import.meta.url))],
+      'synthetic-alias.jpg', { type: 'image/jpg', lastModified: 44 });
+    for (const [picked, reported, canonical] of [[pdf, '', 'application/pdf'], [jpeg, 'image/jpg', 'image/jpeg']]) {
+      const chosen = await selectEvidenceFile(picked, 'file-picker', policy, new AbortController().signal, timestamp);
+      assert.equal(chosen.original.type, reported); assert.equal(chosen.file.type, canonical); assert.equal(chosen.capture.reportedContentType, reported);
+      const q = fixture({ rows: [] }, chosen), sha256 = createHash('sha256').update(new Uint8Array(await picked.arrayBuffer())).digest('hex');
+      await q.save();
+      assert.equal(q.shared.rows[0].contentType, canonical); assert.equal(q.shared.rows[0].sha256, sha256);
+      const done = await q.port.submit(await q.port.review(localId, q.signal), null, placeId, q.signal);
+      assert.equal(done.committed, true, reported || 'empty label'); assert.equal(done.localCleanup, 'removed');
+      assert.equal(q.calls.post, 1); assert.deepEqual(q.shared.rows, []);
+      assert.deepEqual(q.shared.posted, { type: canonical, contentType: canonical, sha256 });
+    }
   }
   console.log(`PASS ${caseName}: synthetic native draft evidence only`);
 } finally { globalThis.fetch = realFetch; }

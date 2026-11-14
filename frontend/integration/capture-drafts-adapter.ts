@@ -48,7 +48,9 @@ function nativePlaceTarget(evidence: () => NativeEvidenceClient | null): DraftTa
     async admit(target, signal) { await admit(target, signal); },
     async prepare(target, file, signal) {
       const admission = await admit(target, signal), client = evidence()!;
-      const prepared = await client.prepare(admission, { selection: { original: file, file, capture: structuredClone(target.capture) },
+      // The row keeps the canonical type; the browser-returned original carries the reported label of the unchanged claim.
+      const original = new File([file], file.name, { type: target.capture.reportedContentType, lastModified: file.lastModified });
+      const prepared = await client.prepare(admission, { selection: { original, file, capture: structuredClone(target.capture) },
         statement: target.form.statement, reason: target.form.reason, sourceLicense: structuredClone(target.form.sourceLicense) }, signal);
       return { requestId: prepared.requestId, idempotencyKey: null, handoff: prepared, acknowledge(result) {
         const pending = result as NativeEvidencePending | null;
