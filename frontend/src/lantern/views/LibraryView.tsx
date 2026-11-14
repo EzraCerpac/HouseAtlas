@@ -64,17 +64,18 @@ function parentQualifier(entry: Entry | undefined): string | null {
   }
 }
 
-/** The link archive flag is attachment-owned; record state and dates belong to the parent. */
+/** The link archive flag is attachment-owned; record state and dates belong to the parent.
+ * The add date and source update date are in File details. */
 function docQualifiers(d: Doc, entry: Entry | undefined): string[] {
   const parent = parentQualifier(entry);
   return [
     ...(d.linkArchived ? ['Link archived in HomeBox'] : []),
     ...(parent ? [parent] : []),
-    d.addedAt ? `Added ${fmtDate(d.addedAt)} by ${d.addedBy}` : 'Attachment add date and actor not supplied',
-    `Source record updated in HomeBox: ${entry?.sourceUpdatedAt ? fmtDate(entry.sourceUpdatedAt) : 'Unknown'}`,
-    `Source record retrieved: ${entry ? fmtDate(entry.retrievedAt) : 'Unknown'}`,
+    `Retrieved ${entry ? fmtDate(entry.retrievedAt) : 'date unknown'}`,
   ];
 }
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function LibraryView() {
   const { house, dispatch, projection } = useStore();
@@ -90,7 +91,7 @@ export function LibraryView() {
       <header className="view-head">
         <h1>Library</h1>
         <p>
-          {stored} stored files and {house.docs.length - stored} external links{archivedLinks > 0 ? `, ${archivedLinks} archived in HomeBox` : ''}. HomeBox reports these as stored files; links keep only an address.
+          HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')} (address only){archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
         </p>
       </header>
       <div className="filter-row" role="group" aria-label="Filter documents">

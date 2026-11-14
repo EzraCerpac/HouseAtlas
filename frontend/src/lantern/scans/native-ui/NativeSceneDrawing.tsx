@@ -7,6 +7,7 @@ import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
 import { ExampleLabel } from '../../example-label';
+import { Icon } from '../../components/Icon';
 import { stageMark, stageSpan } from '../../observability/stage-timing';
 import { resolveRecordedPdfPage } from './recorded-pdf-page';
 
@@ -316,9 +317,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   return <section className="native-scene-drawing" role="dialog" aria-modal="true"
     aria-label={sheet.title} onKeyDown={keys}>
     <header><div><ExampleLabel /><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
-      <button ref={closer} type="button" className="chip-btn" onClick={event => {
+      <button ref={closer} type="button" className="icon-btn" aria-label="Close drawing" onClick={event => {
         stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); deliberateClose.current = true; onClose();
-      }}>Close drawing</button></header>
+      }}><Icon name="close" size={18} /></button></header>
     {provenance && <details className="native-drawing-provenance" style={{ overflowWrap: 'anywhere' }}>
       <summary>Drawing source review</summary>
       <p>Room filters use the current native review. The retained historical ledger bytes are unchanged.</p>
@@ -336,9 +337,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         setContinuation(null);
         setCursor({ client, sheet, evidenceIds, reference, start: continuation.next, unreadable: continuation.unreadable });
       }}>Check next references</button>}
-    {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload}>
+    {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload} className="native-scene-drawing-payload">
       {shown.frame.mode === 'original-download' ? <>
-        <p>{pdfPageCount && resolveRecordedPdfPage(pdfPage, pdfPageCount) === null
+        <p className="native-scene-pdf-status">{pdfPageCount && resolveRecordedPdfPage(pdfPage, pdfPageCount) === null
           ? `Reference PDF · recorded page ${sheet.pdfPage} unavailable`
           : `Reference PDF · page ${pdfPageCount ? `${pdfPage} of ${pdfPageCount}` : sheet.pdfPage}`}</p>
         <div className="native-scene-pdf-controls">

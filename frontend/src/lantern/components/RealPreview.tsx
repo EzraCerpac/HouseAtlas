@@ -43,6 +43,7 @@ export function RealPreview() {
         <div><dt>Availability</dt><dd>{attachment.kind === 'external-link' ? href ? 'Unknown; HouseAtlas does not check external addresses' : 'No usable external address supplied' : href ? 'Access link supplied; validity checked on use' : 'No download link issued'}</dd></div>
         {attachment.kind === 'stored-file' && <><div><dt>Content type</dt><dd>{attachment.contentType ?? 'Unknown'}</dd></div><div><dt>Bytes</dt><dd>{attachment.byteSize ?? 'Unknown'}</dd></div></>}
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
+        <div><dt>Attachment added</dt><dd>{doc.addedAt ? `${fmtDateTime(doc.addedAt)} by ${doc.addedBy}` : 'Date and actor not supplied'}</dd></div>
         <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? fmtDateTime(entry.sourceUpdatedAt) : 'Unknown'}</dd></div>
         <div><dt>Retrieved</dt><dd>{entry ? fmtDateTime(entry.retrievedAt) : 'Unknown'}</dd></div>
       </dl>
