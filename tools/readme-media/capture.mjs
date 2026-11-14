@@ -214,7 +214,7 @@ try {
       covered, crowded, actionCollisions,
       menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-stack-head[aria-expanded="true"]'),
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
-      view: compact ? [document.querySelector('.ua-dock-view')?.getAttribute('aria-pressed') === 'true' ? 'Plan' : '3D'] : pressed('.ua-tools .seg button'),
+      view: compact ? [document.querySelector('.ua-dock-view')?.getAttribute('aria-pressed') === 'true' ? 'Plan' : '3D'] : pressed('.ua-tools [aria-label="Atlas view"] button'),
       building, floor: [...document.querySelectorAll('.ua-stack-floors button[aria-pressed="true"]')]
         .map(node => node.getAttribute('aria-label') ?? node.querySelector('.ua-rung-name').textContent.trim()),
       exploded: document.querySelector('.ua-spread, .ua-stack-spread')?.getAttribute('aria-pressed') ?? null,
@@ -684,7 +684,7 @@ try {
   const stateFacts = page => page.evaluate(() => {
     const names = selector => [...document.querySelectorAll(selector)].map(node => node.textContent.trim());
     return { building: names('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name'), floor: names('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name'),
-      view: names('.ua-tools .seg button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
+      view: names('.ua-tools [aria-label="Atlas view"] button[aria-pressed="true"]'), plan: document.querySelector('.ua-shell.is-plan .ua-plan') !== null,
       room: document.querySelector('.ua-inspector.is-room h2')?.textContent.trim() ?? null,
       roomFloor: document.querySelector('.ua-room-floor')?.textContent.trim() ?? null };
   });
