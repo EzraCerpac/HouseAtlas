@@ -3991,9 +3991,12 @@ and reads no draft rows without a held identity; another workspace lists nothing
 an identity replaced or a copy cleared during the draft read lists nothing. The
 existing-only draft reader runs against a generated IndexedDB factory: an
 existing database is read and closed; an unlisted one is not opened; a database
-deleted between enumeration and open has its creation aborted and none remains,
-whether or not the factory leaves a version-0 entry; a blocked open, a version
-change or another version list nothing and hold no connection. No real
+deleted between enumeration and open has its creation aborted and nothing is
+listed, and a version-0 leftover (omitted from enumeration, as standard) is kept
+and not reopened; a blocked open, a version change or another version list
+nothing; a read that never completes is aborted and its connection closed at
+the deadline, and an open completing after the deadline is closed at once. No
+case holds a connection at return and the reader never deletes a database. No real
 IndexedDB, browser or React markup is involved.
 
 

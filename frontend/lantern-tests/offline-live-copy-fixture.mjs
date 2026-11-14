@@ -355,16 +355,17 @@ export async function checkLiveCopyContracts() {
   assert(!/^\s*import(?:\s|['"])/m.test(readerCode), 'the existing-only reader has no runtime imports');
   const { readExistingStore } = await import(dataModule(readerCode));
   function generatedFactory({ leaveAbortedCreation = false, enumerate = true } = {}) {
-    const dbs = new Map(), log = { opens: 0, live: 0, created: 0, upgradesCompleted: 0 };
-    const state = { afterEnumerate: null, blockNext: false, versionChangeOnRead: false };
+    const dbs = new Map(), log = { opens: 0, live: 0, created: 0, upgradesCompleted: 0, deletes: 0, transactionAborts: 0 };
+    const state = { afterEnumerate: null, blockNext: false, versionChangeOnRead: false, stallRead: false, openDelayMs: 0 };
     const factory = {
+      // Like the standard, enumeration omits version-0 databases.
       ...(enumerate ? { async databases() {
-        const list = [...dbs].map(([name, db]) => ({ name, version: db.version }));
+        const list = [...dbs].filter(([, db]) => db.version > 0).map(([name, db]) => ({ name, version: db.version }));
         const step = state.afterEnumerate; state.afterEnumerate = null; step?.(); return list;
       } } : {}),
       open(name) {
         log.opens++; const request = { transaction: null };
-        setImmediate().then(() => {
+        new Promise(resolve => setTimeout(resolve, state.openDelayMs)).then(() => {
           if (state.blockNext) { state.blockNext = false; request.onblocked?.(); }
           let db = dbs.get(name);
           if (!db) {
@@ -378,8 +379,9 @@ export async function checkLiveCopyContracts() {
           const connection = { version: db.version, objectStoreNames: { contains: store => db.stores.has(store) }, closed: false,
             close() { if (!this.closed) { this.closed = true; log.live--; } },
             transaction(store) {
-              const tx = {}, all = {};
+              const tx = { abort() { log.transactionAborts++; } }, all = {};
               tx.objectStore = () => ({ getAll() {
+                if (state.stallRead) return all; // The read never completes.
                 setImmediate().then(() => {
                   if (state.versionChangeOnRead) { connection.onversionchange?.(); tx.error = new Error('Generated closed'); tx.onabort?.(); return; }
                   all.result = structuredClone(db.stores.get(store)); tx.oncomplete?.();
@@ -390,31 +392,42 @@ export async function checkLiveCopyContracts() {
         });
         return request;
       },
-      deleteDatabase(name) { const removal = {}; setImmediate().then(() => { dbs.delete(name); removal.onsuccess?.(); }); return removal; },
+      deleteDatabase(name) { log.deletes++; const removal = {}; setImmediate().then(() => { dbs.delete(name); removal.onsuccess?.(); }); return removal; },
     };
     const existing = () => dbs.set('generated-drafts', { version: 1, stores: new Map([['drafts', [{ id: 'generated-row' }]]]) });
     return { factory, dbs, log, state, existing };
   }
-  const readGenerated = g => readExistingStore(g.factory, 'generated-drafts', 'drafts', 1);
+  const readGenerated = (g, deadlineMs) => readExistingStore(g.factory, 'generated-drafts', 'drafts', 1, deadlineMs);
+  // Every case: no connection is held at return and the reader never deletes a database.
+  const released = (g, message) => { assert.equal(g.log.live, 0, message); assert.equal(g.log.deletes, 0, 'the reader never deletes a database'); };
   let g = generatedFactory(); g.existing();
-  assert.deepEqual(await readGenerated(g), [{ id: 'generated-row' }]); assert.equal(g.log.live, 0, 'no handle outlives the read');
+  assert.deepEqual(await readGenerated(g), [{ id: 'generated-row' }]); released(g, 'no handle outlives the read');
   g = generatedFactory();
-  assert.equal(await readGenerated(g), null); assert.equal(g.log.opens, 0, 'an unlisted database is not opened');
+  assert.equal(await readGenerated(g), null); assert.equal(g.log.opens, 0, 'an unlisted database is not opened'); released(g);
   for (const leaveAbortedCreation of [false, true]) {
-    // Deleted by another tab between enumeration and open: the open's creation is aborted, nothing remains.
+    // Deleted by another tab between enumeration and open: the open's creation is aborted and nothing is listed.
     g = generatedFactory({ leaveAbortedCreation }); g.existing(); g.state.afterEnumerate = () => g.dbs.delete('generated-drafts');
-    assert.equal(await readGenerated(g), null);
-    assert.equal(g.dbs.has('generated-drafts'), false, 'no database exists afterwards'); assert.equal(g.log.upgradesCompleted, 0);
-    assert.equal(g.log.live, 0);
+    assert.equal(await readGenerated(g), null); assert.equal(g.log.upgradesCompleted, 0, 'no upgrade completes'); released(g);
+    // A harmless version-0 leftover is kept, never deleted, and is not enumerated or opened again.
+    assert.equal(g.dbs.get('generated-drafts')?.version, leaveAbortedCreation ? 0 : undefined);
+    const opens = g.log.opens; assert.equal(await readGenerated(g), null); assert.equal(g.log.opens, opens); released(g);
   }
   g = generatedFactory({ enumerate: false });
-  assert.equal(await readGenerated(g), null); assert.equal(g.dbs.size, 0, 'without enumeration the aborted creation leaves nothing');
+  assert.equal(await readGenerated(g), null); assert.equal(g.dbs.size, 0, 'without enumeration the aborted creation leaves nothing'); released(g);
   g = generatedFactory(); g.existing(); g.state.blockNext = true;
-  assert.equal(await readGenerated(g), null); await setImmediate(); await setImmediate(); assert.equal(g.log.live, 0, 'a blocked open closes promptly');
+  assert.equal(await readGenerated(g), null); await setImmediate(); await setImmediate(); released(g, 'a blocked open closes promptly');
   g = generatedFactory(); g.existing(); g.state.versionChangeOnRead = true;
-  assert.equal(await readGenerated(g), null); assert.equal(g.log.live, 0, 'a version change closes and lists nothing');
+  assert.equal(await readGenerated(g), null); released(g, 'a version change closes and lists nothing');
   g = generatedFactory(); g.dbs.set('generated-drafts', { version: 2, stores: new Map([['drafts', []]]) });
-  assert.equal(await readGenerated(g), null); assert.equal(g.log.live, 0); assert.equal(g.dbs.get('generated-drafts').version, 2);
+  assert.equal(await readGenerated(g), null); released(g); assert.equal(g.dbs.get('generated-drafts').version, 2);
+  // The open succeeds but the read never completes: the deadline aborts the transaction and closes the connection.
+  g = generatedFactory(); g.existing(); g.state.stallRead = true;
+  assert.equal(await readGenerated(g, 20), null); released(g, 'a timed-out read holds no connection at return');
+  assert.equal(g.log.transactionAborts, 1, 'the stalled transaction is aborted');
+  // The open completes only after the deadline: that late connection is closed at once.
+  g = generatedFactory(); g.existing(); g.state.openDelayMs = 40;
+  assert.equal(await readGenerated(g, 10), null);
+  await new Promise(resolve => setTimeout(resolve, 60)); assert.equal(g.log.opens, 1); released(g, 'a late open is closed at once');
   cases.push('held-drafts-existing-only-reader');
   return cases;
 }
