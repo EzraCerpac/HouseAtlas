@@ -1276,6 +1276,34 @@ test('late lower or conflicting equal source registrations are refused and never
   } finally { f.owner.close(); }
 });
 
+test('clear and account replacement remove every registration mark however many exist', async () => {
+  const seed = async (f, count) => {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(42)), signal())).status, 'ok');
+    const control = f.backend.tables().get('control'), epoch = control.get('witness').epoch;
+    for (let index = 0; index < count; index++) {
+      control.set(JSON.stringify(['homebox-registration', epoch, scope.workspaceId, scope.homeId, 'generated-source', 'collection-' + index]),
+        { version: 1, epoch, registrationVersion: 1, registrationSha256: 'e'.repeat(64) });
+    }
+    // The backend replaces its tables on every committed write, so read them fresh.
+    return () => [...f.backend.tables().get('control').keys()].filter(key => key.includes('homebox-registration')).length;
+  };
+  const view42 = homeboxView([{ attachmentId: uuid(42), byteSize: '30' }]);
+  // 2,057 distinct partitions plus the witness exceed the 2,056-row read allowance; cleanup must not depend on it.
+  for (const mode of ['clear', 'account']) {
+    const f = await homeboxSetup(transport(), view42);
+    try {
+      const marks = await seed(f, 2057);
+      assert(marks() >= 2057);
+      const result = mode === 'clear' ? await f.owner.storage.clear()
+        : await f.owner.observe({ actorId: 'generated-actor-other', expiresAt: '2099-01-01T00:00:00Z' }, () => true);
+      assert.equal(result.status, 'ok', mode);
+      assert.equal(marks(), 0, mode + ' removes every registration mark');
+      assert.equal(f.backend.tables().get('metadata').size, 0, mode + ' removes stored rows');
+      assert.equal(f.backend.tables().get('bytes').size, 0, mode + ' removes stored bytes');
+    } finally { f.owner.close(); }
+  }
+});
+
 test('a HomeBox row stored under another association key never reports or opens as that association', async () => {
   const f = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }]));
   try {

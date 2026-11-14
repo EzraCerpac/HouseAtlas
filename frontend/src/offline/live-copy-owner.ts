@@ -818,11 +818,11 @@ function registrationOK(value: Registration, epoch: string): boolean {
   return exactKeys(value, 'epoch,registrationSha256,registrationVersion,version') && value.version === 1 && value.epoch === epoch
     && Number.isSafeInteger(value.registrationVersion) && value.registrationVersion >= 0 && SHA.test(value.registrationSha256);
 }
-/** Registration marks live beside the witness in control; account change and clear remove them with the data. */
+/** Registration marks live beside the witness in control; account change and clear remove them with the data.
+ * Removal goes by key alone, with no row or size allowance: marks are never evicted, so a cleanup that could be refused
+ * for their number or size would strand stored data. Reads address control by key, so the count does not affect them. */
 async function dropRegistrations(tx: OfflineTransaction): Promise<void> {
-  await tx.scan('control', LIVE_COPY_LIMITS.rows + 1, async (key, value) => {
-    need(key.length <= 32768, 'resource'); const size = admitJson(value, 65536);
-    need(stringPayload(key) + size.utf8 + size.utf16 * 2 <= 65536, 'resource');
+  await tx.scan('control', Number.MAX_SAFE_INTEGER, async key => {
     if (key.startsWith(`["${REGISTRATION}"`)) await tx.remove('control', key);
   });
 }
