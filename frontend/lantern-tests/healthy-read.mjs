@@ -268,6 +268,7 @@ const searchPalette = await searchJsx('../src/lantern/components/SearchPalette.t
   '../data/time': searchTime,
   '../state/store': searchStore, './Icon': searchIcon, './ui': searchUi, '../../app/model': quantityModelModule,
   '../topology/TopologyProvider': searchTopology, '../topology/search': nativeSearch,
+  '../example-label': await searchJsx('../src/lantern/example-label.tsx', { react: reactUrl, 'react/jsx-runtime': jsxUrl }),
 }, ['searchRoute as healthySearchRoute']);
 const { StoreProvider, healthyInitial, healthyReducer } = await import(searchStore);
 const { TopologyProvider } = await import(searchTopology);
