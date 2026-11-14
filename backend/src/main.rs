@@ -587,10 +587,11 @@ fn reopen_persistent(
     ),
     lifecycle::Failure,
 > {
-    let (core, lease) = match policy {
-        Some(policy) => lifecycle::persistent::reopen_full_geodata(config, policy)?,
-        None => lifecycle::persistent::reopen(config)?,
+    let approvals = match &provider_reads {
+        Some(selection) => selection.lifecycle_policy(config)?,
+        None => Default::default(),
     };
+    let (core, lease) = lifecycle::persistent::reopen_for_serve(config, policy, approvals)?;
     let providers = lifecycle::persistent::provider_reads::ProviderReadMounts::prepare(
         config,
         &core,

@@ -136,6 +136,31 @@ that compares them; that binary would refuse it. Binaries built before this
 change refuse a renumbered volume with `Persistent deployment/state binding
 changed; no automatic adoption`.
 
+## HomeBox Open file and refresh
+
+Optional; without it HomeBox stays cached-only and the app says refreshing is
+not set up. Use a HomeBox account limited to the collection HouseAtlas reads;
+HouseAtlas only sends GET requests.
+
+1. Write the exact `Authorization` header value (for example `Bearer …`) to a
+   private file owned by the service account, then `chmod 600` it. Keep it out
+   of Git, logs and backups that leave the host.
+2. In the provider profile, set `schemaVersion` to `2` and add to the HomeBox
+   entry `"credentialFile": "/absolute/path"` and
+   `"refreshEditors": [{"userId": "…", "actorId": "…"}]` for each Editor allowed
+   to refresh. Recompute the profile SHA256 and restart `serve` with both
+   provider flags ([profile format](../providers/persistent-cached-provider-selection.md)).
+3. Signed in as one of those Editors, press **Refresh from HomeBox** in the
+   **Sources** section of the home overview (also shown under Changes). The first press registers the source; each press
+   reads the collection once and replaces the cached copy, or records the
+   failure and keeps the previous copy.
+
+It does not refresh on a schedule, at startup or while browsing, never writes
+to HomeBox, and does not expose refresh to MCP or WebMCP. **Open file** then
+reads one original attachment per explicit open. Removing the two fields and
+restarting returns to cached-only reads; the registered source and cached copy
+remain until changed by an owner.
+
 ## NAS launch inputs still required
 
 The sole NAS writer must receive the verified new source checkpoint, then explicit approval for the service account, canonical config/data/log paths, selected homes/users/memberships and operator-supplied passwords, existing TLS certificate/key paths, and exact loopback bind/origin. Proposed NAS target remains https://127.0.0.1:48743. No public bind, autostart, real credential creation, grant enrollment or live provider activation is authorized by this source handoff. Do not launch the older fixture binary.

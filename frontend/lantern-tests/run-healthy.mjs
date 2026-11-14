@@ -59,7 +59,7 @@ const SOURCE = [
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
   ...cases('offline-catalog-healthy.mjs', '--case', ['complete', 'partial']),
   node('offline-root-entry-healthy.mjs'), node('offline-presentation-healthy.mjs'), node('offline-electrical-copy.test.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
-  node('outbox-healthy.mjs'), node('backup-settings-healthy.mjs'),
+  node('outbox-healthy.mjs'), node('backup-settings-healthy.mjs'), node('homebox-refresh-healthy.mjs'),
   // Unified Atlas
   node('example-combined-overlays-healthy.mjs'), node('example-files-healthy.mjs'),
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-start-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'), node('unified-atlas-network-trace-healthy.mjs'), node('unified-atlas-network-source-root-healthy.mjs'), node('unified-atlas-electrical-group-healthy.mjs'),

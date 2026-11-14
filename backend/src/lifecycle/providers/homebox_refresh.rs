@@ -104,9 +104,60 @@ pub async fn refresh<A: TrustedLifecycleAuthority, P: read::CredentialProvider, 
     lease
         .revalidate(authority)
         .map_err(|_| HostError::Authority)?;
-    let mut reader = source
+    let reader = source
         .reader(credentials, clock)
         .map_err(HostError::Configuration)?;
+    publish(core, authority, lease, reader).await
+}
+
+/// One explicit Editor-requested refresh with the configured trusted header.
+/// Credentials bind to the lease's own principal and partition grant; every
+/// provider request is a GET from the existing reader. No retry or schedule.
+pub async fn refresh_configured(
+    core: &Arc<Mutex<Core>>,
+    lease: &Arc<ProviderLease<crate::access::LifecycleGrant>>,
+    source: &TrustedHomeBoxSource,
+    credentials: &Arc<read::NativeReadCredentialConfig>,
+    #[cfg(test)] certificate: Option<&[u8]>,
+) -> Result<RefreshOutcome, HostError> {
+    let authority = crate::lifecycle::providers::authority::NativeLifecycleAuthority;
+    let access = Arc::clone(&core.lock().map_err(|_| HostError::Authority)?.access);
+    let bound = credentials
+        .bind_publication(access, lease.principal(), lease.partition_grant().clone())
+        .map_err(|_| HostError::Authority)?;
+    #[cfg(test)]
+    if let Some(certificate) = certificate {
+        if lease.source().registration() != source.registration() {
+            return Err(HostError::Publication(
+                read::PublishError::RegistrationMismatch,
+            ));
+        }
+        lease
+            .revalidate(&authority)
+            .map_err(|_| HostError::Authority)?;
+        let reader = source
+            .reader_with_loopback_certificate(bound, RefreshClock, certificate)
+            .map_err(HostError::Configuration)?;
+        return publish(core, &authority, lease, reader).await;
+    }
+    refresh(core, &authority, lease, source, bound, RefreshClock).await
+}
+
+struct RefreshClock;
+impl read::Clock for RefreshClock {
+    fn now(&self) -> read::Timestamp {
+        let current: chrono::DateTime<chrono::Utc> = std::time::SystemTime::now().into();
+        read::Timestamp::parse(&current.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true))
+            .expect("SystemTime RFC3339 timestamp")
+    }
+}
+
+async fn publish<A: TrustedLifecycleAuthority, T: read::Transport, K: read::Clock>(
+    core: &Arc<Mutex<Core>>,
+    authority: &A,
+    lease: &Arc<ProviderLease<A::Grant>>,
+    mut reader: read::HomeBoxReader<T, K>,
+) -> Result<RefreshOutcome, HostError> {
     let prepared = {
         let core = core.lock().map_err(|_| HostError::Authority)?;
         let mut store = core.store.lock().map_err(|_| HostError::Authority)?;

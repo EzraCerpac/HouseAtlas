@@ -14,7 +14,8 @@ the existing canonical-path, owner, 0600-mode, regular-file, no-symlink and
 stable-inode startup reader. Its exact bytes must match the selected SHA256.
 Its required top-level fields are:
 
-- `schemaVersion: 1`.
+- `schemaVersion: 1` or `2`. Schema 2 only adds the optional HomeBox fields
+  described under [Schema 2](#schema-2-homebox-open-file-and-editor-refresh).
 - `serverConfigurationDigest`: the existing ServerConfig.state_digest() value.
 - `homeboxCached`: an array of registration/origin/limits entries.
 - `networkCached`: an array of registration/origin/review/limits,
@@ -25,7 +26,7 @@ use the existing complete shared sourceRegistration shape. Each registration
 must select an exact configured workspace/home, the correct owner for its array,
 and a unique partition. The original ProviderRegistry validates shared identity,
 partition mode and allowlists. Unknown fields, including credential fields,
-are rejected. The original typed builders validate endpoints, limits and reviews;
+are rejected (schema 1 also refuses the two schema 2 fields). The original typed builders validate endpoints, limits and reviews;
 there are no relaxed versions of those validators.
 
 ## Reopen identity
@@ -115,3 +116,29 @@ database inode lease is retained around SQLite open. No listener or provider
 exchange is used. New fixtures, formatting, build and Clippy are UNRUN locally and delegated
 to existing CI. No runner/workflow change is included. Source/CI success does
 not establish installed, live-provider or deferred browser/device acceptance.
+
+## Schema 2: HomeBox Open file and Editor refresh
+
+A schema 2 HomeBox entry may add:
+
+- `credentialFile`: an absolute canonical path to an owner-only (0600) regular
+  file, at most 8 KiB, holding the exact HomeBox `Authorization` header value.
+  It is read once at startup through the same private startup reader; one
+  trailing line ending is ignored. Its bytes are never logged, returned or
+  written elsewhere, and a refused file reports only the generic profile error.
+- `refreshEditors`: one to eight `{userId, actorId}` pairs. Requires
+  `credentialFile`. Each pair becomes an Access `LifecycleRule` for
+  `ConfigureSource` and `PublishCache` on that exact registration, issued only
+  to a CSRF-checked Mutate (Editor) principal of that user and actor.
+
+With `credentialFile`, the existing Open file routes get a
+`PinnedHomeBoxFileBinding` for that source. With `refreshEditors` as well, the
+Editor-only `POST /api/atlas/providers/homebox/workspaces/{workspace}/homes/{home}/refresh`
+registers the source if it is not yet readable, then runs one
+`homebox_refresh::refresh` with the configured header and answers
+`refreshed`, `failed` (with a cache error code), `running` or `not-configured`.
+At most one refresh runs per process. Startup still enrolls nothing, issues
+no grant and sends nothing upstream; there is no timer, retry or startup
+refresh, and MCP/WebMCP do not expose the action. Without these fields the
+behaviour is exactly schema 1.
+

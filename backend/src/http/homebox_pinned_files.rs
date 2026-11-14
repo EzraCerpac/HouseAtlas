@@ -142,7 +142,7 @@ pub struct PinnedHomeBoxFileBinding {
     source: Arc<TrustedHomeBoxSource>,
     credentials: Arc<hb::NativeReadCredentialConfig>,
     #[cfg(test)]
-    certificate: Option<Vec<u8>>,
+    pub(crate) certificate: Option<Vec<u8>>,
 }
 impl PinnedHomeBoxFileBinding {
     pub fn new(

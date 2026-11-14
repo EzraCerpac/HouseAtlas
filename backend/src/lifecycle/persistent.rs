@@ -465,7 +465,7 @@ fn initialize_selected(
 /// Normal reopen uses only existing native files and exact compiled schema.
 /// No provisioning, fixtures, source enrollments, jobs or restoration occurs.
 pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
-    reopen_selected(config, None, false, false)
+    reopen_selected(config, None, false, false, a::LifecyclePolicy::default())
 }
 
 /// Explicit full-profile reopen. Requires an offline full-profile receipt; never migrates.
@@ -474,7 +474,13 @@ pub fn reopen_full_geodata(
     config: &ServerConfig,
     policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
 ) -> Result<(Core, ServerLease), Failure> {
-    reopen_selected(config, Some(policy), false, false)
+    reopen_selected(
+        config,
+        Some(policy),
+        false,
+        false,
+        a::LifecyclePolicy::default(),
+    )
 }
 
 /// Read-only full source selection under the existing service lease for offline capture.
@@ -482,7 +488,13 @@ pub fn reopen_full_geodata_for_backup(
     config: &ServerConfig,
     policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
 ) -> Result<(Core, ServerLease), Failure> {
-    reopen_selected(config, Some(policy), false, true)
+    reopen_selected(
+        config,
+        Some(policy),
+        false,
+        true,
+        a::LifecyclePolicy::default(),
+    )
 }
 
 /// Offline trusted selection after COPY conversion. Validates the complete target
@@ -491,10 +503,26 @@ pub fn bind_full_geodata(
     config: &ServerConfig,
     policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
 ) -> Result<(), Failure> {
-    let (core, lease) = reopen_selected(config, Some(policy), true, false)?;
+    let (core, lease) = reopen_selected(
+        config,
+        Some(policy),
+        true,
+        false,
+        a::LifecyclePolicy::default(),
+    )?;
     drop(core);
     sync(&lease.directory)?;
     Ok(())
+}
+
+/// Serve reopen with the owner's provider lifecycle approvals from the pinned
+/// provider profile. Approvals issue no grant; each use needs a real session.
+pub fn reopen_for_serve(
+    config: &ServerConfig,
+    policy: Option<Arc<dyn storage::geodata::GeodataSourcePolicy>>,
+    lifecycle: a::LifecyclePolicy,
+) -> Result<(Core, ServerLease), Failure> {
+    reopen_selected(config, policy, false, false, lifecycle)
 }
 
 fn reopen_selected(
@@ -502,6 +530,7 @@ fn reopen_selected(
     policy: Option<Arc<dyn storage::geodata::GeodataSourcePolicy>>,
     bind: bool,
     backup: bool,
+    lifecycle: a::LifecyclePolicy,
 ) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
     let full = policy.is_some();
@@ -644,7 +673,10 @@ fn reopen_selected(
     } else {
         crate::media::AssetVault::open(&config.data_directory.join("media"))?
     });
-    let mut access = a::AccessBoundary::open_existing(&selected_access, config.access_config()?)?;
+    let mut access = a::AccessBoundary::open_existing(
+        &selected_access,
+        config.access_config()?.with_lifecycle_policy(lifecycle),
+    )?;
     if !config.authentication.is_password() {
         access.validate_loopback_local_user()?;
     }

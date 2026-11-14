@@ -39,6 +39,8 @@ impl Host {
             pinned_homebox_file_bindings: Arc::new(Vec::new()),
             pinned_homebox_artifacts: Arc::new(Mutex::new(Default::default())),
             pinned_homebox_capture_requests: Arc::new(Mutex::new(Default::default())),
+            homebox_refresh_bindings: Arc::new(Vec::new()),
+            homebox_refresh_running: Arc::default(),
             network_bindings: Arc::new(Vec::new()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
@@ -354,6 +356,29 @@ impl Host {
             }
         }
         self.pinned_homebox_file_bindings = Arc::new(bindings);
+        Ok(self)
+    }
+
+    /// Explicit optional Editor refresh selection; default is empty. No
+    /// provider request, registration or grant happens at startup.
+    pub fn with_homebox_refresh(
+        mut self,
+        bindings: Vec<providers::homebox_refresh::HomeBoxRefreshBinding>,
+    ) -> crate::storage::Result<Self> {
+        let mut homes = std::collections::BTreeSet::new();
+        for binding in &bindings {
+            let partition = binding.source().partition();
+            if !self.mcp_scopes.iter().any(|scope| {
+                scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id
+            }) || !homes.insert((partition.workspace_id.clone(), partition.home_id.clone()))
+            {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "HomeBox refresh source unavailable",
+                ));
+            }
+        }
+        self.homebox_refresh_bindings = Arc::new(bindings);
         Ok(self)
     }
 
