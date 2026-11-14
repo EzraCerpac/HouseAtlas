@@ -11,6 +11,10 @@ use super::{
 pub enum LifecycleCapability {
     ConfigureSource,
     PublishCache,
+    /// Explicit owner-approved recheck of a quarantined source: one complete
+    /// read may replace the quarantined generation. Never implied by
+    /// PublishCache, registry metadata or read grants.
+    RevalidateSource,
 }
 
 /// Trusted owner approval for one subject, full registration, operation and
@@ -32,9 +36,14 @@ impl LifecycleRule {
         action: Action,
     ) -> AccessResult<Self> {
         registration.validate()?;
-        // Configuration changes require the existing CSRF-checked mutation
-        // principal in addition to an explicit independent owner approval.
-        if capability == LifecycleCapability::ConfigureSource && action != Action::Mutate {
+        // Configuration changes and source rechecks require the existing
+        // CSRF-checked mutation principal in addition to an explicit
+        // independent owner approval.
+        if matches!(
+            capability,
+            LifecycleCapability::ConfigureSource | LifecycleCapability::RevalidateSource
+        ) && action != Action::Mutate
+        {
             return Err(AccessError::InvalidInput);
         }
         Ok(Self {
@@ -82,7 +91,7 @@ impl AccessBoundary {
         current.check_lifecycle_policy(principal, registration, capability)?;
         let partition = match capability {
             LifecycleCapability::ConfigureSource => None,
-            LifecycleCapability::PublishCache => {
+            LifecycleCapability::PublishCache | LifecycleCapability::RevalidateSource => {
                 let partition = current.partition_grant(principal, &registration.partition())?;
                 current.check_registration(registration)?;
                 Some(partition)
@@ -190,7 +199,10 @@ impl CurrentAuthority<'_> {
         if registration.partition().scope() != principal.scope {
             return Err(AccessError::NotFound);
         }
-        if capability == LifecycleCapability::ConfigureSource {
+        if matches!(
+            capability,
+            LifecycleCapability::ConfigureSource | LifecycleCapability::RevalidateSource
+        ) {
             self.assert_mutation(principal)?;
         }
         if !self.config.lifecycle.rules.iter().any(|rule| {
@@ -226,7 +238,10 @@ impl CurrentAuthority<'_> {
         self.check_lifecycle_policy(principal, registration, capability)?;
         match (capability, &grant.partition) {
             (LifecycleCapability::ConfigureSource, None) => {}
-            (LifecycleCapability::PublishCache, Some(partition)) => {
+            (
+                LifecycleCapability::PublishCache | LifecycleCapability::RevalidateSource,
+                Some(partition),
+            ) => {
                 if partition.partition() != &registration.partition() {
                     return Err(AccessError::NotFound);
                 }

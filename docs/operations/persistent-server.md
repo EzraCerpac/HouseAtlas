@@ -159,17 +159,29 @@ HouseAtlas only sends GET requests.
    and replaces the cached copy, or records an ordinary failure (for example a
    timeout) and keeps the previous copy.
 
-**A rejected credential cannot be recovered yet.** If HomeBox refuses the
-credential (401 or 403), or answers with records outside the configured
-collection, the cached copy is marked access revoked and HomeBox
-reads, Open file included, are withheld. Every later press is refused before
-HomeBox is contacted, even after the credential file is corrected and `serve`
-restarted. The installed binary has no path that lifts this quarantine; it is
-tracked on #285. Check the credential against HomeBox before the first press.
+**When HomeBox rejects the credential.** If HomeBox refuses the credential
+(401 or 403), or answers with records outside the configured collection, the
+cached copy is marked access revoked and HomeBox reads, Open file included,
+are withheld. Every later refresh is refused before HomeBox is contacted.
+To make recovery possible, add `"revalidateSource": true` to the same HomeBox
+entry (it requires `refreshEditors`; absent means off), recompute the profile
+SHA256 and restart. After correcting the credential file and restarting, one
+of those Editors presses **Recheck HomeBox access**, shown in place of the
+refresh button while access is revoked. It reads the whole collection once
+with GETs only; access returns only when that complete read finds exactly the
+configured collection and every record the withheld copy holds, and the fresh
+copy replaces the withheld one in the same commit. Any failure (refused
+credential, records outside the collection, saved records missing from the
+read, an incomplete read, a timeout, another refresh running) writes nothing
+and says why. If saved records were deleted in HomeBox while access was
+revoked, the recheck keeps refusing. Without `revalidateSource` there is no way back on the
+installed binary, so check the credential against HomeBox before the first
+press.
 
-It does not refresh on a schedule, at startup or while browsing, never writes
-to HomeBox, and does not expose refresh to MCP or WebMCP. **Open file** then
-reads one original attachment per explicit open. Removing the two fields and
+It does not refresh or recheck on a schedule, at startup or while browsing,
+never retries, never writes to HomeBox, and does not expose refresh or recheck
+to MCP or WebMCP. **Open file** then
+reads one original attachment per explicit open. Removing the added fields and
 restarting returns to cached-only reads; the registered source, the cached copy
 and any quarantine remain.
 

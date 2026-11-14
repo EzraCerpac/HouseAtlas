@@ -509,7 +509,7 @@ fn network_existing_schema_requires_immutable_triggers_without_repair() {
 }
 
 #[test]
-fn v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged() {
+fn v2_credential_selects_open_file_refresh_and_recheck_while_v1_is_unchanged() {
     let f = Fixture::new();
     let before = counts(&f.config);
     let secret = "Bearer synthetic-profile-only";
@@ -563,6 +563,23 @@ fn v2_credential_selects_open_file_and_refresh_while_v1_is_unchanged() {
         extended(Some(json!("homebox-credential")), Some(&editors)),
         extended(Some(json!(credential)), Some(&json!([]))),
     ] {
+        assert!(prepared(&refused).is_err());
+    }
+    // The source recheck is absent by default and named separately.
+    let mounts = prepared(&extended(Some(json!(credential)), Some(&editors))).unwrap();
+    assert!(!mounts.refresh[0].recheck);
+    let mut recheck = extended(Some(json!(credential)), Some(&editors));
+    recheck["homeboxCached"][0]["revalidateSource"] = json!(true);
+    let mounts = prepared(&recheck).unwrap();
+    assert!(mounts.refresh[0].recheck);
+    // It needs the approved Editors (and so the credential) and schema 2.
+    let mut without_editors = extended(Some(json!(credential)), None);
+    without_editors["homeboxCached"][0]["revalidateSource"] = json!(true);
+    let mut legacy_recheck = packet(&f.config);
+    legacy_recheck["homeboxCached"][0]["revalidateSource"] = json!(true);
+    let mut not_bool = recheck.clone();
+    not_bool["homeboxCached"][0]["revalidateSource"] = json!("yes");
+    for refused in [without_editors, legacy_recheck, not_bool] {
         assert!(prepared(&refused).is_err());
     }
     write_credential(0o644);

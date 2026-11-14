@@ -14,6 +14,7 @@ use std::sync::Arc;
 pub enum LifecycleCapability {
     ConfigureSource,
     PublishCache,
+    RevalidateSource,
 }
 
 /// Access-owner contract. Grant must be opaque, nonserializable and
@@ -145,6 +146,7 @@ fn native_capability(capability: LifecycleCapability) -> a::LifecycleCapability 
     match capability {
         LifecycleCapability::ConfigureSource => a::LifecycleCapability::ConfigureSource,
         LifecycleCapability::PublishCache => a::LifecycleCapability::PublishCache,
+        LifecycleCapability::RevalidateSource => a::LifecycleCapability::RevalidateSource,
     }
 }
 
@@ -288,6 +290,9 @@ pub struct ProviderLease<G: Send + Sync> {
     captured: CapturedLifecycle<G>,
     partition: a::PartitionGrant,
     sources: Vec<a::SourceGrant>,
+    /// Present only on a lease captured for an explicit source recheck; every
+    /// revalidation of this lease then also checks the RevalidateSource grant.
+    revalidation: Option<G>,
 }
 impl<G: Send + Sync> ProviderLease<G> {
     /// Root can move an existing request's private grant captures into this
@@ -326,6 +331,7 @@ impl<G: Send + Sync> ProviderLease<G> {
             },
             partition,
             sources,
+            revalidation: None,
         };
         authority.with_authorization(
             &mut access_guard,
@@ -380,7 +386,29 @@ impl<G: Send + Sync> ProviderLease<G> {
             },
             partition,
             sources,
+            revalidation: None,
         })
+    }
+    /// Capture for one explicit recheck of a quarantined source: PublishCache
+    /// for the storage write plus the separately approved RevalidateSource,
+    /// both for this principal and full registration. Partition metadata only.
+    pub fn capture_revalidation<A: TrustedLifecycleAuthority<Grant = G>>(
+        access: &Access,
+        authority: &A,
+        principal: &a::Principal,
+        source: Arc<ConfiguredSource>,
+    ) -> a::AccessResult<Self> {
+        let mut lease = Self::capture(access, authority, principal, source, &[])?;
+        let guard = access.try_lock().map_err(|_| a::AccessError::Unavailable)?;
+        lease.revalidation = Some(authority.capture(
+            &guard,
+            principal,
+            lease.source().access_registration(),
+            LifecycleCapability::RevalidateSource,
+        )?);
+        drop(guard);
+        lease.revalidate(authority)?;
+        Ok(lease)
     }
     pub fn principal(&self) -> &a::Principal {
         &self.captured.principal
@@ -407,6 +435,15 @@ impl<G: Send + Sync> ProviderLease<G> {
             .map_err(|_| a::AccessError::Unavailable)?;
         self.captured
             .revalidate(&access, authority, LifecycleCapability::PublishCache)?;
+        if let Some(grant) = &self.revalidation {
+            authority.revalidate(
+                &access,
+                &self.captured.principal,
+                grant,
+                self.source().access_registration(),
+                LifecycleCapability::RevalidateSource,
+            )?;
+        }
         access.revalidate_source_partition(&self.partition)?;
         for grant in &self.sources {
             access.revalidate_source(grant)?;
@@ -681,6 +718,15 @@ pub enum HomeBoxPublicationOutcome<'lease, G: Send + Sync> {
     Complete(Box<StagedHomeBoxPublication<'lease, G>>),
     Failed(Box<FailedHomeBoxPublication<'lease, G>>),
 }
+/// A recheck either staged a complete generation that clears the quarantine
+/// on commit, or failed. A failure carries only its fixed category: its
+/// proposal is dropped, so the quarantine and last good state stay as stored.
+pub enum HomeBoxRevalidationOutcome<'lease, G: Send + Sync> {
+    Complete(Box<StagedHomeBoxPublication<'lease, G>>),
+    Failed(homebox::ErrorCode),
+    /// The read completed but lacks entities the quarantined generation holds.
+    RecordsMissing,
+}
 impl<'lease, G: Send + Sync> PreparedHomeBoxPublication<'lease, G> {
     /// The reader repeats full registration/coverage and quarantine checks
     /// before GET. All access/store transactions have ended before this await.
@@ -717,6 +763,41 @@ impl<'lease, G: Send + Sync> PreparedHomeBoxPublication<'lease, G> {
                         failed: *failed,
                     },
                 )))
+            }
+            Err(homebox::RefreshError::Publication(error)) => Err(homebox_publication_error(error)),
+        }
+    }
+    /// One explicit recheck of a quarantined source under a lease captured by
+    /// `ProviderLease::capture_revalidation`. GET-only through the same
+    /// reader; authority is revalidated before and after the read.
+    pub async fn fetch_revalidation<A, T, K>(
+        self,
+        authority: &A,
+        reader: &mut homebox::HomeBoxReader<T, K>,
+    ) -> s::Result<HomeBoxRevalidationOutcome<'lease, G>>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        T: homebox::Transport,
+        K: homebox::Clock,
+    {
+        if self.lease.revalidation.is_none() {
+            return Err(unavailable());
+        }
+        self.lease.revalidate(authority).map_err(storage_access)?;
+        let outcome = self.prepared.fetch_revalidation(reader).await;
+        self.lease.revalidate(authority).map_err(storage_access)?;
+        match outcome {
+            Ok(staged) => Ok(HomeBoxRevalidationOutcome::Complete(Box::new(
+                StagedHomeBoxPublication {
+                    lease: self.lease,
+                    staged,
+                },
+            ))),
+            Err(homebox::RefreshError::Read(failed)) => Ok(HomeBoxRevalidationOutcome::Failed(
+                failed.failure().error.code,
+            )),
+            Err(homebox::RefreshError::Publication(homebox::PublishError::RecordsMissing)) => {
+                Ok(HomeBoxRevalidationOutcome::RecordsMissing)
             }
             Err(homebox::RefreshError::Publication(error)) => Err(homebox_publication_error(error)),
         }
@@ -772,8 +853,11 @@ impl<G: Send + Sync> FailedHomeBoxPublication<'_, G> {
         })
     }
 }
-/// Retained quarantine refused before any GET; nothing in this workflow lifts it.
+/// Retained quarantine refused before any GET; only an explicit recheck
+/// (`fetch_revalidation`) can replace it.
 pub(crate) const QUARANTINED: &str = "Source requires separately authorized scope revalidation";
+/// A recheck was requested for a source that is not quarantined.
+pub(crate) const NOT_QUARANTINED: &str = "Source is not quarantined";
 fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
     let (code, message) = match error {
         homebox::PublishError::ScopeMismatch | homebox::PublishError::RegistrationMismatch => (
@@ -784,6 +868,11 @@ fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
             ("invalid-contract", "HomeBox retained state is unavailable")
         }
         homebox::PublishError::Quarantined => ("forbidden", QUARANTINED),
+        homebox::PublishError::NotQuarantined => ("forbidden", NOT_QUARANTINED),
+        homebox::PublishError::RecordsMissing => (
+            "forbidden",
+            "HomeBox recheck did not read every retained entity",
+        ),
         homebox::PublishError::StoreRejected => {
             ("upstream-unavailable", "HomeBox publication unavailable")
         }
@@ -805,6 +894,14 @@ impl<A: TrustedLifecycleAuthority> ProviderAuthorization<'_, A> {
             self.authority,
             LifecycleCapability::PublishCache,
         )?;
+        if let Some(grant) = &self.lease.revalidation {
+            self.authority.revalidate_guard(
+                self.guard,
+                grant,
+                self.lease.source().access_registration(),
+                LifecycleCapability::RevalidateSource,
+            )?;
+        }
         self.guard
             .revalidate_source_partition(&self.lease.partition)?;
         for grant in &self.lease.sources {
