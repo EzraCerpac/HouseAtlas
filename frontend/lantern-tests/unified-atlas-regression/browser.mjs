@@ -20,7 +20,7 @@ const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fronten
   node: process.version, status: 'running', fixture: 'generated host; publication overlays and optional generated documentary owner',
   browser: null, launchFlags: null, webgl: null, checks: [], applicationRequests: [], errors: [] };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-let browser, server, cdp, phase = 'build', exitCode = 0, stderr = '';
+let browser, browserClosed, server, cdp, phase = 'build', exitCode = 0, stderr = '';
 const childEvents = { exit: false, close: false };
 
 class CDP {
@@ -97,6 +97,7 @@ try {
     browser = spawn(executable, flags, { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
     browser.once('exit', () => { childEvents.exit = true; });
     browser.once('close', () => { childEvents.close = true; });
+    browserClosed = new Promise(resolve => browser.once('close', resolve));
     browser.stderr.on('data', bytes => { stderr = (stderr + bytes.toString()).slice(-8000); });
     cdp = new CDP(browser);
     await cdp.send('Browser.getVersion');
@@ -612,8 +613,17 @@ try {
   }
   if (server) await new Promise(resolve => server.close(resolve));
   report.cleanup = { browserStopped: !browser || browser.exitCode !== null || browser.signalCode !== null, listenerStopped: !server?.listening };
-  if (report.cleanup.browserStopped && report.cleanup.listenerStopped) rmSync(scratch, { recursive: true, force: true });
+  if (report.cleanup.browserStopped && report.cleanup.listenerStopped) {
+    // The process exiting does not mean its helpers and pipes have released the profile: wait for
+    // close, then retry removal for a bounded time. A folder that remains still fails the case.
+    if (browserClosed) await Promise.race([browserClosed, wait(5000)]);
+    for (let attempt = 0; attempt < 20 && existsSync(scratch); attempt++) {
+      try { rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }); } catch { /* checked below */ }
+      if (existsSync(scratch)) await wait(150);
+    }
+  }
   report.cleanup.scratchRemoved = !existsSync(scratch);
+  if (!report.cleanup.scratchRemoved) { report.scratchRemaining = scratch; console.error(`scratch folder not removed: ${scratch}`); }
   if (!Object.values(report.cleanup).every(Boolean)) exitCode = 1;
   console.log(JSON.stringify(report, null, 2));
   // Fixed generated labels/enums, DOM count, booleans and <=10 coverage values
