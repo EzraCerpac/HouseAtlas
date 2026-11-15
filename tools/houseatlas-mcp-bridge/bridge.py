@@ -365,6 +365,12 @@ class HTTPSOwner:
             if response_socket is not None:
                 response_socket.settimeout(remaining())
             response = conn.getresponse()
+            if response.status == 401 and 'Cookie' in headers and headers['Cookie'] == self.cookie:
+                # The native owner rejected the held session. Forget it so the
+                # next independent operation's prepare_session issues a fresh one
+                # through the same gateway. This request still fails below; it is
+                # never replayed, and a dispatched write stays UNKNOWN.
+                self._credentials = (None, None)
             if budget is not None:
                 budget.remaining()
             items = response.getheaders()
@@ -488,7 +494,9 @@ class Bridge:
 
     def prepare_session(self):
         # Reissue only between independent tool operations, never to recover or
-        # replay a failed request. A spontaneous401 is not automatic login proof.
+        # replay a failed request. A spontaneous401 is not automatic login proof:
+        # it only discards the held cookie, so at most one fresh issuance follows,
+        # at the start of the next operation, under the same actor/scope fences.
         issued_actor = None
         if self.owner.cookie is None or (self.session_expiry is not None and self.session_expiry <= time.time() + 30):
             options = {'budget': self.capabilities_budget} if self.capabilities_budget is not None else {}

@@ -1355,6 +1355,136 @@ class Cases(unittest.TestCase):
         with self.assertRaises(b.BridgeError): self.bridge.evidence(BUILDING, EVIDENCE, 0, 20)
         self.assertEqual(self.owner.posts, [])
 
+    def revocable_transport(self):
+        # Real HTTPSOwner bounded reader over an in-memory connection. Issued
+        # cookies are synthetic counters; `revoked` cookies (or all, with
+        # revoke_all) answer 401. No socket, gateway or credential is involved.
+        state = {'issued': 0, 'actor': uid(9), 'revoked': set(), 'revoke_all': False, 'log': []}
+        fake = self.owner
+        class Connection:
+            def request(_self, method, path, body=None, headers=None):
+                cookie = headers.get('Cookie')
+                state['log'].append((method, path, cookie))
+                extra, status = [], 200
+                if path == '/api/atlas/auth/mode':
+                    raw = b'{"schemaVersion":1,"mode":"trusted-proxy"}'
+                elif path == '/api/atlas/auth/proxy':
+                    state['issued'] += 1
+                    extra = [('Set-Cookie', f'__Host-houseatlas-session=SYNTHETIC-ISSUE-{state["issued"]:08d}; '
+                              'Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600')]
+                    raw = b.compact({'schemaVersion': 1, 'actorId': state['actor'],
+                                     'csrfToken': f'synthetic-csrf-{state["issued"]}',
+                                     'expiresAt': '2099-01-01T00:00:00Z'}).encode()
+                elif (cookie is None or state['revoke_all'] or cookie in state['revoked']
+                      or (path.endswith('/commands') and state.get('reject_post'))):
+                    status, raw = 401, b'{}'
+                elif path == '/api/atlas/auth/session':
+                    if method == 'GET' and fake.posts:
+                        fake.exchange(method, path)  # honours fail_post_session
+                    raw = b.compact({'schemaVersion': 1, 'actorId': state['actor'],
+                                     'csrfToken': f'synthetic-csrf-{state["issued"]}',
+                                     'expiresAt': '2099-01-01T00:00:00Z'}).encode()
+                else:
+                    _, raw = fake.exchange(method, path, body, headers.get('X-Atlas-CSRF'), b.MAX_READ)
+                if path.endswith('/commands') and state.get('revoke_after_post'):
+                    state['revoked'].add(cookie)
+                _self.reply = (status, [('Content-Type', 'application/json'),
+                                        ('Content-Length', str(len(raw)))] + extra, raw)
+            def getresponse(_self):
+                status, items, raw = _self.reply
+                return type('Response', (), {'status': status, 'getheaders': lambda _: items,
+                                             'read1': io.BytesIO(raw).read1})()
+            def close(_self): pass
+        owner = b.HTTPSOwner(self.owner.origin)
+        self.bridge = b.Bridge(SCOPE, owner, self.journal)
+        def count(path):
+            return sum(1 for _, p, _ in state['log'] if p == path or p.startswith(path))
+        return owner, state, count, patch.object(b.http.client, 'HTTPSConnection', return_value=Connection())
+
+    def failure_session_401_read_renewal(self):
+        owner, state, count, connection = self.revocable_transport()
+        invoke = self.bridge.base + '/invoke?'
+        with connection:
+            read = lambda n: b.strict_json(self.bridge.read(b.compact(request('atlas.identity.get', n))))
+            self.assertEqual(read(900)['status'], 'read')
+            self.assertEqual((count('/api/atlas/auth/proxy'), count(invoke)), (1, 1))
+            state['revoked'].add(owner.cookie)
+            with self.assertRaisesRegex(b.BridgeError, 'status=401'):
+                read(901)
+            self.assertIsNone(owner.cookie)  # Rejected session forgotten, not retried.
+            self.assertEqual((count('/api/atlas/auth/proxy'), count(invoke)), (1, 1))
+            self.assertEqual(read(902)['status'], 'read')
+            self.assertEqual((count('/api/atlas/auth/proxy'), count(invoke)), (2, 2))
+            self.assertEqual(owner.cookie, '__Host-houseatlas-session=SYNTHETIC-ISSUE-00000002')
+            self.assertEqual((self.bridge.actor, self.bridge.csrf), (uid(9), 'synthetic-csrf-2'))
+        self.assertEqual(self.owner.posts, [])
+
+    def denial_session_401_renewed_actor(self):
+        owner, state, count, connection = self.revocable_transport()
+        invoke = self.bridge.base + '/invoke?'
+        with connection:
+            self.bridge.read(b.compact(request('atlas.identity.get', 910)))
+            state['revoked'].add(owner.cookie)
+            with self.assertRaisesRegex(b.BridgeError, 'status=401'):
+                self.bridge.read(b.compact(request('atlas.identity.get', 911)))
+            state['actor'] = uid(10)
+            for n in (912, 913):
+                with self.assertRaisesRegex(b.BridgeError, 'Native actor changed'):
+                    self.bridge.read(b.compact(request('atlas.identity.get', n)))
+            self.assertEqual((count('/api/atlas/auth/proxy'), count(invoke)), (2, 1))
+            self.assertFalse(any(p.endswith('/admission') for _, p, c in state['log'][-4:]))
+        self.assertEqual(self.bridge.actor, uid(9))
+        self.assertEqual(self.owner.posts, [])
+
+    def failure_session_401_write_unknown(self):
+        for variant in ('commit-post', 'post-dispatch-session'):
+            with self.subTest(variant=variant):
+                self.journal.close(); self.tmp.cleanup()
+                self.tmp = tempfile.TemporaryDirectory(prefix='houseatlas-mcp-synthetic-')
+                os.chmod(self.tmp.name, 0o700)
+                self.owner, self.journal = FakeOwner(), b.Journal(self.tmp.name)
+                owner, state, count, connection = self.revocable_transport()
+                commands = self.bridge.base + '/commands'
+                req = request(n=920); raw = b.compact(req)
+                with connection:
+                    self.bridge.read(b.compact(request('atlas.identity.get', 921)))
+                    if variant == 'commit-post':
+                        state['reject_post'] = True  # 401 on the write POST itself.
+                    else:
+                        state['revoke_after_post'] = True  # POST lands; session reread 401.
+                    with self.assertRaisesRegex(b.BridgeError, 'status=401'):
+                        self.bridge.write(raw)
+                    self.assertIsNone(owner.cookie)
+                    self.assertEqual(count(commands), 1)
+                    retained = self.journal.operation(req['requestId'])
+                    self.assertEqual(retained[1:4], (raw, b.sha(raw.encode()), 'unknown'))
+                    state['revoke_after_post'] = state['reject_post'] = False
+                    # Next independent operation renews once; the journal is untouched.
+                    self.bridge.read(b.compact(request('atlas.identity.get', 922)))
+                    self.assertEqual(count('/api/atlas/auth/proxy'), 2)
+                    self.assertEqual(self.journal.operation(req['requestId']), retained)
+                    with self.assertRaisesRegex(b.BridgeError, 'Unknown write outcome blocks'):
+                        self.bridge.write(b.compact(request(n=923)))
+                    self.assertEqual(count(commands), 1)
+                    self.assertEqual(len(self.owner.posts), 1 if variant == 'post-dispatch-session' else 0)
+                    self.assertTrue(self.bridge.status()['writeBlocked'])
+                    self.assertEqual(self.journal.operation(req['requestId']), retained)
+
+    def failure_session_401_persistent(self):
+        owner, state, count, connection = self.revocable_transport()
+        invoke = self.bridge.base + '/invoke?'
+        state['revoke_all'] = True
+        with connection:
+            for n, logins in ((930, 1), (931, 2), (932, 3)):
+                with self.assertRaisesRegex(b.BridgeError, 'status=401'):
+                    self.bridge.read(b.compact(request('atlas.identity.get', n)))
+                # Exactly one issuance per independent operation; no spin.
+                self.assertEqual(count('/api/atlas/auth/proxy'), logins)
+                self.assertEqual(count('/api/atlas/auth/session'), logins)
+                self.assertIsNone(owner.cookie)
+            self.assertEqual(count(invoke), 0)
+        self.assertEqual(self.owner.posts, [])
+
 
 HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_lossless_read', 'healthy_scene_original', 'healthy_retained_reconciliation',
            'healthy_retained_batch', 'healthy_memory_session', 'healthy_stdio_optional_arguments',
@@ -1374,6 +1504,8 @@ REGRESSION += ('denial_initialize_diagnostic_final_response',)
 HEALTHY += ('healthy_repeated_initialize_stdio', 'healthy_repeated_initialize_state')
 REGRESSION += ('denial_repeated_initialize_validation',)
 REGRESSION += ('denial_idless_initialized_guards', 'denial_idless_tool_dispatch')
+REGRESSION += ('failure_session_401_read_renewal', 'denial_session_401_renewed_actor',
+               'failure_session_401_write_unknown', 'failure_session_401_persistent')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

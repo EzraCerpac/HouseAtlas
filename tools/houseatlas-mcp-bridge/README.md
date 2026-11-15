@@ -57,6 +57,15 @@ and payload `{}`: it must be active with `payload.kind: "location"`. Ambiguous
 accepted semantics remain a conflict. If either command is unadmitted, stop that
 discovery step; evidence listing itself does not require those commands.
 
+## Rejected sessions
+
+A native 401 on a request that carried the held session cookie fails that
+operation and discards the cookie. It is never replayed. The next independently
+requested tool operation issues one fresh session through the same gateway,
+subject to the unchanged actor, scope, CSRF and journal-binding checks; a
+different actor is refused. A write whose POST was already dispatched stays
+UNKNOWN until operation-status reconciles it natively.
+
 ## Synthetic regression lane
 
 The existing explicit bridge selections now consume `read-examples.json`:
