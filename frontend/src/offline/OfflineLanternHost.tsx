@@ -5,6 +5,7 @@ import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
 import { Icon } from '../lantern/components/Icon';
 import { Modal } from '../lantern/components/Modal';
+import { formatDate } from '../app/copy';
 import { SourcePdf, type SourcePdfReadingPosition } from '../lantern/source-documents/SourcePdf';
 import { emptyReadingIntent, revalidateReadingIntent, openReadingDocument, rememberReadingPosition, closeReadingDocument, readingDocumentKey,
   type HeldReadingDocument, type OfflineReadingIntent } from './offline-reading-intent';
@@ -116,14 +117,15 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
     <SectionNavigation view={view} onView={setView} />
     <div className="shell-tools">
       {live.reachable ? <a className="offline-pill" href="/?live">Back online · Open live{count ? ` to sync ${count} changes` : ''}</a>
-        : <button className="offline-pill" type="button" onClick={live.check} disabled={live.checking} title="Check connection">{live.checking ? 'Checking…' : `Offline${waiting}`}</button>}
+        : <button className="offline-pill" type="button" onClick={live.check} disabled={live.checking} aria-live="polite">
+          <Icon name="wifi" size={15} />{live.checking ? 'Checking connection…' : <>Offline{waiting}<span className="offline-pill-action"> · Check connection</span></>}</button>}
       <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={20} /></button>
     </div>
     <main id="main" className="main" tabIndex={-1}>
       {view === 'atlas' ? atlas ? <div className="offline-atlas"><UnifiedAtlas port={atlas.port} environment={{ reducedMotion, openDocuments: () => setView('library') }} /></div>
-        : <div className="view"><h1>Atlas</h1><p role="status">{atlasLoading ? 'Opening held Atlas…' : 'No matching Atlas is held on this device.'}</p></div>
+        : <div className="view"><h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
         : <div className="view"><header className="view-head"><h1>{view === 'upkeep' ? 'Upkeep' : view === 'library' ? 'Library' : 'Changes'}</h1>
-          <p>Held information from <time dateTime={snapshot.capturedAt}>{snapshot.capturedAt}</time>.</p></header>
+          <p>Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</p></header>
           {view === 'upkeep' && <OfflineUpkeep snapshot={snapshot} />}
           {view === 'library' && <OfflineLibrary owner={owner} selection={selection} openDocument={openDocument} />}
           {view === 'changes' && <><h2>Waiting changes</h2><p>{outbox.loaded ? `${count} changes waiting on this device.` : 'Reading waiting changes…'}</p>
