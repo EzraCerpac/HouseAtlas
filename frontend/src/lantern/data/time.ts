@@ -84,7 +84,7 @@ export function fmtDateTimeReadable(iso?: string): string {
   const m = /^(\d{4}-\d{2}-\d{2})[Tt ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/u.exec(iso);
   if (!m) return iso;
   // RFC 3339 "-00:00" means the local offset is unknown, not a zero offset.
-  const zone = m[3] === undefined ? '' : /^[Zz]$/u.test(m[3]) ? ' UTC' : m[3] === '-00:00' ? ' (offset unknown)' : ` UTC${m[3]}`;
+  const zone = m[3] === undefined ? '' : /^[Zz]$/u.test(m[3]) ? ' UTC' : m[3] === '-00:00' ? ' UTC (local offset unknown)' : ` UTC${m[3]}`;
   return `${fmtDate(m[1])}, ${m[2]}${zone}`;
 }
 

@@ -35,5 +35,5 @@ assert.equal(fmtTime('2024-02-29'), '2024-02-29');
 assert.equal(fmtShortDate('2016-12-31T23:59:60Z', '2017-01-01T00:59:60+01:00'), '31 Dec 2016');
 assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00Z'), '8 Oct 2026, 08:12 UTC');
 assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00+02:00'), '8 Oct 2026, 08:12 UTC+02:00');
-assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00-00:00'), '8 Oct 2026, 08:12 (offset unknown)');
+assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00-00:00'), '8 Oct 2026, 08:12 UTC (local offset unknown)');
 console.log(`PASS source timestamp display: ${timestamps.length} schema-valid original timestamps and leap-day display`);
