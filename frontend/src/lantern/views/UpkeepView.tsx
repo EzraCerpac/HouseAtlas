@@ -1,9 +1,10 @@
 import type { Task } from '../data/types';
 import { dueState } from '../data/query';
 import { fmtDate, referenceDayLabel } from '../data/time';
-import { useStore } from '../state/store';
-import { TaskRow, TaskWriteNote } from '../components/rows';
-import { Note } from '../components/ui';
+import { useCanWrite, useStore } from '../state/store';
+import { TaskRow } from '../components/rows';
+import { Empty, Note } from '../components/ui';
+import { Icon } from '../components/Icon';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -24,7 +25,7 @@ function DateMark({ iso, now }: { iso?: string | undefined; now?: string | undef
 
 const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-/** Empty groups are not drawn; the page names them in one line instead. */
+/** Empty groups are not drawn; the page lists them in one line instead. */
 function Group({ title, tasks, tone, dateOf, now, sharedCache }: { title: string; tasks: Task[]; tone: string; dateOf: (t: Task) => string | undefined; now?: string | undefined; sharedCache?: string | undefined }) {
   if (!tasks.length) return null;
   const id = `tl-${slug(title)}`;
@@ -62,20 +63,23 @@ export function UpkeepView() {
   const sharedCache = statuses.size === 1 && only !== undefined ? only : undefined;
   const groups = [['Overdue', overdue], ['Next two weeks', soon], ['Later', later], ['No schedule supplied', undated], ['Completed', done]] as const;
   const empty = groups.filter(([, tasks]) => !tasks.length).map(([title]) => title);
-  const emptyText: Record<string, string> = { Overdue: 'overdue', 'Next two weeks': 'due in the next two weeks', Later: 'due later', 'No schedule supplied': 'without a schedule', Completed: 'completed' };
-  const emptyPhrases = empty.map(title => emptyText[title]!);
-  const emptyLine = empty.length === groups.length ? 'No tasks.'
-    : `Nothing ${emptyPhrases.length > 1 ? `${emptyPhrases.slice(0, -1).join(', ')}, or ${emptyPhrases.at(-1)}` : emptyPhrases[0]}.`;
-  // Cache state, reference date and the empty groups share one status line.
-  const status = [empty.length > 0 && emptyLine.slice(0, -1), referenceDayLabel(house.displayNow) !== undefined && `Dates relative to ${referenceDayLabel(house.displayNow)}`, sharedCache !== undefined && `Source cache: ${sharedCache} for every task`].filter(Boolean).join(' · ');
+  // Reference date and cache state qualify every date below, so they sit under the heading.
+  const reference = referenceDayLabel(house.displayNow);
+  const qualifier = [reference !== undefined && `Dates relative to ${reference}`, sharedCache !== undefined && `Source cache: ${sharedCache} for every task`].filter(Boolean).join(' · ');
+  const can = useCanWrite('HomeBox');
+  const open = house.tasks.some(task => task.status !== 'done');
   return (
     <div className="view">
       <header className="view-head">
         <h1>Upkeep</h1>
+        {qualifier && <p className="fine">{qualifier}</p>}
+        {!can.ok && open && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
-      <TaskWriteNote tasks={house.tasks} />
-      {status && <p className="fine upkeep-status">{status}.</p>}
+      {empty.length === groups.length ? <Empty>No tasks.</Empty>
+        : empty.length > 0 && <ul className="upkeep-empty" aria-label="Empty groups">
+          {empty.map(title => <li key={title}>{title}<span className="section-count">0</span></li>)}
+        </ul>}
       <div className="tl-columns">
         <div>
           <Group title="Overdue" tasks={overdue} tone="overdue" dateOf={(t) => t.due} now={house.displayNow} sharedCache={sharedCache} />

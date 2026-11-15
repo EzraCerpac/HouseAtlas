@@ -59,7 +59,8 @@ export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTar
   const pending = writesFor(house, task.id).length > 0;
   return (
     <li className={`task-row due-${st}`}>
-      <span className="task-mark" aria-hidden="true">
+      {/* Decorative: a tick for done; a box only where Mark done can tick it, otherwise a due-state ring. */}
+      <span className={st === 'done' || can.ok ? 'task-mark' : 'task-mark task-mark-status'} aria-hidden="true">
         {st === 'done' ? <Icon name="check" size={15} /> : null}
       </span>
       <span className="task-main">

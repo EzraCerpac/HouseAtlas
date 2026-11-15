@@ -170,7 +170,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     <NativeActions />
     {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
     {(actions.notice || retrying) && <div className="lantern-host lantern-reload-notice">
-      <p role="status">{actions.notice ? `${actions.notice} Shown information was loaded at ${fmtLocalClock(loaded.at)}.` : 'Reloading saved information…'}</p>
+      <p role="status">{actions.notice ? `${actions.notice} View loaded ${fmtLocalClock(loaded.at)}.` : 'Reloading saved information…'}</p>
       <button type="button" className="btn btn-small" aria-disabled={actions.busy || retrying} onClick={() => {
         if (actions.busy || retrying) return;
         retried.current = true; setRetrying(true); void Promise.resolve(actions.reload()).finally(() => setRetrying(false));

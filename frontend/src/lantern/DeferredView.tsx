@@ -1,5 +1,6 @@
 import { Component, Suspense, type ReactNode } from 'react';
 import { useStore } from './state/store';
+import { useSourcePorts } from './source-ports';
 
 interface Props { readonly label: string; readonly children: ReactNode }
 
@@ -18,12 +19,25 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
   }
 }
 
-/** Holds the view's heading where the loaded view puts it, so nothing jumps. */
+/** The view's own headings and section links, which need no data, with quiet
+ * placeholder rows under them, so nothing jumps when the view arrives. */
 function LoadingView({ label }: { readonly label: string }) {
   const { house } = useStore();
+  const ports = useSourcePorts();
+  const sections = label === 'Library' ? ['HomeBox files', ...(ports.documents ? ['Source documents'] : []), ...(ports.electricalLibrary ? ['Electrical drawings'] : [])]
+    : label === 'Changes' ? ['Operation history', 'Sources'] : [''];
+  const status = <p className="fine loading-status" role="status" aria-live="polite">Loading {label} for {house.name}…</p>;
   return <section className="view" aria-label={label} aria-busy="true">
     <header className="view-head"><h1>{label}</h1>
-      <p role="status" aria-live="polite">Loading {label} for {house.name}…</p></header>
+      {label === 'Library' && sections.length > 1 && <nav className="seg library-jump" aria-label="Library sections">
+        {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}</header>
+    <div className={label === 'Changes' ? 'changes-grid' : undefined}>
+      {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section' : 'loading-section'}>
+        {title && <div className="section-head">{label === 'Changes' ? <h3>{title}</h3> : <h2>{title}</h2>}</div>}
+        {index === 0 && status}
+        <span className="loading-rows" aria-hidden="true" />
+      </section>)}
+    </div>
   </section>;
 }
 

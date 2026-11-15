@@ -82,6 +82,18 @@
   gap: 8px;
 }
 
+/* An unavailable action and its reason, kept together when the row wraps. */
+.lantern-host .write-action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.lantern-host .write-action .fine {
+  margin: 0;
+}
+
 .lantern-host .detail-body {
   padding: 2px 22px 36px;
 }
@@ -610,6 +622,24 @@
   border-style: dashed;
 }
 
+/* An open task while Mark done is unavailable: a due-state ring, not a box to tick. */
+.lantern-host .task-mark.task-mark-status {
+  width: 12px;
+  height: 12px;
+  margin: 4px;
+  border: 2px solid var(--hair-2);
+  border-radius: 50%;
+}
+
+.lantern-host .due-overdue .task-mark-status {
+  border-color: var(--alert);
+  background: var(--alert);
+}
+
+.lantern-host .due-soon .task-mark-status {
+  border-color: var(--l-upkeep);
+}
+
 .lantern-host .due-text.due-overdue {
   color: var(--alert);
   font-weight: 600;
@@ -980,6 +1010,27 @@
   color: var(--muted);
 }
 
+/* A view still loading: its known headings over quiet placeholder rows,
+   one hairline-ruled row per 64 px, that claim no data. */
+.lantern-host .loading-section + .loading-section {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hair-2);
+}
+
+.lantern-host .loading-status {
+  margin: 0 0 12px;
+}
+
+.lantern-host .loading-rows {
+  display: block;
+  height: 192px;
+  background:
+    linear-gradient(var(--hair) 0 1px, transparent 1px) 0 0 / 100% 64px repeat-y,
+    linear-gradient(transparent 20px, var(--hair) 20px 32px, transparent 32px) 0 0 / min(46%, 280px) 64px repeat-y,
+    linear-gradient(transparent 42px, var(--hair) 42px 50px, transparent 50px) 0 0 / min(28%, 180px) 64px repeat-y;
+}
+
 /* The saved Network relations' standing qualifier, above their tabs. */
 .lantern-host .network-sources-note {
   margin: 0 0 14px;
@@ -1206,9 +1257,31 @@
 
 /* Upkeep timeline */
 
-/* Empty groups, reference date and cache state: one line under the note. */
-.lantern-host .upkeep-status {
-  margin: 6px 0 0;
+/* Mark done's limitation: one small line under the dates it shares the heading with. */
+.lantern-host .view-head .upkeep-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* The empty groups, named once as a row of zero counts above the timeline. */
+.lantern-host .upkeep-empty {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lantern-host .upkeep-empty li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .lantern-host .tally .tally-asof {
@@ -1582,7 +1655,8 @@
   margin: 8px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  /* auto-fit: a single file spans the width instead of leaving an empty column. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
   gap: 0 36px;
 }
 
