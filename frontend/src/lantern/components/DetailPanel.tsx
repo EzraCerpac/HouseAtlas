@@ -277,7 +277,11 @@ export function StaleSources({ onOpen }: { onOpen: () => void }) {
   return (
     <button type="button" className="stale-chip" onClick={onOpen} aria-label={`${facts.join('. ')}. Open Overview.`}>
       <span className="stale-chip-face" aria-hidden="true">
-        <span className="stale-chip-state">{behind.length === 1 ? `${source(first.owner)} ${state}` : `${behind.length} sources ${state}`}</span>
+        <span className="stale-chip-state">
+          <span className="stale-chip-full">{behind.length === 1 ? `${source(first.owner)} ${state}` : `${behind.length} sources ${state}`}</span>
+          {/* Small phones: the source name leaves the face; the accessible name keeps it. */}
+          <span className="stale-chip-short">{behind.length === 1 ? cacheStatusLabel(first.displayStatus) : `${behind.length} ${state}`}</span>
+        </span>
         {behind.length === 1 && <span className="stale-chip-date">{first.lastSuccessfulFetchAt ? fmtShortDate(first.lastSuccessfulFetchAt, house.displayNow) : 'last update unknown'}</span>}
       </span>
     </button>

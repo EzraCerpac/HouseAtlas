@@ -180,12 +180,12 @@ try {
   assert.equal(homebox.displayStatus, 'stale');
   const stale = chip(view.caches);
   assert.match(stale, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Open Overview\."/);
-  assert.match(stale, />HomeBox stale<\/span><span class="stale-chip-date">3 Jan</);
+  assert.match(stale, /<span class="stale-chip-full">HomeBox stale<\/span><span class="stale-chip-short">Stale<\/span><\/span><span class="stale-chip-date">3 Jan</);
   assert.equal(chip([{ ...homebox, status: 'fresh', displayStatus: 'fresh' }]), '');
   assert.match(chip([{ ...homebox, lastSuccessfulFetchAt: null }]), /last successful update unknown\. Open Overview\.".*>last update unknown</);
   const both = chip([homebox, { owner: 'network', status: 'error', displayStatus: 'error', lastSuccessfulFetchAt: null }]);
   assert.match(both, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Network: Error, last successful update unknown\. Open Overview\."/);
-  assert.match(both, />2 sources not fresh</);
+  assert.match(both, /<span class="stale-chip-full">2 sources not fresh<\/span><span class="stale-chip-short">2 not fresh</);
 
   // Label: the dialogs and drawing viewer that cover the top bar show the
   // example's label only under the example's provider; a configured home has none.

@@ -879,6 +879,10 @@
   color: var(--warn);
 }
 
+.lantern-host .stale-chip-short {
+  display: none;
+}
+
 .lantern-host .stale-chip-date::before {
   content: '· ';
 }
@@ -2508,13 +2512,14 @@
     display: none;
   }
 
-  /* The stale chip stacks its state over its date, leaving the home's name
-     room in the strip. */
+  /* The stale chip drops the source name and stacks its state over its
+     date, leaving the home's name room in the strip. */
   .lantern-host .stale-chip-face {
     display: grid;
     gap: 0;
     height: auto;
-    padding: 3px 9px;
+    justify-items: center;
+    padding: 3px 8px;
     border-radius: 10px;
     font-size: 11px;
     line-height: 1.25;
@@ -2527,6 +2532,14 @@
 
   .lantern-host .stale-chip-date::before {
     content: none;
+  }
+
+  .lantern-host .stale-chip-full {
+    display: none;
+  }
+
+  .lantern-host .stale-chip-short {
+    display: inline;
   }
 
   .lantern-host .source-status {
