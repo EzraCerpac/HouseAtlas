@@ -27,25 +27,31 @@ export function RealPreview() {
   const opener = attachment.kind === 'stored-file' && entry?.source.sourceKind === 'homebox-entity' ? actions.homeboxOriginals : undefined;
   const opensHere = !!opener;
   const image = attachment.kind === 'stored-file' && safeMediaUrl(attachment.previewHref) && ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'].includes(attachment.contentType?.toLowerCase() ?? '');
+  // Shown under the actions so it reads with them; the attachment supplies nothing more.
+  const availability = attachment.kind === 'external-link' ? href ? 'Unknown; HouseAtlas does not check external addresses' : 'No usable external address supplied'
+    : href ? 'Access link supplied; validity checked on use' : opensHere ? 'Checked when opened; no separate download link supplied' : 'No download link issued';
   return <Modal wide title={doc.title} kicker={<StorageTag doc={doc} />} onClose={close} footer={<button className="btn btn-primary" type="button" onClick={close}>Done</button>}>
-    <div className="preview-layout">
-      <div className="preview-stage">
+    <div className={image ? 'preview-layout' : 'preview-layout preview-layout-stacked'}>
+      {/* Without an image the actions sit in a compact row, not a preview-sized well. */}
+      <div className={image ? 'preview-stage' : 'preview-stage preview-actions'}>
         {image && attachment.kind === 'stored-file' ? <AuthorizedImagePreview key={JSON.stringify([id, attachment.attachmentId, attachment.previewHref])} href={safeMediaUrl(attachment.previewHref)!} title={doc.title} /> : !opensHere && <Note>{attachment.kind === 'external-link' ? 'External address only. No stored copy is supplied.' : 'A safe image preview is unavailable.'}</Note>}
         {opener && <Suspense fallback={null}>
           <HomeboxOriginalAction key={id} docId={id} port={opener} />
         </Suspense>}
         {href ? <a className={opensHere ? 'btn' : 'btn btn-primary'} href={href} target="_blank" rel="noopener noreferrer">{attachment.kind === 'external-link' ? 'Open external link' : 'Download original'}</a> : !opensHere && <Note>File access is unavailable.</Note>}
+        <p className="preview-availability"><span>Availability</span> {availability}</p>
       </div>
       <aside className="preview-aside" aria-label="Provenance"><h3>Provenance</h3><dl className="facts">
         <div><dt>Owner</dt><dd>HomeBox</dd></div>
-        <div><dt>Attachment</dt><dd><code>{attachment.attachmentId}</code></dd></div>
-        <div><dt>Availability</dt><dd>{attachment.kind === 'external-link' ? href ? 'Unknown; HouseAtlas does not check external addresses' : 'No usable external address supplied' : href ? 'Access link supplied; validity checked on use' : 'No download link issued'}</dd></div>
-        {attachment.kind === 'stored-file' && <><div><dt>Content type</dt><dd>{attachment.contentType ?? 'Unknown'}</dd></div><div><dt>Bytes</dt><dd>{attachment.byteSize ?? 'Unknown'}</dd></div></>}
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
         <div><dt>Attachment added</dt><dd>{doc.addedAt ? <RecordedTime value={doc.addedAt} after={` by ${doc.addedBy}`} /> : 'Date and actor not supplied'}</dd></div>
         <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? <RecordedTime value={entry.sourceUpdatedAt} /> : 'Unknown'}</dd></div>
         <div><dt>Retrieved</dt><dd>{entry ? <RecordedTime value={entry.retrievedAt} /> : 'Unknown'}</dd></div>
       </dl>
+        <details className="preview-technical"><summary>{attachment.kind === 'stored-file' ? 'Attachment ID, content type and recorded bytes' : 'Attachment ID'}</summary><dl className="facts">
+          <div><dt>Attachment</dt><dd><code>{attachment.attachmentId}</code></dd></div>
+          {attachment.kind === 'stored-file' && <><div><dt>Content type</dt><dd>{attachment.contentType ?? 'Unknown'}</dd></div><div><dt>Recorded bytes</dt><dd>{attachment.byteSize ?? 'Unknown'}</dd></div></>}
+        </dl></details>
         {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}
       </aside>
     </div>

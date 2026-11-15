@@ -118,7 +118,8 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
   return <>
     <div className="electrical-library-status">
       {message ? <p role="status">{message}</p> : current && <p>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>}
-      <button type="button" className="btn btn-small" disabled={!owner} onClick={() => setAttempt(value => value + 1)}>Reload drawings</button>
+      {/* Offered once a read has settled without current drawings: a failure or a withdrawal. */}
+      {owner && state?.owner === owner && !current && <button type="button" className="btn btn-small" onClick={() => setAttempt(value => value + 1)}>Reload drawings</button>}
     </div>
     <div ref={surface}>
       {current && visible && <>

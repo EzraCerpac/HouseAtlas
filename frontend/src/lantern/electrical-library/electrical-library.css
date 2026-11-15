@@ -23,6 +23,10 @@
 .electrical-library-backdrop { position: fixed; inset: 0; z-index: 100; background: #0006; }
 .electrical-library-backdrop .native-scene-drawing { inset: max(12px, 3vh) max(12px, calc((100vw - 1100px) / 2)); }
 .lantern-host .electrical-library-backdrop > .electrical-library-pending { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 24px; padding: 16px; border-radius: 16px; background: var(--card); }
+/* Phones: a sheet title opens its drawing, so it is a 44 px target. */
+@media (max-width: 759px) {
+  .lantern-host .electrical-library-sheets .row-title { min-height: 44px; }
+}
 @media (max-width: 600px) {
   .lantern-host .electrical-library-documents > li { padding: 12px 12px 2px; }
   .electrical-library-backdrop .native-scene-drawing { inset: 6px; }

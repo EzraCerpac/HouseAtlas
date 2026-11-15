@@ -1897,6 +1897,13 @@
   gap: 6px;
 }
 
+/* Phones: each suggestion is a 44 px target. */
+@media (max-width: 759px) {
+  .lantern-host .palette-try .chip-btn {
+    min-height: 44px;
+  }
+}
+
 .lantern-host .palette-group-label {
   padding: 10px 10px 4px;
   font-size: var(--fs-xs);
@@ -2519,8 +2526,8 @@
     display: none;
   }
 
-  /* The stale chip drops the source name and stacks its state over its
-     date, leaving the home's name room in the strip. */
+  /* The stale chip stacks its state over its date, leaving the home's name
+     room in the strip. */
   .lantern-host .stale-chip-face {
     display: grid;
     gap: 0;
@@ -2547,6 +2554,25 @@
 
   .lantern-host .stale-chip-short {
     display: inline;
+  }
+
+  /* One stale source keeps its name: it wraps over the state, with the date
+     beneath. Several sources keep the short count ("2 not fresh"). */
+  .lantern-host .stale-chip-face:has(.stale-chip-date) {
+    padding: 2px 4px;
+    font-size: 10px;
+    line-height: 1.15;
+  }
+
+  .lantern-host .stale-chip-face:has(.stale-chip-date) .stale-chip-full {
+    display: block;
+    width: min-content;
+    white-space: normal;
+    margin: 0 auto;
+  }
+
+  .lantern-host .stale-chip-face:has(.stale-chip-date) .stale-chip-short {
+    display: none;
   }
 
   .lantern-host .source-status {
