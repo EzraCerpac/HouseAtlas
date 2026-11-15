@@ -40,6 +40,12 @@ function buildingMarks(model: AtlasModel, buildings: readonly { readonly buildin
  * stand above them when there is more than one, and on a phone Spread floors
  * (Exploded) closes the stack in 3D; a wide stage sets it beside 3D and Plan. Arrow up and down on the head, or a swipe of the
  * chip, step one floor, "All floors" standing above the top floor. */
+/** At most five glyph slabs, top floor first; the window slides down to keep the drawn floor in it. */
+export function slabWindow<T extends { readonly levelId: string }>(top: readonly T[], drawnAnchor: string | null): readonly T[] {
+  const from = Math.max(0, top.findIndex(level => level.levelId === drawnAnchor) - 4);
+  return top.slice(from, from + 5);
+}
+
 export function FloorStack({ model, levels, buildings, buildingNav, building, state, dispatch, chooseBuilding, shownLevel, selectionLevel, contextLevels,
   canExplode, compact, open, setOpen, head, panelId }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[];
@@ -90,7 +96,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
     event.preventDefault(); event.stopPropagation();
     step(event.key === 'ArrowUp' ? 1 : -1);
   };
-  const slabs = top.slice(0, 5);
+  const slabs = slabWindow(top, drawnAnchor);
   // The paper widens over the stage while the stack's own box keeps its size,
   // so opening the rail never re-fits the model.
   return <div className={`ua-stack${compact ? ' is-chip' : ' is-rail'}${open ? ' is-open' : ''}${levels.length === 0 ? ' is-site' : ''}`}>
