@@ -505,6 +505,97 @@ class RetentionTest(unittest.TestCase):
         self.assertEqual((folder / "status.json").stat().st_mode & 0o777, 0o600)
         self.assertEqual(sorted(p.name for p in folder.iterdir()), ["status.json"])
 
+    def run_main(self, *flags, at, backup):
+        config_file = self.root / "config.json"
+        config_file.write_text(json.dumps({
+            "serviceLabel": "x", "servicePlist": "/unused", "stateDirectory": str(self.root / "state"),
+            "icloudDirectory": str(self.root / "icloud"), "icloudHelper": "/unused",
+        }))
+        with mock.patch.object(hb, "backup", backup), mock.patch.object(hb, "now", lambda: at), \
+             mock.patch.object(hb, "status_folder", lambda config: None), \
+             mock.patch.object(sys, "argv", ["houseatlas_backup.py", "--config", str(config_file), *flags]), \
+             mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            return hb.main()
+
+    def test_scheduled_run_retries_until_one_succeeds_then_waits_for_the_next_boundary(self):
+        state = hb.private_dir(self.root / "state")
+        local = lambda day, hour: dt.datetime(2026, 11, day, hour).astimezone()
+        self.assertTrue(hb.due(state, local(15, 5)))  # never succeeded
+        (state / "last-success.json").write_text(json.dumps({"finished": local(14, 4).isoformat()}))
+        self.assertFalse(hb.due(state, local(15, 3)))  # still before the 15th's boundary
+        self.assertTrue(hb.due(state, local(15, 4)))
+        failure = {"status": "failed", "step": "stop service", "detail": "service is not running"}
+        (state / "last-failure.json").write_text(json.dumps(failure))
+        ran = mock.Mock(return_value={"status": "ok", "finished": local(15, 6).isoformat()})
+        self.assertEqual(self.run_main("--if-due", at=local(15, 6), backup=ran), 0)
+        ran.assert_called_once()
+        (state / "last-success.json").write_text(json.dumps({"finished": local(15, 6).isoformat()}))
+        self.assertFalse(hb.due(state, local(15, 23)))
+        self.assertFalse(hb.due(state, local(16, 3)))
+        self.assertTrue(hb.due(state, local(16, 4)))
+        (state / "last-success.json").write_text("not json")
+        self.assertTrue(hb.due(state, local(16, 5)))
+
+    def test_scheduled_noop_leaves_failure_record_and_service_alone(self):
+        state = hb.private_dir(self.root / "state")
+        at = dt.datetime(2026, 11, 15, 9).astimezone()
+        (state / "last-success.json").write_text(json.dumps({"finished": at.isoformat()}))
+        failure = '{"status": "failed", "step": "stop service"}'
+        (state / "last-failure.json").write_text(failure)
+        untouched = mock.Mock(side_effect=AssertionError("must not run"))
+        with mock.patch.object(hb, "Service", untouched):
+            self.assertEqual(self.run_main("--if-due", at=at.replace(hour=10), backup=untouched), 0)
+        untouched.assert_not_called()
+        self.assertEqual((state / "last-failure.json").read_text(), failure)
+
+    def test_on_demand_run_ignores_an_earlier_success_today(self):
+        state = hb.private_dir(self.root / "state")
+        at = dt.datetime(2026, 11, 15, 9).astimezone()
+        (state / "last-success.json").write_text(json.dumps({"finished": at.isoformat()}))
+        ran = mock.Mock(return_value={"status": "ok"})
+        self.assertEqual(self.run_main(at=at.replace(hour=10), backup=ran), 0)
+        ran.assert_called_once()
+
+    def test_a_failed_scheduled_run_records_the_failure_and_the_next_tick_runs_again(self):
+        state = hb.private_dir(self.root / "state")
+        at = dt.datetime(2026, 11, 15, 5).astimezone()
+        failing = mock.Mock(side_effect=hb.StepFailed("stop service", "service is not running; refusing to touch it"))
+        self.assertEqual(self.run_main("--if-due", at=at, backup=failing), 1)
+        record = json.loads((state / "last-failure.json").read_text())
+        self.assertEqual(record["step"], "stop service")
+        self.assertTrue(hb.due(state, at.replace(hour=6)))
+
+    def test_repeated_failure_at_one_step_reports_once_and_a_new_step_or_a_success_reports_again(self):
+        state = hb.private_dir(self.root / "state")
+        at = dt.datetime(2026, 11, 15, 5).astimezone()
+        stop = mock.Mock(side_effect=hb.StepFailed("stop service", "service is not running"))
+        upload = mock.Mock(side_effect=hb.StepFailed("iCloud upload", "timed out"))
+        crash = mock.Mock(side_effect=RuntimeError("boom"))
+        with mock.patch.object(hb, "report_failure", return_value=True) as report:
+            for backup, reports in ((stop, 1), (stop, 0), (upload, 1), (upload, 0), (crash, 1), (crash, 0)):
+                report.reset_mock()
+                self.assertEqual(self.run_main("--if-due", at=at, backup=backup), 1)
+                self.assertEqual(report.call_count, reports, backup)
+            # A success deletes the record, so the next failure reports again.
+            (state / "last-failure.json").unlink()
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 1)
+            (state / "last-failure.json").write_text("garbled")
+            report.reset_mock()
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 1)
+            # A report that did not go out is tried again on the next failure.
+            report.reset_mock(return_value=True)
+            report.return_value = False
+            (state / "last-failure.json").unlink()
+            for expected in (1, 2):
+                self.run_main("--if-due", at=at, backup=stop)
+                self.assertEqual(report.call_count, expected)
+            report.return_value = True
+            self.run_main("--if-due", at=at, backup=stop)
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 3)
+
     def test_shared_folder_comes_from_the_server_config(self):
         config = self.root / "server.json"
         config.write_text(json.dumps({"dataDirectory": "/srv/data"}))

@@ -30,6 +30,7 @@ try {
       `export { buildSyntheticAtlas } from ${JSON.stringify(join(root, 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts'))};`,
       // The Places lens content as the example mounts it, rendered to static markup.
       `export { PlacesContent } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/RoomsView.tsx'))};`,
+      `export { StaleSources } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/DetailPanel.tsx'))};`,
       `export { UpkeepView } from ${JSON.stringify(join(root, 'frontend/src/lantern/views/UpkeepView.tsx'))};`,
       `export { Modal } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/Modal.tsx'))};`,
       `export { SearchPalette } from ${JSON.stringify(join(root, 'frontend/src/lantern/components/SearchPalette.tsx'))};`,
@@ -169,6 +170,22 @@ try {
     [['Fictional bulb check', 'scheduled', undefined], ['Fictional bulb replacement', 'done', '4.50']]);
   const upkeep = api.renderToStaticMarkup(api.createElement(api.StoreProvider, { projection, actions }, api.createElement(api.UpkeepView)));
   for (const title of ['Fictional bulb check', 'Fictional bulb replacement']) assert.ok(upkeep.includes(title), `Upkeep lists ${title}`);
+
+  // Header chip: the example's stale HomeBox copy names its state and last
+  // successful update; fresh copies show nothing; an unknown date stays unknown.
+  const chip = caches => api.renderToStaticMarkup(api.createElement(api.StoreProvider, {
+    projection: api.projectView({ ...view, caches }, { status: 'unavailable' }, { status: 'unavailable' }, () => {}, false), actions },
+  api.createElement(api.StaleSources, { onOpen: () => {} })));
+  const [homebox] = view.caches;
+  assert.equal(homebox.displayStatus, 'stale');
+  const stale = chip(view.caches);
+  assert.match(stale, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Open Overview\."/);
+  assert.match(stale, /<span class="stale-chip-full">HomeBox stale<\/span><span class="stale-chip-short">Stale<\/span><\/span><span class="stale-chip-date">3 Jan</);
+  assert.equal(chip([{ ...homebox, status: 'fresh', displayStatus: 'fresh' }]), '');
+  assert.match(chip([{ ...homebox, lastSuccessfulFetchAt: null }]), /last successful update unknown\. Open Overview\.".*>last update unknown</);
+  const both = chip([homebox, { owner: 'network', status: 'error', displayStatus: 'error', lastSuccessfulFetchAt: null }]);
+  assert.match(both, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Network: Error, last successful update unknown\. Open Overview\."/);
+  assert.match(both, /<span class="stale-chip-full">2 sources not fresh<\/span><span class="stale-chip-short">2 not fresh</);
 
   // Label: the dialogs and drawing viewer that cover the top bar show the
   // example's label only under the example's provider; a configured home has none.

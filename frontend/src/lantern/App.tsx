@@ -15,7 +15,7 @@ import { useOutboxSynced } from '../outbox/index.ts';
 import { PLACE_CLASSIFICATION } from '../outbox/kinds.ts';
 import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
-import { attentionCount } from './components/DetailPanel';
+import { attentionCount, StaleSources } from './components/DetailPanel';
 import { AiActivityStatus, useAiHostAvailable } from '../ai/host/index.js';
 
 // Keep the default Atlas path and shared providers eager. These modules
@@ -209,6 +209,10 @@ export function App() {
       setSheetOpen(true);
     } else setSheetOpen(!sheetOpen);
   };
+  const openOverview = () => {
+    if (state.selection) dispatch({ type: 'select', sel: null });
+    setSheetOpen(true);
+  };
 
   return (
     <div className={`lantern-host app view-${state.view}${sheetExpanded ? ' has-detail' : ''}${state.askOpen ? ' ask-open' : ''}${reduced ? ' is-reduced' : ''}${state.settings.motion === 'full' ? ' motion-full' : ''}`}>
@@ -240,6 +244,7 @@ export function App() {
 
       <div className="shell-tools">
         <SyncStatus />
+        <StaleSources onOpen={openOverview} />
         <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
         {/* Atlas tools holds the saved house copy and the native tools; on
             phones it shares one menu with Settings. */}

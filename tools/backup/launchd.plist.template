@@ -11,6 +11,7 @@
 		<string>@STATE@/bin/houseatlas_backup.py</string>
 		<string>--config</string>
 		<string>@CONFIG@</string>
+		<string>--if-due</string>
 	</array>
 	<key>StartCalendarInterval</key>
 	<dict>
@@ -19,6 +20,8 @@
 		<key>Minute</key>
 		<integer>0</integer>
 	</dict>
+	<key>StartInterval</key>
+	<integer>3600</integer>
 	<key>StandardOutPath</key>
 	<string>@STATE@/logs/backup.log</string>
 	<key>StandardErrorPath</key>
