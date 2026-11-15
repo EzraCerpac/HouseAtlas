@@ -26,7 +26,7 @@ import {
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
-  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
+  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, atlasScopedLevelName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
@@ -866,6 +866,17 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // Room controls follow what a tap would pick: rooms revealed by the eased
   // section in 3D, the target floor's plan once the camera has tipped into Plan.
   const live = planBlend >= .5 ? presentation.pickable : shown.pickable;
+  // In 3D of several floors, a name shown on more than one floor adds its floor;
+  // unique names stay bare.
+  const labelTexts = useMemo(() => {
+    const name = (key: string) => model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
+    const floors = new Map<string, Set<string>>();
+    if (!plan && state.levelId === null) for (const key of live) floors.set(name(key), (floors.get(name(key)) ?? new Set()).add(model.occurrencesById.get(key)!.levelId));
+    return new Map([...live].map(key => {
+      const levelId = model.occurrencesById.get(key)!.levelId;
+      return [key, (floors.get(name(key))?.size ?? 0) > 1 ? `${name(key)} · ${displayLevelLabel(model, levelId) ?? atlasScopedLevelName(model, levelId, state.buildingId)}` : name(key)];
+    }));
+  }, [live, model, plan, state.levelId, state.buildingId]);
   const markers = useMemo(() => {
     const rows: StageMarker[] = [];
     const spread = active.length > 1;
@@ -947,7 +958,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const metrics = new Map<string, { width: number; height: number; advance?: number }>();
     for (const occurrenceId of live) {
       const tier = occurrenceId === selected ? 'selected' : context.includes(occurrenceId) ? 'context' : 'plain';
-      const text = model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!.label;
+      const text = labelTexts.get(occurrenceId)!;
       const fontSize = tier === 'selected' ? 15 : 12.5, halo = tier === 'selected' ? 17 : tier === 'context' ? 13 : 4.5;
       if (!drawing) { metrics.set(occurrenceId, { width: Infinity, height: Infinity }); continue; }
       drawing.font = `${tier === 'selected' ? 750 : tier === 'context' ? 700 : 600} ${fontSize}px ${tier === 'selected' ? labelFonts.display : labelFonts.text}`;
@@ -957,7 +968,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         height: 2 * Math.max(Math.abs(bounds.actualBoundingBoxAscent - fontSize * .35), Math.abs(bounds.actualBoundingBoxDescent + fontSize * .35)) + halo + 1 });
     }
     return metrics;
-  }, [live, selected, context, model, labelFonts]);
+  }, [live, selected, context, labelTexts, labelFonts]);
   /** The selected tag on either stage: a pill as wide as the measured name. */
   const selectedTag = (id: string, anchor: 'start' | 'middle' | 'end' = 'middle', x = 0) => {
     const advance = planTextMetrics.get(id)?.advance;
@@ -1009,7 +1020,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       // Ease the extra full-target clearance with Plan, so settlement itself
       // never changes the name's offset from 22 pixels to its resolved height.
       const clearY = metrics ? countClearedLabelY({ id: occurrenceId, x: at.x, y: preferredY, metrics }, countGroups.get(occurrenceId) ?? []) : preferredY;
-      rows.push({ id: occurrenceId, text: model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!.label, x: at.x, y: preferredY + (clearY - preferredY) * settle,
+      rows.push({ id: occurrenceId, text: labelTexts.get(occurrenceId)!, x: at.x, y: preferredY + (clearY - preferredY) * settle,
         anchorX: at.x, anchorY: at.y, tier, clearance: at.clearance, rise: tier === 'selected' ? rise : 0 });
     }
     const rank = { selected: 0, context: 1, plain: 2 } as const;
@@ -1033,7 +1044,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       placed.push(box); return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn]);
+  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn, labelTexts]);
   useLayoutEffect(() => {
     if (settledPlan) {
       const directions = new Map(calloutDirections.current);
@@ -1178,8 +1189,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     : state.levelId !== null ? buildingName
     : state.buildingId !== null ? 'All buildings' : null;
   const buildingNav = model.scene.buildings.length > 1 && buildings.length > 0;
-  // The Floor Stack already steps out of a floor or building (All floors, All buildings); Back only leaves a room.
-  const showBack = backTo !== null && state.occurrenceId !== null;
+  // The Floor Stack already steps out of a floor or building (All floors, All buildings); Back only leaves
+  // a room, on a phone: a wide stage's rail already names that floor and the panel clears the room.
+  const showBack = compact && backTo !== null && state.occurrenceId !== null;
   // Other planned floors of the property as small plans beside the focus; a
   // phone already steps floors from the stack chip, so it keeps the map whole.
   const tiles = useMemo(() => !plan || compact ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
@@ -1509,7 +1521,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               </>}
               <button type="button" className="ctrl-btn" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={18} /></button>
               <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
-              <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
             </div>
             {!plan && <div className="ua-menu-time">
               <p className="ua-menu-label" aria-hidden="true">Lighting time</p>
@@ -1662,7 +1673,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
-        {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
+        {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">
           {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
             name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
         </nav>}
@@ -1671,7 +1682,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {(tiles.length > 0 || hasKeys) && <div className="ua-folds">
           {tiles.length > 0 && <button ref={floorsFold} type="button" className="ua-fold ua-fold-floors" aria-expanded={drawer === 'floors'} aria-controls={`${foldIds}-floors`}
             onClick={() => fold('floors')}>
-            <Icon name="layers" size={16} /><span>Other floors</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
+            <Icon name="layers" size={16} /><span>Other floor plans</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
           {hasKeys && <button ref={layersFold} type="button" className="ua-fold ua-fold-layers" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
             aria-haspopup={shortLayerDetails ? 'dialog' : undefined}
@@ -1679,9 +1690,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
         </div>}
-        {/* Compact: one dock holds the view, 3D or Plan, and the layers, as
-            three dots and their name that open the labelled layer chips above them. */}
+        {/* Compact: one dock holds Fit view by the thumb, the view, 3D or Plan, and the
+            layers, as three dots and their name that open the labelled layer chips above them. */}
         {compact ? <div className="ua-dock" onBlur={menuBlur('layers')}>
+          <button type="button" className="ua-dock-btn ua-dock-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={18} /></button>
           <div className="ua-dock-view" role="group" aria-label="Atlas view">
             <button type="button" className="ua-dock-btn" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
             <button type="button" className="ua-dock-btn" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
@@ -1725,7 +1737,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
-      open={sheetOpen} setOpen={setSheetOpen}
+      open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
 

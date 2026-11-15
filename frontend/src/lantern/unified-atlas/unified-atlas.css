@@ -716,8 +716,9 @@
    the glyph alone, a handle that pins the rail open. */
 .lantern-host .ua-stack.is-rail .ua-stack-head > :is(.ua-stack-mark, .ua-stack-where) { display: none; }
 
-/* Folded, the counts and notes leave the layout but keep naming their buttons. */
-.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) :is(.ua-rung-sub, .ua-rung-note) {
+/* Folded, the counts leave the layout but keep naming their buttons; the
+   floor Plan draws keeps its note, so the rail never reads as All alone. */
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung-sub {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -729,7 +730,7 @@
 .lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-switch { display: none; }
 
 .lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung { grid-template-columns: 34px minmax(0, 1fr); }
-.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung > .ua-rung-tick { grid-row: auto; }
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung:not(:has(> .ua-rung-note)) > .ua-rung-tick { grid-row: auto; }
 
 .lantern-host .ua-stack.is-rail:is(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-paper {
   width: max-content;
@@ -989,15 +990,6 @@
 
 .lantern-host .ua-menu-camera .ctrl-btn { width: 44px; height: 44px; }
 
-.lantern-host .ua-menu-camera .ua-menu-fit {
-  display: inline-flex;
-  gap: 6px;
-  width: auto;
-  margin-left: auto;
-  padding: 0 12px 0 10px;
-  color: var(--ink);
-  font-weight: 650;
-}
 
 .lantern-host .ua-menu-time {
   display: grid;
@@ -1944,6 +1936,15 @@
 }
 
 .lantern-host .ua-rooms section { display: grid; gap: 4px; }
+/* Plan of a whole building: the drawn floor first, the floors it does not draw after a rule. */
+.lantern-host .ua-rooms section.is-other > h3 { color: var(--muted); }
+.lantern-host .ua-rooms-other {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hair);
+  color: var(--muted);
+  font: 650 var(--fs-xs)/1.2 var(--text);
+}
 
 .lantern-host .ua-rooms ul {
   display: grid;
@@ -1970,7 +1971,8 @@
   cursor: pointer;
 }
 
-.lantern-host .ua-room-btn:hover { background: var(--lantern-soft); }
+/* A tap leaves no hover behind on touch screens. */
+@media (hover: hover) { .lantern-host .ua-room-btn:hover { background: var(--lantern-soft); } }
 .lantern-host .ua-room-btn:focus-visible { outline-offset: -2px; }
 
 .lantern-host .ua-tag {
@@ -2131,7 +2133,8 @@
     right: 0;
     bottom: 0;
     width: auto;
-    max-height: min(72%, calc(100% - var(--ua-scope-end, 150px) - 8px));
+    /* About half the stage, so the map and its selection stay in view; the list scrolls inside. */
+    max-height: min(52%, calc(100% - var(--ua-scope-end, 150px) - 8px));
     border-width: 1px 0 0;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
@@ -2855,6 +2858,7 @@
   .lantern-host .ua-dock-btn:hover { background: var(--ua-hover); }
   .lantern-host .ua-dock-btn:focus-visible { outline-offset: -2px; }
   .lantern-host .ua-dock-view { display: flex; gap: 2px; padding-right: 3px; }
+  .lantern-host .ua-dock-fit { padding: 0; color: var(--ink); box-shadow: 1px 0 0 var(--hair); border-radius: 9px 0 0 9px; }
   .lantern-host .ua-dock-view > [aria-pressed='true'] { background: var(--ink); color: #fff; }
   .lantern-host .ua-dock-layers[aria-expanded='true'] { background: var(--lantern-soft); }
   .lantern-host .ua-dock-view + .ua-dock-layers { box-shadow: -1px 0 0 var(--hair); border-radius: 0 9px 9px 0; }
