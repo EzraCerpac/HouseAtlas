@@ -53,7 +53,7 @@ const floorStackURL = await sourceURL('../src/lantern/unified-atlas/FloorStack.t
   'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
   '../components/Icon': iconURL, './scene': sceneURL, './labels': labelsURL, './atlas-text': atlasTextURL,
 });
-const { FloorStack } = await import(floorStackURL);
+const { FloorStack, slabWindow } = await import(floorStackURL);
 const easingURL = await sourceURL('../src/lantern/atlas/useCamera.ts', {
   react: new URL('./node_modules/react/index.js', frontend).href,
 });
@@ -452,6 +452,11 @@ const model = bindAtlasModel(read.scene, loaded);
   const markup = renderToStaticMarkup(createElement(FloorStack, props));
   assert.equal((markup.match(/class="ua-rung-name">Generated split-level group</g) ?? []).length, 1, 'one group choice in the rail');
   const planMarkup = renderToStaticMarkup(createElement(FloorStack, { ...props, canExplode: false, state: { ...base, view: 'plan' } }));
+  // Six floors: the five-slab glyph keeps the floor Plan draws, wherever it sits.
+  const six = ['f6', 'f5', 'f4', 'f3', 'f2', 'f1'].map(levelId => ({ levelId }));
+  assert.deepEqual(slabWindow(six, null).map(row => row.levelId), ['f6', 'f5', 'f4', 'f3', 'f2']);
+  assert.deepEqual(slabWindow(six, 'f4').map(row => row.levelId), ['f6', 'f5', 'f4', 'f3', 'f2']);
+  assert.deepEqual(slabWindow(six, 'f1').map(row => row.levelId), ['f5', 'f4', 'f3', 'f2', 'f1'], 'lowest drawn floor keeps a slab');
   assert.match(planMarkup, /aria-label="Plan level"/);
   const memberMarkup = planMarkup.slice(planMarkup.indexOf('aria-label="Plan level"'));
   assert.equal((memberMarkup.match(/class="ua-rung-tick"/g) ?? []).length, 2, 'both member switches have marker cells before name columns');

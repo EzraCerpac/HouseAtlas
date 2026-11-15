@@ -15,9 +15,11 @@ import { nativePlaceSearch, openNativePlaceSearchHit, type NativePlaceSearchHit 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /** A group's heading names its kind when it holds only one, so its results
- * need no kind of their own; a group that holds several keeps each result's. */
-function groupMixesKinds(label: string): boolean {
-  return (SEARCH_GROUPS.find((group) => group.label === label)?.kinds.length ?? 2) > 1;
+ * need no kind of their own; a group that holds several keeps each result's,
+ * except a kind the heading already names (Belongings). */
+function showsKind(label: string, kind: SearchHit['kind']): boolean {
+  const group = SEARCH_GROUPS.find((g) => g.label === label);
+  return (group?.kinds.length ?? 2) > 1 && !(kind === 'item' && label.startsWith('Belongings'));
 }
 
 /** Where a chosen place-bound result opens. On a reviewed plan it opens on the
@@ -294,7 +296,6 @@ export function SearchPalette() {
               </p>
             )}
             {grouped.map((g) => {
-              const mixed = groupMixesKinds(g.label);
               return (
               <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
                 <p className="palette-group-label">{g.label}</p>
@@ -316,7 +317,7 @@ export function SearchPalette() {
                       <Icon name={KIND_ICON[h.kind]} size={17} />
                       <span className="hit-title">{h.title}</span>
                       {sub.text && <span className={`hit-context${sub.alert ? ' is-alert' : ''}`}>{sub.text}</span>}
-                      {mixed && <span className="hit-kind">{KIND_LABEL[h.kind]}</span>}
+                      {showsKind(g.label, h.kind) && <span className="hit-kind">{KIND_LABEL[h.kind]}</span>}
                     </div>
                   );
                 })}

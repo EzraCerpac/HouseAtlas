@@ -105,7 +105,8 @@ export function TaskWriteNote({ tasks }: { tasks?: Task[] }) {
   return <Note>Mark done is unavailable. {can.reason}</Note>;
 }
 
-export function TaskList({ tasks, showTarget, empty }: { tasks: Task[]; showTarget?: boolean | undefined; empty?: string }) {
+/** `note={false}` when the surrounding panel already states why Mark done is unavailable. */
+export function TaskList({ tasks, showTarget, empty, note = true }: { tasks: Task[]; showTarget?: boolean | undefined; empty?: string; note?: boolean }) {
   if (!tasks.length) return <Empty>{empty ?? 'No upkeep recorded.'}</Empty>;
   const sorted = [...tasks].sort((a, b) => {
     if (a.status !== b.status) return a.status === 'scheduled' ? -1 : 1;
@@ -119,7 +120,7 @@ export function TaskList({ tasks, showTarget, empty }: { tasks: Task[]; showTarg
           <TaskRow key={t.id} task={t} showTarget={showTarget} />
         ))}
       </ul>
-      <TaskWriteNote tasks={tasks} />
+      {note && <TaskWriteNote tasks={tasks} />}
     </>
   );
 }

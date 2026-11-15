@@ -98,7 +98,7 @@ const NO_ROOM_MAP = {
  * the map with the chosen lens beside it. Read wide, the lens takes the room
  * and the map stands in the corner as a still-drawn inset, returned by Show
  * map. A record opened from the lens reads wide in the same way while it is
- * open, and closing it, or leaving the Atlas, brings the map back beside the
+ * open (on a narrow sheet the lens folds instead), and closing it, or leaving the Atlas, brings the map back beside the
  * lens unless the lens was chosen again since. A spatial map is
  * the same element in every arrangement, so its source, camera and selection
  * stay as they are; a document fallback unmounts while a lens replaces it,
@@ -116,7 +116,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
 }) {
   const heading = useRef<HTMLHeadingElement>(null), expandButton = useRef<HTMLButtonElement>(null), showMapButton = useRef<HTMLButtonElement>(null);
   const mapButton = useRef<HTMLButtonElement>(null), panel = useRef<HTMLElement>(null), body = useRef<HTMLDivElement>(null);
-  const mapArea = useRef<HTMLDivElement>(null);
+  const mapArea = useRef<HTMLDivElement>(null), sheet = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const kindOpen = lens?.kind ?? null;
   const reading = lens !== null && lens.reading && kind === 'map';
@@ -124,6 +124,9 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // A record open beside the lens: on a narrow sheet the lens folds to its
   // head so the map keeps the height; Expand reads it.
   const folded = lens !== null && !reading && kind === 'map' && selection !== null;
+  // Where the lens folds (app.css: a narrow, tall atlas-sheet), a record opened from it
+  // folds the lens too instead of reading wide, so the map keeps the height.
+  const foldsHere = () => { const box = sheet.current; return !!box && box.clientWidth < 900 && box.clientHeight >= 440; };
   // A record opened from the lens reads wide while it is open: an activation
   // inside the lens marks the selection it causes. The mark lasts only for
   // that event, so a later selection from elsewhere never counts.
@@ -143,7 +146,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
       const active = document.activeElement;
       const inLens = fromLens.current || (active instanceof Node && panel.current?.contains(active) === true);
       fromLens.current = false;
-      if (inLens && lens && kind === 'map' && !lens.reading) {
+      if (inLens && lens && kind === 'map' && !lens.reading && !foldsHere()) {
         const claim = { ...lens, reading: true };
         byRecord.current = claim; quiet.current = true;
         setLens(claim);
@@ -205,7 +208,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   };
   // The sheet is always this one element: its width, the room the Atlas has
   // beside the details column, decides the arrangement below.
-  return <div className="atlas-sheet">
+  return <div ref={sheet} className="atlas-sheet">
     <div className="atlas-lens-bar">
       <div className="seg atlas-lens-switch" role="group" aria-label="Atlas lens">
         <button ref={mapButton} type="button" aria-pressed={lens === null} onClick={() => choose(null)}><Icon name="atlas" size={16} />Map</button>

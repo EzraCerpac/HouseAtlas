@@ -25,7 +25,7 @@ import {
   tasksFor,
   unplaced,
 } from '../data/query';
-import { fmtDate, fmtDateTime, fmtDateTimeReadable, fmtShortDate, rel } from '../data/time';
+import { fmtDate, fmtDateTime, fmtDateTimeReadable, fmtShortDate, referenceDayLabel, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -113,7 +113,7 @@ function WriteButton({ system, children, onClick, primary }: { system: 'HomeBox'
 function OutageHint() {
   const can = useCanWrite('HomeBox');
   if (can.ok) return null;
-  return <Note tone="warn">{can.reason}</Note>;
+  return <Note>{can.reason}</Note>;
 }
 
 function Facts({ rows }: { rows: [string, ReactNode][] }) {
@@ -581,7 +581,7 @@ function ItemDetail({ item }: { item: Item }) {
           </WriteButton>
         ) : undefined}
       >
-        <TaskList tasks={tasks} />
+        <TaskList tasks={tasks} note={false} />
       </Section>
       <Section title="Identity and sources">
         <IdentityBlock
@@ -997,7 +997,7 @@ function TaskDetail({ t }: { t: Task }) {
         <Facts
           rows={[
             ['For', <EntityLink key="t" id={t.targetId} />],
-            ['Due', t.due ? `${fmtDate(t.due)} (${rel(t.due, house.displayNow)})` : undefined],
+            ['Due', t.due ? `${fmtDate(t.due)} (${rel(t.due, house.displayNow)}${referenceDayLabel(house.displayNow) ? `, relative to ${referenceDayLabel(house.displayNow)}` : ''})` : undefined],
             ['Completed', t.completedAt ? `${fmtDate(t.completedAt)}${t.completedBy ? ` by ${t.completedBy}` : ''}` : undefined],
             ['Repeats', t.cadence ?? 'Not supplied'],
             ['Recorded cost', t.cost !== undefined ? `${t.cost}, currency not recorded` : undefined],
@@ -1014,7 +1014,7 @@ function TaskDetail({ t }: { t: Task }) {
         </Section>
       )}
       <Section title="Earlier for the same record">
-        <TaskList tasks={tasksFor(house, t.targetId).filter((x) => x.id !== t.id)} empty="No other upkeep for this record." />
+        <TaskList tasks={tasksFor(house, t.targetId).filter((x) => x.id !== t.id)} empty="No other upkeep for this record." note={false} />
       </Section>
       <Section title="History">
         <HistoryList id={t.id} />
