@@ -101,6 +101,8 @@ export interface LanternActions {
   reload: () => Promise<boolean>;
   /** When this browser received the shown view (its own clock, epoch ms); not a source date. */
   loadedAt?: number;
+  /** Reads operation history again for the shown view; absent where the host has no history reader. */
+  retryOperationHistory?: () => void;
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
   /** Local retained-view filter only; never a read, grant or archive mutation. */

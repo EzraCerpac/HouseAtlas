@@ -95,6 +95,8 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   }, [client, view, session]);
   const [history, setHistory] = useState<{ view: ReadyView; session: typeof session; read: OperationHistoryRead } | null>(null);
   const historyController = useRef<AbortController | null>(null);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
+  const retryOperationHistory = useCallback(() => setHistoryAttempt(value => value + 1), []);
   const renderedHistoryScope = useRef({ view, session });
   renderedHistoryScope.current = { view, session };
   useEffect(() => {
@@ -111,7 +113,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
       if (historyController.current === controller) historyController.current = null;
     });
     return () => { historyController.current?.abort(); historyController.current = null; };
-  }, [historyClient, view, session]);
+  }, [historyClient, view, session, historyAttempt]);
   const loadMoreOperations = useCallback(() => {
     if (history?.view !== view || history.session !== session || history.read.status !== 'ready' || historyController.current) return;
     const prior = history.read;
@@ -162,7 +164,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   // Atlas tools exist only when there is a saved-copy action or native content to show.
   const toolsContent = useMemo(() => houseAcquisition || (nativeContent != null && nativeContent !== false && nativeContent !== '') ? <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</> : null, [houseAcquisition, nativeContent]);
-  const ports = useMemo(() => ({ ...actions, loadedAt: loaded.at, offlineStorage, homeboxRefresh, nativeContent: toolsContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, toolsContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh, loaded.at]);
+  const ports = useMemo(() => ({ ...actions, loadedAt: loaded.at, retryOperationHistory, offlineStorage, homeboxRefresh, nativeContent: toolsContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, toolsContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh, loaded.at]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
