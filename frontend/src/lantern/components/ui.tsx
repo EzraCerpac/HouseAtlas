@@ -14,12 +14,10 @@ export function RecordedTime({ value, after }: { value: string; after?: string }
 }
 
 /** A time on this browser's clock, such as when it last loaded the shown
- * view: "20:53", with its day when that is not today ("14 Nov, 20:53"). */
-export function fmtLocalClock(at: number, now = Date.now()): string {
+ * view, always with its day: "14 Nov, 20:53". */
+export function fmtLocalClock(at: number): string {
   const d = new Date(at), pad = (n: number) => String(n).padStart(2, '0');
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (d.toDateString() === new Date(now).toDateString()) return time;
-  return `${fmtShortDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}, ${time}`;
+  return `${fmtShortDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export const KIND_ICON: Record<EntityKind, string> = {

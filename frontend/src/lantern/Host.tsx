@@ -74,6 +74,12 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   // Each successful read delivers a new view; a failed reload keeps the old one and its time.
   const [loaded, setLoaded] = useState(() => ({ view, at: Date.now() }));
   if (loaded.view !== view) setLoaded({ view, at: Date.now() });
+  // Try again removes the notice while it reloads; a second failure returns focus to the button.
+  const again = useRef<HTMLButtonElement>(null), retried = useRef(false);
+  useEffect(() => {
+    if (actions.busy || !retried.current) return;
+    retried.current = false; if (actions.notice) again.current?.focus();
+  }, [actions.busy, actions.notice]);
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
   const [geometry, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
@@ -162,7 +168,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
     {actions.notice && <div className="lantern-host lantern-reload-notice">
       <p role="status">{actions.notice} Shown information was loaded at {fmtLocalClock(loaded.at)}.</p>
-      <button type="button" className="btn btn-small" disabled={actions.busy} onClick={() => { void actions.reload(); }}>Try again</button>
+      <button ref={again} type="button" className="btn btn-small" disabled={actions.busy} onClick={() => { retried.current = true; void actions.reload(); }}>Try again</button>
     </div>}
   </StoreProvider>;
 }
