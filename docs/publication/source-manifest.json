@@ -1561,6 +1561,7 @@
     {"path":"frontend/src/lantern/styles/tokens.css","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/styles/topology.css","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/BuildingScope.tsx","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/topology/BuildingSection.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/NativePlaceEditor.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/NativePlaceEvidence.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/TopologyProvider.tsx","mode":"100644","owner":"web"},
