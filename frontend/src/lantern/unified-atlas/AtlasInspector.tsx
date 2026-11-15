@@ -76,7 +76,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       <div className="ua-sheet-head">
         <div className="ua-sheet-title">
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
-          <p className="ua-sheet-sub">{shown !== null && `Plan: ${levelName(shown)} · `}{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</p>
+          <p className="ua-sheet-sub">{shown !== null && <><span className="ua-sub-plan">Plan: {levelName(shown)}</span><span className="ua-sub-sep"> · </span></>}
+            <span>{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</span></p>
         </div>
         {toggle('rooms', true)}
       </div>
@@ -201,13 +202,15 @@ function RoomContentsSummary({ runtime, roomId, layers }: {
 }
 
 /** Floor headings drop the chosen building's name; each region keeps it. */
-export function RoomList({ model, levels, choose, buildingId, shownLevel = null }: {
+export function RoomList({ model, levels, choose, buildingId, shownLevel = null, nested = false }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
   readonly buildingId: string | null;
+  /** Under its own section heading (the lens's Model rooms), floors head one level down. */
+  readonly nested?: boolean;
   /** The floor Plan draws, listed first and marked; the floors after it are not drawn. */
   readonly shownLevel?: string | null;
 }) {
-  const coverage = model.scene.coverage;
+  const coverage = model.scene.coverage, Floor = nested ? 'h4' : 'h3';
   return <div className="ua-rooms">
     {levels.map((level, at) => {
       const keys = level.occurrenceIds.filter(key => model.selectable.has(key));
@@ -215,7 +218,7 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null 
       return <section key={level.levelId} className={other ? 'is-other' : undefined}
         aria-label={`${atlasLevelName(model, level.levelId, model.floorBuildings.length > 1)}${shownLevel === null ? '' : other ? ', plan not shown' : ', plan shown'}`}>
         {other && at === levels.findIndex(row => row.levelId !== shownLevel) && <p className="ua-rooms-other" aria-hidden="true">Not in this plan</p>}
-        <h3>{atlasScopedLevelName(model, level.levelId, buildingId)}</h3>
+        <Floor>{atlasScopedLevelName(model, level.levelId, buildingId)}</Floor>
         {keys.length === 0 ? <p className="ua-empty">No selectable rooms.</p>
           : <ul>{keys.map(key => {
             const occurrence = model.occurrencesById.get(key)!;
@@ -226,7 +229,7 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null 
           })}</ul>}
       </section>;
     })}
-    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected yet.</p>}
+    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected: {coverage.unselectableCount === 1 ? 'it is' : 'they are'} published without a complete pick shape and plan outline.</p>}
   </div>;
 }
 

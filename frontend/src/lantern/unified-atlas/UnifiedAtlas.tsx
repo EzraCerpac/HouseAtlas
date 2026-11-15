@@ -25,7 +25,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, placeStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -815,6 +815,16 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     if (saved) camera.restore(saved); else camera.reframe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place, frameView]);
+  // On a phone a lens opening, closing or changing resizes the map band: the
+  // model is framed whole again in the band it leaves, the chosen orbit kept.
+  const lensKind = lens?.kind ?? null;
+  const lensFramed = useRef(lensKind);
+  useEffect(() => {
+    if (lensFramed.current === lensKind) return;
+    lensFramed.current = lensKind;
+    if (compact) camera.reframe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lensKind, compact]);
 
   // Plans relative to the fixed origin; one translate follows the eased centre.
   // Each drawn floor keeps its own height, so the property plan never stacks floors.
@@ -963,11 +973,13 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     }
     return metrics;
   }, [live, selected, context, labelTexts, labelFonts]);
-  /** The selected tag on either stage: a pill as wide as the measured name. */
-  const selectedTag = (id: string, anchor: 'start' | 'middle' | 'end' = 'middle', x = 0) => {
+  /** A name's paper, as wide as the measured name: the selected tag on either
+   * stage, or another room's quiet chip in 3D. */
+  const nameTag = (id: string, tier: RoomLabel['tier'], anchor: 'start' | 'middle' | 'end' = 'middle', x = 0) => {
     const advance = planTextMetrics.get(id)?.advance;
-    const left = x - (anchor === 'start' ? 0 : anchor === 'end' ? advance ?? 0 : (advance ?? 0) / 2);
-    return advance === undefined ? null : <rect className="cifc-label-tag" x={left - 9} y={-13} width={advance + 18} height={26} rx={13} />;
+    if (advance === undefined) return null;
+    const left = x - (anchor === 'start' ? 0 : anchor === 'end' ? advance : advance / 2), pad = stageLabelPad(tier), h = stageLabelHeight(tier);
+    return <rect className={tier === 'selected' ? 'cifc-label-tag' : 'ua-label-chip'} x={left - pad} y={-h / 2} width={advance + 2 * pad} height={h} rx={h / 2} />;
   };
   const labelPaper = useMemo(() => preparePlanLabelPaper(planGroups.flatMap(group => group.features.map(row => row.feature))), [planGroups]);
   // Only the fit decision looks ahead to top view. It does not alter the camera.
@@ -1028,16 +1040,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       return placePlanRoomLabels(candidates, size, cover, counts, frame, labelPaper, calloutDirections.current);
     }
     // Panels count as placed: a room name under one is left to the room list.
-    const placed: Box[] = [...cover];
-    return rows.filter(row => {
-      const tag = row.tier === 'selected' ? planTextMetrics.get(row.id)?.advance : undefined;
-      const w = tag !== undefined ? tag + 18 : Math.min(220, row.text.length * 7.2 + (row.tier === 'plain' ? 14 : 26)), h = row.tier === 'plain' ? 22 : 30;
-      const middle = row.y - TAG_RISE * row.rise;
-      const box = { l: row.x - w / 2, r: row.x + w / 2, t: middle - h / 2, b: middle + h / 2 };
-      if (row.tier !== 'selected' && (box.l < 4 || box.r > size.width - 4 || box.t < 4 || box.b > size.height - 4
-        || placed.some(o => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t))) return false;
-      placed.push(box); return true;
-    });
+    return placeStageLabels(rows, row => planTextMetrics.get(row.id)?.advance, size, cover);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn, labelTexts]);
   useLayoutEffect(() => {
@@ -1058,9 +1061,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     if (!measuring) return { areas: [], spans: [] };
     const blocked: Box[] = [...cover, ...labels.flatMap(row => {
       if (row.plan) return planLabelObstacles(row);
-      const tag = row.tier === 'selected' ? planTextMetrics.get(row.id)?.advance : undefined;
-      const w = tag !== undefined ? tag + 18 : Math.min(220, row.text.length * 7.2 + 26), middle = row.y - TAG_RISE * row.rise;
-      return [{ l: row.x - w / 2, r: row.x + w / 2, t: middle - 15, b: middle + 15 }];
+      return [stageLabelBox(row, planTextMetrics.get(row.id)?.advance)];
     }), ...counts.map(countMarkerTarget)];
     const areas = placeLabels(measured.flatMap(occurrenceId => {
       const area = roomArea(model, occurrenceId), at = area && anchorOf(occurrenceId);
@@ -1454,14 +1455,15 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <span className="ua-snapshot-kind">{detailNote === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
           <span>{detailNote === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
         </p>}
-        {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
-          <Icon name="back" size={15} /><span>{backTo}</span></button>}
         <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
           shownLevel={plan && planDrawn ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
           canExplode={canExplode && compact} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
           head={stackHead} panelId={`${menuIds}-stack`} />
+        {/* A phone's Back, under the chip: one level out of a room, named for where it leads. */}
+        {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
+          <Icon name="back" size={15} /><span>{backTo}</span></button>}
       </div>
 
       <div className="ua-tools" inert={stageInert}>
@@ -1470,7 +1472,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
         </div>}
-        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack and, on all floors, the menu. */}
+        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack only. */}
         {!compact && canExplode && <div className="seg">
           <button type="button" className="ua-spread" aria-pressed={state.exploded}
             onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span>Spread floors</span></button>
@@ -1507,10 +1509,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
                 <Icon name="chevron" size={15} /></button>)}
             </nav>}
-            {canExplode && state.levelId === null && <button type="button" className="ua-menu-row ua-menu-spread" aria-pressed={state.exploded}
-              onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
-              <Icon name="explode" size={16} /><span>Spread floors</span><span className="ua-stack-switch" aria-hidden="true" /></button>}
             <div className="ua-menu-camera" role="group" aria-label="Camera">
+              <p className="ua-menu-label" aria-hidden="true">Camera</p>
               {!plan && <>
                 <button type="button" className="ctrl-btn" aria-label="Turn left" title="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /></button>
                 <button type="button" className="ctrl-btn" aria-label="Turn right" title="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={18} /></button>
@@ -1616,7 +1616,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 {label.plan.leader.dot && <circle cx={label.anchorX} cy={label.anchorY} r={3.5} />}
               </>}
               <g transform={`translate(${label.plan.x} ${label.plan.y}) rotate(${label.plan.angle})`}>
-                {(label.tier === 'selected' && selectedTag(label.id, label.plan.textAnchor, label.plan.textX))
+                {(label.tier === 'selected' && nameTag(label.id, 'selected', label.plan.textAnchor, label.plan.textX))
                   || <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>}
                 <text textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>
               </g>
@@ -1625,8 +1625,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               {label.tier === 'selected' && <circle className="ua-ripple" r={18} />}
               {label.rise > .02 && <><line x1={0} y1={0} x2={0} y2={(-LEADER * label.rise).toFixed(1)} /><circle r={3.5} /></>}
               <g transform={label.rise > 0 ? `translate(0 ${(-TAG_RISE * label.rise).toFixed(1)})` : undefined}>
-                {/* The selected tag is one measured pill; a stroked halo bulges around ascenders and dots. */}
-                {(label.tier === 'selected' && selectedTag(label.id)) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
+                {/* Each name is one measured pill: the selected tag, or a quiet chip; a stroked halo only without a measurement. */}
+                {nameTag(label.id, label.tier) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
                 <text textAnchor="middle" dy="0.35em">{label.text}</text>
               </g>
             </g>)}
@@ -1746,7 +1746,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <h3 id={`${graphId}-rooms`}>Model rooms</h3>
           {/* On a phone the lens stands where the room sheet does: choosing
               a room hands the stage and its sheet back. */}
-          <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId}
+          <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId} nested
             choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
         </section>
         : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}

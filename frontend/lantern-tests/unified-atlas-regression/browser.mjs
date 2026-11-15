@@ -207,7 +207,7 @@ try {
     // DOM checks can continue on a genuine browser with unavailable WebGL.
     // A successful context/draw count is not hardware-GPU or visual pixel acceptance.
     await check('all ten room-list selections, duplicate labels, floor text and focus', async () => {
-      const rows = await evaluate(`Array.from(document.querySelectorAll('.ua-rooms section')).flatMap(s=>Array.from(s.querySelectorAll('button')).map(b=>({floor:s.getAttribute('aria-label'),heading:s.querySelector('h3').textContent,label:b.querySelector('span').textContent})))`);
+      const rows = await evaluate(`Array.from(document.querySelectorAll('.ua-rooms section')).flatMap(s=>Array.from(s.querySelectorAll('button')).map(b=>({floor:s.getAttribute('aria-label'),heading:s.querySelector('h3, h4').textContent,label:b.querySelector('span').textContent})))`);
       // All buildings: each heading names its building; choosing a room scopes to that building.
       assert(rows.every(row => row.heading === row.floor && / Synthetic (house|studio)$/.test(row.floor)));
       assert.equal(rows.length, 10);

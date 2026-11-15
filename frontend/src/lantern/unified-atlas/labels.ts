@@ -21,6 +21,30 @@ export interface RoomLabel { readonly id: string; readonly text: string; readonl
 export const labelHitTarget = (row: RoomLabel): ScreenBox => row.plan?.box ?? ({ l: row.x - labelHitWidth(row.text) / 2,
   r: row.x + labelHitWidth(row.text) / 2, t: row.y - LABEL_TAG_RISE * row.rise - 16, b: row.y - LABEL_TAG_RISE * row.rise + 16 });
 
+/** Side padding and height of a drawn 3D name: the selected tag, or a quiet chip. */
+export const stageLabelPad = (tier: RoomLabel['tier']) => tier === 'selected' ? 9 : 7;
+export const stageLabelHeight = (tier: RoomLabel['tier']) => tier === 'selected' ? 26 : 20;
+/** The drawn 3D name's box, as wide as its measured text, with a two-pixel
+ * gap; without a measurement, an estimate. Reserved and drawn boxes agree. */
+export function stageLabelBox(row: RoomLabel, advance: number | undefined): ScreenBox {
+  const w = (advance ?? row.text.length * 7.2) + 2 * stageLabelPad(row.tier) + 4, h = stageLabelHeight(row.tier) + 4;
+  const middle = row.y - LABEL_TAG_RISE * row.rise;
+  return { l: row.x - w / 2, r: row.x + w / 2, t: middle - h / 2, b: middle + h / 2 };
+}
+
+/** 3D names in rank order: the selected tag always stands; another name stands
+ * only inside the stage and clear of the panels and every name already placed. */
+export function placeStageLabels<T extends RoomLabel>(rows: readonly T[], advance: (row: T) => number | undefined,
+  size: { width: number; height: number }, cover: readonly ScreenBox[]): T[] {
+  const placed: ScreenBox[] = [...cover];
+  return rows.filter(row => {
+    const box = stageLabelBox(row, advance(row));
+    if (row.tier !== 'selected' && (box.l < 4 || box.r > size.width - 4 || box.t < 4 || box.b > size.height - 4
+      || placed.some(other => intersects(box, other)))) return false;
+    placed.push(box); return true;
+  });
+}
+
 /** SVG names remain visible independently; only safe action targets enter the tab order. */
 export function visibleLabelHits<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
   cover: readonly ScreenBox[], counts: readonly CountMarker[]): readonly T[] {

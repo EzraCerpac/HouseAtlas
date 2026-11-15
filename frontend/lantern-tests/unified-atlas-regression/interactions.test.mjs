@@ -257,6 +257,20 @@ test('label actions use their full mounted targets and reserve surviving enlarge
   assert.equal(api.labelHitTarget(rows[0]).b - api.labelHitTarget(rows[0]).t, 32);
 });
 
+test('3D names reserve their whole measured chip, however long the floor name', () => {
+  const label = (id, x, tier = 'plain') => ({ id, text: `Bedroom · ${'Upper floor under the roof '.repeat(3)}`, x, y: 150, rise: 0, tier });
+  const size = { width: 900, height: 500 }, advance = () => 420;
+  const box = api.stageLabelBox(label('a', 450), 420);
+  assert.equal(box.r - box.l, 420 + 2 * api.stageLabelPad('plain') + 4, 'The reserved box is the drawn chip, not a capped estimate');
+  // Centres 300 px apart: capped 220 px boxes would both stand while the drawn names overlap.
+  const rows = [label('a', 250), label('b', 550)];
+  assert.deepEqual(api.placeStageLabels(rows, advance, size, []), [rows[0]]);
+  assert.deepEqual(api.placeStageLabels([label('s', 250, 'selected'), rows[1]], advance, size, []).map(row => row.id), ['s']);
+  // Clear of a panel the drawn chip would reach, and inside the stage.
+  assert.deepEqual(api.placeStageLabels([label('c', 450)], advance, size, [{ l: 640, r: 700, t: 140, b: 160 }]), []);
+  assert.deepEqual(api.placeStageLabels([label('e', 100)], advance, size, []), []);
+});
+
 test('duplicate floor names use source facts and stable source-order qualifiers without changing identities', async () => {
   for (const heights of [[0, 1.4, 2.8], [0, 0, 0], [null, null, null], [1.401, 1.404, 2.8]]) {
     let inputLevels;
