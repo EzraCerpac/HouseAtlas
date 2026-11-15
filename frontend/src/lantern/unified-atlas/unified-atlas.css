@@ -650,9 +650,12 @@
 .lantern-host .ua-rung.is-current { background: #fff; box-shadow: inset 0 0 0 1px var(--hair-2); }
 .lantern-host .ua-rung.is-current .ua-rung-sub { color: var(--ink-2); }
 
-/* The floor Plan draws for a whole building: its mark in ink, not a second
-   chosen look; the open rail names it below the floor's name. */
-.lantern-host .ua-rung.is-shown .ua-rung-tick { color: var(--ink); }
+/* The floor Plan draws for a whole building takes the chosen look; All
+   floors, still the scope, keeps only an outline. The open rail names it
+   below the floor's name. */
+.lantern-host .ua-rung.is-shown { background: #fff; box-shadow: inset 0 0 0 1px var(--hair-2); }
+.lantern-host .ua-rung.is-shown .ua-rung-tick { background: var(--ink); color: #fff; box-shadow: inset 0 -3px 0 var(--lantern-edge); }
+.lantern-host .ua-stack-floors:has(.ua-rung.is-shown) .ua-rung[aria-pressed='true'] .ua-rung-tick { background: var(--ua-paper); color: var(--ink-2); box-shadow: inset 0 0 0 1.5px var(--hair-2); }
 .lantern-host .ua-rung-note { grid-column: 2; font-size: var(--fs-xs); line-height: 1.2; color: var(--muted); }
 .lantern-host .ua-rung:has(> .ua-rung-note) > :is(.ua-rung-tick, .ua-rung-sub) { grid-row: span 2; }
 
@@ -704,15 +707,17 @@
 .lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch { background: var(--ink); }
 .lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch::after { transform: translateX(12px); }
 
-/* Wide stages: a rail of marks that widens to names on hover, on focus, when
-   its head pins it open, or when there are no floors yet to show. */
-.lantern-host .ua-stack.is-rail .ua-stack-head { justify-content: center; padding: 4px; }
+/* Wide stages: a rail of marks and names, as on the phone's card, that widens
+   to room counts on hover, on focus, when its head pins it open, or when there
+   are no floors yet to show. */
+.lantern-host .ua-stack.is-rail { --stack-closed: 172px; }
+.lantern-host .ua-stack.is-rail .ua-stack-head { justify-content: flex-start; padding: 4px 4px 4px 12px; }
 /* The rows below already name the building and floor; the rail's head is
    the glyph alone, a handle that pins the rail open. */
 .lantern-host .ua-stack.is-rail .ua-stack-head > :is(.ua-stack-mark, .ua-stack-where) { display: none; }
 
-/* Folded, the names leave the layout but keep naming their buttons. */
-.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) :is(.ua-rung-name, .ua-rung-sub, .ua-rung-note) {
+/* Folded, the counts and notes leave the layout but keep naming their buttons. */
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) :is(.ua-rung-sub, .ua-rung-note) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -723,7 +728,8 @@
 
 .lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-switch { display: none; }
 
-.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung { grid-template-columns: 34px; padding-right: 4px; }
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung { grid-template-columns: 34px minmax(0, 1fr); }
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung > .ua-rung-tick { grid-row: auto; }
 
 .lantern-host .ua-stack.is-rail:is(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-paper {
   width: max-content;
@@ -804,6 +810,15 @@
 }
 
 .lantern-host .ua-menu-btn circle { fill: currentColor; }
+/* A short visible word beside the dots; the button keeps its full name. */
+.lantern-host .ua-menu-btn:has(> span) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 12px 0 10px;
+  font: 650 var(--fs-s)/1 var(--text);
+}
 .lantern-host .ua-menu-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .lantern-host .ua-tools:has(.ua-menu-panel:not([hidden])) { z-index: 8; }
 
@@ -1061,6 +1076,9 @@
 .lantern-host .ua-menu-row > span { flex: 1; }
 .lantern-host .ua-menu-row[aria-pressed="true"] { background: var(--lantern-soft); box-shadow: inset 3px 0 0 var(--lantern-edge); }
 .lantern-host .ua-menu-row[aria-pressed="true"] > svg { color: var(--ink); }
+.lantern-host .ua-menu-row > .ua-stack-switch { flex: none; }
+.lantern-host .ua-menu-spread[aria-pressed='true'] .ua-stack-switch { background: var(--ink); }
+.lantern-host .ua-menu-spread[aria-pressed='true'] .ua-stack-switch::after { transform: translateX(12px); }
 
 /* ---- Layers: plans, keys and the layer bar ---------------------------------- */
 
@@ -2172,7 +2190,9 @@
     padding-bottom: 5px;
   }
 
-  .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
+  /* Tighter columns and toggle, so the floor caption fits beside the name. */
+  .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; column-gap: 6px; }
+  .lantern-host .ua-inspector.is-room .ua-sheet-toggle { padding-right: 8px; }
   .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
 
   /* 44px touch targets that still draw at 36px: the extra height is a clear
@@ -2211,7 +2231,10 @@
 .lantern-host .ua-sheet-toggle.is-whole {
   position: static;
   justify-content: center;
-  width: 36px;
+  /* A full 44px target of its own, the head's row height kept. */
+  width: 44px;
+  min-height: 44px;
+  margin-block: -4px;
   padding: 0;
   border-color: transparent;
   background: none;

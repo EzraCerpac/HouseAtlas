@@ -31,10 +31,11 @@ function buildingMarks(model: AtlasModel, buildings: readonly { readonly buildin
 }
 
 /** The Floor Stack: where you are, building and floor, in one small control.
- * Its head names the scope with a slab glyph, the current floor lit. On a
- * phone the head is a chip that unfolds the stack below it and folds again
- * after a choice, a tap elsewhere or Escape; on a wide stage the stack is a
- * rail of marks that widens to names on hover, focus or a click of its head.
+ * Its head names the scope with a slab glyph, the current floor lit (in Plan
+ * of a whole building, the floor Plan draws). On a phone the head is a chip
+ * that unfolds the stack below it and folds again after a choice, a tap
+ * elsewhere or Escape; on a wide stage the stack is a rail of marks and names
+ * that widens to room counts on hover, focus or a click of its head.
  * Floors hang at their actual relative heights, top floor first; buildings
  * stand above them when there is more than one, and on a phone Spread floors
  * (Exploded) closes the stack in 3D; a wide stage sets it beside 3D and Plan. Arrow up and down on the head, or a swipe of the
@@ -65,9 +66,11 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
     return Math.max(48, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 22);
   });
   const whole = state.levelId === null && state.buildingId !== null;
+  // Plan of a whole building draws one floor: that floor is lit, not All.
+  const drawnAnchor = whole && shownLevel !== null ? displayLevelAnchor(model, shownLevel) : null;
   const current = currentAnchor === null ? null : model.levelsById.get(currentAnchor) ?? null;
   const floorName = current ? displayLevelLabel(model, current.levelId) ?? atlasLevelName(model, current.levelId) : null;
-  const mark = current ? marks.get(current.levelId) ?? '·' : building && levels.length > 0 ? 'All' : null;
+  const mark = current ? marks.get(current.levelId) ?? '·' : drawnAnchor !== null ? marks.get(drawnAnchor) ?? '·' : building && levels.length > 0 ? 'All' : null;
   const where = building ? `${building.label}, ${floorName ?? 'all floors'}` : 'All buildings';
   // Low to high, then the whole building above the top floor.
   const steps: readonly (string | null)[] = [...choices.map(level => level.levelId), null];
@@ -107,7 +110,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
         <svg key={state.levelId ?? state.buildingId ?? 'site'} className="ua-stack-glyph" width={26} height={26} viewBox="0 0 26 26" aria-hidden="true">
           {slabs.length > 0 ? slabs.map((level, at) => <rect key={level.levelId} x={4} width={18} rx={1.4}
             y={4 + at * (19 / slabs.length)} height={Math.max(2.5, 19 / slabs.length - 1.6)}
-            className={whole || activeLevels.has(level.levelId) ? 'is-lit' : selectionLevel === level.levelId ? 'is-held' : undefined} />)
+            className={(drawnAnchor !== null ? level.levelId === drawnAnchor : whole || activeLevels.has(level.levelId)) ? 'is-lit' : selectionLevel === level.levelId ? 'is-held' : undefined} />)
             : <path d="M4 21V11l9-7 9 7v10Z M10 21v-6h6v6" />}
         </svg>
         {mark && <span className="ua-stack-mark">{mark}</span>}
@@ -128,7 +131,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
             <span className="ua-rung-name">{atlasBuildingName(model, row.buildingId)}</span></button></li>)}
         </ul>}
         {levels.length > 0 && <ol className="ua-stack-floors" aria-label={building ? `Floors of ${building.label}` : 'Floors'}>
-          <li><button type="button" className={`ua-rung ua-stack-row${whole ? ' is-current' : ''}`} aria-pressed={whole}
+          <li><button type="button" className={`ua-rung ua-stack-row${whole && drawnAnchor === null ? ' is-current' : ''}`} aria-pressed={whole}
             onClick={() => pick(null)}>
             <span className="ua-rung-tick ua-rung-tick-all" aria-hidden="true">All</span>
             <span className="ua-rung-name">All floors</span></button></li>
