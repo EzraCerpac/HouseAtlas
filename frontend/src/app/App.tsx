@@ -327,7 +327,7 @@ export function App({
                   ))}
                 </ul>
               </nav>
-              <main id="main-content" aria-busy={busy}>
+              <main id="main-content" tabIndex={-1} aria-busy={busy}>
                 <div className="statusline">
                   <button
                     type="button"

@@ -74,12 +74,13 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   // Each successful read delivers a new view; a failed reload keeps the old one and its time.
   const [loaded, setLoaded] = useState(() => ({ view, at: Date.now() }));
   if (loaded.view !== view) setLoaded({ view, at: Date.now() });
-  // Try again removes the notice while it reloads; a second failure returns focus to the button.
-  const again = useRef<HTMLButtonElement>(null), retried = useRef(false);
+  // The notice and its focused button stay while Try again reloads; when the
+  // reload succeeds and the notice goes, focus left on the page moves to the main content.
+  const [retrying, setRetrying] = useState(false), retried = useRef(false);
   useEffect(() => {
-    if (actions.busy || !retried.current) return;
-    retried.current = false; if (actions.notice) again.current?.focus();
-  }, [actions.busy, actions.notice]);
+    if (retrying || !retried.current) return;
+    retried.current = false; if (!actions.notice && document.activeElement === document.body) document.getElementById('main-content')?.focus();
+  }, [retrying, actions.notice]);
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
   const [geometry, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
@@ -166,9 +167,12 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
-    {actions.notice && <div className="lantern-host lantern-reload-notice">
-      <p role="status">{actions.notice} Shown information was loaded at {fmtLocalClock(loaded.at)}.</p>
-      <button ref={again} type="button" className="btn btn-small" disabled={actions.busy} onClick={() => { retried.current = true; void actions.reload(); }}>Try again</button>
+    {(actions.notice || retrying) && <div className="lantern-host lantern-reload-notice">
+      <p role="status">{actions.notice ? `${actions.notice} Shown information was loaded at ${fmtLocalClock(loaded.at)}.` : 'Reloading saved information…'}</p>
+      <button type="button" className="btn btn-small" aria-disabled={actions.busy || retrying} onClick={() => {
+        if (actions.busy || retrying) return;
+        retried.current = true; setRetrying(true); void Promise.resolve(actions.reload()).finally(() => setRetrying(false));
+      }}>Try again</button>
     </div>}
   </StoreProvider>;
 }
