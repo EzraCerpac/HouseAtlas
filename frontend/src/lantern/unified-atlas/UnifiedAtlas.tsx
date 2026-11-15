@@ -80,6 +80,9 @@ const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry:
 
 // View state per exact overview owner, manifest and publication revision, for this tab only.
 const memory = new Map<string, AtlasViewState>();
+// Views whose Spread floors the viewer or an explicit start set; the rest
+// follow spreadAll.
+const spreadChosen = new Set<string>();
 const MEMORY_ENTRIES = 8;
 const overviewOwners = new WeakMap<object, number>();
 let nextOverviewOwner = 0;
@@ -99,7 +102,7 @@ const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
 const startLedger = createStartLedger();
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
-  while (memory.size > MEMORY_ENTRIES) memory.delete(memory.keys().next().value!);
+  while (memory.size > MEMORY_ENTRIES) { const old = memory.keys().next().value!; memory.delete(old); spreadChosen.delete(old); }
 }
 
 /** A source the host can open in place of the Atlas; listed in the narrow-stage menu. */
@@ -528,6 +531,11 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
+/** Until Spread floors is set, all floors in 3D open spread, roof off, so every
+ * floor's rooms show; a floor or room closes the house to its cutaway. */
+const spreadAll = (model: AtlasModel, state: AtlasViewState): AtlasViewState =>
+  atlasReducer(model, state, { type: 'explode', exploded: state.levelId === null && state.occurrenceId === null && hasExplodableLevels(model, state.buildingId) });
+
 function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildingId, start, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort; readonly sourceOwner: object;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
   readonly start?: UnifiedAtlasRead['start'] | undefined; readonly stored?: StoredCopy; readonly retry?: () => void;
@@ -548,10 +556,19 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const base = memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
       entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
     // An explicit start wins, only on the first view committed through this source owner.
-    return startLedger.pending(sourceOwner, start)?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
+    const pending = startLedger.pending(sourceOwner, start);
+    const begun = pending?.reduce((value, action) => atlasReducer(model, value, action), base) ?? base;
+    if (pending?.some(action => action.type === 'explode')) spreadChosen.add(key);
+    return spreadChosen.has(key) ? begun : spreadAll(model, begun);
   });
   useEffect(() => { startLedger.committed(sourceOwner); }, [sourceOwner]);
-  const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
+  const dispatch = useCallback((action: AtlasAction) => {
+    if (action.type === 'explode') spreadChosen.add(key);
+    setState(value => {
+      const next = atlasReducer(model, value, action);
+      return spreadChosen.has(key) ? next : spreadAll(model, next);
+    });
+  }, [model, key]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);
   const shell = useRef<HTMLElement>(null);
@@ -1442,7 +1459,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
         </div>}
-        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack. */}
+        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack and, on all floors, the menu. */}
         {!compact && canExplode && <div className="seg">
           <button type="button" className="ua-spread" aria-pressed={state.exploded}
             onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span>Spread floors</span></button>
@@ -1468,6 +1485,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
             <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
+            <span aria-hidden="true">View</span>
           </button>
           <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
             {/* The host's lens row gives way on a phone; its lenses open from here, first. */}
@@ -1478,6 +1496,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
                 <Icon name="chevron" size={15} /></button>)}
             </nav>}
+            {canExplode && state.levelId === null && <button type="button" className="ua-menu-row ua-menu-spread" aria-pressed={state.exploded}
+              onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
+              <Icon name="explode" size={16} /><span>Spread floors</span><span className="ua-stack-switch" aria-hidden="true" /></button>}
             <div className="ua-menu-camera" role="group" aria-label="Camera">
               {!plan && <>
                 <button type="button" className="ctrl-btn" aria-label="Turn left" title="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /></button>
