@@ -1,4 +1,9 @@
-import { PlacesContent } from '../views/RoomsView';
+import { lazy } from 'react';
+import { DeferredView } from '../DeferredView';
+
+// Loaded when the lens first opens, as the Network lens is; no source read
+// starts on load or mount. The building ledger and native place tools ride along.
+const PlacesContent = lazy(() => import('../views/RoomsView').then(module => ({ default: module.PlacesContent })));
 
 /** The HomeBox and Atlas topology half of the Rooms & places lens. Its
  * owners are unchanged: building and level records and native place actions
@@ -9,6 +14,6 @@ import { PlacesContent } from '../views/RoomsView';
  * two is drawn here. */
 export function PlacesLens() {
   return <div className="lens-sources">
-    <PlacesContent />
+    <DeferredView label="Rooms & places"><PlacesContent /></DeferredView>
   </div>;
 }
