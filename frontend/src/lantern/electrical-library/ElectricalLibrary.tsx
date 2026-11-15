@@ -131,7 +131,10 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
       {message ? <p role="status">{message}</p> : current && <p ref={count} tabIndex={-1}>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>}
       {/* Offered once a read has settled without current drawings: a failure or a withdrawal. */}
       {owner && state?.owner === owner && !current && (!reading || asked) && <button type="button" className="btn btn-small" aria-disabled={reading}
-        onClick={() => { if (reading) return; setAsked(true); setAttempt(value => value + 1); }}>Reload drawings</button>}
+        onClick={() => {
+          // Pending from this same render on, so the settle effect below cannot clear `asked` before the read starts.
+          if (reading) return; setAsked(true); setState({ owner, frame: null, message: READING }); setAttempt(value => value + 1);
+        }}>Reload drawings</button>}
     </div>
     <div ref={surface}>
       {current && visible && <>
