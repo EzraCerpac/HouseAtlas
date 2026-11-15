@@ -2267,7 +2267,7 @@
   }
 
   .lantern-host .tools-btn,
-  .lantern-host .tool-settings {
+  .lantern-host .tool-settings.is-in-menu {
     display: none;
   }
 

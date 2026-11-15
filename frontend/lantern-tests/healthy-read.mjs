@@ -254,6 +254,7 @@ const searchStore = await searchJsx('../src/lantern/state/store.tsx', {
 const searchIcon = await searchJsx('../src/lantern/components/Icon.tsx', { 'react/jsx-runtime': jsxUrl });
 const searchUi = await searchJsx('../src/lantern/components/ui.tsx', {
   'react/jsx-runtime': jsxUrl, '../data/query': searchQuery, '../state/store': searchStore, './Icon': searchIcon,
+  '../data/time': searchTime,
 });
 // Provide the actual optional topology context without a client. Static React
 // rendering starts no activation effect or native read; saved-view assertions stay unchanged.
