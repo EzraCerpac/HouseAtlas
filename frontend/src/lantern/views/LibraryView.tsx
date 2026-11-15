@@ -89,7 +89,7 @@ export function LibraryView() {
   const { documents, electricalLibrary } = useSourcePorts();
   const select = useSelect();
   const [filter, setFilter] = useState<Filter>('all');
-  const homeboxHeading = useId();
+  const homeboxHeading = useId(), categoryId = useId();
   const homeboxRef = useRef<HTMLElement>(null), documentsRef = useRef<HTMLDivElement>(null), drawingsRef = useRef<HTMLDivElement>(null);
   const test = FILTERS.find((f) => f.id === filter)!.test;
   const docs = house.docs.filter(test).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
@@ -113,6 +113,10 @@ export function LibraryView() {
         <p className="library-scope">
           HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')} (address only){archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
         </p>
+        <div className="field filter-select"><label htmlFor={categoryId}>Category</label>
+          <select id={categoryId} value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+            {FILTERS.map((f) => <option key={f.id} value={f.id}>{f.label} ({house.docs.filter(f.test).length})</option>)}
+          </select></div>
         <div className="filter-row" role="group" aria-label="Filter HomeBox files">
           {FILTERS.map((f) => (
             <button key={f.id} type="button" className="chip-btn" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>

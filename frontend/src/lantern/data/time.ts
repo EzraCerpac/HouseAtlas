@@ -76,13 +76,15 @@ export function fmtDateTime(iso?: string): string {
 }
 
 /** A readable form of a source timestamp: "14 Nov 2026, 08:12 UTC". The recorded
- * calendar day, clock and offset are kept as supplied; callers keep the exact text. */
+ * calendar day, clock and offset are kept as supplied, and a "-00:00" offset reads as unknown;
+ * callers keep the exact text. */
 export function fmtDateTimeReadable(iso?: string): string {
   if (!iso) return 'Unknown time';
   if (!validDisplayDate(iso)) return 'Unknown';
   const m = /^(\d{4}-\d{2}-\d{2})[Tt ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/u.exec(iso);
   if (!m) return iso;
-  const zone = m[3] === undefined ? '' : /^[Zz]$/u.test(m[3]) ? ' UTC' : ` UTC${m[3]}`;
+  // RFC 3339 "-00:00" means the local offset is unknown, not a zero offset.
+  const zone = m[3] === undefined ? '' : /^[Zz]$/u.test(m[3]) ? ' UTC' : m[3] === '-00:00' ? ' UTC (local offset unknown)' : ` UTC${m[3]}`;
   return `${fmtDate(m[1])}, ${m[2]}${zone}`;
 }
 

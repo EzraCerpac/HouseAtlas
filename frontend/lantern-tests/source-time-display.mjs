@@ -11,7 +11,7 @@ const specifier = "'ajv-formats/dist/formats.js'";
 assert.equal(source.split(specifier).length, 2);
 source = source.replace(specifier,
   JSON.stringify(new URL('../node_modules/ajv-formats/dist/formats.js', import.meta.url).href));
-const { fmtDate, fmtShortDate, fmtTime, fmtDateTime } = await import(
+const { fmtDate, fmtShortDate, fmtTime, fmtDateTime, fmtDateTimeReadable } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 const timestamps = [
@@ -33,4 +33,7 @@ for (const [timestamp, date, clock] of timestamps) {
 assert.equal(fmtDate('2024-02-29'), '29 Feb 2024');
 assert.equal(fmtTime('2024-02-29'), '2024-02-29');
 assert.equal(fmtShortDate('2016-12-31T23:59:60Z', '2017-01-01T00:59:60+01:00'), '31 Dec 2016');
+assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00Z'), '8 Oct 2026, 08:12 UTC');
+assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00+02:00'), '8 Oct 2026, 08:12 UTC+02:00');
+assert.equal(fmtDateTimeReadable('2026-10-08T08:12:00-00:00'), '8 Oct 2026, 08:12 UTC (local offset unknown)');
 console.log(`PASS source timestamp display: ${timestamps.length} schema-valid original timestamps and leap-day display`);

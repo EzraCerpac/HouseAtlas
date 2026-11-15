@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import type { Doc, HouseData } from '../data/types';
 import { nameOf } from '../data/query';
-import { fmtDate, fmtDateTime, rel } from '../data/time';
+import { fmtDate, fmtDateTimeReadable, rel } from '../data/time';
 import { useSelect, useStore } from '../state/store';
 import { Modal } from './Modal';
 import { MediaScene } from './Art';
 import { Icon } from './Icon';
-import { Note, StorageTag, fmtDocSize } from './ui';
+import { Note, RecordedTime, StorageTag, fmtDocSize } from './ui';
 import { PinnedFileAction } from './PinnedFileAction';
 
 // Previews of fictional demo documents, drawn as HTML and SVG.
@@ -51,20 +51,18 @@ export function PreviewDialog({ docId }: { docId: string }) {
             </div>
             <div>
               <dt>Added</dt>
-              <dd>
-                {fmtDateTime(doc.addedAt)} by {doc.addedBy}
-              </dd>
+              <dd><RecordedTime value={doc.addedAt} after={` by ${doc.addedBy}`} /></dd>
             </div>
             {doc.capturedAt && (
               <div>
                 <dt>{doc.kind === 'export' ? 'Observed' : 'Captured'}</dt>
-                <dd>{fmtDateTime(doc.capturedAt)}</dd>
+                <dd><RecordedTime value={doc.capturedAt} /></dd>
               </div>
             )}
             {doc.retrievedAt && (
               <div>
                 <dt>Retrieved</dt>
-                <dd>{fmtDateTime(doc.retrievedAt)}</dd>
+                <dd><RecordedTime value={doc.retrievedAt} /></dd>
               </div>
             )}
             <div>
@@ -203,7 +201,7 @@ function DocSheet({ doc, house }: { doc: Doc; house: HouseData }) {
             ))}
             <rect x="52" y="160" width="300" height="2" fill="#9A9286" />
           </svg>
-          <figcaption>Taken {fmtDateTime(doc.capturedAt)}. Labels are handwritten.</figcaption>
+          <figcaption>Taken {fmtDateTimeReadable(doc.capturedAt)}. Labels are handwritten.</figcaption>
         </Page>
       );
     case 'stopcock-photo':
@@ -221,7 +219,7 @@ function DocSheet({ doc, house }: { doc: Doc; house: HouseData }) {
               clockwise = off
             </text>
           </svg>
-          <figcaption>Taken {fmtDateTime(doc.capturedAt)}.</figcaption>
+          <figcaption>Taken {fmtDateTimeReadable(doc.capturedAt)}.</figcaption>
         </Page>
       );
     case 'ap-photo':
@@ -233,7 +231,7 @@ function DocSheet({ doc, house }: { doc: Doc; house: HouseData }) {
             <circle cx="200" cy="130" r="6" fill="#4FA36B" />
             <circle cx="320" cy="60" r="18" fill="#F7F1E0" stroke="#D2C9B6" />
           </svg>
-          <figcaption>Taken {fmtDateTime(doc.capturedAt)}.</figcaption>
+          <figcaption>Taken {fmtDateTimeReadable(doc.capturedAt)}.</figcaption>
         </Page>
       );
     case 'wallplate-photo':
@@ -249,7 +247,7 @@ function DocSheet({ doc, house }: { doc: Doc; house: HouseData }) {
               to landing
             </text>
           </svg>
-          <figcaption>Taken {fmtDateTime(doc.capturedAt)}.</figcaption>
+          <figcaption>Taken {fmtDateTimeReadable(doc.capturedAt)}.</figcaption>
         </Page>
       );
     case 'router-export':
@@ -257,7 +255,7 @@ function DocSheet({ doc, house }: { doc: Doc; house: HouseData }) {
         <Page label="Router client list export">
           <header className="sheet-head">
             <strong>clients_2026-10-07.csv</strong>
-            <span>Observed {fmtDateTime(doc.capturedAt)}, retrieved {fmtDateTime(doc.retrievedAt)}</span>
+            <span>Observed {fmtDateTimeReadable(doc.capturedAt)}, retrieved {fmtDateTimeReadable(doc.retrievedAt)}</span>
           </header>
           <table className="sheet-table mono-free">
             <thead>
