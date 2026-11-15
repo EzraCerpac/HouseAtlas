@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Nightly HouseAtlas backup to iCloud Drive with a proven restore.
 
+The scheduled job runs hourly with `--if-due`: it does nothing once a backup has
+succeeded since the most recent 04:00 local, so a failed or missed night is
+retried each hour until one succeeds. Without `--if-due` a run always happens.
+
 One run:
   1. stops the HouseAtlas launchd service, runs the native `backup` CLI against
      the live data directory, and starts the service again (seconds of downtime);
@@ -774,6 +778,20 @@ def backup(config: Config) -> dict:
     return result
 
 
+def due(state: Path, at: dt.datetime) -> bool:
+    """False when a backup finished successfully at or after the most recent
+    04:00 local boundary; a missing or unreadable record means due."""
+    local = at.astimezone().replace(tzinfo=None)
+    boundary = local.replace(hour=4, minute=0, second=0, microsecond=0)
+    if local < boundary:
+        boundary -= dt.timedelta(days=1)
+    try:
+        finished = dt.datetime.fromisoformat(json.loads((state / "last-success.json").read_text())["finished"])
+        return finished.astimezone().replace(tzinfo=None) < boundary
+    except (OSError, ValueError, KeyError, TypeError):
+        return True
+
+
 def status_folder(config: Config) -> Path | None:
     try:
         return shared_folder(Service(config))
@@ -798,9 +816,29 @@ def restore_models_command(report: Path, store: Path, destination: Path) -> int:
     return 0
 
 
+def record_failure(config: Config, state: Path, step: str, detail: str, message: str) -> None:
+    """Record the failure and report it, unless the record it replaces failed at
+    the same step and its report was delivered: hourly retries of one outage
+    report once, and a report that did not go out is tried again."""
+    path = state / "last-failure.json"
+    try:
+        earlier = json.loads(path.read_text())
+        repeated = earlier.get("step") == step and earlier.get("reported") is True
+    except (OSError, ValueError, AttributeError):
+        repeated = False
+    delivered = repeated or report_failure(config, message)
+    failure = {"status": "failed", "step": step, "detail": detail,
+               "at": now().isoformat(timespec="seconds"), "reported": delivered}
+    path.write_text(json.dumps(failure, indent=2) + "\n")
+    write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": step}})
+    print(json.dumps(failure), file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--config", type=Path, help="run the nightly backup")
+    parser.add_argument("--config", type=Path, help="run the backup now")
+    parser.add_argument("--if-due", action="store_true",
+                        help="with --config: do nothing if a backup succeeded since the last 04:00 local")
     parser.add_argument("--restore-models", type=Path, metavar="REPORT",
                         help="rebuild the model folders named in an archive's backup-report.json")
     parser.add_argument("--store", type=Path, help="with --restore-models: the iCloud models folder")
@@ -820,23 +858,18 @@ def main() -> int:
         except BlockingIOError:
             print("another backup run is in progress", file=sys.stderr)
             return 75
+        if args.if_due and not due(state, now()):
+            print("backup already succeeded since 04:00; nothing to do")
+            return 0
         try:
             result = backup(config)
         except StepFailed as error:
-            failure = {"status": "failed", "step": error.step, "detail": error.detail,
-                       "at": now().isoformat(timespec="seconds")}
-            (state / "last-failure.json").write_text(json.dumps(failure, indent=2) + "\n")
-            write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": error.step}})
-            print(json.dumps(failure), file=sys.stderr)
-            report_failure(config, f"HouseAtlas iCloud backup failed at step '{error.step}'.")
+            record_failure(config, state, error.step, error.detail,
+                           f"HouseAtlas iCloud backup failed at step '{error.step}'.")
             return 1
         except Exception as error:  # noqa: BLE001 - any crash must still be reported
-            failure = {"status": "failed", "step": "unexpected", "detail": repr(error),
-                       "at": now().isoformat(timespec="seconds")}
-            (state / "last-failure.json").write_text(json.dumps(failure, indent=2) + "\n")
-            write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": "unexpected"}})
-            print(json.dumps(failure), file=sys.stderr)
-            report_failure(config, "HouseAtlas iCloud backup failed unexpectedly.")
+            record_failure(config, state, "unexpected", repr(error),
+                           "HouseAtlas iCloud backup failed unexpectedly.")
             return 1
     print(json.dumps(result))
     return REPORT_FAILED if result.get("reportFailed") else 0

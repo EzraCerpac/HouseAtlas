@@ -2,6 +2,7 @@ import type { PlanRing } from '../canonical-ifc/model';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import type { UnifiedAtlasOverlayOpen, UnifiedAtlasOverlaySource } from '../../../integration/unified-atlas-overlay-source';
 import type { StoredOverlays } from './stored-overlays';
+import type { ParsedStore } from './parsed-store';
 
 /** One selected Blender/Bonsai publication read as `houseatlas.unified-atlas-scene.v1`.
  * Every coordinate is in the glTF world frame after node transforms were
@@ -208,6 +209,10 @@ export interface UnifiedAtlasPort {
   /** The scene's optional detail GLB bytes (`scene.detail`), verified against
    * its pin, for a device on Full quality. `scene` is from a fresh `read`. */
   readDetail?(selection: ModelOverviewSelection, scene: AtlasScene, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>>;
+  /** This device's store of the Light model as the loader prepared it, for the
+   * signed-in actor and this selection's home, or null. Speed only: it stands in
+   * for parsing model bytes that have already verified against a scene's pin. */
+  parsed?(selection: ModelOverviewSelection): Promise<ParsedStore | null>;
   /** The building the Atlas opens on, bound by the source owner for this
    * publication. Never inferred from names, plan order or size; an absent or
    * unknown ID opens the only building with floors, else the whole property. */
@@ -245,6 +250,7 @@ export interface LiveAtlasPresentationPort {
   read(selection: LiveAtlasSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
   stored?(selection: LiveAtlasSelection, signal: AbortSignal): Promise<StoredAtlasRead | null>;
   readDetail?(selection: LiveAtlasSelection, scene: AtlasScene, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>>;
+  parsed?(selection: LiveAtlasSelection): Promise<ParsedStore | null>;
   entryBuildingId?(scene: AtlasScene): string | null;
   readonly savedDocumentary?: UnifiedAtlasPort['savedDocumentary'];
   createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;

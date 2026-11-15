@@ -8,9 +8,11 @@ import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
-import { DETAIL_GLB_LIMITS, GlbFormatError } from '../canonical-ifc/glb-preflight';
-import { noteFirstModel, noteLoadStep } from '../canonical-ifc/load-ledger';
+import { DETAIL_GLB_LIMITS, GlbFormatError, type GlbAdmission } from '../canonical-ifc/glb-preflight';
+import type { StandardGlb } from '../canonical-ifc/standard-glb';
+import { firstHouseDrawn, noteFirstModel, noteLoadStep } from '../canonical-ifc/load-ledger';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
+import { afterNextFrame } from '../canonical-ifc/after-next-frame';
 import { PITCH_3D, useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
@@ -193,16 +195,39 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         hostDisplayConfig = JSON.parse(displayText);
       }
     } catch { hostDisplayConfig = {}; } // Matching malformed host configuration refuses rather than guesses.
-    const bind = async (read: UnifiedAtlasRead) => {
+    const bind = async (read: UnifiedAtlasRead): Promise<{ readonly model: AtlasModel; readonly parsedCopy: boolean }> => {
       const policy = admitAtlasDisplayForRead(read, hostDisplayConfig);
-      const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
+      // The read's model bytes have verified against its scene's pin. What this
+      // loader build prepared from those same bytes on this device stands in for
+      // the parse; the same admission and binding run on it. The lookup is
+      // optional and bounded: one that stalls is passed over and the bytes are parsed.
+      const deadline = new Promise<null>(resolve => setTimeout(resolve, PARSED_LOOKUP_MS, null));
+      const lookup = port.kind === 'live' && selection.kind === 'live' && port.parsed ? port.parsed(selection).catch(() => null) : null;
+      const { loadStandardGlb, LOADER_BUILD } = await import('../canonical-ifc/standard-glb');
       signal.throwIfAborted();
+      const store = LOADER_BUILD === null ? null : await Promise.race([lookup, deadline]);
       // Prepared geometry is reserved from the preflight counts before the loader allocates.
-      const glb = await loadStandardGlb(read.model, 'atlas', signal, admission => {
+      const admit = (admission: GlbAdmission) => {
         if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
-      }, { embeddedPngMaterials: true });
+      };
+      const { sha256 } = read.scene.model, bytes = read.model.byteLength;
+      const kept = store && LOADER_BUILD !== null ? await Promise.race([store.read(sha256, bytes, LOADER_BUILD).catch(() => null), deadline]) : null;
       signal.throwIfAborted();
-      return bindAtlasModel(read.scene, glb, policy);
+      // A copy that is refused here is parsed again below, which gives the verdict and replaces it.
+      if (kept) try { admit(kept); return { model: bindAtlasModel(read.scene, kept, policy), parsedCopy: true }; } catch { /* parse */ }
+      const glb = await loadStandardGlb(read.model, 'atlas', signal, admit, { embeddedPngMaterials: true });
+      signal.throwIfAborted();
+      // Copying it into storage holds this thread for a while, so it waits until the first frame is on screen.
+      // An open abandoned before then lets go of the model and keeps nothing.
+      if (store && LOADER_BUILD !== null) {
+        let pending: StandardGlb | null = glb;
+        const release = () => { pending = null; };
+        signal.addEventListener('abort', release, { once: true });
+        void firstHouseDrawn.then(() => afterNextFrame(signal)).then(() => afterNextFrame(signal)).then(() => {
+          if (pending && !signal.aborted) store.keep(sha256, bytes, LOADER_BUILD, pending);
+        }, () => undefined).finally(() => { release(); signal.removeEventListener('abort', release); });
+      }
+      return { model: bindAtlasModel(read.scene, glb, policy), parsedCopy: false };
     };
     // Stale while revalidate: this device's last verified copy of the same
     // publication and manifest shows at once; the fresh read still decides.
@@ -221,9 +246,9 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       try {
         const began = performance.now(), read = await port.stored(selection, signal), parsing = performance.now();
         if (!read || settled) return null;
-        const model = await bind(read);
+        const { model, parsedCopy } = await bind(read);
         if (settled || signal.aborted) return null;
-        noteFirstModel('saved', performance.now() - parsing, parsing - began);
+        noteFirstModel('saved', performance.now() - parsing, parsing - began, parsedCopy);
         storedCopy.current = { selection, read, model };
         setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start,
           stored: { storedAt: read.storedAt, refresh: fetchNow ? 'pending' : 'held' } } });
@@ -235,7 +260,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       return () => controller.abort();
     }
     void (async () => {
-      let outcome: Outcome, parsed: number | null = null;
+      let outcome: Outcome, parsed: number | null = null, parsedCopy = false;
       try {
         const read = port.kind === 'saved' && selection.kind === 'saved' ? await port.read(selection, signal)
           : port.kind === 'live' && selection.kind === 'live' ? await port.read(selection, signal) : (() => { throw new AtlasReadError('stale'); })();
@@ -245,8 +270,8 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
           && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
-        const parsing = performance.now(), model = same ? shown.model : await bind(read);
-        if (!same) parsed = performance.now() - parsing;
+        const parsing = performance.now(), bound = same ? null : await bind(read), model = bound?.model ?? shown!.model;
+        if (bound) { parsed = performance.now() - parsing; parsedCopy = bound.parsedCopy; }
         outcome = { status: 'ready', model, entryBuildingId: read.entryBuildingId, start: read.start };
         storedCopy.current = null;
         refused.current = null;
@@ -262,7 +287,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       }
       settled = true;
       if (signal.aborted) return;
-      if (parsed !== null) noteFirstModel('fresh', parsed);
+      if (parsed !== null) noteFirstModel('fresh', parsed, undefined, parsedCopy);
       setLoaded({ selection, attempt, outcome });
     })();
     return () => controller.abort();
@@ -339,6 +364,8 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
 
 // ---------------------------------------------------------------------------
 
+/** How long the parsed-copy lookup may hold up a parse, as the stored-copy lookup does (CACHE_LOOKUP_MS). */
+const PARSED_LOOKUP_MS = 3000;
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
 /** Fallback architecture, when a primitive has no explicit source base colour,
  * as an axonometric drawing in four values on the birch

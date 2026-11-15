@@ -296,7 +296,8 @@ const sessions: AtlasSessionClient = {
       atlasActor = Promise.resolve(null);
       await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
         getAtlasStore().then(store => store.clear()).catch(() => undefined),
-        import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined)]);
+        import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined),
+        import('../src/lantern/unified-atlas/parsed-store').then(parsed => parsed.clearParsedStore()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
       const cleared = await getLiveCopyRetention().then(owner => owner.storage.clear());
       if (cleared.status !== 'ok') throw new Error('Offline copies could not be removed; storage cleanup is incomplete');
@@ -651,6 +652,12 @@ const sourceModels: SourceModelPort = {
         return await reader.readUnifiedAtlasDetail({ selection, scene, signal: AbortSignal.any([signal, controller.signal]),
           origin: window.location.origin, isCurrent: () => currentOverview() === selection, store });
       } finally { unsubscribe(); }
+    },
+    async parsed(selection) {
+      const actorId = currentSession?.actorId;
+      if (!actorId || currentOverview() !== selection) return null;
+      const { openParsedStore } = await import('../src/lantern/unified-atlas/parsed-store');
+      return openParsedStore({ actorId, workspaceId: selection.scope.workspaceId, homeId: selection.scope.homeId });
     },
     stored(selection, signal) {
       const read = (async () => {

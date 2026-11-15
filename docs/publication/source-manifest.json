@@ -1588,6 +1588,7 @@
     {"path":"frontend/src/lantern/unified-atlas/network-graph.css","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/network-trace.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/overlay-feed.ts","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/unified-atlas/parsed-store.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/plan-presentation.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/runtime-overlays.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/scene.ts","mode":"100644","owner":"web"},
