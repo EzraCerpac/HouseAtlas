@@ -628,7 +628,7 @@ console.log('Unified Atlas cache healthy checks passed.');
   };
   const token = Symbol.for('houseatlas.cache-presentation.synthetic');
   const jsx = dataURL('export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx;');
-  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0, notes = [];
+  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0, notes = [], frames = 0, parsedStore = null, house = Promise.resolve();
   const depsEqual = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const memo = (make, deps) => {
     const i = cursor++, previous = slots[i];
@@ -655,13 +655,15 @@ console.log('Unified Atlas cache healthy checks passed.');
     modelUpdatesAllowed: () => automatic,
     useModelQuality: () => 'light', fullModelWanted: () => false,
     admitAtlasDisplayForRead: read => read.displayConfig,
-    bindAtlasModel: (scene, _glb, displayConfig) => ({ scene, displayConfig }),
-    loadStandardGlb: async () => { parses++; return {}; },
+    bindAtlasModel: (scene, glb, displayConfig) => { if (glb.unbindable) throw new Error('Generated copy does not bind'); return { scene, displayConfig, glb }; },
+    loadStandardGlb: async () => { parses++; return { parsed: parses, work: { triangles: 1 } }; },
+    // Keeping a parsed copy waits for the first frame and two more frames.
+    firstHouseDrawn: { then: (drawn, failed) => house.then(drawn, failed) }, afterNextFrame: async () => { frames++; }, PARSED_LOOKUP_MS: 5,
     // The ?render-probe=load ledger: which path's model reached the stage first.
     noteLoadStep: step => notes.push(step),
-    noteFirstModel: (model, parseMs, savedReadMs) => {
+    noteFirstModel: (model, parseMs, savedReadMs, parsedCopy) => {
       assert.ok(parseMs >= 0 && (savedReadMs === undefined || savedReadMs >= 0)); assert.equal(savedReadMs === undefined, model === 'fresh');
-      notes.push(model);
+      notes.push(model); if (parsedCopy) notes.push('kept parse');
     },
     AtlasReadError, createStartLedger, GlbFormatError: class extends Error {},
     RENDER_LIMITS: { uploadBytes: 1024 }, PREPARED_BYTES_PER_TRIANGLE: 1,
@@ -669,7 +671,7 @@ console.log('Unified Atlas cache healthy checks passed.');
     FAILURE: { denied: { text: 'Denied' }, stale: { text: 'Stale' } },
   };
   globalThis[token] = hooks;
-  const hookURL = dataURL(`export const loadStandardGlb=globalThis[Symbol.for('houseatlas.cache-presentation.synthetic')].loadStandardGlb;`);
+  const hookURL = dataURL(`export const loadStandardGlb=globalThis[Symbol.for('houseatlas.cache-presentation.synthetic')].loadStandardGlb; export const LOADER_BUILD='generated-loader-build';`);
   const presentation = between('function AtlasPresentation(', '// ---------------------------------------------------------------------------');
   const keys = between('const overviewOwners =', 'function remember(');
   let { code } = await transformWithOxc(`const {${Object.keys(hooks).join(',')}}=globalThis[Symbol.for('houseatlas.cache-presentation.synthetic')];
@@ -693,7 +695,7 @@ console.log('Unified Atlas cache healthy checks passed.');
   const select = () => ({ kind: 'live', overview: { manifestSha256: 'e'.repeat(64) } });
   let cacheRead, freshRead, cacheCalls = 0;
   const port = { kind: 'live', current: () => selection, subscribe: () => () => {},
-    stored: () => { cacheCalls++; return cacheRead.promise; }, read: () => freshRead.promise };
+    stored: () => { cacheCalls++; return cacheRead.promise; }, read: () => freshRead.promise, parsed: async () => parsedStore };
   const environment = { reducedMotion: true };
   const render = () => {
     cursor = 0; pending = [];
@@ -759,13 +761,59 @@ console.log('Unified Atlas cache healthy checks passed.');
     sameStage(currentStage, render(), 'obsolete selection completion');
     freshRead.resolve(copy); await settle();
     sameStage(currentStage, render(), 'current selection confirmation');
+
+    // This device's parsed copy: kept after the first parse (once the first
+    // frame is drawn), drawn instead of a parse on the next open, and parsed
+    // again (which replaces it) when it does not bind.
+    const keptRows = [], reads = [];
+    parsedStore = { async read(...key) { reads.push(key); return keptRows.at(-1)?.[3] ?? null; }, keep(...row) { keptRows.push(row); } };
+    unmount(); notes = []; parses = 0; frames = 0; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    assert.equal(parses, 1); assert.deepEqual(notes, ['home', 'saved']);
+    assert.deepEqual(reads, [[scene.model.sha256, 1, 'generated-loader-build']], 'looked up by pinned digest, verified length and loader build');
+    assert.equal(frames, 2, 'the copy is kept two frames after the first frame is drawn');
+    assert.deepEqual(keptRows, [[scene.model.sha256, 1, 'generated-loader-build', { parsed: 1, work: { triangles: 1 } }]], 'what the loader prepared is kept once');
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    const fromCopy = render();
+    assert.equal(parses, 1, 'the next open draws the kept copy without parsing');
+    assert.deepEqual(fromCopy.props.model.glb, { parsed: 1, work: { triangles: 1 } }); assert.deepEqual(notes, ['home', 'saved', 'kept parse']);
+    assert.equal(keptRows.length, 1, 'a copy drawn from storage is not written again');
+    keptRows.push([scene.model.sha256, 1, 'generated-loader-build', { unbindable: true, work: { triangles: 1 } }]);
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    assert.equal(parses, 2, 'a copy that does not bind is parsed again');
+    assert.deepEqual(render().props.model.glb, { parsed: 2, work: { triangles: 1 } }); assert.deepEqual(notes, ['home', 'saved']);
+    assert.deepEqual(keptRows.at(-1)[3], { parsed: 2, work: { triangles: 1 } }, 'and the new parse replaces it');
+    keptRows.push([scene.model.sha256, 1, 'generated-loader-build', { work: { triangles: 2048 } }]);
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    assert.equal(parses, 3, 'a copy over the upload budget is not drawn; the parse decides');
+    // An open abandoned before the first house frame keeps nothing, even when a later frame is drawn.
+    const housed = deferred(); house = housed.promise;
+    keptRows.push([scene.model.sha256, 1, 'generated-loader-build', { unbindable: true, work: { triangles: 1 } }]);
+    const rowsBefore = keptRows.length;
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    assert.equal(parses, 4, 'the abandoned open parsed (no usable copy)');
+    unmount(); housed.resolve(); await settle(); await settle();
+    assert.equal(keptRows.length, rowsBefore, 'an abandoned open writes nothing after a later house frame');
+    house = Promise.resolve();
+    // A lookup that never settles holds the parse up only until its deadline.
+    parsedStore = { read: () => new Promise(() => {}), keep() {} };
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); assert.equal(parses, 4, 'waiting on the stalled lookup');
+    await new Promise(resolve => setTimeout(resolve, 20)); await settle();
+    assert.equal(parses, 5, 'a stalled lookup is passed over and the bytes are parsed');
+    assert.equal(render().type, hooks.AtlasStage); assert.deepEqual(notes, ['home', 'saved']);
+    parsedStore = null;
   } finally {
     unmount(); delete globalThis[token];
     for (const [name, descriptor] of [['document', originalDocument], ['HTMLScriptElement', originalScript]]) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
     }
   }
-  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity passed (synthetic hooks; no DOM)');
+  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity and parsed copy keep/use/refusal/abandoned open/stalled lookup passed (synthetic hooks; no DOM)');
 }
 
 // The ?render-probe=load readout's text from generated ledgers and resource timing rows.
@@ -794,4 +842,79 @@ console.log('Unified Atlas cache healthy checks passed.');
     + 'Model: pending · model download: none so far\n'
     + 'Saved copy read pending · parse pending · build pending · renderer pending');
   console.log('load readout: step times, first model source and largest costs formatted (generated ledgers; no DOM)');
+}
+
+// This device's parsed copy (parsed-store.ts) over the same SYNTHETIC IndexedDB
+// disk model: one copy, named by actor and home, pinned digest, length and
+// loader build; quota headroom; sign-out removal, including a keep in flight.
+{
+  const geometryForStore = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
+  const { openParsedStore, clearParsedStore, PARSED_STORE_HEADROOM } = await import(await sourceURL('../src/lantern/unified-atlas/parsed-store.ts', { '../canonical-ifc/geometry': geometryForStore }));
+  const disk = createSyntheticDisk();
+  const room = { quota: 1e12, usage: 0 };
+  const host = () => ({ indexedDB: createSyntheticIndexedDB(disk), storage: { estimate: async () => room } });
+  const flush = () => new Promise(resolve => setTimeout(resolve, 20));
+  const rgba = new Uint8Array(16).fill(7), texture = { key: 't0', image: { rgba, width: 2, height: 2 }, colorRole: 'srgb' };
+  const mesh = n => ({ meshKey: `atlas#${n}`, floorId: null, occurrenceId: null, vertices: new Float32Array(18).fill(n), triangles: 1,
+    yRange: [0, 1], bounds: { min: [0, 0, 0], max: [1, 1, 1] }, sourceMaterial: { baseColorTexture: texture, baseColor: [1, 1, 1, 1] }, materialVertices: new Float32Array(27) });
+  const glb = { work: { instances: 2, vertices: 6, triangles: 2, gpuBytes: 512 }, nodes: [], drawn: [0, 1].map(n => ({ meshKey: `atlas#${n}`, nodeIndex: n, meshIndex: n, primitiveIndex: 0 })),
+    meshes: [mesh(0), mesh(1)], counts: { triangles: 2, vertices: 6, metadataOnlyNodes: 0, declaredTransforms: 0 } };
+  const ownerA = { actorId: actorA, ...scope }, sha = 'f'.repeat(64), build = '/assets/standard-glb-generated.js';
+  openParsedStore(ownerA, host()).keep(sha, 1234, build, glb); await flush();
+  // A new page on the same disk.
+  const kept = await openParsedStore(ownerA, host()).read(sha, 1234, build);
+  assert.ok(kept && kept !== glb, 'the copy survives the page');
+  assert.ok(kept.meshes[0].vertices instanceof Float32Array && kept.meshes[0].vertices[0] === 0 && kept.meshes[1].vertices[0] === 1);
+  assert.equal(kept.meshes[0].sourceMaterial.baseColorTexture, kept.meshes[1].sourceMaterial.baseColorTexture, 'a shared texture stays one object');
+  assert.deepEqual(kept.drawn, glb.drawn); assert.deepEqual(kept.work, glb.work);
+  for (const [label, read] of [['digest', s => s.read('e'.repeat(64), 1234, build)], ['length', s => s.read(sha, 1235, build)],
+    ['loader build', s => s.read(sha, 1234, '/assets/standard-glb-other.js')]])
+    assert.equal(await read(openParsedStore(ownerA, host())), null, `another ${label} is not this copy`);
+  assert.equal(await openParsedStore({ ...ownerA, actorId: actorB }, host()).read(sha, 1234, build), null, 'another actor sees nothing');
+  assert.equal(await openParsedStore({ ...ownerA, homeId: '00000000-0000-4000-8000-000000000802' }, host()).read(sha, 1234, build), null, 'another home sees nothing');
+  // Too little room left in the origin's quota: nothing new is written.
+  room.quota = PARSED_STORE_HEADROOM; openParsedStore(ownerA, host()).keep('e'.repeat(64), 1234, build, glb); await flush();
+  assert.equal(await openParsedStore(ownerA, host()).read('e'.repeat(64), 1234, build), null, 'no copy without headroom');
+  openParsedStore(ownerA, { indexedDB: createSyntheticIndexedDB(disk) }).keep('e'.repeat(64), 1234, build, glb); await flush();
+  assert.equal(await openParsedStore(ownerA, host()).read('e'.repeat(64), 1234, build), null, 'no copy without a quota estimate');
+  room.quota = 1e12;
+  // One copy: a newer model's copy replaces the older one.
+  openParsedStore(ownerA, host()).keep('e'.repeat(64), 1234, build, glb); await flush();
+  assert.ok(await openParsedStore(ownerA, host()).read('e'.repeat(64), 1234, build));
+  assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'the older copy gave way');
+  // Sign-out removes it, and a keep already under way does not bring it back.
+  await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+  assert.equal(await openParsedStore(ownerA, host()).read('e'.repeat(64), 1234, build), null, 'sign-out removes the copy');
+  openParsedStore(ownerA, host()).keep(sha, 1234, build, glb);
+  await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) }); await flush();
+  assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'a keep in flight at sign-out leaves nothing');
+  const before = openParsedStore(ownerA, host());
+  await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+  before.keep(sha, 1234, build, glb); await flush();
+  assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'a store opened before sign-out keeps nothing after it');
+  // Two pages share the database but not their module state. A page whose
+  // keep is still waiting when another page signs out writes nothing, and a
+  // store it opened before that sign-out reads nothing afterwards.
+  {
+    const parsedSource = await sourceURL('../src/lantern/unified-atlas/parsed-store.ts', { '../canonical-ifc/geometry': geometryForStore });
+    const pageA = await import(parsedSource + '#page-a'), pageB = await import(parsedSource + '#page-b');
+    assert.notEqual(pageA, pageB, 'two independent page instances');
+    let release; const waiting = { promise: new Promise(resolve => { release = resolve; }), resolve: value => release(value) };
+    const slow = { indexedDB: createSyntheticIndexedDB(disk), storage: { estimate: () => waiting.promise } };
+    const early = pageB.openParsedStore(ownerA, host()); pageB.openParsedStore(ownerA, host()).keep(sha, 1234, build, glb);
+    const pendingKeep = pageB.openParsedStore(ownerA, slow); await flush();
+    pendingKeep.keep(sha, 1234, build, glb); await flush();
+    assert.ok(await early.read(sha, 1234, build), 'page B kept a copy before the sign-out');
+    await pageA.clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+    waiting.resolve(room); await flush();
+    assert.equal(await pageA.openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'page B\'s waiting keep wrote nothing after page A\'s sign-out');
+    pageB.openParsedStore(ownerA, host()).keep(sha, 1234, build, glb); await flush();
+    assert.equal(await early.read(sha, 1234, build), null, 'a store page B opened before the sign-out reads nothing after it');
+    await pageA.clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+  }
+  // The readout says when the first model came from this copy.
+  const { formatLoadReadout } = await import(await sourceURL('../src/lantern/canonical-ifc/load-readout.ts'));
+  assert.equal(formatLoadReadout({ steps: { home: 1200, house: 6300 }, model: 'saved', savedReadMs: 800, parseMs: 900, parsedCopy: true, buildMs: 2700, backend: 'webgpu' }, []).split('\n')[2],
+    'Saved copy read 0.8 s · kept parse 0.9 s · build 2.7 s · WebGPU');
+  console.log('parsed copy: survives the page; digest/length/loader/actor/home misses; one copy; quota headroom; sign-out incl. keep in flight, later keep and another page waiting to keep (synthetic IndexedDB)');
 }

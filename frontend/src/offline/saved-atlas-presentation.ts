@@ -35,6 +35,7 @@ export function createLiveAtlasPresentationPort(native: UnifiedAtlasPort): LiveA
     ...(native.readDetail ? { readDetail(selection: LiveAtlasSelection, scene: Parameters<NonNullable<UnifiedAtlasPort['readDetail']>>[1], signal: AbortSignal) {
       return native.readDetail!(overview(selection), scene, signal);
     } } : {}),
+    ...(native.parsed ? { parsed(selection: LiveAtlasSelection) { return native.parsed!(overview(selection)); } } : {}),
     ...(native.createOverlays ? { createOverlays(selection: LiveAtlasSelection, ...args: Parameters<NonNullable<UnifiedAtlasPort['createOverlays']>> extends
       [ModelOverviewSelection, ...infer Rest] ? Rest : never) {
       const selected = overview(selection);
