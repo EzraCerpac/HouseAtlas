@@ -842,6 +842,47 @@
   text-align: center;
 }
 
+/* A source cache that is stale or failing: a quiet chip beside Overview,
+   which it opens. The button keeps a 44 px hit area around the pill. */
+.lantern-host .stale-chip {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.lantern-host .stale-chip-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--frame-line);
+  border-radius: 999px;
+  background: var(--sheet);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.lantern-host .stale-chip:hover .stale-chip-face {
+  border-color: var(--ink-2);
+}
+
+.lantern-host .stale-chip-state {
+  color: var(--warn);
+}
+
+.lantern-host .stale-chip-date::before {
+  content: '· ';
+}
+
 .lantern-host .tools-btn,
 .lantern-host .ask-btn {
   flex: 0 0 auto;
@@ -2465,6 +2506,27 @@
 
   .lantern-host .source-status-main {
     display: none;
+  }
+
+  /* The stale chip stacks its state over its date, leaving the home's name
+     room in the strip. */
+  .lantern-host .stale-chip-face {
+    display: grid;
+    gap: 0;
+    height: auto;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .lantern-host .stale-chip-date {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .lantern-host .stale-chip-date::before {
+    content: none;
   }
 
   .lantern-host .source-status {
