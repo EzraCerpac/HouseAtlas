@@ -1117,6 +1117,7 @@
     {"path":"frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/native-place-drafts.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/receipt.fixture.mjs","mode":"100644","owner":"web"},
+    {"path":"frontend/capture-drafts-tests/save-blob-write.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-evidence-tests/fixtures/synthetic-document.pdf","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-evidence-tests/fixtures/synthetic-image.png","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-evidence-tests/fixtures/synthetic-note.txt","mode":"100644","owner":"core-integration"},
