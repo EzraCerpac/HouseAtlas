@@ -571,7 +571,7 @@ class RetentionTest(unittest.TestCase):
         stop = mock.Mock(side_effect=hb.StepFailed("stop service", "service is not running"))
         upload = mock.Mock(side_effect=hb.StepFailed("iCloud upload", "timed out"))
         crash = mock.Mock(side_effect=RuntimeError("boom"))
-        with mock.patch.object(hb, "report_failure") as report:
+        with mock.patch.object(hb, "report_failure", return_value=True) as report:
             for backup, reports in ((stop, 1), (stop, 0), (upload, 1), (upload, 0), (crash, 1), (crash, 0)):
                 report.reset_mock()
                 self.assertEqual(self.run_main("--if-due", at=at, backup=backup), 1)
@@ -584,6 +584,17 @@ class RetentionTest(unittest.TestCase):
             report.reset_mock()
             self.run_main("--if-due", at=at, backup=stop)
             self.assertEqual(report.call_count, 1)
+            # A report that did not go out is tried again on the next failure.
+            report.reset_mock(return_value=True)
+            report.return_value = False
+            (state / "last-failure.json").unlink()
+            for expected in (1, 2):
+                self.run_main("--if-due", at=at, backup=stop)
+                self.assertEqual(report.call_count, expected)
+            report.return_value = True
+            self.run_main("--if-due", at=at, backup=stop)
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 3)
 
     def test_shared_folder_comes_from_the_server_config(self):
         config = self.root / "server.json"

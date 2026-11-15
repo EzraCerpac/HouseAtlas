@@ -818,19 +818,20 @@ def restore_models_command(report: Path, store: Path, destination: Path) -> int:
 
 def record_failure(config: Config, state: Path, step: str, detail: str, message: str) -> None:
     """Record the failure and report it, unless the record it replaces failed at
-    the same step: hourly retries of one outage report once."""
+    the same step and its report was delivered: hourly retries of one outage
+    report once, and a report that did not go out is tried again."""
     path = state / "last-failure.json"
     try:
-        earlier = json.loads(path.read_text()).get("step")
+        earlier = json.loads(path.read_text())
+        repeated = earlier.get("step") == step and earlier.get("reported") is True
     except (OSError, ValueError, AttributeError):
-        earlier = None
+        repeated = False
+    delivered = repeated or report_failure(config, message)
     failure = {"status": "failed", "step": step, "detail": detail,
-               "at": now().isoformat(timespec="seconds")}
+               "at": now().isoformat(timespec="seconds"), "reported": delivered}
     path.write_text(json.dumps(failure, indent=2) + "\n")
     write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": step}})
     print(json.dumps(failure), file=sys.stderr)
-    if earlier != step:
-        report_failure(config, message)
 
 
 def main() -> int:

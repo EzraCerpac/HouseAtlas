@@ -78,7 +78,7 @@ Success writes `last-success.json` (recovery point, sizes, how many model
 files were newly stored, what retention deleted, durations) in the state directory. A blob that exists
 but no longer matches its name fails the model rebuild loudly; it is never
 replaced automatically. Any failure writes `last-failure.json` and runs the optional
-`reportCommand`, except when `last-failure.json` already records the same failing step, so hourly retries of one outage report once; a later success removes `last-failure.json`. If the report
+`reportCommand`, except when `last-failure.json` already records the same failing step with its report delivered, so hourly retries of one outage report once; a later success removes `last-failure.json`. If the report
 command itself fails or times out, the job logs its exit status and the end of
 its stderr to stderr. A run that otherwise succeeded then exits with status 3
 and records `reportFailed` in its result, so a lost notice is never silent.
