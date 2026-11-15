@@ -71,6 +71,8 @@ export function App({
   const [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
   const [failedHome, setFailedHome] = useState<Scope | null>(null);
+  // The home being opened by a home switch, named while it loads.
+  const [loadingHome, setLoadingHome] = useState<string | null>(null);
   const generation = useRef(0),
     controller = useRef<AbortController | null>(null);
   const root = useRef<HTMLDivElement>(null),
@@ -96,6 +98,9 @@ export function App({
       setBusy(true);
       setNotice("");
       if (changeHome) {
+        const from = currentView.current;
+        if (from.status === "ready")
+          setLoadingHome(from.homes.find((h) => scope && sameScope(h, scope))?.label ?? null);
         setView({ status: "loading" });
         remembered.current.clear();
       }
@@ -259,7 +264,9 @@ export function App({
   const heading =
     view.status === "ready"
       ? ""
-      : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
+      : view.status === "loading" && loadingHome
+        ? `Loading ${loadingHome}…`
+        : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
   const content = (
     <div ref={root} onClick={onClick}>
       <a className="skip" href="#page-heading">
