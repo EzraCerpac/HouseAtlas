@@ -2596,7 +2596,6 @@
   .lantern-host .ua-stack.is-chip { --stack-row: 44px; position: relative; width: auto; max-width: 100%; }
   .lantern-host .ua-stack.is-chip .ua-stack-paper { border-radius: 14px; }
   .lantern-host .ua-stack.is-chip .ua-stack-head { min-height: 44px; padding: 4px 10px 4px 9px; border-radius: 14px; }
-  .lantern-host .ua-stack.is-chip .ua-stack-where { max-width: 34cqw; }
   .lantern-host .ua-stack.is-chip .ua-stack-building + .ua-stack-floor { display: none; }
   .lantern-host .ua-stack.is-chip .ua-stack-building { font: 650 var(--fs-s)/1.2 var(--text); color: var(--ink-2); }
   .lantern-host .ua-stack-chevron { flex: none; color: var(--muted); transition: transform 0.2s ease; }

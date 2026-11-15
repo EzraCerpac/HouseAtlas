@@ -172,6 +172,7 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
         <h2 id="overview-title" className="detail-title overview-title">
           {house.name}
         </h2>
+        {asOf && <p className="overview-asof">As of {asOf}</p>}
         <ul className="tally overview-tally" aria-label="In the supplied view">
           <li className={count ? 'is-alert' : undefined}>
             <strong>{count}</strong> need attention
@@ -179,7 +180,6 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
           <li>
             <strong>{soon.length}</strong> due in two weeks
           </li>
-          {asOf && <li className="tally-asof">As of {asOf}</li>}
         </ul>
       </header>
       <div className="detail-body">
@@ -283,9 +283,11 @@ export function StaleSources({ onOpen }: { onOpen: () => void }) {
     <button type="button" className="stale-chip" onClick={onOpen} aria-label={`${facts.join('. ')}. Open Overview.`}>
       <span className="stale-chip-face" aria-hidden="true">
         <span className="stale-chip-state">
-          <span className="stale-chip-full">{behind.length === 1 ? `${source(first.owner)} ${state}` : `${behind.length} sources ${state}`}</span>
-          {/* Small phones: the source name leaves the face; the accessible name keeps it. */}
-          <span className="stale-chip-short">{behind.length === 1 ? cacheStatusLabel(first.displayStatus) : `${behind.length} ${state}`}</span>
+          <span className="stale-chip-full">
+            {behind.length === 1 ? <><span className="stale-chip-source">{source(first.owner)}</span><span className="stale-chip-word"> {state}</span></> : `${behind.length} sources ${state}`}
+          </span>
+          {/* Small phones: several sources keep a short count; the accessible name keeps each source. */}
+          {behind.length > 1 && <span className="stale-chip-short">{`${behind.length} ${state}`}</span>}
         </span>
         {behind.length === 1 && <span className="stale-chip-date">{first.lastSuccessfulFetchAt ? fmtShortDate(first.lastSuccessfulFetchAt, house.displayNow) : 'last update unknown'}</span>}
       </span>
