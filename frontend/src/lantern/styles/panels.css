@@ -555,6 +555,13 @@
 .lantern-host .task-main {
   display: grid;
   gap: 2px;
+  min-width: 0;
+}
+
+/* A long caption wraps beside the button instead of running under it. */
+.lantern-host .row-meta .storage {
+  white-space: normal;
+  align-items: flex-start;
 }
 
 .lantern-host .doc-thumb {
