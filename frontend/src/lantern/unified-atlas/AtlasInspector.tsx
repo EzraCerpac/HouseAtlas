@@ -23,13 +23,15 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
+  /** The one floor Plan draws of a whole building, else null. */
+  readonly shownLevel: string | null;
   readonly electricalGroup: ElectricalGroup | null; readonly canElectricalGroup: (key: string) => boolean; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
   /** Reviewed breaker/panel data from the current frame owner; absent when none is supplied. */
   readonly electricalData: ElectricalTraceSource | undefined;
@@ -65,19 +67,22 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   const kinds = OVERLAY_KINDS.filter(kind => state.layers[kind]);
 
   if (!occurrence) {
-    const levels = listedLevels(model, state);
-    const count = levels.reduce((sum, level) => sum + level.occurrenceIds.filter(key => model.selectable.has(key)).length, 0);
+    const listed = listedLevels(model, state);
+    const count = listed.reduce((sum, level) => sum + level.occurrenceIds.filter(key => model.selectable.has(key)).length, 0);
+    // Plan of a whole building draws one floor: its rooms come first, the other floors follow.
+    const shown = shownLevel !== null && listed.length > 1 && listed.some(level => level.levelId === shownLevel) ? shownLevel : null;
+    const levels = shown === null ? listed : [...listed.filter(level => level.levelId === shown), ...listed.filter(level => level.levelId !== shown)];
     return <aside className={`ua-inspector${open ? ' is-open' : ''}`} aria-label="Rooms">
       <div className="ua-sheet-head">
         <div className="ua-sheet-title">
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
-          <p className="ua-sheet-sub">{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</p>
+          <p className="ua-sheet-sub">{shown !== null && `Plan: ${levelName(shown)} · `}{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</p>
         </div>
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
         {/* Choosing from the list hands the stage back to the model. */}
-        <RoomList model={model} levels={levels} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
+        <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
       </div>
     </aside>;
@@ -196,15 +201,20 @@ function RoomContentsSummary({ runtime, roomId, layers }: {
 }
 
 /** Floor headings drop the chosen building's name; each region keeps it. */
-export function RoomList({ model, levels, choose, buildingId }: {
+export function RoomList({ model, levels, choose, buildingId, shownLevel = null }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
   readonly buildingId: string | null;
+  /** The floor Plan draws, listed first and marked; the floors after it are not drawn. */
+  readonly shownLevel?: string | null;
 }) {
   const coverage = model.scene.coverage;
   return <div className="ua-rooms">
-    {levels.map(level => {
+    {levels.map((level, at) => {
       const keys = level.occurrenceIds.filter(key => model.selectable.has(key));
-      return <section key={level.levelId} aria-label={atlasLevelName(model, level.levelId, model.floorBuildings.length > 1)}>
+      const other = shownLevel !== null && level.levelId !== shownLevel;
+      return <section key={level.levelId} className={other ? 'is-other' : undefined}
+        aria-label={`${atlasLevelName(model, level.levelId, model.floorBuildings.length > 1)}${shownLevel === null ? '' : other ? ', plan not shown' : ', plan shown'}`}>
+        {other && at === levels.findIndex(row => row.levelId !== shownLevel) && <p className="ua-rooms-other" aria-hidden="true">Not in this plan</p>}
         <h3>{atlasScopedLevelName(model, level.levelId, buildingId)}</h3>
         {keys.length === 0 ? <p className="ua-empty">No selectable rooms.</p>
           : <ul>{keys.map(key => {
