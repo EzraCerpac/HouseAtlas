@@ -75,11 +75,11 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const [loaded, setLoaded] = useState(() => ({ view, at: Date.now() }));
   if (loaded.view !== view) setLoaded({ view, at: Date.now() });
   // The notice and its focused button stay while Try again reloads; when the
-  // reload succeeds and the notice goes, focus left on the page moves to the main content.
+  // reload succeeds and the notice goes, focus left on the page moves to the Lantern main landmark.
   const [retrying, setRetrying] = useState(false), retried = useRef(false);
   useEffect(() => {
     if (retrying || !retried.current) return;
-    retried.current = false; if (!actions.notice && document.activeElement === document.body) document.getElementById('main-content')?.focus();
+    retried.current = false; if (!actions.notice && document.activeElement === document.body) document.getElementById('main')?.focus();
   }, [retrying, actions.notice]);
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
