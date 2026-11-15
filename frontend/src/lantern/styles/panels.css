@@ -1492,6 +1492,34 @@
 
 /* Library */
 
+/* The Library's sections in page order; each link moves to its section. */
+.lantern-host .library-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 10px;
+}
+
+.lantern-host .library-jump .text-btn {
+  min-height: 32px;
+}
+
+/* A section reached from the links: focus lands on it without an outline. */
+.lantern-host .library-section {
+  scroll-margin-top: 16px;
+}
+
+.lantern-host .library-section:focus {
+  outline: none;
+}
+
+.lantern-host .library-scope {
+  max-width: 62ch;
+  margin: 0 0 12px;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
 .lantern-host .library {
   list-style: none;
   margin: 8px 0 0;
@@ -2450,10 +2478,14 @@
   }
 }
 
-/* Narrow layouts close the overview from its sheet handle. */
+/* Narrow layouts close the overview and record details from the sheet handle. */
 @media (max-width: 1179px) {
-  .lantern-host .overview .detail-close {
+  .lantern-host .detail-close {
     display: none;
+  }
+
+  .lantern-host .detail-kicker {
+    padding-right: 0;
   }
 }
 

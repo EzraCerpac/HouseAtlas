@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useSourcePorts } from '../source-ports';
 import { Modal } from '../components/Modal';
-import { Empty } from '../components/ui';
-import { fmtDate, fmtDateTime } from '../data/time';
+import { Empty, RecordedTime } from '../components/ui';
+import { fmtDate } from '../data/time';
 import { SourcePdf } from './SourcePdf';
 import type { SourceDate, SourceDocument, SourceDocumentFrame, SourceDocumentMime, SourceDocumentReader,
   SourceDocumentsPort, SourcePreviewAvailability } from './types';
@@ -20,8 +20,8 @@ const MIME: Readonly<Record<SourceDocumentMime, { readonly label: string; readon
 };
 const CHANGED = 'This document changed or your access ended, so it is no longer shown. Close it and open it again.';
 const count = (value: number) => value.toLocaleString('en-GB');
-const sourceDate = (date: SourceDate | null) => !date ? 'Not recorded'
-  : date.precision === 'year' ? `${date.value} (year only)` : date.precision === 'day' ? fmtDate(date.value) : fmtDateTime(date.value);
+const sourceDate = (date: SourceDate | null): ReactNode => !date ? 'Not recorded'
+  : date.precision === 'year' ? `${date.value} (year only)` : date.precision === 'day' ? fmtDate(date.value) : <RecordedTime value={date.value} />;
 function readFailure(error: unknown): string {
   const status = typeof error === 'object' && error !== null && 'status' in error ? error.status : null;
   return status === 403 ? 'You do not have access to this document.'
@@ -112,7 +112,10 @@ function SourceDocumentList({ reader }: { readonly reader: SourceDocumentReader 
           </div>
           <button type="button" className="btn btn-small" aria-label={`Open ${document.title}`} onClick={() => setOpened({ owner, document })}>Open</button>
         </li>)}</ul>}
-    {current.next !== null && <button type="button" className="btn btn-small source-docs-more" onClick={loadMore}>Load more</button>}
+    {current.next !== null && <div className="source-docs-more">
+      <p>{current.documents.length} shown. The source reports more.</p>
+      <button type="button" className="btn btn-small" onClick={loadMore}>Load more</button>
+    </div>}
     {current.moreFailed && <p role="status">More source documents could not be read.</p>}
     {shown && <SourceDocumentDialog key={shown.documentId} reader={reader} document={shown} onClose={() => setOpened(null)} />}
   </>;
@@ -205,27 +208,36 @@ function LeasedPayload({ reader, document, mode }: {
 
 function Provenance({ document }: { readonly document: SourceDocument }) {
   const { provenance: source, original, preview } = document, frame = source.frame;
-  return <dl className="facts source-doc-facts">
-    <div><dt>Source</dt><dd>{source.agency}</dd></div>
-    <div><dt>Recorded address</dt><dd>{source.url ?? 'Not recorded'}
-      {source.url && <span className="fact-help">Recorded text only. It is not opened from here.</span>}</dd></div>
-    <div><dt>Licence</dt><dd>{LICENCE[source.license.status]}{source.license.reference ? `: ${source.license.reference}` : ''}</dd></div>
-    <div><dt>Retrieved</dt><dd>{fmtDateTime(source.retrievedAt)}</dd></div>
-    <div><dt>Published</dt><dd>{sourceDate(source.published)}</dd></div>
-    <div><dt>Observed</dt><dd>{sourceDate(source.observed)}</dd></div>
-    <div><dt>Coordinate system</dt><dd>{frame.crs ?? 'Not recorded'}</dd></div>
-    <div><dt>Axes and unit</dt><dd>{frame.axes.length ? frame.axes.join(', ') : 'Axes not recorded'}; {frame.linearUnit ?? 'unit not recorded'}</dd></div>
-    <div><dt>Extent</dt><dd>{frame.extent ? frame.extent.join(', ') : 'Not recorded'}</dd></div>
-    <div><dt>Original</dt><dd>{count(original.bytes)} bytes, asset revision {original.revision}, {AVAILABILITY[document.availability.original].toLowerCase()}
-      <code>{original.sha256}</code></dd></div>
-    <div><dt>Custody receipt</dt><dd><code>{source.custodyReceiptSha256}</code></dd></div>
-    <div><dt>Preview</dt><dd>{preview ? <>{preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
-      from this original{preview.sourceCropExtent ? `, cropped to ${preview.sourceCropExtent.join(', ')}` : ''}. {preview.description}
-      <span className="fact-help">Configuration <code>{preview.rendererConfigSha256}</code></span>
-      <span className="fact-help">Qualification <code>{preview.qualificationReceiptSha256}</code></span></>
-      : 'No qualified preview'}</dd></div>
-    <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated {fmtDateTime(document.updatedAt)}</dd></div>
-  </dl>;
+  return <>
+    <dl className="facts source-doc-facts">
+      <div><dt>Source</dt><dd>{source.agency}</dd></div>
+      <div><dt>Recorded address</dt><dd>{source.url ?? 'Not recorded'}
+        {source.url && <span className="fact-help">Recorded text only. It is not opened from here.</span>}</dd></div>
+      <div><dt>Licence</dt><dd>{LICENCE[source.license.status]}{source.license.reference ? `: ${source.license.reference}` : ''}</dd></div>
+      <div><dt>Retrieved</dt><dd><RecordedTime value={source.retrievedAt} /></dd></div>
+      <div><dt>Published</dt><dd>{sourceDate(source.published)}</dd></div>
+      <div><dt>Observed</dt><dd>{sourceDate(source.observed)}</dd></div>
+      <div><dt>Coordinate system</dt><dd>{frame.crs ?? 'Not recorded'}</dd></div>
+      <div><dt>Axes and unit</dt><dd>{frame.axes.length ? frame.axes.join(', ') : 'Axes not recorded'}; {frame.linearUnit ?? 'unit not recorded'}</dd></div>
+      <div><dt>Extent</dt><dd>{frame.extent ? frame.extent.join(', ') : 'Not recorded'}</dd></div>
+      <div><dt>Original</dt><dd>{count(original.bytes)} bytes, asset revision {original.revision}, {AVAILABILITY[document.availability.original].toLowerCase()}</dd></div>
+      <div><dt>Preview</dt><dd>{preview ? <>{preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
+        from this original{preview.sourceCropExtent ? `, cropped to ${preview.sourceCropExtent.join(', ')}` : ''}. {preview.description}</>
+        : 'No qualified preview'}</dd></div>
+      <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated <RecordedTime value={document.updatedAt} /></dd></div>
+    </dl>
+    <details className="source-doc-integrity">
+      <summary>Integrity</summary>
+      <dl className="facts">
+        <div><dt>Original SHA-256</dt><dd><code>{original.sha256}</code></dd></div>
+        <div><dt>Custody receipt</dt><dd><code>{source.custodyReceiptSha256}</code></dd></div>
+        {preview && <>
+          <div><dt>Preview configuration</dt><dd><code>{preview.rendererConfigSha256}</code></dd></div>
+          <div><dt>Preview qualification</dt><dd><code>{preview.qualificationReceiptSha256}</code></dd></div>
+        </>}
+      </dl>
+    </details>
+  </>;
 }
 
 function HeldSourceStatus({ document }: { document: SourceDocument }) {

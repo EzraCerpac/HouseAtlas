@@ -3,8 +3,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { PinnedFileAction } from './PinnedFileAction';
-import { Note, StorageTag } from './ui';
-import { fmtDateTime } from '../data/time';
+import { Note, RecordedTime, StorageTag } from './ui';
 
 const HomeboxOriginalAction = lazy(() => import('./HomeboxOriginalAction').then(module => ({ default: module.HomeboxOriginalAction })));
 
@@ -43,9 +42,9 @@ export function RealPreview() {
         <div><dt>Availability</dt><dd>{attachment.kind === 'external-link' ? href ? 'Unknown; HouseAtlas does not check external addresses' : 'No usable external address supplied' : href ? 'Access link supplied; validity checked on use' : 'No download link issued'}</dd></div>
         {attachment.kind === 'stored-file' && <><div><dt>Content type</dt><dd>{attachment.contentType ?? 'Unknown'}</dd></div><div><dt>Bytes</dt><dd>{attachment.byteSize ?? 'Unknown'}</dd></div></>}
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
-        <div><dt>Attachment added</dt><dd>{doc.addedAt ? `${fmtDateTime(doc.addedAt)} by ${doc.addedBy}` : 'Date and actor not supplied'}</dd></div>
-        <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? fmtDateTime(entry.sourceUpdatedAt) : 'Unknown'}</dd></div>
-        <div><dt>Retrieved</dt><dd>{entry ? fmtDateTime(entry.retrievedAt) : 'Unknown'}</dd></div>
+        <div><dt>Attachment added</dt><dd>{doc.addedAt ? <RecordedTime value={doc.addedAt} after={` by ${doc.addedBy}`} /> : 'Date and actor not supplied'}</dd></div>
+        <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? <RecordedTime value={entry.sourceUpdatedAt} /> : 'Unknown'}</dd></div>
+        <div><dt>Retrieved</dt><dd>{entry ? <RecordedTime value={entry.retrievedAt} /> : 'Unknown'}</dd></div>
       </dl>
         {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}
       </aside>

@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { SEARCH_GROUPS, dueState, getRecord, locate, nameOf, search, type SearchHit } from '../data/query';
 import type { HouseData } from '../data/types';
+import type { LanternProjection } from '../adapters/read';
 import { fmtDate, fmtShortDate } from '../data/time';
 import { useSelect, useStore, type AtlasLens, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { ExampleLabel } from '../example-label';
 import { KIND_ICON } from './ui';
 import { KIND_LABEL } from '../data/query';
-import { isArchivedEntry } from '../../app/model';
+import { ancestry, isArchivedEntry } from '../../app/model';
 import { useTopology } from '../topology/TopologyProvider';
 import { nativePlaceSearch, openNativePlaceSearchHit, type NativePlaceSearchHit } from '../topology/search';
 
@@ -70,9 +71,18 @@ function displayDate(house: HouseData, iso: string): string {
  * already says, and that it is only an external link; its kind and storage
  * stay on the document itself. An upkeep task says where it stands, reading
  * its own status before any date, and what it is for only when its title
- * does not already say so. Every other result keeps the location the search
- * supplied. Links and targets are unchanged on the records themselves. */
-function hitSubtitle(house: HouseData, hit: SearchHit): { readonly text: string; readonly alert?: boolean } {
+ * does not already say so. A HomeBox place names its parents in HomeBox's own
+ * location tree, innermost first, which is not a reviewed placement. Every
+ * other result keeps the location the search supplied. Links and targets
+ * are unchanged on the records themselves. */
+function hitSubtitle(house: HouseData, projection: LanternProjection, hit: SearchHit): { readonly text: string; readonly alert?: boolean } {
+  if (hit.kind === 'space') {
+    const entry = projection.entries.get(hit.id);
+    if (entry) {
+      const parents = ancestry(projection.view, entry).map(parent => parent.entity.name).filter(Boolean).reverse();
+      return { text: parents.length > 0 ? `In HomeBox: ${parents.join(', ')}` : '' };
+    }
+  }
   if (hit.kind === 'doc') {
     const doc = house.docs.find((d) => d.id === hit.id);
     if (!doc) return { text: hit.context };
@@ -130,7 +140,7 @@ function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'
 }
 
 export function SearchPalette() {
-  const { house, dispatch, state } = useStore();
+  const { house, dispatch, state, projection } = useStore();
   const select = useSelect();
   const topology = useTopology();
   useEffect(() => topology.activate(), [topology.activate]);
@@ -291,7 +301,7 @@ export function SearchPalette() {
                 {g.hits.map((h) => {
                   index += 1;
                   const i = index;
-                  const sub = hitSubtitle(house, h);
+                  const sub = hitSubtitle(house, projection, h);
                   return (
                     <div
                       key={h.id}

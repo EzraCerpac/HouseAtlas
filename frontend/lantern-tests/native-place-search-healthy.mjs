@@ -113,7 +113,7 @@ export function useSelect() { return id => ${stateExpr}.calls.push({type:'select
 const topology = moduleUrl(`export function useTopology() { return ${stateExpr}.topology; }`);
 const icon = await compile('../src/lantern/components/Icon.tsx', { 'react/jsx-runtime': jsxUrl });
 const ui = await compile('../src/lantern/components/ui.tsx', {
-  'react/jsx-runtime': jsxUrl, '../data/query': queryUrl, '../state/store': store, './Icon': icon,
+  'react/jsx-runtime': jsxUrl, '../data/query': queryUrl, '../state/store': store, './Icon': icon, '../data/time': time,
 });
 const model = await compile('../src/app/model.ts');
 const palette = await compile('../src/lantern/components/SearchPalette.tsx', {

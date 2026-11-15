@@ -252,11 +252,13 @@ export function App() {
           <Icon name="ask" size={18} />
           <span>Ask</span>
         </button>}
-        <button ref={settingsButton} type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={openSettings}>
+        {/* With no Atlas tools, Settings stands in the strip on phones too: a
+            menu of one is not a menu. */}
+        <button ref={settingsButton} type="button" className={`icon-btn tool-settings${hasTools ? ' is-in-menu' : ''}`} aria-label="Settings" onClick={openSettings}>
           <Icon name="settings" size={20} />
         </button>
-        <ShellMenu items={[...(hasTools ? [{ label: 'Atlas tools', icon: 'tools' as const, open: openTools, equivalent: toolsButton }] : []),
-          { label: 'Settings', icon: 'settings' as const, open: openSettings, equivalent: settingsButton }]} />
+        {hasTools && <ShellMenu items={[{ label: 'Atlas tools', icon: 'tools' as const, open: openTools, equivalent: toolsButton },
+          { label: 'Settings', icon: 'settings' as const, open: openSettings, equivalent: settingsButton }]} />}
       </div>
 
       <main id="main" className="main" tabIndex={-1} inert={recordCovers}>
