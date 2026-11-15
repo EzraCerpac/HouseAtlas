@@ -1605,7 +1605,7 @@ selection custody with another device number, then refuses a same-device
 replacement. No listener, provider, real data or volume remount is used, so these
 cases do not observe an actual reboot.
 
-The default backend-library selection also discovers the five
+The default backend-library selection also discovers the seven
 `lifecycle::persistent::rebind_commands_tests::` cases for the offline
 `rebind-commands` command-policy transition, each on fresh synthetic state in a
 disposable private folder:
@@ -1614,12 +1614,21 @@ disposable private folder:
   receipt as its backup, rotates the Access epoch and clears an actual session,
   then strict reopen accepts only the selected configuration; rollback restores
   the original receipt bytes and a second flip reuses the identical backup.
-- `password_mode_flips_without_a_local_identity`: the same flip in password mode.
-- `every_other_change_and_a_noop_are_refused_without_writes`: origin, listen,
-  deployment ID, home label, frontend path, local identity and login-mode changes, and an
+- `password_mode_flips_without_a_local_identity`: the same flip in password
+  mode, after refusing a candidate that also moves origin and listen.
+- `every_other_change_and_a_noop_are_refused_without_writes`: deployment ID,
+  home label, frontend path, local identity and login-mode changes, and an
   unchanged policy, are refused with no receipt, backup, pending or session change.
-- `pending_fence_blocks_both_configurations_and_a_rerun`: a pending receipt
-  blocks reopen under both configurations and a rerun.
+- `foreign_pending_fence_blocks_both_configurations_and_is_never_removed`: a
+  pending receipt this pair did not write blocks reopen under both
+  configurations and both rebind directions, and stays in place.
+- `rerunning_the_same_pair_recovers_every_interruption_point`: with test-only
+  faults after the pending receipt, after session revocation and after
+  publication, the reverse pair is refused while pending, and rerunning the same
+  pair ends with only the new configuration serving and its sessions cleared; a
+  further rerun is a no-op.
+- `published_receipt_without_this_pairs_backup_is_refused`: a published new
+  receipt without this pair's exact backup is not reported as done.
 - `running_server_lease_refuses_the_rebind`: an open lease refuses the rebind.
 
 No listener, provider, cached-provider profile or real data is used.

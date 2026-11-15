@@ -797,7 +797,8 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
 /// Only `mcpCommands` may differ (read-only <-> existing-editor-commands); every
 /// other configuration field must be equal. Any login mode is accepted. Shares
 /// the origin rebind's lease, strict receipt, backup, pending fence and native
-/// session revocation; no automatic retry, rollback or receipt adoption.
+/// session revocation. Re-running the same old/new pair after an interruption
+/// resumes it (see `resume_commands`); no other pending state is adopted.
 pub fn rebind_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<(), Failure> {
     previous.validate()?;
     config.validate()?;
@@ -810,7 +811,61 @@ pub fn rebind_commands(previous: &ServerConfig, config: &ServerConfig) -> Result
     if serde_json::to_value(config)? != expected {
         return Err("Command rebind accepts only an mcpCommands change; every other field must be unchanged".into());
     }
+    if resume_commands(previous, config)? {
+        return Ok(());
+    }
     rebind_receipt(previous, config, |_| Ok(()))
+}
+
+/// Under the exclusive lease, recognise only states that THIS old/new pair
+/// leaves behind. A pending receipt is withdrawn only when the old receipt is
+/// still published, its retained backup is byte-identical and the pending bytes
+/// are exactly the new receipt; the full transition then reruns. Returns true
+/// when the new receipt is already published with this pair's exact backup.
+fn resume_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<bool, Failure> {
+    fn retained(path: &Path) -> Result<Option<Vec<u8>>, Failure> {
+        match fs::symlink_metadata(path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Ok(_) => Ok(Some(read_selected_file(path, 16 * 1024, true)?)),
+            Err(error) => Err(error.into()),
+        }
+    }
+    let lease = ServerLease::acquire(previous, false)?;
+    super::receipt_compatibility::require_no_pending(previous)?;
+    let directory = &previous.data_directory;
+    let current = read_selected_file(&directory.join("server-state.json"), 16 * 1024, true)?;
+    let state: State = serde_json::from_slice(&current)?;
+    let with_digest = |digest: String| {
+        serde_json::to_vec(&State {
+            configuration_digest: digest,
+            ..state.clone()
+        })
+    };
+    let (old, new) = (previous.state_digest()?, config.state_digest()?);
+    let backup = retained(&directory.join(format!("server-state.previous.{old}.json")))?;
+    let pending_path = directory.join("server-state.rebind.pending");
+    let Some(pending) = retained(&pending_path)? else {
+        if state.configuration_digest != new {
+            return Ok(false);
+        }
+        if backup != Some(with_digest(old)?) {
+            return Err("Published receipt was not issued by this command rebind".into());
+        }
+        return Ok(true);
+    };
+    if state.configuration_digest != old
+        || backup.as_deref() != Some(&current[..])
+        || pending != with_digest(new)?
+    {
+        return Err(
+            "Pending rebind receipt does not match this command-policy change; reviewed recovery required"
+                .into(),
+        );
+    }
+    private_metadata(&pending_path)?;
+    fs::remove_file(&pending_path)?;
+    sync(&lease.directory)?;
+    Ok(false)
 }
 
 /// Shared offline receipt transition. `check_selected` runs after native session
@@ -847,6 +902,7 @@ fn rebind_receipt(
     let mut pending = open_private(&pending_path, true, false)?;
     pending.write_all(&bytes)?;
     sync(&pending)?;
+    fault("rebind-pending")?;
     // This actual native transaction rotates epoch and clears sessions/rates.
     // A later file error does not imply it rolled back.
     core.access
@@ -854,6 +910,7 @@ fn rebind_receipt(
         .map_err(|_| "Access unavailable during explicit rebind")?
         .invalidate_all_sessions()?;
     drop(core);
+    fault("rebind-revoked")?;
     check_selected(config)?;
     lease.check()?;
     if read_selected_file(&path, 16 * 1024, true)? != original {
@@ -869,6 +926,7 @@ fn rebind_receipt(
     }
     fs::rename(&pending_path, &path)?;
     sync(&lease.directory)?;
+    fault("rebind-published")?;
     // Recheck the native inodes recorded by the original issuer (see State::binds).
     let access = private_metadata(&config.data_directory.join("access.sqlite"))?;
     let atlas = private_metadata(&config.data_directory.join("atlas.sqlite"))?;

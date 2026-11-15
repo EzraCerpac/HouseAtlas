@@ -204,6 +204,16 @@ fn password_mode_flips_without_a_local_identity() {
     let fixture = Fixture::new(true);
     assert!(fixture.config.authentication.is_password());
     let editor = fixture.editor_commands();
+    // Origin and listen move together (a valid password-mode candidate).
+    let moved = fixture.with(|wire| {
+        wire["mcpCommands"] = json!("existing-editor-commands");
+        wire["origin"] = json!("https://127.0.0.1:48744");
+        wire["listen"] = json!("127.0.0.1:48744");
+    });
+    assert_eq!(
+        error(rebind_commands(&fixture.config, &moved)),
+        "Command rebind accepts only an mcpCommands change; every other field must be unchanged"
+    );
     rebind_commands(&fixture.config, &editor).unwrap();
     assert_eq!(error(reopen(&fixture.config)), BINDING);
     drop(reopen(&editor).unwrap());
@@ -246,11 +256,16 @@ fn every_other_change_and_a_noop_are_refused_without_writes() {
     drop(reopen(&fixture.config).unwrap());
 }
 
+const FENCED: &str =
+    "Incomplete explicit rebind requires reviewed recovery; no automatic receipt adoption";
+const MISMATCH: &str =
+    "Pending rebind receipt does not match this command-policy change; reviewed recovery required";
+
 #[test]
-fn pending_fence_blocks_both_configurations_and_a_rerun() {
+fn foreign_pending_fence_blocks_both_configurations_and_is_never_removed() {
     let fixture = Fixture::new(false);
     let editor = fixture.editor_commands();
-    // Simulate an interruption after the pending receipt was synced.
+    // A pending receipt this pair did not write (and no retained backup).
     let pending = fixture.data("server-state.rebind.pending");
     fs::OpenOptions::new()
         .write(true)
@@ -260,11 +275,78 @@ fn pending_fence_blocks_both_configurations_and_a_rerun() {
         .unwrap()
         .write_all(b"{}")
         .unwrap();
-    let fenced =
-        "Incomplete explicit rebind requires reviewed recovery; no automatic receipt adoption";
-    assert_eq!(error(reopen(&fixture.config)), fenced);
-    assert_eq!(error(reopen(&editor)), fenced);
-    assert_eq!(error(rebind_commands(&fixture.config, &editor)), fenced);
+    assert_eq!(error(reopen(&fixture.config)), FENCED);
+    assert_eq!(error(reopen(&editor)), FENCED);
+    assert_eq!(error(rebind_commands(&fixture.config, &editor)), MISMATCH);
+    assert_eq!(error(rebind_commands(&editor, &fixture.config)), MISMATCH);
+    assert_eq!(fs::read(&pending).unwrap(), b"{}");
+}
+
+#[test]
+fn rerunning_the_same_pair_recovers_every_interruption_point() {
+    for point in ["rebind-pending", "rebind-revoked", "rebind-published"] {
+        let fixture = Fixture::new(false);
+        let read_only = fixture.config.clone();
+        let editor = fixture.editor_commands();
+        let original = fixture.receipt();
+        let access = fixture.data("access.sqlite");
+        open_local_session(&read_only);
+        super::ADOPTION_FAULT.with(|fault| fault.set(Some(point)));
+        let interrupted = error(rebind_commands(&read_only, &editor));
+        super::ADOPTION_FAULT.with(|fault| fault.set(None));
+        assert!(interrupted.contains(point), "{point}: {interrupted}");
+        let sessions = access_counts(&access).1;
+        if point == "rebind-published" {
+            assert_eq!(sessions, 0, "{point}");
+            assert_eq!(error(reopen(&read_only)), BINDING, "{point}");
+        } else {
+            // Both configurations are fenced; the old receipt is still published.
+            assert_eq!(sessions, i64::from(point == "rebind-pending"), "{point}");
+            assert_eq!(fixture.receipt(), original, "{point}");
+            assert_eq!(error(reopen(&read_only)), FENCED, "{point}");
+            assert_eq!(error(reopen(&editor)), FENCED, "{point}");
+            // The reverse pair does not match this pending receipt.
+            assert_eq!(
+                error(rebind_commands(&editor, &read_only)),
+                MISMATCH,
+                "{point}"
+            );
+            assert!(
+                fixture.data("server-state.rebind.pending").exists(),
+                "{point}"
+            );
+        }
+        // The same command finishes; only the new configuration serves.
+        rebind_commands(&read_only, &editor).unwrap();
+        assert_eq!(access_counts(&access).1, 0, "{point}");
+        let backup = format!(
+            "server-state.previous.{}.json",
+            read_only.state_digest().unwrap()
+        );
+        assert_eq!(fixture.extra_files(), vec![backup], "{point}");
+        assert_eq!(error(reopen(&read_only)), BINDING, "{point}");
+        open_local_session(&editor);
+        // Rerunning a completed pair is a no-op that keeps the session.
+        rebind_commands(&read_only, &editor).unwrap();
+        assert_eq!(access_counts(&access).1, 1, "{point}");
+    }
+}
+
+#[test]
+fn published_receipt_without_this_pairs_backup_is_refused() {
+    let fixture = Fixture::new(false);
+    let editor = fixture.editor_commands();
+    rebind_commands(&fixture.config, &editor).unwrap();
+    let backup = fixture.data(&format!(
+        "server-state.previous.{}.json",
+        fixture.config.state_digest().unwrap()
+    ));
+    fs::remove_file(backup).unwrap();
+    assert_eq!(
+        error(rebind_commands(&fixture.config, &editor)),
+        "Published receipt was not issued by this command rebind"
+    );
+    drop(reopen(&editor).unwrap());
 }
 
 #[test]

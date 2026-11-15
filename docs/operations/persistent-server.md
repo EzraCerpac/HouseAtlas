@@ -308,11 +308,24 @@ identities must match, the old receipt is kept as
 Access epoch and clears every web session and login-rate row, and the receipt
 is then replaced atomically. Users sign in again afterwards.
 
-An interruption before the pending receipt is synced leaves the old receipt, so
-the previous configuration still serves and the command can be rerun. Once the
-pending receipt exists, `serve`, backup and a rerun refuse both configurations
-until reviewed recovery; sessions may already be revoked. After the atomic
-replacement only the new configuration serves.
+Interruptions leave one of these states. Re-running the same command, with
+the same two files, recovers each of them:
+
+- Before the pending receipt is synced: the old receipt is published, so the
+  previous configuration still serves. The rerun performs the full transition.
+- After the pending receipt is synced, before or after session revocation:
+  `serve` and backup refuse both configurations. The rerun, under the lease,
+  checks that the old receipt is still published, that the retained backup is
+  byte-identical to it, and that the pending bytes are exactly the new receipt
+  for this pair. It then withdraws the pending receipt and reruns the whole
+  transition, revoking sessions again.
+- After the atomic replacement: only the new configuration serves. The rerun
+  confirms that the retained backup is exactly this pair's old receipt and
+  reports success without further changes.
+
+Any other pending receipt (another pair, the reverse direction, or one written
+by `rebind-origin`) is never removed and stays refused for reviewed recovery.
+`rebind-origin` keeps its existing behaviour and has no rerun recovery.
 
 Activation:
 
