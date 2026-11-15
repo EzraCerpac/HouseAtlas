@@ -139,7 +139,8 @@ export function createCaptureDraftAdapter(options: Options) {
         const status = read ? null : answerStatus(error);
         if (status !== null && status >= 400 && status < 500) {
           // The server answered without a current session (403 or another 4xx):
-          // clear the held identity and reload, exactly as for 401.
+          // clear the held identity and ask the host to re-read the session once in place
+          // (no page reload), exactly as for 401; with no session the host shows Sign in.
           invalidateSession(); options.recheckSession();
         } else if (!read && status === null && canonical) {
           // No HTTP answer: every review ends under a fresh epoch. The held session
@@ -147,7 +148,7 @@ export function createCaptureDraftAdapter(options: Options) {
           epoch = Object.freeze({}); invalidate();
         } else {
           // A 5xx, an undecodable answer or a changed context confirms no identity:
-          // no boundary until a fresh read succeeds, and no reload, as no other session was shown.
+          // no boundary until a fresh read succeeds, and no session re-read, as no other session was shown.
           quarantined = true; epoch = null; invalidate();
         }
       }

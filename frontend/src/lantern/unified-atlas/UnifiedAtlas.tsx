@@ -932,10 +932,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     }
     return metrics;
   }, [live, selected, context, model, labelFonts]);
-  /** The selected 3D tag: a pill as wide as the measured name. */
-  const selectedTag = (id: string) => {
+  /** The selected tag on either stage: a pill as wide as the measured name. */
+  const selectedTag = (id: string, anchor: 'start' | 'middle' | 'end' = 'middle', x = 0) => {
     const advance = planTextMetrics.get(id)?.advance;
-    return advance === undefined ? null : <rect className="cifc-label-tag" x={-advance / 2 - 9} y={-13} width={advance + 18} height={26} rx={13} />;
+    const left = x - (anchor === 'start' ? 0 : anchor === 'end' ? advance ?? 0 : (advance ?? 0) / 2);
+    return advance === undefined ? null : <rect className="cifc-label-tag" x={left - 9} y={-13} width={advance + 18} height={26} rx={13} />;
   };
   const labelPaper = useMemo(() => preparePlanLabelPaper(planGroups.flatMap(group => group.features.map(row => row.feature))), [planGroups]);
   // Only the fit decision looks ahead to top view. It does not alter the camera.
@@ -1460,6 +1461,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
           </button>
           <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
+            {/* The host's lens row gives way on a phone; its lenses open from here, first. */}
+            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
+              <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
+              {(['places', 'network'] as const).map(kind => <button key={kind} type="button" className="ua-menu-row" aria-pressed={lens?.kind === kind}
+                aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens(kind)}>
+                <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
+                <Icon name="chevron" size={15} /></button>)}
+            </nav>}
             <div className="ua-menu-camera" role="group" aria-label="Camera">
               {!plan && <>
                 <button type="button" className="ctrl-btn" aria-label="Turn left" title="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /></button>
@@ -1475,14 +1484,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             </div>}
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
-            {/* The host's lens row gives way on a phone; its lenses open from here. */}
-            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
-              <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
-              {(['places', 'network'] as const).map(kind => <button key={kind} type="button" className="ua-menu-row" aria-pressed={lens?.kind === kind}
-                aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens(kind)}>
-                <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
-                <Icon name="chevron" size={15} /></button>)}
-            </nav>}
             {otherSources.length > 0 && <nav className="ua-menu-sources" aria-labelledby={`${menuIds}-sources`}>
               <p id={`${menuIds}-sources`} className="ua-menu-label">Other sources</p>
               {otherSources.map(row => <button key={row.id} type="button" className="ua-menu-row" onClick={() => { setMenu(null); row.open(); }}>
@@ -1575,7 +1576,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 {label.plan.leader.dot && <circle cx={label.anchorX} cy={label.anchorY} r={3.5} />}
               </>}
               <g transform={`translate(${label.plan.x} ${label.plan.y}) rotate(${label.plan.angle})`}>
-                <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>
+                {(label.tier === 'selected' && selectedTag(label.id, label.plan.textAnchor, label.plan.textX))
+                  || <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>}
                 <text textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>
               </g>
             </g> : <g key={label.id} className={`cifc-label is-${label.tier}`} transform={`translate(${label.x.toFixed(1)} ${label.y.toFixed(1)})`}>
@@ -1644,11 +1646,13 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
         </div>}
-        {/* Compact: one dock holds Plan and the layers, as three dots and their
-            name that open the labelled layer chips above them. */}
+        {/* Compact: one dock holds the view, 3D or Plan, and the layers, as
+            three dots and their name that open the labelled layer chips above them. */}
         {compact ? <div className="ua-dock" onBlur={menuBlur('layers')}>
-          <button type="button" className="ua-dock-btn ua-dock-view" aria-pressed={plan}
-            onClick={() => dispatch({ type: 'view', view: plan ? '3d' : 'plan' })}><Icon name="rooms" size={16} /><span>Plan</span></button>
+          <div className="ua-dock-view" role="group" aria-label="Atlas view">
+            <button type="button" className="ua-dock-btn" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
+            <button type="button" className="ua-dock-btn" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
+          </div>
           <button ref={layersButton} type="button" className="ua-dock-btn ua-dock-layers" aria-expanded={menu === 'layers'} aria-controls={`${menuIds}-layers`}
             aria-label={`Layers: ${LAYER_KINDS.filter(kind => state.layers[kind]).map(kind => LAYER_LABEL[kind]).join(', ') || 'none shown'}`}
             onClick={() => setMenu(value => value === 'layers' ? null : 'layers')}>
@@ -1701,7 +1705,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <h3 id={`${graphId}-rooms`}>Model rooms</h3>
           {/* On a phone the lens stands where the room sheet does: choosing
               a room hands the stage and its sheet back. */}
-          <RoomList model={model} levels={listedLevels(model, state)} levelName={levelId => atlasLevelName(model, levelId, model.floorBuildings.length > 1)}
+          <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId}
             choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
         </section>
         : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}

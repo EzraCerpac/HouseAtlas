@@ -1222,7 +1222,10 @@ local deletion from reuse of an earlier receipt for a separate attempt.
 The eleven native-place draft cases bundle the actual draft adapter/controller,
 native evidence client, `NativePlaceEvidence` and draft panel with Vite, over
 a fake native exchange and the same kind of memory store. They check: an
-opted-in save creates one unsent row with no source target and no GET/POST;
+opted-in save creates one unsent row with no source target and no GET/POST,
+and through the panel a further save over the browser-wide count limit (4) or
+total-size limit (32 MiB) is refused with a message naming that limit and
+stores nothing;
 a second adapter over the retained rows lists it unsent; review reads one
 fresh native admission, confirmation sends exactly one native POST after the
 durable unknown marker and removes the row, and the saved row renders the
@@ -1230,7 +1233,12 @@ original name, type and size, as does the retained identity evidence row for
 that evidence (earlier evidence without a receipt shows no size); static markup of the native row and draft panel
 plus a session check open no draft store; and another place, a source target,
 another home or another account is refused without a POST; and after a lost
-reply to the one native POST, the closed native row keeps its opener enabled
+reply to the one native POST sent through the panel, the panel re-lists the row
+as Outcome unknown at once and says it will not be sent again automatically, while a
+re-list that completes or fails only after an invalidation, or an invalidation landing
+between the re-list settling and the action resuming, after a lost reply or a
+non-committed receipt, leaves the cleared rows and status unchanged and runs no
+completion callback; the closed native row keeps its opener enabled
 when a draft port exists (and disabled without one), the draft panel renders
 View local drafts with upload blocked, and the retained unknown attempt can be
 listed, inspected and removed only with explicit consent, with no further POST;
@@ -1246,9 +1254,10 @@ local drafts and Remove with no further read; with no held identity save and
 View local drafts show a refusal, ask for no candidate and open no draft store.
 The classification case sends each session answer through the actual session
 client over a fake transport: 401, 403 and 404 clear the held identity and
-request one reload; a transport failure keeps it under a fresh epoch for local
-saves; a 500, an undecodable body or an invalid session expose no boundary and
-request no reload, and a later valid answer restores it.
+request one in-place session re-read (no page reload); a transport failure keeps
+it under a fresh epoch for local saves; a 500, an undecodable body or an invalid
+session expose no boundary and request no re-read, and a later valid answer
+restores it.
 The restart case reopens over the retained row with the held identity of the
 load's session read on a visible page without focus: View local drafts and Save
 local draft name the missing foreground rather than a missing session, and once

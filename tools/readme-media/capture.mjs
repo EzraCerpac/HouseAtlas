@@ -214,7 +214,7 @@ try {
       covered, crowded, actionCollisions,
       menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-stack-head[aria-expanded="true"]'),
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
-      view: compact ? [document.querySelector('.ua-dock-view')?.getAttribute('aria-pressed') === 'true' ? 'Plan' : '3D'] : pressed('.ua-tools [aria-label="Atlas view"] button'),
+      view: pressed(`${compact ? '.ua-dock' : '.ua-tools'} [aria-label="Atlas view"] button`),
       building, floor: [...document.querySelectorAll('.ua-stack-floors button[aria-pressed="true"]')]
         .map(node => node.getAttribute('aria-label') ?? node.querySelector('.ua-rung-name').textContent.trim()),
       exploded: document.querySelector('.ua-spread, .ua-stack-spread')?.getAttribute('aria-pressed') ?? null,
@@ -250,7 +250,7 @@ try {
   await settledDraw(atlas);
   const desktop = await atlasFacts();
   assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['Ground floor: 3 rooms, has the selected room'], 'true']);
-  assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor, Synthetic house', false, null]);
+  assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor', false, null]);
   assert(desktop.labels.includes('Select room: Living room'), 'The selected room tag must be on the stage');
   const clearOfPanels = facts => {
     assert.equal(facts.menusClosed, true, 'Capture the settled stage with the compact menus closed');
@@ -271,7 +271,7 @@ try {
   await settledDraw(atlas);
   const collapsed = await atlasFacts();
   assert.deepEqual([collapsed.view, collapsed.exploded, collapsed.floor, collapsed.selectedRoom, collapsed.selectedFloor],
-    [['3D'], 'false', ['Ground floor: 3 rooms, has the selected room'], 'Living room', 'Ground floor, Synthetic house']);
+    [['3D'], 'false', ['Ground floor: 3 rooms, has the selected room'], 'Living room', 'Ground floor']);
   assert(collapsed.labels.includes('Select room: Living room'));
   clearOfPanels(collapsed);
   const collapsedDrawing = await atlasDrawing();
@@ -758,7 +758,7 @@ try {
   await production.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-inspector.is-room h2'));
   await frames(production);
   const direct = await stateFacts(production);
-  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor, Synthetic house' },
+  assert.deepEqual(direct, { building: ['Synthetic house'], floor: ['Upper floor'], view: ['Plan'], plan: true, room: 'Stairs', roomFloor: 'Upper floor' },
     'A direct link opens its named building, floor, room and view');
   await production.screenshot({ path: resolve(output, 'example-house-state.png'), animations: 'disabled' });
   examplePhase('direct state captured');

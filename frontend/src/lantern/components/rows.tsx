@@ -4,7 +4,7 @@ import { dueState, historyFor, nameOf, writesFor } from '../data/query';
 import { fmtDateTime, fmtShortDate, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
-import { Empty, StorageTag, WritePill } from './ui';
+import { Empty, Note, StorageTag, WritePill } from './ui';
 
 export function DocRow({ doc, showLinked }: { doc: Doc; showLinked?: boolean | undefined }) {
   const { dispatch, house } = useStore();
@@ -98,6 +98,13 @@ export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTar
   );
 }
 
+/** Why Mark done is disabled, stated once for a list instead of on every row. */
+export function TaskWriteNote({ tasks }: { tasks?: Task[] }) {
+  const can = useCanWrite('HomeBox');
+  if (can.ok || tasks?.every(task => task.status === 'done')) return null;
+  return <Note>Mark done is unavailable. {can.reason}</Note>;
+}
+
 export function TaskList({ tasks, showTarget, empty }: { tasks: Task[]; showTarget?: boolean | undefined; empty?: string }) {
   if (!tasks.length) return <Empty>{empty ?? 'No upkeep recorded.'}</Empty>;
   const sorted = [...tasks].sort((a, b) => {
@@ -106,11 +113,14 @@ export function TaskList({ tasks, showTarget, empty }: { tasks: Task[]; showTarg
     return (a.due ?? '9999').localeCompare(b.due ?? '9999');
   });
   return (
-    <ul className="rows">
-      {sorted.map((t) => (
-        <TaskRow key={t.id} task={t} showTarget={showTarget} />
-      ))}
-    </ul>
+    <>
+      <ul className="rows">
+        {sorted.map((t) => (
+          <TaskRow key={t.id} task={t} showTarget={showTarget} />
+        ))}
+      </ul>
+      <TaskWriteNote tasks={tasks} />
+    </>
   );
 }
 

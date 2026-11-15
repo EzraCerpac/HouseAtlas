@@ -258,7 +258,7 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    {!reviewedShape && <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>}
+    {!reviewedShape && <div><dt>Room shapes</dt><dd>No reviewed shapes supplied in this view.</dd></div>}
   </dl></Section>;
 }
 
@@ -322,7 +322,7 @@ function SpaceDetail({ space }: { space: Space }) {
         </>
       }
     >
-      {space.geometry === 'none' && <Note>No reviewed shape projection is available.</Note>}
+      {space.geometry === 'none' && <Note>No reviewed shape supplied in this view.</Note>}
       {/* Sections with records lead in their usual order; the ones with
           none fold into one block below them, each keeping its own words. */}
       {(c.items.length > 0 || c.containers.length > 0) && <Section title="Belongings" count={c.items.length}>
@@ -536,7 +536,7 @@ function ItemDetail({ item }: { item: Item }) {
             <p className="fine">Documented connection, not a traced cable route.</p>
           </>
         ) : (
-          <Empty>No outlet projection is supplied in this view.</Empty>
+          <Empty>No outlets are supplied in this view.</Empty>
         )}
       </Section>}
       {device && (

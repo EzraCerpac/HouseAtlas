@@ -65,9 +65,11 @@ transport failure (no HTTP answer) invalidates review handles under a fresh
 epoch and keeps the held actor/scope boundary for local-only save, list and
 removal, so these need no session read offline; review and upload still require
 a fresh canonical read. Any 4xx (401, 403 and others) or a decoded different
-session clears the held identity and reloads the host. A 5xx or an undecodable
-answer confirms no identity: it exposes no boundary until a fresh read succeeds,
-without a reload. None of these erases a picker candidate.
+session clears the held identity and asks the host to re-read the session once,
+in place: SessionApp repeats its session read without reloading the page, and
+shows Sign in when no session remains. A received cross-tab invalidation does
+the same. A 5xx or an undecodable answer confirms no identity: it exposes no
+boundary until a fresh read succeeds, without that re-read. None of these erases a picker candidate.
 
 App's existing committed-scope callback is forwarded through SessionApp. Main
 masks drafts before any view read. PlaceEditor keys its stateful child by complete

@@ -148,6 +148,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
                 <span className="ua-rung-tick" aria-hidden="true">{marks.get(level.levelId)}</span>
                 <span className="ua-rung-name">{(displayLevelLabel(model, level.levelId) ?? atlasLevelName(model, level.levelId))}</span>
                 <span className="ua-rung-sub">{rooms.toLocaleString()}{hasPlan ? '' : ' · no plan'}</span>
+                {drawn && <span className="ua-rung-note">Plan shown</span>}
                 {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
               </button>
             </li>;

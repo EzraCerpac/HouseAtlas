@@ -118,8 +118,7 @@ function SyncList({ outbox }: { readonly outbox: Outbox }) {
     {synced.length > 0 && <details><summary>Recently synced ({synced.length})</summary>
       <ul>{synced.map(entry => <li key={entry.id} className="sync-row"><strong>{entry.label}</strong>
         <span>Synced at {time(entry.settledAt)}</span></li>)}</ul></details>}
-    {attention.length + waiting.length + synced.length === 0 && <p className="setting-static">
-      Nothing waiting. Changes you make while offline stay here until they reach the server.</p>}
+    {attention.length + waiting.length + synced.length === 0 && <p className="setting-static">Nothing waiting.</p>}
   </div>;
 }
 
