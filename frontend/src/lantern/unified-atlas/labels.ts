@@ -65,6 +65,25 @@ export function atlasScopedLevelName(model: AtlasModel, id: string, buildingId: 
   return atlasLevelName(model, id, model.floorBuildings.length > 1 && model.levelsById.get(id)!.buildingId !== buildingId);
 }
 
+/** The floor name a room adds in 3D: set only when its name is drawn on more than one
+ * floor, so namesakes on one floor are never given an invented distinction. */
+export function drawnRoomFloors(model: AtlasModel, keys: Iterable<string>, buildingId: string | null, qualify = true): ReadonlyMap<string, string | null> {
+  const name = (key: string) => model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
+  const rows = [...keys], floors = new Map<string, Set<string>>();
+  if (qualify) for (const key of rows) floors.set(name(key), (floors.get(name(key)) ?? new Set()).add(model.occurrencesById.get(key)!.levelId));
+  return new Map(rows.map(key => [key, (floors.get(name(key))?.size ?? 0) > 1
+    ? atlasScopedLevelName(model, model.occurrencesById.get(key)!.levelId, buildingId) : null]));
+}
+
+/** Visible names for the rooms drawn together: the room name, then its floor where it has one. */
+export function drawnRoomNames(model: AtlasModel, keys: Iterable<string>, buildingId: string | null, qualify = true): ReadonlyMap<string, string> {
+  const floors = drawnRoomFloors(model, keys, buildingId, qualify);
+  return new Map([...floors].map(([key, floor]) => {
+    const name = model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
+    return [key, floor === null ? name : `${name} · ${floor}`];
+  }));
+}
+
 /** Final display strings that still collide get a source-order suffix on every member. */
 function distinguish(names: Map<string, string>, keys: readonly string[], suffix: (at: number) => string) {
   if (new Set(keys.map(key => names.get(key))).size !== keys.length)
