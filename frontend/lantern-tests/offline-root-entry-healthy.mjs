@@ -343,7 +343,7 @@ try {
   // Capture labels remain owned by the existing retained-store presentation.
   // These are source-seam checks, not a fabricated private copy or browser render.
   const manager = read('src/offline/SavedHouseManager.tsx'), host = read('src/offline/SavedAtlasHost.tsx');
-  assert(manager.includes('store.list()')); assert(manager.includes('Captured <time dateTime={house.capturedAt}>{house.capturedAt}</time>'));
+  assert(manager.includes('store.list()')); assert(manager.includes('Captured <InlineTime value={house.capturedAt} />'));
   assert(manager.includes('Open saved Atlas')); assert(host.includes('Historical records are not current native authorization.'));
   assert(read('integration/saved-main.tsx').includes('if (savedEntryMarked()) createRoot(element).render(<SavedAtlasHost openLastCopy={openLastCopy} explicit />)'));
   assert(read('integration/saved-main.tsx').includes('<OfflineLanternHost owner={owner}'));

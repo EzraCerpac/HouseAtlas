@@ -14,7 +14,7 @@ import {
 import { useStore, type AtlasLens } from '../state/store';
 import { Icon } from '../components/Icon';
 import { OptionalViewerBoundary } from '../components/OptionalViewerBoundary';
-import { BuildingSection } from '../topology/BuildingScope';
+import { BuildingSection } from '../topology/BuildingSection';
 import { useSourcePorts } from '../source-ports';
 import { PlacesLens } from './PlacesLens';
 import { NetworkLens } from './NetworkLens';

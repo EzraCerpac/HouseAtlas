@@ -4,6 +4,8 @@ import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, Offline
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
 import { Icon } from '../lantern/components/Icon';
+import { InlineTime } from '../lantern/components/ui';
+import { fmtDate } from '../lantern/data/time';
 import { Modal } from '../lantern/components/Modal';
 import { formatDate } from '../app/copy';
 import { SourcePdf, type SourcePdfReadingPosition } from '../lantern/source-documents/SourcePdf';
@@ -162,8 +164,8 @@ function OfflineUpkeep({ snapshot }: { snapshot: OfflineViewSnapshotV1 }) {
     {!entries.length && <p>No maintenance records were captured.</p>}
     {entries.map(entry => <section className="section" key={entry.key}><h2>{entry.entity.name}</h2>
       <ul>{entry.maintenance.map(task => <li key={task.entryId}><strong>{task.name}</strong>{task.description && <p>{task.description}</p>}
-        <p>{task.completedDate ? `Completed: ${task.completedDate}` : task.scheduledDate ? `Scheduled: ${task.scheduledDate}` : 'Schedule unknown'}</p></li>)}</ul>
-      <p>Source updated: {entry.sourceUpdatedAt ?? 'Unknown'} · Retrieved: {entry.retrievedAt}</p>
+        <p>{task.completedDate ? `Completed: ${fmtDate(task.completedDate)}` : task.scheduledDate ? `Scheduled: ${fmtDate(task.scheduledDate)}` : 'Schedule unknown'}</p></li>)}</ul>
+      <p>Source updated: {entry.sourceUpdatedAt ? <InlineTime value={entry.sourceUpdatedAt} /> : 'Unknown'} · Retrieved: <InlineTime value={entry.retrievedAt} /></p>
     </section>)}</>;
 }
 
@@ -179,7 +181,7 @@ function OfflineLibrary({ owner, selection, openDocument }: { owner: LiveCopyRet
   }, [owner, selection]);
   const attachments = selection.snapshot.data.entries.flatMap(entry => entry.attachments.map(attachment => ({ entry, attachment })));
   return <><h2>Documents</h2>{catalog ? <>
-      <p>{catalog.completeness === 'captured-complete' ? 'Document list captured' : 'Some documents captured'}: <time dateTime={catalog.capturedAt}>{catalog.capturedAt}</time>.</p>
+      <p>{catalog.completeness === 'captured-complete' ? 'Document list captured' : 'Some documents captured'}: <InlineTime value={catalog.capturedAt} />.</p>
       {!catalog.documents.length && <p>No documents in this captured list.</p>}
       <ul className="offline-documents">{catalog.documents.map(row => <DocumentRow key={row.documentId} row={row} owner={owner} selection={selection} openDocument={openDocument} />)}</ul>
     </> : <p role="status">{loading ? 'Reading held documents…' : 'The document list is not held on this device.'}</p>}
@@ -233,7 +235,7 @@ function HomeboxAttachmentRow({ owner, selection, entry, attachment, openDocumen
   }, [owner, selection, entry, attachment]);
   const held = status?.availability === 'held' ? status.pin : null;
   return <li><strong>{title}</strong> · {entry.entity.name}{held && <> · {storageSize(held.bytes)}</>}
-    <p>{held ? <>On this device · Copied from HomeBox <time dateTime={held.bodyRetrievedAt}>{held.bodyRetrievedAt}</time></>
+    <p>{held ? <>On this device · Copied from HomeBox <InlineTime value={held.bodyRetrievedAt} /></>
       : status?.availability === 'failed-integrity' ? 'Held file failed verification · Open live to read this file.' : 'Not held on this device · Open live to read this file.'}</p>
     {held && <button className="btn" type="button" onClick={() => { if (held) openDocument({ kind: 'homebox', pin: held }); }}>Open {title}</button>}
   </li>;
@@ -251,7 +253,7 @@ function OfflineElectricalLibrary({ owner, selection, openDocument }: { owner: L
     {catalog ? <>
       <p>Drawings were kept separately for each building. Some buildings may be missing.</p>
       {catalog.buildings.map(building => <section key={building.buildingId} className="section">
-        <p>Captured <time dateTime={building.capturedAt}>{building.capturedAt}</time>.</p>
+        <p>Captured <InlineTime value={building.capturedAt} />.</p>
         {!building.documents.length && <p>No verified PDF reference was kept for this building.</p>}
         <ul className="offline-documents">{building.documents.map(document => <ElectricalDocumentRow key={document.pin.evidenceId}
           owner={owner} selection={selection} document={document} openDocument={openDocument} />)}</ul>

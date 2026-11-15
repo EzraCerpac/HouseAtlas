@@ -104,14 +104,14 @@ export function LibraryView() {
     <div className="view">
       <header className="view-head library-head">
         <h1>Library</h1>
-        {sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
-          {sections.map(({ label, ref }) => <button key={label} type="button" className="text-btn" onClick={() => jumpTo(ref)}>{label}</button>)}
+        {sections.length > 1 && <nav className="seg library-jump" aria-label="Library sections">
+          {sections.map(({ label, ref }) => <button key={label} type="button" onClick={() => jumpTo(ref)}>{label}</button>)}
         </nav>}
       </header>
       <section ref={homeboxRef} className="library-section" tabIndex={-1} aria-labelledby={homeboxHeading}>
         <div className="section-head"><h2 id={homeboxHeading}>HomeBox files</h2></div>
         <p className="library-scope">
-          HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')} (address only){archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
+          HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')} to files kept elsewhere{archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
         </p>
         <div className="field filter-select"><label htmlFor={categoryId}>Category</label>
           <select id={categoryId} value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
@@ -142,11 +142,12 @@ export function LibraryView() {
                     <button type="button" className="row-title" onClick={() => select(d.id)}>
                       {d.title}
                     </button>
-                    <span className="row-meta">
-                      <StorageTag doc={d} />
+                    <span className="row-meta"><StorageTag doc={d} /></span>
+                    {/* Retrieval and the item it belongs to share one line. */}
+                    {(qualifiers.length > shared.length || d.linkedTo.length > 0) && <span className="row-meta">
                       {qualifiers.filter(q => !shared.includes(q)).map(q => <span key={q}>{q}</span>)}
-                    </span>
-                    {d.linkedTo.length > 0 && <span className="lib-linked"><span className="lib-linked-label">For</span> {d.linkedTo.map((l) => nameOf(house, l)).join(', ')}</span>}
+                      {d.linkedTo.length > 0 && <span className="lib-linked"><span className="lib-linked-label">For</span> {d.linkedTo.map((l) => nameOf(house, l)).join(', ')}</span>}
+                    </span>}
                   </div>
                   <button type="button" className="btn btn-small" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'preview', docId: d.id } })} aria-label={`${d.storage === 'link' ? 'Link details for' : 'File details for'} ${d.title}`}>
                     {d.storage === 'link' ? 'Link details' : 'File details'}

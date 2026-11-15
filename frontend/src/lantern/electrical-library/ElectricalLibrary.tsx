@@ -17,6 +17,7 @@ export function restoreElectricalLibraryOpener(opener: HTMLElement, activeAtClos
       || document.activeElement === activeAtClose || document.activeElement === opener)) opener.focus();
   });
 }
+const READING = 'Reading drawing references…';
 const CHANGED = 'The drawing references changed or are no longer available. Reload drawings.';
 
 /** Optional native evidence collection, separate from HomeBox attachments and
@@ -86,11 +87,14 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{ owner: object; frame: ElectricalLibraryFrame | null; message: string } | null>(null);
   const [opened, setOpened] = useState<{ frame: ElectricalLibraryFrame; page: ElectricalLibraryPage; opener: HTMLElement } | null>(null);
+  // A reload asked from the button keeps the button, and its focus, until the read settles.
+  const [asked, setAsked] = useState(false);
+  const count = useRef<HTMLParagraphElement>(null);
   const surface = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!owner) return;
     const controller = new AbortController(); let frame: ElectricalLibraryFrame | null = null, off: (() => void) | null = null;
-    setState({ owner, frame: null, message: 'Reading drawing references…' }); setOpened(null);
+    setState({ owner, frame: null, message: READING }); setOpened(null);
     const withdraw = () => {
       // Retire links and the dialog synchronously, before React's next paint.
       surface.current?.setAttribute('hidden', '');
@@ -112,13 +116,25 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
     return () => { controller.abort(); off?.(); if (frame) reader.release(frame); };
   }, [reader, owner, buildingId, attempt]);
   const current = state?.owner === owner && state.frame && reader.isCurrent(state.frame) ? state.frame : null;
-  const message = !owner ? 'Electrical drawings are unavailable for this view.' : state?.owner === owner ? state.message : 'Reading drawing references…';
+  const message = !owner ? 'Electrical drawings are unavailable for this view.' : state?.owner === owner ? state.message : READING;
+  const reading = message === READING;
+  useEffect(() => {
+    if (!asked || reading) return;
+    setAsked(false);
+    // The drawings arrived and the button went: focus left on the page moves to their count.
+    if (current && document.activeElement === document.body) count.current?.focus();
+  }, [asked, reading, current]);
   const shown = opened && opened.frame === current ? opened : null;
   const visible = useMemo(() => current ? filterElectricalLibrary(current.documents, current.unlinkedSheets, query) : null, [current, query]);
   return <>
     <div className="electrical-library-status">
-      {message ? <p role="status">{message}</p> : current && <p>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>}
-      <button type="button" className="btn btn-small" disabled={!owner} onClick={() => setAttempt(value => value + 1)}>Reload drawings</button>
+      {message ? <p role="status">{message}</p> : current && <p ref={count} tabIndex={-1}>{current.documents.length} reference {current.documents.length === 1 ? 'PDF' : 'PDFs'} · Original access is checked when opened.</p>}
+      {/* Offered once a read has settled without current drawings: a failure or a withdrawal. */}
+      {owner && state?.owner === owner && !current && (!reading || asked) && <button type="button" className="btn btn-small" aria-disabled={reading}
+        onClick={() => {
+          // Pending from this same render on, so the settle effect below cannot clear `asked` before the read starts.
+          if (reading) return; setAsked(true); setState({ owner, frame: null, message: READING }); setAttempt(value => value + 1);
+        }}>Reload drawings</button>}
     </div>
     <div ref={surface}>
       {current && visible && <>

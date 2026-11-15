@@ -1206,6 +1206,16 @@
 
 /* Upkeep timeline */
 
+/* Empty groups, reference date and cache state: one line under the note. */
+.lantern-host .upkeep-status {
+  margin: 6px 0 0;
+}
+
+.lantern-host .tally .tally-asof {
+  align-self: center;
+  font-size: var(--fs-xs);
+}
+
 .lantern-host .tl-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
@@ -1499,30 +1509,27 @@
 
 /* Library */
 
-/* The Library's sections in page order; each link moves to its section. */
+/* The Library's sections in page order, in the Atlas lens bar's segmented
+   style; each segment moves to its section, so none is shown as selected. */
 .lantern-host .library-jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
-.lantern-host .library-jump .text-btn {
-  min-height: 32px;
+.lantern-host .library-jump button {
+  color: var(--ink-2);
 }
 
-/* Phones: the section links stay on one line, scrolling if they ever overflow. */
+/* Phones: three equal segments across the width; a long label wraps. */
 @media (max-width: 759px) {
   .lantern-host .library-jump {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 4px 12px;
-    scrollbar-width: none;
+    display: flex;
   }
 
-  .lantern-host .library-jump .text-btn {
-    flex-shrink: 0;
-    white-space: nowrap;
+  .lantern-host .library-jump button {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 4px 8px;
+    line-height: 1.2;
   }
 }
 
@@ -1609,7 +1616,6 @@
 }
 
 .lantern-host .lib-linked {
-  font-size: var(--fs-s);
   color: var(--ink-2);
   line-height: 1.4;
 }
@@ -2086,6 +2092,65 @@
   gap: 0;
 }
 
+/* Nothing previewed: the actions and their availability sit in a compact row
+   above the provenance, whose facts flow into columns. */
+.lantern-host .preview-layout-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+.lantern-host .preview-actions {
+  justify-items: start;
+  gap: 8px;
+  padding: 0;
+  background: none;
+}
+
+.lantern-host .preview-actions > section {
+  justify-self: stretch;
+}
+
+.lantern-host .preview-actions > section > p {
+  margin: 8px 0 0;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .preview-availability {
+  margin: 0;
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+
+.lantern-host .preview-availability > span {
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.lantern-host .preview-layout-stacked .preview-aside {
+  padding-top: 14px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .preview-layout-stacked .preview-aside > .facts {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 10px 20px;
+}
+
+.lantern-host .preview-layout-stacked .preview-aside > .facts > div {
+  align-content: start;
+}
+
+.lantern-host .preview-technical > summary {
+  width: fit-content;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.lantern-host .preview-technical[open] > summary {
+  margin-bottom: 8px;
+}
+
 .lantern-host .sheet {
   margin: 0 auto;
   width: 100%;
@@ -2401,6 +2466,11 @@
   .lantern-host .preview-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  /* Stacked, the groups' own bottom margin separates the columns. */
+  .lantern-host .tl-columns {
+    row-gap: 0;
+  }
 }
 
 @media (max-width: 759px) {
@@ -2472,18 +2542,34 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The title and its action share the first line and the facts run full
+     width beneath; the decorative thumbnail gives way to them. */
   .lantern-host .lib-row {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .lantern-host .lib-row .btn {
-    grid-column: 2;
-    justify-self: start;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding: 10px 0;
   }
 
   .lantern-host .lib-thumb {
-    width: 48px;
-    height: 48px;
+    display: none;
+  }
+
+  .lantern-host .lib-main {
+    display: contents;
+  }
+
+  .lantern-host .lib-main > .row-title {
+    align-self: center;
+  }
+
+  .lantern-host .lib-main > :not(.row-title) {
+    grid-column: 1 / -1;
+  }
+
+  .lantern-host .lib-row > .btn {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0;
   }
 
   .lantern-host .cable-ends {

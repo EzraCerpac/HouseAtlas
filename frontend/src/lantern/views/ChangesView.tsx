@@ -1,32 +1,34 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { Empty } from '../components/ui';
 import { Sources } from '../components/DetailPanel';
 
-/** The same reload as Settings; the failure it answers stays beside it. */
-function ReloadHistory({ status }: { status: string }) {
-  const { actions } = useStore();
-  const [state, setState] = useState<'idle' | 'reloading' | 'failed'>('idle');
-  const reload = async () => {
-    if (state === 'reloading') return;
-    setState('reloading');
-    try { setState((await actions.reload()) ? 'idle' : 'failed'); } catch { setState('failed'); }
-  };
-  return <>
-    <button type="button" className="btn" onClick={reload} disabled={state === 'reloading'}>{state === 'reloading' ? 'Reloading saved information…' : 'Reload saved information'}</button>
-    {state === 'failed' && <p className="body-text" role="status">The reload did not succeed; operation history is still {status}.</p>}
-  </>;
-}
-
 export function ChangesView() {
   const { house, dispatch, projection, actions } = useStore();
   const history = projection.operationHistory;
+  // A read asked from the button: 'asked' until the host shows it loading, 'reading' until it settles.
+  // The button stays mounted through both, so keyboard focus is kept while the read runs.
+  const [retry, setRetry] = useState<'idle' | 'asked' | 'reading'>('idle');
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (retry === 'asked' && history.status === 'loading') setRetry('reading');
+    else if (retry === 'reading' && history.status !== 'loading') {
+      setRetry('idle');
+      // The history arrived and the button went: focus left on the page moves to the section heading.
+      if (history.status !== 'unavailable' && document.activeElement === document.body) heading.current?.focus();
+    }
+  }, [retry, history.status]);
+  const retrying = retry !== 'idle' && history.status === 'loading';
   const events = history.status === 'ready' ? [...(history.earlierPages ?? []), history.page].flatMap(page => page.entries) : [];
   return <div className="view"><header className="view-head view-head-row"><h1>Changes</h1>
       {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
-    <div className="changes-grid"><section className="section"><header className="section-head"><h3>Operation history</h3></header>
-      {history.status === 'loading' && <p className="body-text" role="status">Loading operation history…</p>}
-      {history.status === 'unavailable' && <><p className="body-text" role="status">Operation history is unavailable. It could not be loaded.</p><ReloadHistory status={history.status} /></>}
+    <div className="changes-grid"><section className="section"><header className="section-head"><h3 ref={heading} tabIndex={-1}>Operation history</h3></header>
+      {history.status === 'loading' && !retrying && <p className="body-text" role="status">Loading operation history…</p>}
+      {/* The read failed or this view has no history to read; the client cannot tell which. The button repeats that read. */}
+      {(history.status === 'unavailable' || retrying) && <><p className="body-text" role="status">{retrying ? 'Reading operation history…'
+        : 'Operation history could not be read in this view, so past changes are unknown here.'}</p>
+        {actions.retryOperationHistory && <button type="button" className="btn" aria-disabled={retrying}
+          onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Read operation history again</button>}</>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>

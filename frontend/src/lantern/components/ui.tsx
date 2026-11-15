@@ -3,14 +3,27 @@ import type { Claim, Doc, EntityKind, WriteStatus } from '../data/types';
 import { CLAIM_HELP, CLAIM_LABEL, KIND_LABEL, kindOf, nameOf } from '../data/query';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
-import { fmtDateTimeReadable, fmtShortDate } from '../data/time';
+import { fmtShortDate, recordedTimeView } from '../data/time';
+
+/** The recorded text of a time that could not be read, kept beside "Unknown". */
+function UnreadableTime({ value }: { value: string }) {
+  return <>Unknown (recorded: <code>{value}</code>)</>;
+}
 
 /** A recorded timestamp, readable first, with its exact recorded text kept
  * on a line below. Text that cannot be read stays as recorded. */
 export function RecordedTime({ value, after }: { value: string; after?: string }) {
-  const readable = fmtDateTimeReadable(value);
-  if (readable === 'Unknown' || readable === value) return <>{readable}{after}</>;
-  return <><time dateTime={value}>{readable}</time>{after}<span className="fact-help"><code>{value}</code></span></>;
+  const { text, datetime, unreadable } = recordedTimeView(value);
+  if (unreadable) return <><UnreadableTime value={value} />{after}</>;
+  if (!datetime || text === value) return <>{text}{after}</>;
+  return <><time dateTime={datetime}>{text}</time>{after}<span className="fact-help"><code>{datetime}</code></span></>;
+}
+
+/** A recorded timestamp inside a sentence: readable, its exact recorded text as the title. */
+export function InlineTime({ value }: { value: string }) {
+  const { text, datetime, unreadable } = recordedTimeView(value);
+  if (unreadable) return <UnreadableTime value={value} />;
+  return datetime ? <time dateTime={datetime} title={datetime}>{text}</time> : <>{text}</>;
 }
 
 /** A time on this browser's clock, such as when it last loaded the shown

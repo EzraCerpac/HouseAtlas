@@ -101,6 +101,8 @@ export interface LanternActions {
   reload: () => Promise<boolean>;
   /** When this browser received the shown view (its own clock, epoch ms); not a source date. */
   loadedAt?: number;
+  /** Reads operation history again for the shown view; absent where the host has no history reader. */
+  retryOperationHistory?: () => void;
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
   /** Local retained-view filter only; never a read, grant or archive mutation. */
@@ -211,5 +213,5 @@ export function useReducedMotion(): boolean {
   return state.settings.motion === 'reduce' || (state.settings.motion === 'system' && system);
 }
 export function useCanWrite(system: System): { ok: boolean; reason?: string } {
-  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. Use its verified native link when available.' : 'This prototype action has no admitted Atlas operation. Available Atlas actions appear in record details.' };
+  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. Open it in HomeBox when a verified link is available.' : 'This prototype action has no admitted Atlas operation. Available Atlas actions appear in record details.' };
 }

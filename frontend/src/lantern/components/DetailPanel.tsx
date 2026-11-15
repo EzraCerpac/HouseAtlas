@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -27,6 +27,7 @@ import {
 } from '../data/query';
 import { fmtDate, fmtDateTime, fmtDateTimeReadable, fmtShortDate, referenceDayLabel, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
+import { useSourcePorts } from '../source-ports';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
@@ -101,8 +102,10 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
   );
 }
 
+/** A HomeBox write that is unavailable is left out: the panel's OutageHint states why once. */
 function WriteButton({ system, children, onClick, primary }: { system: 'HomeBox' | 'Atlas'; children: ReactNode; onClick: () => void; primary?: boolean }) {
   const can = useCanWrite(system);
+  if (!can.ok && system === 'HomeBox') return null;
   return (
     <button type="button" className={`btn${primary ? ' btn-primary' : ''}`} disabled={!can.ok} title={can.reason} onClick={onClick}>
       {children}
@@ -153,6 +156,8 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
   const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
   const un = unplaced(house);
+  // The counts are relative to the view's date; a view from an earlier day says so beside them.
+  const asOf = referenceDayLabel(house.displayNow);
   return (
     <article className="detail overview" aria-labelledby="overview-title">
       <header className="detail-head">
@@ -174,9 +179,7 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
           <li>
             <strong>{soon.length}</strong> due in two weeks
           </li>
-          <li>
-            <strong>{un.noRoomItems.length}</strong> without reviewed placement
-          </li>
+          {asOf && <li className="tally-asof">As of {asOf}</li>}
         </ul>
       </header>
       <div className="detail-body">
@@ -225,10 +228,7 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
         {soon.length > 0 && <Section title="Coming up" count={soon.length}>
           <TaskList tasks={soon} showTarget />
         </Section>}
-        {un.noRoomItems.length > 0 && <Section title="Not on the plan" count={un.noRoomItems.length}>
-          <p className="body-text">
-            {un.noRoomItems.length} records have no reviewed placement in this view.
-          </p>
+        {un.noRoomItems.length > 0 && <Section title="Without reviewed placement" count={un.noRoomItems.length}>
           <button type="button" className="text-btn" onClick={() => dispatch({ type: 'view', view: 'rooms' })}>
             Review them in Rooms
           </button>
@@ -239,10 +239,15 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
   );
 }
 
+const noSubscription = () => () => {};
+
 export function Sources({ house, outage: _outage }: { house: HouseData; outage: boolean }) {
   const { projection } = useStore();
   // A reviewed shape counts here only when the data holds one.
   const reviewedShape = house.geometry === 'reviewed' || house.spaces.some(space => space.geometry === 'reviewed');
+  // With a selected house model, the Atlas draws rooms from that model; they are still not reviewed shapes.
+  const atlas = useSourcePorts().models?.atlas;
+  const model = useSyncExternalStore(atlas?.subscribe ?? noSubscription, () => atlas?.current() != null);
   return <Section title="Sources"><dl className="facts sources">
     {projection.view.caches.map((cache, index) => <div key={index}>
       <dt>{cache.owner === 'homebox' ? 'HomeBox' : 'Network'}</dt>
@@ -258,7 +263,7 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    {!reviewedShape && <div><dt>Room shapes</dt><dd>No reviewed shapes supplied in this view.</dd></div>}
+    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'House model selected; no reviewed shapes supplied.' : 'No reviewed shapes supplied in this view.'}</dd></div>}
   </dl></Section>;
 }
 
@@ -980,7 +985,7 @@ function TaskDetail({ t }: { t: Task }) {
       kind="task"
       title={t.title}
       claim={<span className={`write-pill ${st === 'overdue' ? 'write-conflict' : st === 'done' ? 'write-completed' : 'write-queued'}`}>{st === 'overdue' ? 'Overdue' : st === 'soon' ? 'Due soon' : st === 'done' ? 'Done' : t.status === 'unknown' ? 'No schedule supplied' : 'Scheduled'}</span>}
-      actions={
+      actions={!can.ok ? undefined :
         st !== 'done' ? (
           <button type="button" className="btn btn-primary" disabled={!can.ok} title={can.reason} onClick={() => dispatch({ type: 'dialog', dialog: { type: 'complete', taskId: t.id } })}>
             <Icon name="check" size={16} /> Mark done

@@ -744,7 +744,9 @@ try {
   assert.match(await detail.innerText(), /No reviewed placement is supplied in this view/);
   assert.match(await detail.innerText(), /Synthetic house \/ Ground floor \/ Living room/);
   assert.match(await detail.innerText(), /stale/);
-  assert.equal(await detail.getByRole('button', { name: 'Edit', exact: true }).isDisabled(), true);
+  // HomeBox edits are not offered here; the ownership note says where they happen.
+  assert.equal(await detail.getByRole('button', { name: 'Edit', exact: true }).count(), 0);
+  assert.match(await detail.innerText(), /HomeBox owns this record\. Open it in HomeBox when a verified link is available\./);
   examplePhase('inventory detail screenshot starting');
   await production.screenshot({ path: resolve(output, 'example-inventory-detail.png'), animations: 'disabled' });
   examplePhase('inventory detail screenshot complete; final away navigation starting');

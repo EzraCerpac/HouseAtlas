@@ -10,6 +10,7 @@ import { SavedCatalogView } from './SavedCatalogView';
 import { useLiveHost } from './connection-probe';
 import { useOutbox } from '../outbox';
 import { Icon } from '../lantern/components/Icon';
+import { InlineTime } from '../lantern/components/ui';
 import type { LiveAtlasPresentationPort } from '../lantern/unified-atlas/types';
 import '../lantern/styles/fonts.css';
 import '../lantern/styles/tokens.css';
@@ -186,7 +187,7 @@ export function SavedAtlasHost({ store: supplied, openLastCopy, explicit = false
     </>}
     {allocation && selectedHouse && <>
       <details className="saved-coverage" hidden={view !== 'atlas'}><summary>Saved coverage: {allocation.saved.completeness} pack; {allocation.coverage.state} supported overlays</summary>
-        <p>Captured <time dateTime={selectedHouse.capturedAt}>{selectedHouse.capturedAt}</time>. Historical records are not current native authorization.</p>
+        <p>Captured <InlineTime value={selectedHouse.capturedAt} />. Historical records are not current native authorization.</p>
         <dl><div><dt>Local revision</dt><dd>{selectedHouse.localRevision}</dd></div><div><dt>Snapshot</dt><dd>{selectedHouse.snapshotId}</dd></div></dl>
         <ul>{allocation.coverage.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>
         <p>{allocation.coverage.retained.inventory.length} retained inventory entities; {allocation.coverage.retained.documents.length} document metadata records.</p>
