@@ -1511,6 +1511,49 @@
   min-height: 32px;
 }
 
+/* Phones: the section links stay on one line, scrolling if they ever overflow. */
+@media (max-width: 759px) {
+  .lantern-host .library-jump {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px 12px;
+    scrollbar-width: none;
+  }
+
+  .lantern-host .library-jump .text-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+/* Phones: row actions and the search close button are at least 44 px tall. */
+@media (max-width: 759px) {
+  .lantern-host .lib-row .btn-small {
+    min-height: 44px;
+  }
+
+  .lantern-host .palette-input .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* The category select replaces the chip strip on phones. */
+.lantern-host .filter-select {
+  display: none;
+}
+
+@media (max-width: 759px) {
+  .lantern-host .filter-select {
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .lantern-host .filter-select + .filter-row {
+    display: none;
+  }
+}
+
 /* A section reached from the links: focus lands on it without an outline. */
 .lantern-host .library-section {
   scroll-margin-top: 16px;
