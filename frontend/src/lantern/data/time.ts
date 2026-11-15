@@ -54,7 +54,7 @@ export function fmtDate(iso?: string): string {
 
 /** The reference day of a view whose dates are not relative to today; undefined when the view is current. */
 export function referenceDayLabel(now?: string): string | undefined {
-  return now !== undefined && fmtDate(now) !== 'Unknown' && now.slice(0, 10) !== DEMO_TODAY ? fmtDate(now) : undefined;
+  return now !== undefined && fmtDate(now) !== 'Unknown' && now.slice(0, 10) !== currentDay() ? fmtDate(now) : undefined;
 }
 
 export function fmtShortDate(iso?: string, now?: string): string {
