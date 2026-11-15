@@ -8,6 +8,9 @@ reviews:
   profile: "chill"
   # Never touch PR titles or bodies: bodies carry a required disclosure note.
   high_level_summary: false
+  # Keep a placeholder-triggered summary out of the PR body, and make the title trigger unusable.
+  high_level_summary_in_walkthrough: true
+  auto_title_placeholder: "@coderabbitai-title-never"
   poem: false
   in_progress_fortune: false
   sequence_diagrams: false
