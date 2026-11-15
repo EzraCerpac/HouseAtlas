@@ -2,7 +2,7 @@ import type { PlaceEditAdmission } from '../app/editing.ts';
 import type { SourceRef } from '../api/generated/contracts.ts';
 import { DRAFT_LIMITS, type CaptureSelection, type DraftBoundary, type DraftForm, type DraftHost, type DraftOwner,
   type DraftReview, type DraftRow, type DraftStore, type DraftSubmission, type DraftSummary, type DraftTargetOwner, type DraftUnknownInspection, type DraftUploadIntent } from './types.ts';
-import { digest, timestamp, validateForm, validateOwner, validateRow, validateRows, validateSource } from './validation.ts';
+import { digest, DraftWriteError, timestamp, validateForm, validateOwner, validateRow, validateRows, validateSource } from './validation.ts';
 import { validateDraftReceipt } from './receipt.ts';
 
 const sameOwner = (a: DraftOwner, b: DraftOwner) => a.actorId === b.actorId && a.workspaceId === b.workspaceId && a.homeId === b.homeId;
@@ -136,12 +136,15 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
         || input.selection.capture.filename !== original.name || input.selection.capture.reportedContentType !== original.type)
         throw new TypeError('Select an unchanged browser-returned file within the local limit');
       timestamp(input.selection.capture.selectedAt);
-      // Snapshot only allowed fields before the first await, including Blob bytes.
+      // Snapshot only allowed fields before the first await. The stored Blob is built from bytes read once,
+      // so it no longer depends on the picker's file; the buffer is released after this save.
       const time = now(), createdAt = new Date(time).toISOString();
+      const snapshot = original.slice(0, original.size, file.type);
+      const stored = new Blob([await snapshot.arrayBuffer()], { type: file.type });
       const row: DraftRow = {
         format: 'houseatlas-local-capture-draft/1', id: input.localId, owner: owner(captured),
         targetSourceRef: structuredClone(input.targetSourceRef), recordId: input.recordId,
-        original: original.slice(0, original.size, file.type), contentType: file.type, lastModified: original.lastModified, sha256: '',
+        original: stored, contentType: file.type, lastModified: original.lastModified, sha256: '',
         capture: structuredClone(input.selection.capture),
         form: structuredClone(input.form), createdAt, expiresAt: new Date(time + DRAFT_LIMITS.unsentLifetimeMs).toISOString(),
         state: 'unsent', attempt: null,
@@ -149,7 +152,7 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       const saved: DraftRow = { ...row, sha256: await digest(row.original) };
       if (await digest(file) !== saved.sha256) throw new TypeError('Capture wrapper bytes differ from the browser-returned original');
       validateRow(saved); check(captured, atGeneration, true);
-      await store.change(rows => {
+      const write = () => store.change(rows => {
         check(captured, atGeneration, true); validateRows(rows);
         const existing = rows.find(candidate => candidate.id === saved.id);
         if (existing) {
@@ -159,6 +162,14 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
         }
         const next = [...rows, saved]; validateRows(next); return { rows: next, value: undefined };
       });
+      // Chromium can abort a write with a non-quota DataError ("Failed to write blobs"). The aborted transaction stored
+      // nothing, so one fresh attempt with the same bytes cannot duplicate a row; a second abort is reported, not retried.
+      const blobWriteAbort = (error: unknown) => (error as { name?: unknown } | null)?.name === 'DataError';
+      try { await write(); }
+      catch (error) {
+        if (!blobWriteAbort(error)) throw error;
+        try { await write(); } catch (retry) { throw blobWriteAbort(retry) ? new DraftWriteError() : retry; }
+      }
       check(captured, atGeneration, true);
       return saved.id;
     },
