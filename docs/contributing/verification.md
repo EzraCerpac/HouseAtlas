@@ -1605,7 +1605,7 @@ selection custody with another device number, then refuses a same-device
 replacement. No listener, provider, real data or volume remount is used, so these
 cases do not observe an actual reboot.
 
-The default backend-library selection also discovers the seven
+The default backend-library selection also discovers the nine
 `lifecycle::persistent::rebind_commands_tests::` cases for the offline
 `rebind-commands` command-policy transition, each on fresh synthetic state in a
 disposable private folder:
@@ -1631,6 +1631,11 @@ disposable private folder:
 - `published_receipt_without_this_pairs_backup_is_refused`: a published new
   receipt without this pair's exact backup is not reported as done.
 - `running_server_lease_refuses_the_rebind`: an open lease refuses the rebind.
+- `published_rerun_validates_native_database_identities`: a rerun after
+  publication runs the strict reopen and refuses a replaced database.
+- `interruption_after_fence_withdrawal_leaves_the_old_state_and_reruns`: a
+  fault after recovery withdraws a verified fence leaves the old receipt
+  serving, and the rerun completes.
 
 No listener, provider, cached-provider profile or real data is used.
 

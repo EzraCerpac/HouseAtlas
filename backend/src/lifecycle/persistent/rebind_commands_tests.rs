@@ -377,3 +377,43 @@ fn running_server_lease_refuses_the_rebind() {
     assert_eq!(fixture.receipt(), original);
     assert!(fixture.extra_files().is_empty());
 }
+
+#[test]
+fn published_rerun_validates_native_database_identities() {
+    let fixture = Fixture::new(false);
+    let editor = fixture.editor_commands();
+    rebind_commands(&fixture.config, &editor).unwrap();
+    // Same bytes under a new inode: the published receipt no longer binds it.
+    let atlas = fixture.data("atlas.sqlite");
+    let staged = fixture.data("atlas.sqlite.replacement");
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&staged)
+        .unwrap()
+        .write_all(&fs::read(&atlas).unwrap())
+        .unwrap();
+    fs::rename(&staged, &atlas).unwrap();
+    assert_eq!(error(reopen(&editor)), BINDING);
+    assert_eq!(error(rebind_commands(&fixture.config, &editor)), BINDING);
+}
+
+#[test]
+fn interruption_after_fence_withdrawal_leaves_the_old_state_and_reruns() {
+    let fixture = Fixture::new(false);
+    let editor = fixture.editor_commands();
+    let original = fixture.receipt();
+    super::ADOPTION_FAULT.with(|fault| fault.set(Some("rebind-pending")));
+    assert!(error(rebind_commands(&fixture.config, &editor)).contains("rebind-pending"));
+    // The recovery withdraws the verified fence, then stops before the transition.
+    super::ADOPTION_FAULT.with(|fault| fault.set(Some("rebind-resumed")));
+    assert!(error(rebind_commands(&fixture.config, &editor)).contains("rebind-resumed"));
+    super::ADOPTION_FAULT.with(|fault| fault.set(None));
+    assert_eq!(fixture.receipt(), original);
+    assert!(!fixture.data("server-state.rebind.pending").exists());
+    drop(reopen(&fixture.config).unwrap());
+    rebind_commands(&fixture.config, &editor).unwrap();
+    assert_eq!(error(reopen(&fixture.config)), BINDING);
+    drop(reopen(&editor).unwrap());
+}

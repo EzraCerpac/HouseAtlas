@@ -323,10 +323,13 @@ the same two files, recovers each of them:
   checks that the old receipt is still published, that the retained backup is
   byte-identical to it, and that the pending bytes are exactly the new receipt
   for this pair. It then withdraws the pending receipt and reruns the whole
-  transition, revoking sessions again.
+  transition under the same lease, revoking sessions again, so no server can
+  start in between. A crash between withdrawal and the new fence leaves the
+  old receipt serving, as before the first run.
 - After the atomic replacement: only the new configuration serves. The rerun
-  confirms that the retained backup is exactly this pair's old receipt and
-  reports success without further changes.
+  confirms that the retained backup is exactly this pair's old receipt, runs
+  the same strict reopen as `serve` (receipt binding and native database
+  identities) under the lease, and reports success without further changes.
 
 Any other pending receipt (another pair, the reverse direction, or one written
 by `rebind-origin`) is never removed and stays refused for reviewed recovery.
