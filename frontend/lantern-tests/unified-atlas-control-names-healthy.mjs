@@ -11,7 +11,7 @@ const path = new URL('../src/lantern/unified-atlas/labels.ts', import.meta.url);
 const { code } = await transformWithOxc(readFileSync(path, 'utf8'), path.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
 assert.doesNotMatch(code, /^\s*import\s/m, 'labels.ts keeps type-only imports');
-const { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName, drawnRoomNames } =
+const { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName, drawnRoomFloors, drawnRoomNames } =
   await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
 const building = (buildingId, label, levelIds) => ({ buildingId, label, levelIds });
@@ -59,6 +59,8 @@ const drawnNames = drawnRoomNames(generated, drawn, 'b:house');
 assert.deepEqual(drawn.map(key => drawnNames.get(key)), ['Bedroom · Ground Floor', 'Bedroom · Upper Floor', 'Hall · Ground Floor', 'Hall · Upper Floor', 'Kitchen']);
 assert.deepEqual(['o:bed-1', 'o:bed-2'].map(key => drawnRoomNames(generated, ['o:bed-1', 'o:bed-2'], 'b:house').get(key)), ['Bedroom', 'Bedroom']);
 assert.equal(drawnRoomNames(generated, drawn, 'b:house', false).get('o:bed-3'), 'Bedroom');
+// The floor is also given on its own, for the accessible name: the visible floor only where the name is shared.
+assert.deepEqual(drawn.map(key => drawnRoomFloors(generated, drawn, 'b:house').get(key)), ['Ground Floor', 'Upper Floor', 'Ground Floor', 'Upper Floor', null]);
 // Namesakes on two levels (as in one display group) take each room's own level name.
 const split = model({
   buildings: [building('b:split', 'Split', ['l:a', 'l:b'])],
@@ -95,7 +97,7 @@ assert.doesNotMatch(shell, /'Unnamed'/);
 assert.doesNotMatch(shell, /sha256\.slice\(/);
 assert.match(shell, /<code className="ua-hash">\{model\.scene\.model\.sha256\}<\/code>/);
 assert.match(css, /\.ua-source \.ua-hash \{[^}]*user-select: all/);
-assert.match(shell, /aria-label=\{`Select room: \$\{atlasOccurrenceName\(model, label\.id\)\}`\}/);
+assert.match(shell, /aria-label=\{`Select room: \$\{atlasOccurrenceName\(model, label\.id\)\}\$\{labelFloors\.get\(label\.id\) \? ` · \$\{labelFloors\.get\(label\.id\)\}` : ''\}`\}/);
 assert.match(shell, /<span>\{atlasOccurrenceName\(model, key\)\}<\/span>/);
 assert.match(shell, /<span className="ua-rung-name">\{atlasBuildingName\(model, row\.buildingId\)\}<\/span><\/button>/);
 console.log('PASS: generated building, room-part and exclusion names stay distinct; full model hash shown as selectable text.');

@@ -25,7 +25,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -827,7 +827,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   }), [model, planLevelsKey, origin]);
   const planned = useMemo(() => new Set(planGroups.map(group => group.levelId)), [planGroups]);
   const planTransform = (levelId: string) => `${projection.planMatrix(model.floorY.get(levelId)! + levelLift(presentation, levelId, t))} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`;
-  const planShown = planBlend > 0 && planGroups.some(group => group.features.length > 0);
+  const planDrawn = planGroups.some(group => group.features.length > 0);
+  const planShown = planBlend > 0 && planDrawn;
   const sitePlan = plan && presentation.focusLevelId === null;
 
   // The ground the buildings stand on: one plate under every building, in the model frame.
@@ -868,7 +869,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const live = planBlend >= .5 ? presentation.pickable : shown.pickable;
   // In 3D, a name drawn on more than one floor adds that room's own floor, selected
   // floor or not; unique names stay bare, and a plan shows bare names.
-  const labelTexts = useMemo(() => drawnRoomNames(model, live, plan ? null : state.buildingId, !plan), [live, model, plan, state.buildingId]);
+  const labelTexts = useMemo(() => drawnRoomNames(model, live, state.buildingId, !plan), [live, model, plan, state.buildingId]);
+  const labelFloors = useMemo(() => drawnRoomFloors(model, live, state.buildingId, !plan), [live, model, plan, state.buildingId]);
   const markers = useMemo(() => {
     const rows: StageMarker[] = [];
     const spread = active.length > 1;
@@ -1028,7 +1030,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     // Panels count as placed: a room name under one is left to the room list.
     const placed: Box[] = [...cover];
     return rows.filter(row => {
-      const w = Math.min(220, row.text.length * 7.2 + (row.tier === 'plain' ? 14 : 26)), h = row.tier === 'plain' ? 22 : 30;
+      const tag = row.tier === 'selected' ? planTextMetrics.get(row.id)?.advance : undefined;
+      const w = tag !== undefined ? tag + 18 : Math.min(220, row.text.length * 7.2 + (row.tier === 'plain' ? 14 : 26)), h = row.tier === 'plain' ? 22 : 30;
       const middle = row.y - TAG_RISE * row.rise;
       const box = { l: row.x - w / 2, r: row.x + w / 2, t: middle - h / 2, b: middle + h / 2 };
       if (row.tier !== 'selected' && (box.l < 4 || box.r > size.width - 4 || box.t < 4 || box.b > size.height - 4
@@ -1055,7 +1058,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     if (!measuring) return { areas: [], spans: [] };
     const blocked: Box[] = [...cover, ...labels.flatMap(row => {
       if (row.plan) return planLabelObstacles(row);
-      const w = Math.min(220, row.text.length * 7.2 + 26), middle = row.y - TAG_RISE * row.rise;
+      const tag = row.tier === 'selected' ? planTextMetrics.get(row.id)?.advance : undefined;
+      const w = tag !== undefined ? tag + 18 : Math.min(220, row.text.length * 7.2 + 26), middle = row.y - TAG_RISE * row.rise;
       return [{ l: row.x - w / 2, r: row.x + w / 2, t: middle - 15, b: middle + 15 }];
     }), ...counts.map(countMarkerTarget)];
     const areas = placeLabels(measured.flatMap(occurrenceId => {
@@ -1455,7 +1459,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
-          shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
+          shownLevel={plan && planDrawn ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
           canExplode={canExplode && compact} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
           head={stackHead} panelId={`${menuIds}-stack`} />
       </div>
@@ -1632,7 +1636,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height,
             transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : { left: label.x, top: label.y - TAG_RISE * label.rise, width: labelHitWidth(label.text) }}
-          aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
+          aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}${labelFloors.get(label.id) ? ` · ${labelFloors.get(label.id)}` : ''}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
         {counts.map(row => <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
@@ -1640,7 +1644,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
         {failure && !plan && <p className="cifc-stage-note" role="status">3D view is unavailable. Use Plan or check Source details.</p>}
-        {plan && planBlend >= 1 && !planGroups.some(group => group.features.length > 0) && <p className="cifc-stage-note" role="status">
+        {plan && planBlend >= 1 && !planDrawn && <p className="cifc-stage-note" role="status">
           {focusLevel ? `No plan for ${atlasLevelName(model, focusLevel.levelId)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
@@ -1729,7 +1733,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
-      open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && state.levelId === null ? presentation.focusLevelId : null}
+      open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
 
