@@ -25,7 +25,7 @@ import {
   tasksFor,
   unplaced,
 } from '../data/query';
-import { fmtDate, fmtDateTime, fmtDateTimeReadable, rel } from '../data/time';
+import { fmtDate, fmtDateTime, fmtDateTimeReadable, fmtShortDate, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
@@ -263,6 +263,30 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
 }
 
 const cacheStatusLabel = (status: string) => { const text = status.replace(/-/g, ' '); return text.charAt(0).toUpperCase() + text.slice(1); };
+
+/** Present only while a source cache is stale or failing. It opens the
+ * overview, whose Sources block holds each cache's state and update time. */
+export function StaleSources({ onOpen }: { onOpen: () => void }) {
+  const { house, projection } = useStore();
+  const behind = projection.view.caches.filter(cache => cache.displayStatus === 'stale' || cache.displayStatus === 'error' || cache.displayStatus === 'access-revoked');
+  if (!behind.length) return null;
+  const source = (owner: string) => owner === 'homebox' ? 'HomeBox' : 'Network';
+  const facts = behind.map(cache => `${source(cache.owner)}: ${cacheStatusLabel(cache.displayStatus)}, last successful update ${cache.lastSuccessfulFetchAt ? fmtDateTimeReadable(cache.lastSuccessfulFetchAt) : 'unknown'}`);
+  const first = behind[0]!;
+  const state = new Set(behind.map(cache => cache.displayStatus)).size === 1 ? cacheStatusLabel(first.displayStatus).toLowerCase() : 'not fresh';
+  return (
+    <button type="button" className="stale-chip" onClick={onOpen} aria-label={`${facts.join('. ')}. Open Overview.`}>
+      <span className="stale-chip-face" aria-hidden="true">
+        <span className="stale-chip-state">
+          <span className="stale-chip-full">{behind.length === 1 ? `${source(first.owner)} ${state}` : `${behind.length} sources ${state}`}</span>
+          {/* Small phones: the source name leaves the face; the accessible name keeps it. */}
+          <span className="stale-chip-short">{behind.length === 1 ? cacheStatusLabel(first.displayStatus) : `${behind.length} ${state}`}</span>
+        </span>
+        {behind.length === 1 && <span className="stale-chip-date">{first.lastSuccessfulFetchAt ? fmtShortDate(first.lastSuccessfulFetchAt, house.displayNow) : 'last update unknown'}</span>}
+      </span>
+    </button>
+  );
+}
 
 // The refresh controller and its button are not part of startup.
 const HomeboxRefreshButton = lazy(() => import('./HomeboxRefreshButton'));
