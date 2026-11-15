@@ -1,6 +1,6 @@
 import type { Task } from '../data/types';
 import { dueState } from '../data/query';
-import { DEMO_TODAY, fmtDate } from '../data/time';
+import { fmtDate, referenceDayLabel } from '../data/time';
 import { useStore } from '../state/store';
 import { TaskRow, TaskWriteNote } from '../components/rows';
 import { Note } from '../components/ui';
@@ -66,7 +66,7 @@ export function UpkeepView() {
   const emptyPhrases = empty.map(title => emptyText[title]!);
   const emptyLine = empty.length === groups.length ? 'No tasks.'
     : `Nothing ${emptyPhrases.length > 1 ? `${emptyPhrases.slice(0, -1).join(', ')}, or ${emptyPhrases.at(-1)}` : emptyPhrases[0]}.`;
-  const referenceDay = house.displayNow !== undefined && fmtDate(house.displayNow) !== 'Unknown' && house.displayNow.slice(0, 10) !== DEMO_TODAY ? fmtDate(house.displayNow) : undefined;
+  const status = [sharedCache !== undefined && `Source cache: ${sharedCache} for every task`, referenceDayLabel(house.displayNow) !== undefined && `Dates relative to ${referenceDayLabel(house.displayNow)}`].filter(Boolean).join(' · ');
   return (
     <div className="view">
       <header className="view-head">
@@ -75,8 +75,7 @@ export function UpkeepView() {
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
       <TaskWriteNote tasks={house.tasks} />
-      {sharedCache !== undefined && <p className="body-text muted">Source cache: {sharedCache} for every task.</p>}
-      {referenceDay !== undefined && <p className="body-text muted">Dates relative to {referenceDay}.</p>}
+      {status && <p className="body-text muted">{status}.</p>}
       {empty.length > 0 && <p className="body-text muted">{emptyLine}</p>}
       <div className="tl-columns">
         <div>

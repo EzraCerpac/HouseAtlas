@@ -4,7 +4,7 @@ import { Empty } from '../components/ui';
 import { Sources } from '../components/DetailPanel';
 
 /** The same reload as Settings; the failure it answers stays beside it. */
-function ReloadHistory() {
+function ReloadHistory({ status }: { status: string }) {
   const { actions } = useStore();
   const [state, setState] = useState<'idle' | 'reloading' | 'failed'>('idle');
   const reload = async () => {
@@ -14,7 +14,7 @@ function ReloadHistory() {
   };
   return <>
     <button type="button" className="btn" onClick={reload} disabled={state === 'reloading'}>{state === 'reloading' ? 'Reloading saved information…' : 'Reload saved information'}</button>
-    {state === 'failed' && <p className="body-text" role="status">The reload did not succeed.</p>}
+    {state === 'failed' && <p className="body-text" role="status">The reload did not succeed; operation history is still {status}.</p>}
   </>;
 }
 
@@ -26,7 +26,7 @@ export function ChangesView() {
       {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
     <div className="changes-grid"><section className="section"><header className="section-head"><h3>Operation history</h3></header>
       {history.status === 'loading' && <p className="body-text" role="status">Loading operation history…</p>}
-      {history.status === 'unavailable' && <><p className="body-text" role="status">Operation history could not be loaded.</p><ReloadHistory /></>}
+      {history.status === 'unavailable' && <><p className="body-text" role="status">Operation history is unavailable. It could not be loaded.</p><ReloadHistory status={history.status} /></>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>
