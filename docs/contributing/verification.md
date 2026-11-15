@@ -1605,6 +1605,49 @@ selection custody with another device number, then refuses a same-device
 replacement. No listener, provider, real data or volume remount is used, so these
 cases do not observe an actual reboot.
 
+The default backend-library selection also discovers the nine
+`lifecycle::persistent::rebind_commands_tests::` cases for the offline
+`rebind-commands` command-policy transition, each on fresh synthetic state in a
+disposable private folder:
+- `command_policy_flips_both_ways_and_serves_only_the_selected_config`: a
+  loopback-local flip to `existing-editor-commands` and back keeps the exact old
+  receipt as its backup, rotates the Access epoch and clears an actual session,
+  then strict reopen accepts only the selected configuration; rollback restores
+  the original receipt bytes and a second flip reuses the identical backup.
+- `password_mode_flips_without_a_local_identity`: the same flip in password
+  mode, after refusing a candidate that also moves origin and listen.
+- `every_other_change_and_a_noop_are_refused_without_writes`: deployment ID,
+  home label, frontend path, local identity and login-mode changes, and an
+  unchanged policy, are refused with no receipt, backup, pending or session change.
+- `foreign_pending_fence_blocks_both_configurations_and_is_never_removed`: a
+  pending receipt this pair did not write blocks reopen under both
+  configurations and both rebind directions, and stays in place.
+- `rerunning_the_same_pair_recovers_every_interruption_point`: with test-only
+  faults after the staged fence is synced, after it is linked, after the pending
+  receipt is published, after session revocation and after publication (the old
+  configuration still serves while only the staged file exists), the reverse pair is refused while pending, and rerunning the same
+  pair ends with only the new configuration serving and its sessions cleared; a
+  further rerun is a no-op.
+- `published_receipt_without_this_pairs_backup_is_refused`: a published new
+  receipt without this pair's exact backup is not reported as done.
+- `running_server_lease_refuses_the_rebind`: an open lease refuses the rebind.
+- `published_rerun_validates_native_database_identities`: a rerun after
+  publication runs the strict reopen and refuses a replaced database.
+- `interruption_after_fence_withdrawal_leaves_the_old_state_and_reruns`: a
+  fault after recovery withdraws a verified fence leaves the old receipt
+  serving, and the rerun completes.
+
+No listener, provider, cached-provider profile or real data is used.
+
+The same selection discovers
+`http::agents::mounted_evidence_controls::mounted_editor_command_profile_commits_audited_writes_and_refuses_viewer`.
+A disposable Host selects `ExistingEditorCommands`; a generated Editor's mounted
+MCP catalog admits evidence writes and the batch but not remap or asset creation,
+an evidence create and tombstone commit through `atlas_records` with Editor-attributed
+audit/intent rows and native read parity, and a generated Viewer's mounted
+initialization is still refused without changing selected facts. Old-session and
+expiry refusal stay with the existing #533 cases; no installed profile is exercised.
+
 The default backend-library selection also discovers
 `http::response_layer::directory_index_tests::built_folder_urls_redirect_to_their_exact_entry`.
 Through the actual router of a disposable loopback-local Host with generated
