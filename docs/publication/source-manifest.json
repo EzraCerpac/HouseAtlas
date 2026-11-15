@@ -23,6 +23,7 @@
     "webmcp"
   ],
   "files": [
+    {"path":".coderabbit.yaml","mode":"100644","owner":"core-integration"},
     {"path":".github/actions/ordinary-save/action.yml","mode":"100644","owner":"core-integration"},
     {"path":".github/actions/ordinary-setup/action.yml","mode":"100644","owner":"core-integration"},
     {"path":".github/workflows/ordinary-core.yml","mode":"100644","owner":"core-integration"},
