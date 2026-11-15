@@ -993,7 +993,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const rise = Math.max(foldedRise, standingTag.rise);
   const calloutDirections = useRef<ReadonlyMap<string, number>>(new Map());
   const settledPlan = plan && planBlend === 1 && presentation.focusLevelId !== null;
+  // Room names wait for the 3D layer's first drawn frame, so none stands over an empty site.
+  const undrawn = showCanvas && displayed === null && model.meshes.length > 0;
   const labels = useMemo(() => {
+    if (undrawn) return [];
     const rows: (RoomLabel & { clearance: number; anchorX: number; anchorY: number })[] = [];
     for (const occurrenceId of live) {
       const at = anchorOf(occurrenceId); if (!at) continue;
@@ -1030,7 +1033,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       placed.push(box); return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise]);
+  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn]);
   useLayoutEffect(() => {
     if (settledPlan) {
       const directions = new Map(calloutDirections.current);
