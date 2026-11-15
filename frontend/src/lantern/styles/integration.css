@@ -4,7 +4,9 @@
 .lantern-host .authorized-preview { max-width: 100%; max-height: 65vh; object-fit: contain; }
 .lantern-host .source-details .place-editor { margin-top: 20px; }
 .lantern-host .source-details input, .lantern-host .source-details select, .lantern-host .source-details textarea { max-width: 100%; }
-.lantern-integration .lantern-reload-notice { position: fixed; bottom: calc(72px + env(safe-area-inset-bottom)); left: max(24px, env(safe-area-inset-left)); max-width: calc(100vw - 48px - env(safe-area-inset-left) - env(safe-area-inset-right)); margin: 0; padding: 10px 14px; border-left: 3px solid #e0a100; border-radius: 0 8px 8px 0; background: #fbfbf8; box-shadow: 0 12px 28px -14px rgba(22, 50, 79, 0.35); z-index: 70; }
+/* A failed reload: what is still shown, from when, and the retry beside it. */
+.lantern-integration .lantern-reload-notice { position: fixed; bottom: calc(72px + env(safe-area-inset-bottom)); left: max(24px, env(safe-area-inset-left)); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; height: auto; max-width: min(560px, calc(100vw - 48px - env(safe-area-inset-left) - env(safe-area-inset-right))); margin: 0; padding: 10px 14px; border-left: 3px solid #e0a100; border-radius: 0 8px 8px 0; background: #fbfbf8; box-shadow: 0 12px 28px -14px rgba(22, 50, 79, 0.35); z-index: 70; }
+.lantern-integration .lantern-reload-notice p { flex: 1 1 16rem; margin: 0; font-size: var(--fs-s); }
 .lantern-integration .stock-completion { position: fixed; left: max(24px, env(safe-area-inset-left)); bottom: calc(24px + env(safe-area-inset-bottom)); max-width: calc(100vw - 48px - env(safe-area-inset-left) - env(safe-area-inset-right)); max-height: 45vh; overflow: auto; z-index: 90; }
 /* Atlas tools: one more vellum sheet laid over the set. Its head stays in
    view while the saved house copy and the native tools scroll beneath. */

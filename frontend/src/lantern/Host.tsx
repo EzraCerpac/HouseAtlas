@@ -25,6 +25,7 @@ import type { SourceDocumentsPort } from './source-documents/types';
 import type { ElectricalLibraryPort } from './electrical-library/types';
 import type { HouseAcquisitionPort } from '../offline/acquisition-types';
 import { SaveHouseCopy } from '../offline/SaveHouseCopy';
+import { fmtLocalClock } from './components/ui';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -70,6 +71,9 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
   const session = actions.session?.expiresAt;
+  // Each successful read delivers a new view; a failed reload keeps the old one and its time.
+  const [loaded, setLoaded] = useState(() => ({ view, at: Date.now() }));
+  if (loaded.view !== view) setLoaded({ view, at: Date.now() });
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
   const [geometry, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
@@ -151,12 +155,15 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   // Atlas tools exist only when there is a saved-copy action or native content to show.
   const toolsContent = useMemo(() => houseAcquisition || (nativeContent != null && nativeContent !== false && nativeContent !== '') ? <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</> : null, [houseAcquisition, nativeContent]);
-  const ports = useMemo(() => ({ ...actions, offlineStorage, homeboxRefresh, nativeContent: toolsContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, toolsContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh]);
+  const ports = useMemo(() => ({ ...actions, loadedAt: loaded.at, offlineStorage, homeboxRefresh, nativeContent: toolsContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(homeboxOriginals ? { homeboxOriginals } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, toolsContent, archiveVisibility, pinnedFiles, homeboxOriginals, networkRelations, houseAcquisition, offlineStorage, homeboxRefresh, loaded.at]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
-    {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}
+    {actions.notice && <div className="lantern-host lantern-reload-notice">
+      <p role="status">{actions.notice} Shown information was loaded at {fmtLocalClock(loaded.at)}.</p>
+      <button type="button" className="btn btn-small" disabled={actions.busy} onClick={() => { void actions.reload(); }}>Try again</button>
+    </div>}
   </StoreProvider>;
 }
 

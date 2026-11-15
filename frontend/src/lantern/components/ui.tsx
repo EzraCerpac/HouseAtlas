@@ -3,7 +3,7 @@ import type { Claim, Doc, EntityKind, WriteStatus } from '../data/types';
 import { CLAIM_HELP, CLAIM_LABEL, KIND_LABEL, kindOf, nameOf } from '../data/query';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
-import { fmtDateTimeReadable } from '../data/time';
+import { fmtDateTimeReadable, fmtShortDate } from '../data/time';
 
 /** A recorded timestamp, readable first, with its exact recorded text kept
  * on a line below. Text that cannot be read stays as recorded. */
@@ -11,6 +11,15 @@ export function RecordedTime({ value, after }: { value: string; after?: string }
   const readable = fmtDateTimeReadable(value);
   if (readable === 'Unknown' || readable === value) return <>{readable}{after}</>;
   return <><time dateTime={value}>{readable}</time>{after}<span className="fact-help"><code>{value}</code></span></>;
+}
+
+/** A time on this browser's clock, such as when it last loaded the shown
+ * view: "20:53", with its day when that is not today ("14 Nov, 20:53"). */
+export function fmtLocalClock(at: number, now = Date.now()): string {
+  const d = new Date(at), pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (d.toDateString() === new Date(now).toDateString()) return time;
+  return `${fmtShortDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}, ${time}`;
 }
 
 export const KIND_ICON: Record<EntityKind, string> = {
