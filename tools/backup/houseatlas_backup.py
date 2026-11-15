@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Nightly HouseAtlas backup to iCloud Drive with a proven restore.
 
+The scheduled job runs hourly with `--if-due`: it does nothing once a backup has
+succeeded since the most recent 04:00 local, so a failed or missed night is
+retried each hour until one succeeds. Without `--if-due` a run always happens.
+
 One run:
   1. stops the HouseAtlas launchd service, runs the native `backup` CLI against
      the live data directory, and starts the service again (seconds of downtime);
@@ -774,6 +778,20 @@ def backup(config: Config) -> dict:
     return result
 
 
+def due(state: Path, at: dt.datetime) -> bool:
+    """False when a backup finished successfully at or after the most recent
+    04:00 local boundary; a missing or unreadable record means due."""
+    local = at.astimezone().replace(tzinfo=None)
+    boundary = local.replace(hour=4, minute=0, second=0, microsecond=0)
+    if local < boundary:
+        boundary -= dt.timedelta(days=1)
+    try:
+        finished = dt.datetime.fromisoformat(json.loads((state / "last-success.json").read_text())["finished"])
+        return finished.astimezone().replace(tzinfo=None) < boundary
+    except (OSError, ValueError, KeyError, TypeError):
+        return True
+
+
 def status_folder(config: Config) -> Path | None:
     try:
         return shared_folder(Service(config))
@@ -800,7 +818,9 @@ def restore_models_command(report: Path, store: Path, destination: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--config", type=Path, help="run the nightly backup")
+    parser.add_argument("--config", type=Path, help="run the backup now")
+    parser.add_argument("--if-due", action="store_true",
+                        help="with --config: do nothing if a backup succeeded since the last 04:00 local")
     parser.add_argument("--restore-models", type=Path, metavar="REPORT",
                         help="rebuild the model folders named in an archive's backup-report.json")
     parser.add_argument("--store", type=Path, help="with --restore-models: the iCloud models folder")
@@ -820,6 +840,9 @@ def main() -> int:
         except BlockingIOError:
             print("another backup run is in progress", file=sys.stderr)
             return 75
+        if args.if_due and not due(state, now()):
+            print("backup already succeeded since 04:00; nothing to do")
+            return 0
         try:
             result = backup(config)
         except StepFailed as error:
