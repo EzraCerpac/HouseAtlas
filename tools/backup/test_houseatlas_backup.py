@@ -565,6 +565,26 @@ class RetentionTest(unittest.TestCase):
         self.assertEqual(record["step"], "stop service")
         self.assertTrue(hb.due(state, at.replace(hour=6)))
 
+    def test_repeated_failure_at_one_step_reports_once_and_a_new_step_or_a_success_reports_again(self):
+        state = hb.private_dir(self.root / "state")
+        at = dt.datetime(2026, 11, 15, 5).astimezone()
+        stop = mock.Mock(side_effect=hb.StepFailed("stop service", "service is not running"))
+        upload = mock.Mock(side_effect=hb.StepFailed("iCloud upload", "timed out"))
+        crash = mock.Mock(side_effect=RuntimeError("boom"))
+        with mock.patch.object(hb, "report_failure") as report:
+            for backup, reports in ((stop, 1), (stop, 0), (upload, 1), (upload, 0), (crash, 1), (crash, 0)):
+                report.reset_mock()
+                self.assertEqual(self.run_main("--if-due", at=at, backup=backup), 1)
+                self.assertEqual(report.call_count, reports, backup)
+            # A success deletes the record, so the next failure reports again.
+            (state / "last-failure.json").unlink()
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 1)
+            (state / "last-failure.json").write_text("garbled")
+            report.reset_mock()
+            self.run_main("--if-due", at=at, backup=stop)
+            self.assertEqual(report.call_count, 1)
+
     def test_shared_folder_comes_from_the_server_config(self):
         config = self.root / "server.json"
         config.write_text(json.dumps({"dataDirectory": "/srv/data"}))
