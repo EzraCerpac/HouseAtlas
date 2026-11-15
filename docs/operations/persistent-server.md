@@ -20,7 +20,7 @@ no receipt migration or automatic adoption; upgrading an existing installation
 requires a separately implemented and reviewed transition. Do not reinitialize
 an existing data directory to bypass that requirement.
 
-Server configuration is closed JSON with schemaVersion 1, deploymentId, dataDirectory, logDirectory (exact dataDirectory/logs), frontendDirectory, tlsCertificate, tlsPrivateKey, explicit nonzero listen address, exact HTTPS origin matching that port, homes[{workspaceId,homeId,label}], and mcpCommands (`read-only` or `existing-editor-commands`). All paths must be absolute and normal; selected configuration and private key must be canonical regular private files owned by the service user. No TLS material is generated. The frontend directory must use its canonical path.
+Server configuration is closed JSON with schemaVersion 1, deploymentId, dataDirectory, logDirectory (exact dataDirectory/logs), frontendDirectory, tlsCertificate, tlsPrivateKey, explicit nonzero listen address, exact HTTPS origin matching that port, homes[{workspaceId,homeId,label}], and mcpCommands (`read-only` or `existing-editor-commands`; see [command-policy rebind](#explicit-offline-mcp-command-policy-rebind)). All paths must be absolute and normal; selected configuration and private key must be canonical regular private files owned by the service user. No TLS material is generated. The frontend directory must use its canonical path.
 
 Provisioning is closed private JSON: schemaVersion 1 and users[{userId,actorId,username,password,memberships[{workspaceId,homeId,role}]}]. Roles use existing viewer/editor values. Passwords are explicit operator input, hashed using the existing Access implementation, then zeroized in the provisioning owner. Do not store real provisioning packets in Git or logs. The provisioning file is not read by normal serve.
 
@@ -280,6 +280,57 @@ there is no automatic adoption, removal, retry or recovery. Preserve diagnostics
 for reviewed recovery. Use only the compatible candidate binary, not an older
 binary unaware of this pending fence. Rollback is a separate explicit reverse
 rebind under the same lease and identity, and also revokes sessions.
+
+## Explicit offline MCP command-policy rebind
+
+`mcpCommands` is part of the receipt digest, so editing it alone makes `serve`
+refuse the state. Switching an initialized server between `read-only` and
+`existing-editor-commands` uses its own offline command:
+
+```sh
+houseatlas rebind-commands --previous-server-config /canonical/private/previous.json --server-config /canonical/private/candidate.json
+```
+
+`existing-editor-commands` gives an MCP session opened by an Editor the
+generic Atlas writes and the non-remap batch through the same stock planner,
+Store, audit and intent journal as the stock HTTP batch. Viewer MCP
+initialization stays refused, remap and approval-bound operations stay held,
+and no provider write is added. WebMCP in the browser does not read this
+setting; it uses the role-based admission of the stock host.
+
+The candidate must equal the previous configuration in every field except
+`mcpCommands`; an unchanged value is refused as a no-op. Any login mode is
+accepted. The command shares the origin rebind's fences: the server must be
+stopped (exclusive lease), the strict old receipt and both native database
+identities must match, the old receipt is kept as
+`server-state.previous.<old digest>.json`, a synced
+`server-state.rebind.pending` precedes the native transaction that rotates the
+Access epoch and clears every web session and login-rate row, and the receipt
+is then replaced atomically. Users sign in again afterwards.
+
+An interruption before the pending receipt is synced leaves the old receipt, so
+the previous configuration still serves and the command can be rerun. Once the
+pending receipt exists, `serve`, backup and a rerun refuse both configurations
+until reviewed recovery; sessions may already be revoked. After the atomic
+replacement only the new configuration serves.
+
+Activation:
+
+1. Stop the server gracefully.
+2. Copy the configuration and set `"mcpCommands": "existing-editor-commands"`.
+3. Run `rebind-commands` with the old file as `--previous-server-config` and
+   the copy as `--server-config`.
+4. A cached-provider profile pins `serverConfigurationDigest`, so `serve`
+   refuses a stale one. Re-pin it to the new configuration's digest, or omit
+   `--provider-reads-profile`. The rebind itself accepts no provider selection.
+5. Start `serve` with the new configuration and sign in again.
+
+Rollback is the same command with the two files swapped; it restores the
+original receipt bytes and revokes sessions again. A backup archive taken
+before a switch carries the `server-config.json` of that time, so restoring it
+unchanged returns to that command policy. Restore issues a fresh receipt for the
+configuration it is given, so set `mcpCommands` in the copied configuration
+before `initialize --restore-bundle`; no rebind is needed after a restore.
 
 The source healthy example uses fresh synthetic state, preserves both database
 inodes, then performs native session/read/mutation-guard checks over an actual

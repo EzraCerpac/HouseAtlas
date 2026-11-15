@@ -3,6 +3,8 @@
 use super::Failure;
 pub mod provider_reads;
 #[cfg(test)]
+mod rebind_commands_tests;
+#[cfg(test)]
 mod receipt_identity_tests;
 #[cfg(test)]
 mod restored_adoption_tests;
@@ -781,6 +783,43 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     {
         return Err("Rebind requires the same initialized deployment, singleton Editor/home and command policy".into());
     }
+    rebind_receipt(previous, config, |config| {
+        let mut selected = a::AccessBoundary::open_existing(
+            config.data_directory.join("access.sqlite"),
+            config.access_config()?,
+        )?;
+        selected.validate_loopback_local_user()?;
+        Ok(())
+    })
+}
+
+/// Explicit offline MCP command-policy change of the SAME initialized files.
+/// Only `mcpCommands` may differ (read-only <-> existing-editor-commands); every
+/// other configuration field must be equal. Any login mode is accepted. Shares
+/// the origin rebind's lease, strict receipt, backup, pending fence and native
+/// session revocation; no automatic retry, rollback or receipt adoption.
+pub fn rebind_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<(), Failure> {
+    previous.validate()?;
+    config.validate()?;
+    let selected = serde_json::to_value(config.mcp_commands)?;
+    if serde_json::to_value(previous.mcp_commands)? == selected {
+        return Err("Command policy is unchanged; nothing to rebind".into());
+    }
+    let mut expected = serde_json::to_value(previous)?;
+    expected["mcpCommands"] = selected;
+    if serde_json::to_value(config)? != expected {
+        return Err("Command rebind accepts only an mcpCommands change; every other field must be unchanged".into());
+    }
+    rebind_receipt(previous, config, |_| Ok(()))
+}
+
+/// Shared offline receipt transition. `check_selected` runs after native session
+/// revocation and before the pending receipt is published.
+fn rebind_receipt(
+    previous: &ServerConfig,
+    config: &ServerConfig,
+    check_selected: impl FnOnce(&ServerConfig) -> Result<(), Failure>,
+) -> Result<(), Failure> {
     // Acquires the existing exclusive lease, strict old receipt and both native
     // database identities before any state write. A running server prevents it.
     let (core, lease) = reopen(previous)?;
@@ -815,12 +854,7 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
         .map_err(|_| "Access unavailable during explicit rebind")?
         .invalidate_all_sessions()?;
     drop(core);
-    let mut selected = a::AccessBoundary::open_existing(
-        config.data_directory.join("access.sqlite"),
-        config.access_config()?,
-    )?;
-    selected.validate_loopback_local_user()?;
-    drop(selected);
+    check_selected(config)?;
     lease.check()?;
     if read_selected_file(&path, 16 * 1024, true)? != original {
         return Err("Old receipt changed during explicit rebind".into());
