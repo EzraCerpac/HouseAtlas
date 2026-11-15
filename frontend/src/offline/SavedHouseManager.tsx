@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SavedHouse, SavedHouseStore } from './store';
+import { InlineTime } from '../lantern/components/ui';
 
 /** `quiet` leaves the list out while this browser keeps no saved copy. */
 export function SavedHouseManager({ store, selected, quiet = false, onOpen, onClose }: { readonly store: SavedHouseStore;
@@ -25,7 +26,7 @@ export function SavedHouseManager({ store, selected, quiet = false, onOpen, onCl
     {error && <p role="alert">{error}</p>}
     {!error && houses.length === 0 && <p role="status">No saved copy on this browser.</p>}
     {houses.map(house => <div className="saved-copy" key={house.localRevision}>
-      <div><strong>{house.label}</strong><span>Captured <time dateTime={house.capturedAt}>{house.capturedAt}</time></span></div>
+      <div><strong>{house.label}</strong><span>Captured <InlineTime value={house.capturedAt} /></span></div>
       <button type="button" onClick={() => onOpen(house)} aria-pressed={house.localRevision === selected?.localRevision}>Open saved Atlas</button>
       <button type="button" onClick={() => void remove(house)}>Remove <span className="sr-only">{house.label}</span></button>
     </div>)}
