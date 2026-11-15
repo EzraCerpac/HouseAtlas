@@ -78,7 +78,7 @@ Success writes `last-success.json` (recovery point, sizes, how many model
 files were newly stored, what retention deleted, durations) in the state directory. A blob that exists
 but no longer matches its name fails the model rebuild loudly; it is never
 replaced automatically. Any failure writes `last-failure.json` and runs the optional
-`reportCommand`; a later success removes `last-failure.json`. If the report
+`reportCommand`, except when `last-failure.json` already records the same failing step with its report delivered, so hourly retries of one outage report once; a later success removes `last-failure.json`. If the report
 command itself fails or times out, the job logs its exit status and the end of
 its stderr to stderr. A run that otherwise succeeded then exits with status 3
 and records `reportFailed` in its result, so a lost notice is never silent.
@@ -112,8 +112,27 @@ Create a private config (mode 0600) outside the repository:
 
 Optional keys: `restoreCheckBinary` (defaults to the served binary),
 `uploadTimeoutSeconds` (3600) and `keepLocalArchives` (3). Then run
-`tools/backup/install.sh <config> --load`. The job runs daily at 04:00; start
-one run now with `launchctl kickstart gui/$(id -u)/houseatlas.icloud-backup`.
+`tools/backup/install.sh <config> --load`.
+
+The job wakes every hour and starts with `--if-due`: it does nothing (exit 0,
+one log line, no service stop, no failure record) once a backup has succeeded
+since the most recent 04:00 local time. Otherwise it runs, so a night that
+failed or was missed (the service was down, the Mac was off, iCloud hiccuped)
+is retried each hour until one succeeds. A run still refuses to touch a service
+that is not running and records that as a failure.
+
+`launchctl kickstart` no longer forces a run, because the job carries
+`--if-due`. To back up right now, for example before a deployment, start the
+script without that flag through the launcher (the state directory is the one in
+the config):
+
+```sh
+<state>/bin/houseatlas-backup "$(command -v python3)" <state>/bin/houseatlas_backup.py --config <config>
+```
+
+An already installed job keeps its old plist until `install.sh <config> --load`
+is run again; until then it still runs once at 04:00 and `kickstart` still
+forces a run.
 
 ## Restore
 

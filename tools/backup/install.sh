@@ -28,5 +28,5 @@ echo "installed $plist"
 if [ "${2:-}" = "--load" ]; then
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$plist"
-  echo "loaded $label (runs daily at 04:00)"
+  echo "loaded $label (runs hourly, backing up once per day after 04:00)"
 fi
