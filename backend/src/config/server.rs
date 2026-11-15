@@ -78,6 +78,10 @@ pub enum ServerCommand {
         previous: ServerConfig,
         config: Box<ServerConfig>,
     },
+    RebindCommands {
+        previous: ServerConfig,
+        config: Box<ServerConfig>,
+    },
     UpgradeStateReceipt(crate::lifecycle::receipt_compatibility::Selection),
     RollbackStateReceipt(crate::lifecycle::receipt_compatibility::Selection),
 }
@@ -111,7 +115,10 @@ impl ServerCommand {
                 Self::RollbackStateReceipt(selection)
             }));
         }
-        if !matches!(mode, "initialize" | "serve" | "rebind-origin") {
+        if !matches!(
+            mode,
+            "initialize" | "serve" | "rebind-origin" | "rebind-commands"
+        ) {
             return Ok(None);
         }
         let mut options = std::collections::BTreeMap::new();
@@ -157,7 +164,7 @@ impl ServerCommand {
                 .get("--server-config")
                 .ok_or("Required --server-config")?,
         ))?;
-        if mode == "rebind-origin" {
+        if matches!(mode, "rebind-origin" | "rebind-commands") {
             if options.contains_key("--provisioning-file") {
                 return Err("Rebind never provisions accounts".into());
             }
@@ -166,13 +173,18 @@ impl ServerCommand {
                     .get("--previous-server-config")
                     .ok_or("Required --previous-server-config")?,
             ))?;
-            return Ok(Some(Self::Rebind {
-                previous,
-                config: Box::new(config),
+            let config = Box::new(config);
+            return Ok(Some(if mode == "rebind-origin" {
+                Self::Rebind { previous, config }
+            } else {
+                Self::RebindCommands { previous, config }
             }));
         }
         if options.contains_key("--previous-server-config") {
-            return Err("Previous configuration is only accepted by rebind-origin".into());
+            return Err(
+                "Previous configuration is only accepted by rebind-origin or rebind-commands"
+                    .into(),
+            );
         }
         if mode == "serve" {
             if options.contains_key("--provisioning-file") {

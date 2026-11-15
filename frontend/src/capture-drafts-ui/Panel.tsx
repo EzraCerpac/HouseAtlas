@@ -71,9 +71,13 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     const rows = await port.list(); signal.throwIfAborted();
     setSummaries(rows.filter(mine));
     setStatus('Unsent draft saved on this browser. Nothing was uploaded.');
-  }, error => (error as Error | null)?.name !== 'DraftLimitError' ? null : (error as DraftLimitError).limit === 'count'
-    ? `Local draft not saved: this browser already holds the maximum of ${DRAFT_LIMITS.count} local drafts, including any for other places or accounts.`
-    : `Local draft not saved: it would exceed the ${DRAFT_LIMITS.totalBytes / 1024 / 1024} MiB total for local drafts in this browser, including any for other places or accounts.`);
+  }, error => {
+    const name = (error as Error | null)?.name;
+    if (name === 'DraftWriteError') return 'Local draft not saved: this browser could not store the file. Nothing was sent. Try again.';
+    return name !== 'DraftLimitError' ? null : (error as DraftLimitError).limit === 'count'
+      ? `Local draft not saved: this browser already holds the maximum of ${DRAFT_LIMITS.count} local drafts, including any for other places or accounts.`
+      : `Local draft not saved: it would exceed the ${DRAFT_LIMITS.totalBytes / 1024 / 1024} MiB total for local drafts in this browser, including any for other places or accounts.`;
+  });
   // The stored rows as they are now, for the current account and this place. Like every
   // other action, a result arriving after this operation was invalidated is discarded.
   const relist = async (signal: AbortSignal) => {

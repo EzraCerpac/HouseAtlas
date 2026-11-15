@@ -3,6 +3,8 @@
 use super::Failure;
 pub mod provider_reads;
 #[cfg(test)]
+mod rebind_commands_tests;
+#[cfg(test)]
 mod receipt_identity_tests;
 #[cfg(test)]
 mod restored_adoption_tests;
@@ -465,7 +467,14 @@ fn initialize_selected(
 /// Normal reopen uses only existing native files and exact compiled schema.
 /// No provisioning, fixtures, source enrollments, jobs or restoration occurs.
 pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
-    reopen_selected(config, None, false, false, a::LifecyclePolicy::default())
+    reopen_selected(
+        config,
+        None,
+        false,
+        false,
+        a::LifecyclePolicy::default(),
+        None,
+    )
 }
 
 /// Explicit full-profile reopen. Requires an offline full-profile receipt; never migrates.
@@ -480,6 +489,7 @@ pub fn reopen_full_geodata(
         false,
         false,
         a::LifecyclePolicy::default(),
+        None,
     )
 }
 
@@ -494,6 +504,7 @@ pub fn reopen_full_geodata_for_backup(
         false,
         true,
         a::LifecyclePolicy::default(),
+        None,
     )
 }
 
@@ -509,6 +520,7 @@ pub fn bind_full_geodata(
         true,
         false,
         a::LifecyclePolicy::default(),
+        None,
     )?;
     drop(core);
     sync(&lease.directory)?;
@@ -522,7 +534,7 @@ pub fn reopen_for_serve(
     policy: Option<Arc<dyn storage::geodata::GeodataSourcePolicy>>,
     lifecycle: a::LifecyclePolicy,
 ) -> Result<(Core, ServerLease), Failure> {
-    reopen_selected(config, policy, false, false, lifecycle)
+    reopen_selected(config, policy, false, false, lifecycle, None)
 }
 
 fn reopen_selected(
@@ -531,10 +543,14 @@ fn reopen_selected(
     bind: bool,
     backup: bool,
     lifecycle: a::LifecyclePolicy,
+    held: Option<ServerLease>,
 ) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
     let full = policy.is_some();
-    let mut lease = ServerLease::acquire(config, false)?;
+    let mut lease = match held {
+        Some(lease) => lease,
+        None => ServerLease::acquire(config, false)?,
+    };
     super::receipt_compatibility::require_no_pending(config)?;
     match fs::symlink_metadata(config.data_directory.join("server-state.rebind.pending")) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -781,9 +797,140 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     {
         return Err("Rebind requires the same initialized deployment, singleton Editor/home and command policy".into());
     }
-    // Acquires the existing exclusive lease, strict old receipt and both native
-    // database identities before any state write. A running server prevents it.
-    let (core, lease) = reopen(previous)?;
+    rebind_receipt(previous, config, None, |config| {
+        let mut selected = a::AccessBoundary::open_existing(
+            config.data_directory.join("access.sqlite"),
+            config.access_config()?,
+        )?;
+        selected.validate_loopback_local_user()?;
+        Ok(())
+    })
+}
+
+/// Explicit offline MCP command-policy change of the SAME initialized files.
+/// Only `mcpCommands` may differ (read-only <-> existing-editor-commands); every
+/// other configuration field must be equal. Any login mode is accepted. Shares
+/// the origin rebind's lease, strict receipt, backup, pending fence and native
+/// session revocation. Re-running the same old/new pair after an interruption
+/// resumes it (see `resume_commands`); no other pending state is adopted.
+pub fn rebind_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<(), Failure> {
+    previous.validate()?;
+    config.validate()?;
+    let selected = serde_json::to_value(config.mcp_commands)?;
+    if serde_json::to_value(previous.mcp_commands)? == selected {
+        return Err("Command policy is unchanged; nothing to rebind".into());
+    }
+    let mut expected = serde_json::to_value(previous)?;
+    expected["mcpCommands"] = selected;
+    if serde_json::to_value(config)? != expected {
+        return Err("Command rebind accepts only an mcpCommands change; every other field must be unchanged".into());
+    }
+    // One lease covers recovery and the transition; no server starts between.
+    let (published, lease) = resume_commands(previous, config)?;
+    if published {
+        // The strict reopen `serve` performs: receipt binding and native identities.
+        let held = Some(lease);
+        drop(reopen_selected(
+            config,
+            None,
+            false,
+            false,
+            a::LifecyclePolicy::default(),
+            held,
+        )?);
+        return Ok(());
+    }
+    rebind_receipt(previous, config, Some(lease), |_| Ok(()))
+}
+
+/// Under the exclusive lease, recognise only states that THIS old/new pair
+/// leaves behind. A pending receipt is withdrawn only when the old receipt is
+/// still published, its retained backup is byte-identical and the pending bytes
+/// are exactly the new receipt; the full transition then reruns under the same
+/// returned lease. Returns true when the new receipt is already published with
+/// this pair's exact backup.
+fn resume_commands(
+    previous: &ServerConfig,
+    config: &ServerConfig,
+) -> Result<(bool, ServerLease), Failure> {
+    fn retained(path: &Path) -> Result<Option<Vec<u8>>, Failure> {
+        match fs::symlink_metadata(path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Ok(_) => Ok(Some(read_selected_file(path, 16 * 1024, true)?)),
+            Err(error) => Err(error.into()),
+        }
+    }
+    let lease = ServerLease::acquire(previous, false)?;
+    super::receipt_compatibility::require_no_pending(previous)?;
+    let directory = &previous.data_directory;
+    remove_staged(&directory.join(STAGED))?;
+    sync(&lease.directory)?;
+    let current = read_selected_file(&directory.join("server-state.json"), 16 * 1024, true)?;
+    let state: State = serde_json::from_slice(&current)?;
+    let with_digest = |digest: String| {
+        serde_json::to_vec(&State {
+            configuration_digest: digest,
+            ..state.clone()
+        })
+    };
+    let (old, new) = (previous.state_digest()?, config.state_digest()?);
+    let backup = retained(&directory.join(format!("server-state.previous.{old}.json")))?;
+    let pending_path = directory.join("server-state.rebind.pending");
+    let Some(pending) = retained(&pending_path)? else {
+        if state.configuration_digest != new {
+            return Ok((false, lease));
+        }
+        if backup != Some(with_digest(old)?) {
+            return Err("Published receipt was not issued by this command rebind".into());
+        }
+        return Ok((true, lease));
+    };
+    if state.configuration_digest != old
+        || backup.as_deref() != Some(&current[..])
+        || pending != with_digest(new)?
+    {
+        return Err(
+            "Pending rebind receipt does not match this command-policy change; reviewed recovery required"
+                .into(),
+        );
+    }
+    private_metadata(&pending_path)?;
+    fs::remove_file(&pending_path)?;
+    sync(&lease.directory)?;
+    fault("rebind-resumed")?;
+    Ok((false, lease))
+}
+
+const STAGED: &str = "server-state.rebind.staged";
+
+/// Withdraw an unpublished staged fence. Callers hold the exclusive lease.
+fn remove_staged(path: &Path) -> Result<(), Failure> {
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(meta) if meta.is_file() => Ok(fs::remove_file(path)?),
+        Ok(_) => Err("Staged rebind receipt is not a regular file".into()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Shared offline receipt transition. `check_selected` runs after native session
+/// revocation and before the pending receipt is published.
+fn rebind_receipt(
+    previous: &ServerConfig,
+    config: &ServerConfig,
+    held: Option<ServerLease>,
+    check_selected: impl FnOnce(&ServerConfig) -> Result<(), Failure>,
+) -> Result<(), Failure> {
+    // Acquires (or keeps) the exclusive lease, then checks the strict old receipt
+    // and both native database identities before any state write.
+    let (core, lease) = reopen_selected(
+        previous,
+        None,
+        false,
+        false,
+        a::LifecyclePolicy::default(),
+        held,
+    )?;
     let path = config.data_directory.join("server-state.json");
     let original = read_selected_file(&path, 16 * 1024, true)?;
     let mut state: State = serde_json::from_slice(&original)?;
@@ -805,9 +952,20 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     }
     sync(&lease.directory)?;
     let pending_path = config.data_directory.join("server-state.rebind.pending");
-    let mut pending = open_private(&pending_path, true, false)?;
+    // The fence appears only complete: stage and sync it, then hard-link it to
+    // the pending name (refused if a fence already exists). A staged leftover
+    // is never authoritative and is withdrawn under the lease.
+    let staged_path = config.data_directory.join(STAGED);
+    remove_staged(&staged_path)?;
+    let mut pending = open_private(&staged_path, true, false)?;
     pending.write_all(&bytes)?;
     sync(&pending)?;
+    fault("rebind-staged")?;
+    fs::hard_link(&staged_path, &pending_path)?;
+    fault("rebind-linked")?;
+    fs::remove_file(&staged_path)?;
+    sync(&lease.directory)?;
+    fault("rebind-pending")?;
     // This actual native transaction rotates epoch and clears sessions/rates.
     // A later file error does not imply it rolled back.
     core.access
@@ -815,12 +973,8 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
         .map_err(|_| "Access unavailable during explicit rebind")?
         .invalidate_all_sessions()?;
     drop(core);
-    let mut selected = a::AccessBoundary::open_existing(
-        config.data_directory.join("access.sqlite"),
-        config.access_config()?,
-    )?;
-    selected.validate_loopback_local_user()?;
-    drop(selected);
+    fault("rebind-revoked")?;
+    check_selected(config)?;
     lease.check()?;
     if read_selected_file(&path, 16 * 1024, true)? != original {
         return Err("Old receipt changed during explicit rebind".into());
@@ -835,6 +989,7 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     }
     fs::rename(&pending_path, &path)?;
     sync(&lease.directory)?;
+    fault("rebind-published")?;
     // Recheck the native inodes recorded by the original issuer (see State::binds).
     let access = private_metadata(&config.data_directory.join("access.sqlite"))?;
     let atlas = private_metadata(&config.data_directory.join("atlas.sqlite"))?;

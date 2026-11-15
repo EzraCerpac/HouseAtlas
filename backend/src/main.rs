@@ -210,6 +210,16 @@ async fn run(
                 );
                 Ok(())
             }
+            ServerCommand::RebindCommands { previous, config } => {
+                tokio::task::spawn_blocking(move || {
+                    lifecycle::persistent::rebind_commands(&previous, &config)
+                })
+                .await??;
+                println!(
+                    "HouseAtlas state rebound to the selected MCP command policy; old sessions revoked; no listener started"
+                );
+                Ok(())
+            }
             ServerCommand::UpgradeStateReceipt(selection) => {
                 if ai_account.is_some() {
                     return Err(

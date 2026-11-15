@@ -1006,7 +1006,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
 | ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 52 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
-| ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 25 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
+| ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 30 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
 | ordinary-core / ordinary-core | Check synthetic publication-input disposition claims (in memory only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_disposition.py -v` | every run | 29 unittest methods | Generated in-memory claim validation, operation-correlated chronology and independent evidence summaries; no payload operations, network, consumers or operational receipts. |
 | ordinary-core / ordinary-core | Check prospective storage adapter v2 (synthetic injected ports only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_adapter.py -v` | every run | 75 unittest methods | Generated fake clock, registry, resolver, ledger, readback and conditional-dispatch ports; no real custody, transport, installation, credentials or operational adoption. |
 | ordinary-core / ordinary-core | Check descriptor-backed present observations (disposable files only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_owner_ports.py -v` | every run | 57 unittest methods | Generated disposable directory descriptors, immutable file pins, explicit permits, owned local reader processes and process-local observation admission; no private input, transport, installation, mutation dispatch or operational adoption. |
@@ -1022,7 +1022,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 97 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 98 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1346,6 +1346,17 @@ and stage-key function with synthetic hooks, deferred reads and geometry binding
 It checks stable stage type/key/model/selection during stored-copy failure,
 retry and identical fresh confirmation, held-copy refresh, denial retirement
 and obsolete selection completion.
+The same seam checks the parsed copy (`parsed-store.ts`): the first parse is
+kept only two frames after the first house frame, the next open draws the kept
+copy with no parse, and a kept copy that does not bind or exceeds the upload
+budget is parsed again and replaced, and an open abandoned before the first
+house frame writes nothing when a later frame is drawn. Over the synthetic IndexedDB disk, the
+store keeps one copy across pages, misses on another digest, length, loader
+build, actor or home, writes nothing without quota headroom or an estimate, and
+sign-out removes it, including a keep already under way. Two independent page
+instances of the store share the disk: a keep still waiting in one page writes
+nothing after the other page signs out, and a store opened before that sign-out
+reads nothing after it.
 The seam does not mount `AtlasStage` or a dialog;
 it does not execute camera state, native focus, Escape/IME or browser layout.
 Those deferred checks remain in #292; the existing compact-layer dock case
@@ -1462,8 +1473,9 @@ three selectable lines over the page for the first Atlas open (`load-ledger.ts`,
 `load-readout.ts`): seconds from navigation start to home reads, the first house
 frame, textures drawn and fully shaded; whether the first model drawn was the
 saved copy or the fresh read, and any finished overview-model GET (MB and seconds,
-from resource timing); and the saved-copy read and verify, model parse and first
-stage build wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
+from resource timing); and the saved-copy read and verify, model parse (`kept
+parse` when the device's parsed copy was read instead) and first stage build
+wall times with the renderer. `unified-atlas-cache-healthy.mjs` pins
 its text from generated ledgers and resource rows, and its presentation seam pins
 which path is noted as the first model. Wall times include waits; readings are
 device evidence only, never a CI result.
@@ -1592,6 +1604,49 @@ The AI-account case opens a generated rollback-journal SQLite file through the
 selection custody with another device number, then refuses a same-device
 replacement. No listener, provider, real data or volume remount is used, so these
 cases do not observe an actual reboot.
+
+The default backend-library selection also discovers the nine
+`lifecycle::persistent::rebind_commands_tests::` cases for the offline
+`rebind-commands` command-policy transition, each on fresh synthetic state in a
+disposable private folder:
+- `command_policy_flips_both_ways_and_serves_only_the_selected_config`: a
+  loopback-local flip to `existing-editor-commands` and back keeps the exact old
+  receipt as its backup, rotates the Access epoch and clears an actual session,
+  then strict reopen accepts only the selected configuration; rollback restores
+  the original receipt bytes and a second flip reuses the identical backup.
+- `password_mode_flips_without_a_local_identity`: the same flip in password
+  mode, after refusing a candidate that also moves origin and listen.
+- `every_other_change_and_a_noop_are_refused_without_writes`: deployment ID,
+  home label, frontend path, local identity and login-mode changes, and an
+  unchanged policy, are refused with no receipt, backup, pending or session change.
+- `foreign_pending_fence_blocks_both_configurations_and_is_never_removed`: a
+  pending receipt this pair did not write blocks reopen under both
+  configurations and both rebind directions, and stays in place.
+- `rerunning_the_same_pair_recovers_every_interruption_point`: with test-only
+  faults after the staged fence is synced, after it is linked, after the pending
+  receipt is published, after session revocation and after publication (the old
+  configuration still serves while only the staged file exists), the reverse pair is refused while pending, and rerunning the same
+  pair ends with only the new configuration serving and its sessions cleared; a
+  further rerun is a no-op.
+- `published_receipt_without_this_pairs_backup_is_refused`: a published new
+  receipt without this pair's exact backup is not reported as done.
+- `running_server_lease_refuses_the_rebind`: an open lease refuses the rebind.
+- `published_rerun_validates_native_database_identities`: a rerun after
+  publication runs the strict reopen and refuses a replaced database.
+- `interruption_after_fence_withdrawal_leaves_the_old_state_and_reruns`: a
+  fault after recovery withdraws a verified fence leaves the old receipt
+  serving, and the rerun completes.
+
+No listener, provider, cached-provider profile or real data is used.
+
+The same selection discovers
+`http::agents::mounted_evidence_controls::mounted_editor_command_profile_commits_audited_writes_and_refuses_viewer`.
+A disposable Host selects `ExistingEditorCommands`; a generated Editor's mounted
+MCP catalog admits evidence writes and the batch but not remap or asset creation,
+an evidence create and tombstone commit through `atlas_records` with Editor-attributed
+audit/intent rows and native read parity, and a generated Viewer's mounted
+initialization is still refused without changing selected facts. Old-session and
+expiry refusal stay with the existing #533 cases; no installed profile is exercised.
 
 The default backend-library selection also discovers
 `http::response_layer::directory_index_tests::built_folder_urls_redirect_to_their_exact_entry`.
@@ -5841,6 +5896,13 @@ adapter/controller and native evidence client over a fake native exchange and
 memory store, with static React markup; the two offline cases call the draft
 panel's own handlers under stub hooks, without a DOM, and the classification
 case uses the actual session client over a fake transport.
+One further entry, `save-blob-write.mjs`, runs four generated cases of the actual
+controller `save` over an in-memory store: a blob-write `DataError` abort is
+retried once in a fresh transaction with the same Blob and stores one row; two
+aborts store nothing, keep earlier rows and raise the specific failure; a quota
+failure is not retried; the stored original is a fresh Blob, not the picked
+File. It uses no real IndexedDB or browser and does not reproduce the browser
+failure.
 The finite failure cases cover original-offer identity and per-attempt receipt
 cleanup only, with generated originals, in-memory stores/exchanges and a fetch
 trap in the draft harness. They add no listener, native service or browser.

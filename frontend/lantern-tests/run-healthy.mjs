@@ -52,6 +52,7 @@ const SOURCE = [
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'receipt-record-closure-keeps-original'],
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'cleanup-failure-known-commit'],
   ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'reused-receipt-object-keeps-unknown'],
+  ['frontend/capture-drafts-tests/save-blob-write.mjs'],
   // Local unsent drafts for a native Atlas place through the native evidence owner.
   ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-save-no-upload'],
   ['frontend/capture-drafts-tests/native-place-drafts.mjs', '--case', 'native-reopen-unsent'],

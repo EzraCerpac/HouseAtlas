@@ -2,6 +2,7 @@
 //! Intended test-only home: http::agents::mounted_evidence_controls.
 //! Actual default Host/router/Access/StockService/SQLite; generated evidence only.
 //! No mounted Viewer admission, browser, listener, expiry, reopen or provider proof.
+//! One case selects the explicit Editor command profile for audited MCP writes.
 
 use super::stock_dispatch;
 use crate::{
@@ -148,6 +149,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Result<Self, Failure> {
+        Self::with_profile(McpCommandProfile::ReadOnly)
+    }
+
+    fn with_profile(profile: McpCommandProfile) -> Result<Self, Failure> {
         let scratch = tempfile::Builder::new()
             .prefix("houseatlas-mcp288-mounted-evidence-")
             .tempdir_in("/tmp")?;
@@ -170,13 +175,14 @@ impl Fixture {
             scope.workspace_id.as_str(),
             scope.home_id.as_str()
         );
-        // Ordinary default only. Setup uses actual HTTP stock commands, never
-        // ExistingEditorCommands or a mutation-enabled MCP binding.
+        // Ordinary default unless a case selects the trusted startup profile.
+        // Setup uses actual HTTP stock commands, never a mutation-enabled MCP binding.
         let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
         assert!(matches!(
             host.mcp_command_profile,
             McpCommandProfile::ReadOnly
         ));
+        let host = host.with_mcp_command_profile(profile);
         let app = router(host.clone());
         Ok(Self {
             app,
@@ -561,6 +567,31 @@ impl<'a> Mounted<'a> {
         Ok(raw.clone())
     }
 
+    async fn commit(&mut self, request: &Value) -> Result<Value, Failure> {
+        wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
+        let reply = self
+            .rpc(
+                "tools/call",
+                json!({"name":"atlas_records","arguments":request}),
+            )
+            .await?;
+        assert!(reply.get("error").is_none());
+        let result = &reply["result"];
+        assert_eq!(result["isError"], false);
+        let raw = result
+            .get("structuredContent")
+            .ok_or("Missing actual structured result")?;
+        let text: Value = serde_json::from_str(
+            result["content"][0]["text"]
+                .as_str()
+                .ok_or("Missing actual text body")?,
+        )?;
+        assert_eq!(&text, raw);
+        validate_response(&self.fixture.validation, request, raw, "committed")?;
+        assert_eq!(raw["data"]["auditIds"].as_array().unwrap().len(), 1);
+        Ok(raw.clone())
+    }
+
     async fn unadmitted_mutation(&mut self, request: &Value) -> Result<(), Failure> {
         // This is deliberately GLOBAL schema validation, not native invocation.
         wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
@@ -855,6 +886,92 @@ async fn viewer_evidence_http_reads_do_not_create_mounted_mcp_authority() -> Res
     assert_eq!(actual["data"]["sourceStatus"], "current");
     assert_eq!(actual["data"]["nextCursor"], Value::Null);
     assert_eq!(fixture.facts()?, before);
+    fixture.refuse_viewer_initialization(&viewer).await?;
+    assert_eq!(fixture.facts()?, before);
+    drop(fixture);
+    Ok(())
+}
+
+/// Every command ID admitted across the actual tools/list input schemas.
+fn admitted_commands(tools: &Value) -> Result<BTreeSet<String>, Failure> {
+    let mut commands = BTreeSet::new();
+    for tool in tools["result"]["tools"]
+        .as_array()
+        .ok_or("Missing actual tools")?
+    {
+        let schema = &tool["inputSchema"];
+        for arm in schema["oneOf"].as_array().into_iter().flatten() {
+            let pointer = arm["$ref"]
+                .as_str()
+                .and_then(|reference| reference.strip_prefix('#'))
+                .ok_or("Expected actual local request reference")?;
+            let request = schema
+                .pointer(pointer)
+                .ok_or("Missing actual request definition")?;
+            if let Some(command) = request["properties"]["commandId"]["const"].as_str() {
+                commands.insert(command.to_owned());
+            }
+        }
+    }
+    Ok(commands)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_editor_command_profile_commits_audited_writes_and_refuses_viewer()
+-> Result<(), Failure> {
+    let fixture = Fixture::with_profile(McpCommandProfile::ExistingEditorCommands)?;
+    let editor = fixture.login("editorLogin").await?;
+    let principal = fixture.principal(&editor, a::Role::Editor)?;
+    let mut mounted = Mounted::open(&fixture, &editor).await?;
+    let tools = mounted.rpc("tools/list", json!({})).await?;
+    assert!(tools.get("error").is_none());
+    let records = tools["result"]["tools"]
+        .as_array()
+        .ok_or("Missing actual tools")?
+        .iter()
+        .find(|tool| tool["name"] == "atlas_records")
+        .ok_or("Missing actual record family")?;
+    assert_eq!(records["annotations"]["readOnlyHint"], false);
+    let commands = admitted_commands(&tools)?;
+    for admitted in [
+        "atlas.evidence.create",
+        "atlas.evidence.tombstone",
+        "atlas.evidence.get",
+        "atlas.batch.execute",
+    ] {
+        assert!(commands.contains(admitted), "{admitted}");
+    }
+    // Held arms stay out of the Editor catalog.
+    for held in ["atlas.binding.remap", "atlas.asset.create"] {
+        assert!(!commands.contains(held), "{held}");
+    }
+    let create = mutation(&fixture.context, PRIMARY, "create", None, 90_000);
+    let created = mounted.commit(&create).await?;
+    assert_eq!(
+        created["data"]["records"],
+        json!([record(PRIMARY, 1, "active")])
+    );
+    let tombstone = mutation(&fixture.context, PRIMARY, "tombstone", Some(1), 90_010);
+    let archived = mounted.commit(&tombstone).await?;
+    assert_eq!(
+        archived["data"]["records"],
+        json!([record(PRIMARY, 2, "tombstoned")])
+    );
+    // Same native audit/journal owner as stock HTTP, attributed to the Editor.
+    let events = fixture.committed_events(&[(create, created), (tombstone, archived)])?;
+    assert_eq!(events.len(), 2);
+    let request = get(&fixture.context, PRIMARY, 90_020);
+    let actual = mounted.read(&request).await?;
+    assert_eq!(actual, fixture.native_read(&principal, &request)?);
+    assert_eq!(
+        actual["data"]["records"],
+        json!([record(PRIMARY, 2, "tombstoned")])
+    );
+    drop(mounted);
+    // The write profile admits no Viewer: mounted initialization stays refused.
+    let before = fixture.facts()?;
+    let viewer = fixture.login("login").await?;
+    fixture.principal(&viewer, a::Role::Viewer)?;
     fixture.refuse_viewer_initialization(&viewer).await?;
     assert_eq!(fixture.facts()?, before);
     drop(fixture);
