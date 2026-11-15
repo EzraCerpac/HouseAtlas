@@ -93,6 +93,16 @@ export function fmtDateTimeReadable(iso?: string): string {
   return `${fmtDate(m[1])}, ${m[2]}${zone}`;
 }
 
+/** How a recorded timestamp is shown: its text, the value for a `dateTime`
+ * attribute (only when the value is a readable date, never invalid), and
+ * whether the recorded text could not be read and must stay visible. */
+export function recordedTimeView(value?: string): { text: string; datetime: string | null; unreadable: boolean } {
+  const text = fmtDateTimeReadable(value);
+  if (!value) return { text, datetime: null, unreadable: false };
+  if (text === 'Unknown') return { text, datetime: null, unreadable: true };
+  return { text, datetime: value, unreadable: false };
+}
+
 /** "3 h ago", "yesterday", "in 4 days". */
 export function rel(iso?: string, now?: string): string {
   if (!iso) return 'Unknown';

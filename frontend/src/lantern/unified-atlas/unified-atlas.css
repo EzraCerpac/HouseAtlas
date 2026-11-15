@@ -2960,6 +2960,11 @@
    whose building name gives way first; narrower stages keep the arrow alone. */
 @container ua-stage (min-width: 380px) and (max-width: 720px) {
   .lantern-host .ua-scope:has(> .ua-back) { max-width: calc(100% - 104px); }
+  /* The open card hangs from the scope's left edge, not from the chip beside a
+     wide Back, so its right edge stays inside the stage. The open head is
+     solid, so its blur (which would anchor the card to the chip) is dropped. */
+  .lantern-host .ua-scope:has(> .ua-back) > .ua-stack.is-chip.is-open { position: static; }
+  .lantern-host .ua-scope:has(> .ua-back) > .ua-stack.is-chip.is-open .ua-stack-paper { backdrop-filter: none; }
   .lantern-host .ua-scope:has(> .ua-back) > .ua-stack.is-chip { flex: 0 1 auto; }
   .lantern-host .ua-scope .ua-back { width: auto; max-width: 40cqw; padding: 0 12px 0 8px; }
   .lantern-host .ua-scope .ua-back > span { position: static; width: auto; height: auto; clip-path: none; text-overflow: ellipsis; }
