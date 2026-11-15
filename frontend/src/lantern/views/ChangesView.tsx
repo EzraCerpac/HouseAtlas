@@ -26,10 +26,8 @@ export function ChangesView() {
       {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
     <div className="changes-grid"><section className="section"><header className="section-head"><h3>Operation history</h3></header>
       {history.status === 'loading' && <p className="body-text" role="status">Loading operation history…</p>}
-      {/* A view without a signed-in session (the example house) has no history reader to retry. */}
-      {history.status === 'unavailable' && (actions.session
-        ? <><p className="body-text" role="status">Operation history could not be loaded.</p><ReloadHistory status={history.status} /></>
-        : <p className="body-text muted" role="status">Operation history is not supplied in this view, so past changes are unknown here.</p>)}
+      {/* The read failed or this view has no history to read; the client cannot tell which, so the reload stays. */}
+      {history.status === 'unavailable' && <><p className="body-text" role="status">Operation history could not be read in this view, so past changes are unknown here.</p><ReloadHistory status={history.status} /></>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>

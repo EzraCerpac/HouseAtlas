@@ -263,7 +263,7 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'From the house model; none reviewed.' : 'No reviewed shapes supplied in this view.'}</dd></div>}
+    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'House model selected; no reviewed shapes supplied.' : 'No reviewed shapes supplied in this view.'}</dd></div>}
   </dl></Section>;
 }
 
