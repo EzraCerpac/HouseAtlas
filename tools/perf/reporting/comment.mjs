@@ -21,6 +21,9 @@ async function writeReport({ api, identity, workflowId, render, evidence }) {
   const run = await api.getRun(identity.runId);
   let pull = await api.getPull(identity.prNumber);
   if (!eligiblePullRequest({ run, pull, identity, workflowId })) return { status: 'skipped', reason: 'stale-or-unassociated-run' };
+  // A cancelled measurement is normally superseded by a newer run on the same PR (the workflow's
+  // concurrency group). It has nothing to report and must neither write a comment nor fail this job.
+  if (run.conclusion === 'cancelled') return { status: 'skipped', reason: 'cancelled-run' };
   const [baseCommit, headCommit] = await Promise.all([api.getCommit(identity.baseSha), api.getCommit(identity.headSha)]);
   if (baseCommit.sha !== identity.baseSha || baseCommit.commit?.tree?.sha !== identity.baseTree ||
       headCommit.sha !== identity.headSha || headCommit.commit?.tree?.sha !== identity.headTree) return { status: 'skipped', reason: 'source-tree-mismatch' };

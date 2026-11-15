@@ -41,9 +41,7 @@ export function NetworkSources() {
     && (entry.networkBound || entry.networkRelations.length > 0));
   return (
     <>
-      <p className="network-sources-note">
-        Saved Network relations are read-only. Observation dates and retrieval dates remain distinct.
-      </p>
+      <p className="network-sources-note">Saved Network relations are read-only.</p>
       <div className="seg seg-wide" role="tablist" aria-label="Network views">
         <button id="net-tab-logical" type="button" role="tab" aria-selected={tab === 'logical'} aria-controls="net-panel" onClick={() => setTab('logical')}>
           Observed links
@@ -54,7 +52,7 @@ export function NetworkSources() {
       </div>
       <div id="net-panel" role="tabpanel" aria-labelledby={tab === 'logical' ? 'net-tab-logical' : 'net-tab-cabling'}>
         {tab === 'logical' ? <>
-          {networkEntries.length ? <SavedRelations entries={networkEntries} /> : !actions.networkRelations && <Empty>No Network relation projection is supplied.</Empty>}
+          {networkEntries.length ? <SavedRelations entries={networkEntries} /> : !actions.networkRelations && <Empty>No saved Network links.</Empty>}
           {actions.networkRelations && <NetworkRelationsPanel client={actions.networkRelations} />}
         </> : <Cabling />}
         {house.devices.length > 0 && <Topology />}

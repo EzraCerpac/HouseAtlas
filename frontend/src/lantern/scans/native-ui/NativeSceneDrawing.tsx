@@ -314,9 +314,11 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   };
+  // While the PDF is shown its own status line names the page.
+  const pdfShown = shown !== null && currentRef.current() && client.isCurrent(shown.frame) && shown.frame.mode === 'original-download';
   return <section className="native-scene-drawing" role="dialog" aria-modal="true"
     aria-label={sheet.title} onKeyDown={keys}>
-    <header><div><ExampleLabel /><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
+    <header><div><ExampleLabel /><h3>{sheet.title}</h3><p>Historical drawing{pdfShown ? '' : ` · reference PDF page ${sheet.pdfPage}`}</p></div>
       <button ref={closer} type="button" className="icon-btn" aria-label="Close drawing" onClick={event => {
         stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); deliberateClose.current = true; onClose();
       }}><Icon name="close" size={18} /></button></header>

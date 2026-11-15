@@ -71,10 +71,20 @@ test('head movement before writing and failed originating runs remain explicit',
   assert.equal((await publishOrigin({ api, context, expectedPrNumber: 7 })).status, 'skipped');
   assert.equal(state.writes.length, 0);
   const other = fakeOriginApi();
-  other.state.run.conclusion = 'cancelled';
+  other.state.run.conclusion = 'failure';
   other.api.downloadArtifact = async () => { throw new Error('Must not read a failed run artifact'); };
   const result = await publishOrigin({ api: other.api, context, expectedPrNumber: 7 });
   assert.equal(result.status, 'created');
   assert.equal(result.failed, true);
   assert(result.markdown.includes('Originating workflow failed'));
+});
+test('a cancelled originating run is skipped without a comment or a failed report', async () => {
+  const { api, state } = fakeOriginApi();
+  state.run.conclusion = 'cancelled';
+  api.downloadArtifact = async () => { throw new Error('Must not read a cancelled run artifact'); };
+  const result = await publishOrigin({ api, context, expectedPrNumber: 7 });
+  assert.equal(result.status, 'skipped');
+  assert.equal(result.reason, 'cancelled-run');
+  assert.equal(result.failed, undefined);
+  assert.equal(state.writes.length, 0);
 });

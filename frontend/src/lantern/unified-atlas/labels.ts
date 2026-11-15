@@ -59,6 +59,12 @@ export function atlasLevelName(model: AtlasModel, id: string, scope = false): st
   return `${atlasLevelNames(model).get(id)!}${scope ? `, ${atlasBuildingName(model, level.buildingId)}` : ''}`;
 }
 
+/** A floor named within a chosen building: the building is added only when
+ * there are several with floors and this floor is not in the chosen one. */
+export function atlasScopedLevelName(model: AtlasModel, id: string, buildingId: string | null): string {
+  return atlasLevelName(model, id, model.floorBuildings.length > 1 && model.levelsById.get(id)!.buildingId !== buildingId);
+}
+
 /** Final display strings that still collide get a source-order suffix on every member. */
 function distinguish(names: Map<string, string>, keys: readonly string[], suffix: (at: number) => string) {
   if (new Set(keys.map(key => names.get(key))).size !== keys.length)

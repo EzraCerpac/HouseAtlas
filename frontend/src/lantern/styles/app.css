@@ -428,6 +428,14 @@
   .lantern-host .atlas-lens-body { padding: 12px 14px 24px; }
 }
 
+/* Narrow beside an open record: the map keeps the height and the lens folds
+   to its head, Expand and Close still at hand. */
+@container atlas-sheet (max-width: 899px) and (min-height: 440px) {
+  .lantern-host .atlas-workspace.has-lens.is-folded { grid-template-rows: minmax(0, 1fr) auto; }
+  .lantern-host .atlas-workspace.is-folded .atlas-lens-body { display: none; }
+  .lantern-host .atlas-workspace.is-folded .atlas-lens-head { border-bottom: 0; }
+}
+
 /* Short sheets (a phone on its side, a low window): a band over the lens
    would leave the lens no height, so lens and map stand side by side, and
    read wide the inset stands beside the lens above Show map. */

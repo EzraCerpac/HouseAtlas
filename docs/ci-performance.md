@@ -191,6 +191,10 @@ current open PR state, then resolves actual commit-tree hashes. Fork events with
 an empty run association can use only a unique exact API match for head commit,
 head repository, head branch and target repository. Ambiguity or a stale run is
 an explicit job-summary skip; artifact content never chooses the destination PR.
+A cancelled originating run is skipped the same way (the measurement workflow cancels
+superseded runs per PR); it writes no comment and does not fail the publisher job. That job
+exits non-zero only when the report is flagged failed: a breached budget or measurement,
+an invalid artifact, or an originating run that failed or timed out. Its log says so.
 
 The artifact must have the exact run/attempt name, originate in that run/head,
 be unexpired and be at most 256 KiB. An isolated Python standard-library reader
