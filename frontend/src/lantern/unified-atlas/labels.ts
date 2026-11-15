@@ -65,6 +65,17 @@ export function atlasScopedLevelName(model: AtlasModel, id: string, buildingId: 
   return atlasLevelName(model, id, model.floorBuildings.length > 1 && model.levelsById.get(id)!.buildingId !== buildingId);
 }
 
+/** Names for the rooms drawn together in 3D: a name drawn on more than one floor adds
+ * that room's own floor name; a name on one floor stays bare, so namesakes on one
+ * floor are never given an invented distinction. */
+export function drawnRoomNames(model: AtlasModel, keys: Iterable<string>, buildingId: string | null, qualify = true): ReadonlyMap<string, string> {
+  const name = (key: string) => model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
+  const rows = [...keys], floors = new Map<string, Set<string>>();
+  if (qualify) for (const key of rows) floors.set(name(key), (floors.get(name(key)) ?? new Set()).add(model.occurrencesById.get(key)!.levelId));
+  return new Map(rows.map(key => [key, (floors.get(name(key))?.size ?? 0) > 1
+    ? `${name(key)} · ${atlasScopedLevelName(model, model.occurrencesById.get(key)!.levelId, buildingId)}` : name(key)]));
+}
+
 /** Final display strings that still collide get a source-order suffix on every member. */
 function distinguish(names: Map<string, string>, keys: readonly string[], suffix: (at: number) => string) {
   if (new Set(keys.map(key => names.get(key))).size !== keys.length)

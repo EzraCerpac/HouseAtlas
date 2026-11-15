@@ -150,17 +150,18 @@ try {
     const camera = shell.locator(compact ? '.ua-menu-camera' : '.ua-tools > .ctrl-group');
     await camera.getByRole('button', { name: 'Zoom in', exact: true }).click();
     await frames(page);
-    await page.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
-    await camera.getByRole('button', { name: 'Fit view', exact: true }).click();
-    await frames(page);
-    await page.waitForFunction(() => window.syntheticAtlasDrawCalls > 0);
     if (compact) {
+      // The phone's menu keeps zoom; Fit view sits in the bottom dock, so close the menu first.
       await atlas.keyboard.press('Escape');
       assert.equal(await menuButton.getAttribute('aria-expanded'), 'false');
       assert.equal(await menuButton.evaluate(node => document.activeElement === node), true);
       await shell.locator(`[id="${await menuButton.getAttribute('aria-controls')}"]`).waitFor({ state: 'hidden' });
       await frames(page);
     }
+    await page.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
+    await (compact ? shell.locator('.ua-dock') : camera).getByRole('button', { name: 'Fit view', exact: true }).click();
+    await frames(page);
+    await page.waitForFunction(() => window.syntheticAtlasDrawCalls > 0);
   };
   const atlasFacts = () => atlas.evaluate(() => {
     const text = selector => document.querySelector(selector)?.textContent?.trim() ?? null;

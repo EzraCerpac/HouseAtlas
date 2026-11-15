@@ -25,8 +25,8 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
-  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, atlasScopedLevelName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
+import { atlasLevelName, countClearedLabelY, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
+  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
@@ -866,17 +866,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // Room controls follow what a tap would pick: rooms revealed by the eased
   // section in 3D, the target floor's plan once the camera has tipped into Plan.
   const live = planBlend >= .5 ? presentation.pickable : shown.pickable;
-  // In 3D of several floors, a name shown on more than one floor adds its floor;
-  // unique names stay bare.
-  const labelTexts = useMemo(() => {
-    const name = (key: string) => model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
-    const floors = new Map<string, Set<string>>();
-    if (!plan && state.levelId === null) for (const key of live) floors.set(name(key), (floors.get(name(key)) ?? new Set()).add(model.occurrencesById.get(key)!.levelId));
-    return new Map([...live].map(key => {
-      const levelId = model.occurrencesById.get(key)!.levelId;
-      return [key, (floors.get(name(key))?.size ?? 0) > 1 ? `${name(key)} · ${displayLevelLabel(model, levelId) ?? atlasScopedLevelName(model, levelId, state.buildingId)}` : name(key)];
-    }));
-  }, [live, model, plan, state.levelId, state.buildingId]);
+  // In 3D, a name drawn on more than one floor adds that room's own floor, selected
+  // floor or not; unique names stay bare, and a plan shows bare names.
+  const labelTexts = useMemo(() => drawnRoomNames(model, live, plan ? null : state.buildingId, !plan), [live, model, plan, state.buildingId]);
   const markers = useMemo(() => {
     const rows: StageMarker[] = [];
     const spread = active.length > 1;
