@@ -1206,6 +1206,16 @@
 
 /* Upkeep timeline */
 
+/* Empty groups, reference date and cache state: one line under the note. */
+.lantern-host .upkeep-status {
+  margin: 6px 0 0;
+}
+
+.lantern-host .tally .tally-asof {
+  align-self: center;
+  font-size: var(--fs-xs);
+}
+
 .lantern-host .tl-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
@@ -2400,6 +2410,11 @@
   .lantern-host .changes-grid,
   .lantern-host .preview-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, the groups' own bottom margin separates the columns. */
+  .lantern-host .tl-columns {
+    row-gap: 0;
   }
 }
 

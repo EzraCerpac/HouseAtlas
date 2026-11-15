@@ -66,17 +66,16 @@ export function UpkeepView() {
   const emptyPhrases = empty.map(title => emptyText[title]!);
   const emptyLine = empty.length === groups.length ? 'No tasks.'
     : `Nothing ${emptyPhrases.length > 1 ? `${emptyPhrases.slice(0, -1).join(', ')}, or ${emptyPhrases.at(-1)}` : emptyPhrases[0]}.`;
-  const status = [sharedCache !== undefined && `Source cache: ${sharedCache} for every task`, referenceDayLabel(house.displayNow) !== undefined && `Dates relative to ${referenceDayLabel(house.displayNow)}`].filter(Boolean).join(' · ');
+  // Cache state, reference date and the empty groups share one status line.
+  const status = [empty.length > 0 && emptyLine.slice(0, -1), referenceDayLabel(house.displayNow) !== undefined && `Dates relative to ${referenceDayLabel(house.displayNow)}`, sharedCache !== undefined && `Source cache: ${sharedCache} for every task`].filter(Boolean).join(' · ');
   return (
     <div className="view">
       <header className="view-head">
         <h1>Upkeep</h1>
-        <p>Maintenance records for {house.name}.</p>
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
       <TaskWriteNote tasks={house.tasks} />
-      {status && <p className="body-text muted">{status}.</p>}
-      {empty.length > 0 && <p className="body-text muted">{emptyLine}</p>}
+      {status && <p className="fine upkeep-status">{status}.</p>}
       <div className="tl-columns">
         <div>
           <Group title="Overdue" tasks={overdue} tone="overdue" dateOf={(t) => t.due} now={house.displayNow} sharedCache={sharedCache} />

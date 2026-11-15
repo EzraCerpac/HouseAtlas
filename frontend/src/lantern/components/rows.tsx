@@ -83,7 +83,8 @@ export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTar
           {showTarget && <span>{nameOf(house, task.targetId)}</span>}
         </span>
       </span>
-      {st !== 'done' && (
+      {/* When Mark done is unavailable, the list's note says why once instead of a disabled button per row. */}
+      {st !== 'done' && (can.ok || pending) && (
         <button
           type="button"
           className="btn btn-small"
