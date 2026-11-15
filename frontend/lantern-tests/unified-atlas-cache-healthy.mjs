@@ -628,7 +628,7 @@ console.log('Unified Atlas cache healthy checks passed.');
   };
   const token = Symbol.for('houseatlas.cache-presentation.synthetic');
   const jsx = dataURL('export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx;');
-  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0, notes = [], frames = 0, parsedStore = null;
+  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0, notes = [], frames = 0, parsedStore = null, house = Promise.resolve();
   const depsEqual = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
   const memo = (make, deps) => {
     const i = cursor++, previous = slots[i];
@@ -658,7 +658,7 @@ console.log('Unified Atlas cache healthy checks passed.');
     bindAtlasModel: (scene, glb, displayConfig) => { if (glb.unbindable) throw new Error('Generated copy does not bind'); return { scene, displayConfig, glb }; },
     loadStandardGlb: async () => { parses++; return { parsed: parses, work: { triangles: 1 } }; },
     // Keeping a parsed copy waits for the first frame and two more frames.
-    firstHouseDrawn: Promise.resolve(), afterNextFrame: async () => { frames++; }, PARSED_LOOKUP_MS: 5,
+    firstHouseDrawn: { then: (drawn, failed) => house.then(drawn, failed) }, afterNextFrame: async () => { frames++; }, PARSED_LOOKUP_MS: 5,
     // The ?render-probe=load ledger: which path's model reached the stage first.
     noteLoadStep: step => notes.push(step),
     noteFirstModel: (model, parseMs, savedReadMs, parsedCopy) => {
@@ -789,12 +789,22 @@ console.log('Unified Atlas cache healthy checks passed.');
     unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
     render(); cacheRead.resolve(copy); await settle(); await settle();
     assert.equal(parses, 3, 'a copy over the upload budget is not drawn; the parse decides');
+    // An open abandoned before the first house frame keeps nothing, even when a later frame is drawn.
+    const housed = deferred(); house = housed.promise;
+    keptRows.push([scene.model.sha256, 1, 'generated-loader-build', { unbindable: true, work: { triangles: 1 } }]);
+    const rowsBefore = keptRows.length;
+    unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle(); await settle();
+    assert.equal(parses, 4, 'the abandoned open parsed (no usable copy)');
+    unmount(); housed.resolve(); await settle(); await settle();
+    assert.equal(keptRows.length, rowsBefore, 'an abandoned open writes nothing after a later house frame');
+    house = Promise.resolve();
     // A lookup that never settles holds the parse up only until its deadline.
     parsedStore = { read: () => new Promise(() => {}), keep() {} };
     unmount(); notes = []; selection = select(); cacheRead = deferred(); freshRead = deferred();
-    render(); cacheRead.resolve(copy); await settle(); assert.equal(parses, 3, 'waiting on the stalled lookup');
+    render(); cacheRead.resolve(copy); await settle(); assert.equal(parses, 4, 'waiting on the stalled lookup');
     await new Promise(resolve => setTimeout(resolve, 20)); await settle();
-    assert.equal(parses, 4, 'a stalled lookup is passed over and the bytes are parsed');
+    assert.equal(parses, 5, 'a stalled lookup is passed over and the bytes are parsed');
     assert.equal(render().type, hooks.AtlasStage); assert.deepEqual(notes, ['home', 'saved']);
     parsedStore = null;
   } finally {
@@ -803,7 +813,7 @@ console.log('Unified Atlas cache healthy checks passed.');
       if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
     }
   }
-  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity and parsed copy keep/use/refusal/stalled lookup passed (synthetic hooks; no DOM)');
+  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity and parsed copy keep/use/refusal/abandoned open/stalled lookup passed (synthetic hooks; no DOM)');
 }
 
 // The ?render-probe=load readout's text from generated ledgers and resource timing rows.
@@ -882,9 +892,29 @@ console.log('Unified Atlas cache healthy checks passed.');
   await clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
   before.keep(sha, 1234, build, glb); await flush();
   assert.equal(await openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'a store opened before sign-out keeps nothing after it');
+  // Two pages share the database but not their module state. A page whose
+  // keep is still waiting when another page signs out writes nothing, and a
+  // store it opened before that sign-out reads nothing afterwards.
+  {
+    const parsedSource = await sourceURL('../src/lantern/unified-atlas/parsed-store.ts', { '../canonical-ifc/geometry': geometryForStore });
+    const pageA = await import(parsedSource + '#page-a'), pageB = await import(parsedSource + '#page-b');
+    assert.notEqual(pageA, pageB, 'two independent page instances');
+    let release; const waiting = { promise: new Promise(resolve => { release = resolve; }), resolve: value => release(value) };
+    const slow = { indexedDB: createSyntheticIndexedDB(disk), storage: { estimate: () => waiting.promise } };
+    const early = pageB.openParsedStore(ownerA, host()); pageB.openParsedStore(ownerA, host()).keep(sha, 1234, build, glb);
+    const pendingKeep = pageB.openParsedStore(ownerA, slow); await flush();
+    pendingKeep.keep(sha, 1234, build, glb); await flush();
+    assert.ok(await early.read(sha, 1234, build), 'page B kept a copy before the sign-out');
+    await pageA.clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+    waiting.resolve(room); await flush();
+    assert.equal(await pageA.openParsedStore(ownerA, host()).read(sha, 1234, build), null, 'page B\'s waiting keep wrote nothing after page A\'s sign-out');
+    pageB.openParsedStore(ownerA, host()).keep(sha, 1234, build, glb); await flush();
+    assert.equal(await early.read(sha, 1234, build), null, 'a store page B opened before the sign-out reads nothing after it');
+    await pageA.clearParsedStore({ indexedDB: createSyntheticIndexedDB(disk) });
+  }
   // The readout says when the first model came from this copy.
   const { formatLoadReadout } = await import(await sourceURL('../src/lantern/canonical-ifc/load-readout.ts'));
   assert.equal(formatLoadReadout({ steps: { home: 1200, house: 6300 }, model: 'saved', savedReadMs: 800, parseMs: 900, parsedCopy: true, buildMs: 2700, backend: 'webgpu' }, []).split('\n')[2],
     'Saved copy read 0.8 s · kept parse 0.9 s · build 2.7 s · WebGPU');
-  console.log('parsed copy: survives the page; digest/length/loader/actor/home misses; one copy; quota headroom; sign-out incl. keep in flight and later keep (synthetic IndexedDB)');
+  console.log('parsed copy: survives the page; digest/length/loader/actor/home misses; one copy; quota headroom; sign-out incl. keep in flight, later keep and another page waiting to keep (synthetic IndexedDB)');
 }

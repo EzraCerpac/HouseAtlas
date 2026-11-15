@@ -9,6 +9,7 @@ import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { DETAIL_GLB_LIMITS, GlbFormatError, type GlbAdmission } from '../canonical-ifc/glb-preflight';
+import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import { firstHouseDrawn, noteFirstModel, noteLoadStep } from '../canonical-ifc/load-ledger';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
 import { afterNextFrame } from '../canonical-ifc/after-next-frame';
@@ -217,7 +218,15 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       const glb = await loadStandardGlb(read.model, 'atlas', signal, admit, { embeddedPngMaterials: true });
       signal.throwIfAborted();
       // Copying it into storage holds this thread for a while, so it waits until the first frame is on screen.
-      if (store && LOADER_BUILD !== null) void firstHouseDrawn.then(() => afterNextFrame()).then(() => afterNextFrame()).then(() => store.keep(sha256, bytes, LOADER_BUILD, glb), () => undefined);
+      // An open abandoned before then lets go of the model and keeps nothing.
+      if (store && LOADER_BUILD !== null) {
+        let pending: StandardGlb | null = glb;
+        const release = () => { pending = null; };
+        signal.addEventListener('abort', release, { once: true });
+        void firstHouseDrawn.then(() => afterNextFrame(signal)).then(() => afterNextFrame(signal)).then(() => {
+          if (pending && !signal.aborted) store.keep(sha256, bytes, LOADER_BUILD, pending);
+        }, () => undefined).finally(() => { release(); signal.removeEventListener('abort', release); });
+      }
       return { model: bindAtlasModel(read.scene, glb, policy), parsedCopy: false };
     };
     // Stale while revalidate: this device's last verified copy of the same

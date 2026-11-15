@@ -1349,10 +1349,14 @@ and obsolete selection completion.
 The same seam checks the parsed copy (`parsed-store.ts`): the first parse is
 kept only two frames after the first house frame, the next open draws the kept
 copy with no parse, and a kept copy that does not bind or exceeds the upload
-budget is parsed again and replaced. Over the synthetic IndexedDB disk, the
+budget is parsed again and replaced, and an open abandoned before the first
+house frame writes nothing when a later frame is drawn. Over the synthetic IndexedDB disk, the
 store keeps one copy across pages, misses on another digest, length, loader
 build, actor or home, writes nothing without quota headroom or an estimate, and
-sign-out removes it, including a keep already under way.
+sign-out removes it, including a keep already under way. Two independent page
+instances of the store share the disk: a keep still waiting in one page writes
+nothing after the other page signs out, and a store opened before that sign-out
+reads nothing after it.
 The seam does not mount `AtlasStage` or a dialog;
 it does not execute camera state, native focus, Escape/IME or browser layout.
 Those deferred checks remain in #292; the existing compact-layer dock case

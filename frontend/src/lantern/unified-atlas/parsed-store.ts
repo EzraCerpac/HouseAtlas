@@ -30,9 +30,14 @@ const browserHost = (): ParsedStoreHost => ({
   storage: typeof navigator === 'undefined' ? undefined : navigator.storage,
 });
 
-// Bumped by every removal, so a write that was already under way does not bring a copy back.
-let generation = 0;
-async function inTable<T>(factory: IDBFactory, mode: IDBTransactionMode, act: (table: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function ask<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('Parsed copy request failed'));
+  });
+}
+/** One transaction over the store's single table; `body` may issue several requests. */
+async function inTable<T>(factory: IDBFactory, mode: IDBTransactionMode, body: (table: IDBObjectStore) => Promise<T>): Promise<T> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = factory.open(PARSED_STORE_NAME, 1);
     request.onupgradeneeded = () => request.result.createObjectStore(TABLE, { keyPath: 'slot' });
@@ -41,22 +46,40 @@ async function inTable<T>(factory: IDBFactory, mode: IDBTransactionMode, act: (t
   });
   try {
     return await new Promise<T>((resolve, reject) => {
-      const transaction = db.transaction(TABLE, mode), request = act(transaction.objectStore(TABLE));
-      transaction.oncomplete = () => resolve(request.result);
-      transaction.onabort = () => reject(transaction.error);
+      const transaction = db.transaction(TABLE, mode);
+      let value: T;
+      transaction.oncomplete = () => resolve(value);
+      transaction.onabort = () => reject(transaction.error ?? new Error('Parsed copy transaction aborted'));
+      body(transaction.objectStore(TABLE)).then(result => { value = result; }, () => {
+        try { transaction.abort(); } catch { /* Already finished. */ }
+      });
     });
   } finally { db.close(); }
 }
+// A durable generation, as in the verified byte cache (native-geometry-scan-cache.ts):
+// a handle learns it when opened, every read and write checks it in the same
+// transaction, and removal rotates it together with the deletion. A handle opened
+// before a sign-out, in this page or another, can then neither read nor write.
+const GENERATION = 'generation';
+async function generationOf(table: IDBObjectStore): Promise<string | null> {
+  const row = await ask(table.get(GENERATION)) as { value?: unknown } | undefined;
+  return typeof row?.value === 'string' ? row.value : null;
+}
 
-/** The store for one signed-in actor and home. A removal ends it: nothing it
- * keeps afterwards, or had under way, is written or left behind. */
+/** The store for one signed-in actor and home, from the generation current when it is opened. */
 export function openParsedStore(owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string },
   host: ParsedStoreHost = browserHost()): ParsedStore {
-  const partition = JSON.stringify([owner.actorId, owner.workspaceId, owner.homeId]), opened = generation;
+  const partition = JSON.stringify([owner.actorId, owner.workspaceId, owner.homeId]), factory = host.indexedDB;
+  const opened: Promise<string | null> = factory ? inTable(factory, 'readwrite', async table => {
+    const current = await generationOf(table);
+    if (current !== null) return current;
+    const value = crypto.randomUUID(); table.put({ slot: GENERATION, value }); return value;
+  }).catch(() => null) : Promise.resolve(null);
   return Object.freeze({
     async read(sha256: string, bytes: number, loader: string) {
-      if (!host.indexedDB) return null;
-      const row: unknown = await inTable(host.indexedDB, 'readonly', table => table.get(SLOT));
+      const expected = await opened;
+      if (!factory || expected === null) return null;
+      const row: unknown = await inTable(factory, 'readonly', async table => await generationOf(table) === expected ? ask(table.get(SLOT)) : undefined);
       if (!row || typeof row !== 'object') return null;
       const { owner: stored, sha256: digest, bytes: length, loader: build, glb } = row as Record<string, unknown>;
       if (stored !== partition || digest !== sha256 || length !== bytes || build !== loader || !glb || typeof glb !== 'object') return null;
@@ -64,22 +87,23 @@ export function openParsedStore(owner: { readonly actorId: string; readonly work
       return Array.isArray(drawn) && Array.isArray(meshes) && drawn.length === meshes.length && work && typeof work === 'object' ? glb as StandardGlb : null;
     },
     keep(sha256: string, bytes: number, loader: string, glb: StandardGlb) {
-      const factory = host.indexedDB;
-      if (!factory || opened !== generation) return;
+      if (!factory) return;
       const size = meshBuffers(glb.meshes).reduce((total, buffer) => total + buffer.byteLength, 0);
       void (async () => {
-        const estimate = await host.storage?.estimate?.();
-        if (estimate?.quota === undefined || estimate.usage === undefined
-          || estimate.quota - estimate.usage < size + PARSED_STORE_HEADROOM || opened !== generation) return;
-        await inTable(factory, 'readwrite', table => table.put({ slot: SLOT, owner: partition, sha256, bytes, loader, glb }));
-        if (opened !== generation) await inTable(factory, 'readwrite', table => table.clear());
+        const [expected, estimate] = await Promise.all([opened, host.storage?.estimate?.()]);
+        if (expected === null || estimate?.quota === undefined || estimate.usage === undefined
+          || estimate.quota - estimate.usage < size + PARSED_STORE_HEADROOM) return;
+        await inTable(factory, 'readwrite', async table => {
+          if (await generationOf(table) === expected) table.put({ slot: SLOT, owner: partition, sha256, bytes, loader, glb });
+        });
       })().catch(() => undefined);
     },
   });
 }
 
-/** Remove the stored copy: sign-out. */
+/** Remove the stored copy and end every handle opened before: sign-out. */
 export async function clearParsedStore(host: ParsedStoreHost = browserHost()): Promise<void> {
-  ++generation;
-  if (host.indexedDB) await inTable(host.indexedDB, 'readwrite', table => table.clear());
+  if (host.indexedDB) await inTable(host.indexedDB, 'readwrite', async table => {
+    table.clear(); table.put({ slot: GENERATION, value: crypto.randomUUID() });
+  });
 }
