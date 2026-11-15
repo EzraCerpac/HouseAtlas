@@ -13,6 +13,12 @@ export function RecordedTime({ value, after }: { value: string; after?: string }
   return <><time dateTime={value}>{readable}</time>{after}<span className="fact-help"><code>{value}</code></span></>;
 }
 
+/** A recorded timestamp inside a sentence: readable, its exact recorded text as the title. */
+export function InlineTime({ value }: { value: string }) {
+  const readable = fmtDateTimeReadable(value);
+  return readable === 'Unknown' ? <>{readable}</> : <time dateTime={value} title={value}>{readable}</time>;
+}
+
 export const KIND_ICON: Record<EntityKind, string> = {
   space: 'rooms',
   item: 'box',

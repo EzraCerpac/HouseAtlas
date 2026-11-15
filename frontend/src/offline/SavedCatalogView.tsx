@@ -3,6 +3,7 @@ import { canonicalPack } from './manifest';
 import type { LosslessJson } from '../numeric/lossless-json';
 import type { SavedCatalogOriginal, SavedDocumentItem } from './saved-catalog';
 import type { SavedCatalogSelection } from './SavedAtlasHost';
+import { InlineTime } from '../lantern/components/ui';
 
 type OriginalState = Readonly<{ state: 'idle' | 'opening' | 'unavailable' }> |
   Readonly<{ state: 'verified'; url: string; original: Omit<SavedCatalogOriginal, 'bytes'> }>;
@@ -51,7 +52,7 @@ function Raw({ value }: { readonly value: LosslessJson }) {
   return <pre className="saved-catalog-raw">{canonicalPack(value)}</pre>;
 }
 function CapturedDate({ label, value }: { readonly label: string; readonly value: string | null }) {
-  return <div><dt>{label}</dt><dd>{value === null ? 'Unknown' : <time dateTime={value}>{value}</time>}</dd></div>;
+  return <div><dt>{label}</dt><dd>{value === null ? 'Unknown' : <InlineTime value={value} />}</dd></div>;
 }
 
 export function SavedCatalogView({ selection, section }: {
@@ -81,7 +82,7 @@ export function SavedCatalogView({ selection, section }: {
   };
   return <section className="saved-catalog" aria-label={section === 'inventory' ? 'Saved inventory' : 'Saved documents'}>
     <h2>{section === 'inventory' ? 'Inventory' : 'Documents'}</h2>
-    <p>Captured <time dateTime={catalog.capturedAt}>{catalog.capturedAt}</time>. Historical, read-only records; current native access is not established.</p>
+    <p>Captured <InlineTime value={catalog.capturedAt} />. Historical, read-only records; current native access is not established.</p>
     <details className="saved-catalog-coverage"><summary>Captured coverage: {data.state}; {data.items.length} {section === 'inventory' ? 'inventory records' : 'document metadata records'}</summary>
       <dl><div><dt>Pack</dt><dd>{catalog.completeness}</dd></div>
         <div><dt>Required section bytes complete</dt><dd>{data.requiredBytesComplete ? 'Yes, at capture' : 'No'}</dd></div>

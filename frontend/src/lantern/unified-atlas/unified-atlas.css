@@ -2956,6 +2956,15 @@
   }
 }
 
+/* Phones with room for it: Back also shows where it leads, beside the chip,
+   whose building name gives way first; narrower stages keep the arrow alone. */
+@container ua-stage (min-width: 380px) and (max-width: 720px) {
+  .lantern-host .ua-scope:has(> .ua-back) { max-width: calc(100% - 104px); }
+  .lantern-host .ua-scope:has(> .ua-back) > .ua-stack.is-chip { flex: 0 1 auto; }
+  .lantern-host .ua-scope .ua-back { width: auto; max-width: 40cqw; padding: 0 12px 0 8px; }
+  .lantern-host .ua-scope .ua-back > span { position: static; width: auto; height: auto; clip-path: none; text-overflow: ellipsis; }
+}
+
 /* Smallest phones: the chip shows the floor's mark and the glyph only, its
    full name kept as the control's name. */
 @container ua-stage (max-width: 330px) {
@@ -2988,7 +2997,7 @@
 
 @container ua-stage (max-width: 720px) {
   @media (pointer: coarse) {
-    .lantern-host .ua-scope .ua-back { width: 44px; }
+    .lantern-host .ua-scope .ua-back { min-width: 44px; }
     .lantern-host .ua-bottom .layer-chip { min-height: 44px; }
   }
 }
