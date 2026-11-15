@@ -303,17 +303,22 @@ The candidate must equal the previous configuration in every field except
 accepted. The command shares the origin rebind's fences: the server must be
 stopped (exclusive lease), the strict old receipt and both native database
 identities must match, the old receipt is kept as
-`server-state.previous.<old digest>.json`, a synced
-`server-state.rebind.pending` precedes the native transaction that rotates the
+`server-state.previous.<old digest>.json`, the complete pending receipt is
+written and synced as `server-state.rebind.staged`, then hard-linked to
+`server-state.rebind.pending` (never replacing one) and the staged name removed.
+That synced fence precedes the native transaction that rotates the
 Access epoch and clears every web session and login-rate row, and the receipt
 is then replaced atomically. Users sign in again afterwards.
 
 Interruptions leave one of these states. Re-running the same command, with
 the same two files, recovers each of them:
 
-- Before the pending receipt is synced: the old receipt is published, so the
-  previous configuration still serves. The rerun performs the full transition.
-- After the pending receipt is synced, before or after session revocation:
+- Before the pending receipt is linked, including a leftover
+  `server-state.rebind.staged`: the old receipt is published, so the previous
+  configuration still serves. A staged file never blocks `serve`; the rerun
+  removes it under the lease and performs the full transition.
+- After the pending receipt is linked (with or without the staged name still
+  present), before or after session revocation:
   `serve` and backup refuse both configurations. The rerun, under the lease,
   checks that the old receipt is still published, that the retained backup is
   byte-identical to it, and that the pending bytes are exactly the new receipt
@@ -325,7 +330,9 @@ the same two files, recovers each of them:
 
 Any other pending receipt (another pair, the reverse direction, or one written
 by `rebind-origin`) is never removed and stays refused for reviewed recovery.
-`rebind-origin` keeps its existing behaviour and has no rerun recovery.
+`rebind-origin` shares the staged-then-linked fence publication, so it never
+leaves an incomplete fence either; otherwise it keeps its existing behaviour and
+has no rerun recovery.
 
 Activation:
 

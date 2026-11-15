@@ -833,6 +833,8 @@ fn resume_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<boo
     let lease = ServerLease::acquire(previous, false)?;
     super::receipt_compatibility::require_no_pending(previous)?;
     let directory = &previous.data_directory;
+    remove_staged(&directory.join(STAGED))?;
+    sync(&lease.directory)?;
     let current = read_selected_file(&directory.join("server-state.json"), 16 * 1024, true)?;
     let state: State = serde_json::from_slice(&current)?;
     let with_digest = |digest: String| {
@@ -868,6 +870,18 @@ fn resume_commands(previous: &ServerConfig, config: &ServerConfig) -> Result<boo
     Ok(false)
 }
 
+const STAGED: &str = "server-state.rebind.staged";
+
+/// Withdraw an unpublished staged fence. Callers hold the exclusive lease.
+fn remove_staged(path: &Path) -> Result<(), Failure> {
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(meta) if meta.is_file() => Ok(fs::remove_file(path)?),
+        Ok(_) => Err("Staged rebind receipt is not a regular file".into()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 /// Shared offline receipt transition. `check_selected` runs after native session
 /// revocation and before the pending receipt is published.
 fn rebind_receipt(
@@ -899,9 +913,19 @@ fn rebind_receipt(
     }
     sync(&lease.directory)?;
     let pending_path = config.data_directory.join("server-state.rebind.pending");
-    let mut pending = open_private(&pending_path, true, false)?;
+    // The fence appears only complete: stage and sync it, then hard-link it to
+    // the pending name (refused if a fence already exists). A staged leftover
+    // is never authoritative and is withdrawn under the lease.
+    let staged_path = config.data_directory.join(STAGED);
+    remove_staged(&staged_path)?;
+    let mut pending = open_private(&staged_path, true, false)?;
     pending.write_all(&bytes)?;
     sync(&pending)?;
+    fault("rebind-staged")?;
+    fs::hard_link(&staged_path, &pending_path)?;
+    fault("rebind-linked")?;
+    fs::remove_file(&staged_path)?;
+    sync(&lease.directory)?;
     fault("rebind-pending")?;
     // This actual native transaction rotates epoch and clears sessions/rates.
     // A later file error does not imply it rolled back.

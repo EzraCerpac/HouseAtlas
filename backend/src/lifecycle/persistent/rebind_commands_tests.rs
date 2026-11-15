@@ -284,7 +284,13 @@ fn foreign_pending_fence_blocks_both_configurations_and_is_never_removed() {
 
 #[test]
 fn rerunning_the_same_pair_recovers_every_interruption_point() {
-    for point in ["rebind-pending", "rebind-revoked", "rebind-published"] {
+    for point in [
+        "rebind-staged",
+        "rebind-linked",
+        "rebind-pending",
+        "rebind-revoked",
+        "rebind-published",
+    ] {
         let fixture = Fixture::new(false);
         let read_only = fixture.config.clone();
         let editor = fixture.editor_commands();
@@ -296,12 +302,23 @@ fn rerunning_the_same_pair_recovers_every_interruption_point() {
         super::ADOPTION_FAULT.with(|fault| fault.set(None));
         assert!(interrupted.contains(point), "{point}: {interrupted}");
         let sessions = access_counts(&access).1;
-        if point == "rebind-published" {
+        let staged = fixture.data("server-state.rebind.staged");
+        assert_eq!(
+            staged.exists(),
+            matches!(point, "rebind-staged" | "rebind-linked")
+        );
+        if point == "rebind-staged" {
+            // The fence was never published: the old configuration still serves.
+            assert_eq!(fixture.receipt(), original);
+            assert!(!fixture.data("server-state.rebind.pending").exists());
+            drop(reopen(&read_only).unwrap());
+            assert_eq!(access_counts(&access).1, 1);
+        } else if point == "rebind-published" {
             assert_eq!(sessions, 0, "{point}");
             assert_eq!(error(reopen(&read_only)), BINDING, "{point}");
         } else {
             // Both configurations are fenced; the old receipt is still published.
-            assert_eq!(sessions, i64::from(point == "rebind-pending"), "{point}");
+            assert_eq!(sessions, i64::from(point != "rebind-revoked"), "{point}");
             assert_eq!(fixture.receipt(), original, "{point}");
             assert_eq!(error(reopen(&read_only)), FENCED, "{point}");
             assert_eq!(error(reopen(&editor)), FENCED, "{point}");

@@ -1623,8 +1623,9 @@ disposable private folder:
   pending receipt this pair did not write blocks reopen under both
   configurations and both rebind directions, and stays in place.
 - `rerunning_the_same_pair_recovers_every_interruption_point`: with test-only
-  faults after the pending receipt, after session revocation and after
-  publication, the reverse pair is refused while pending, and rerunning the same
+  faults after the staged fence is synced, after it is linked, after the pending
+  receipt is published, after session revocation and after publication (the old
+  configuration still serves while only the staged file exists), the reverse pair is refused while pending, and rerunning the same
   pair ends with only the new configuration serving and its sessions cleared; a
   further rerun is a no-op.
 - `published_receipt_without_this_pairs_backup_is_refused`: a published new
