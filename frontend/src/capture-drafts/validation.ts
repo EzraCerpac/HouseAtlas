@@ -94,7 +94,11 @@ export class DraftLimitError extends RangeError {
   readonly limit: 'count' | 'total';
   constructor(limit: 'count' | 'total') { super(`Local draft ${limit} limit reached`); this.name = 'DraftLimitError'; this.limit = limit; }
 }
-export async function digest(blob: Blob): Promise<string> {
-  const bytes = await blob.arrayBuffer();
+/** The browser aborted the local save twice with a non-quota blob-write error; nothing was stored or sent. */
+export class DraftWriteError extends Error {
+  constructor() { super('Local draft file could not be stored by this browser'); this.name = 'DraftWriteError'; }
+}
+export async function digest(data: Blob | ArrayBuffer): Promise<string> {
+  const bytes = data instanceof Blob ? await data.arrayBuffer() : data;
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
 }

@@ -67,7 +67,7 @@ offline peer composition are described in [Media archive source](media-policy-ar
 
 Without a subcommand, the binary requires explicit disposable settings, creates
 private scratch state under `/tmp` and binds TLS only to IPv4 loopback. The
-`initialize`, `serve` and `rebind-origin` modes instead read an explicit
+`initialize`, `serve`, `rebind-origin` and `rebind-commands` modes instead read an explicit
 persistent configuration and listen address
 ([persistent server](../operations/persistent-server.md)); `backup`,
 `restore-check`, `upgrade-state-receipt` and `rollback-state-receipt` are
