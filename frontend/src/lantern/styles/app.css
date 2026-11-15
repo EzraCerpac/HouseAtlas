@@ -1901,6 +1901,7 @@
 @media (max-width: 759px) {
   .lantern-host .palette-try .chip-btn {
     min-height: 44px;
+    min-width: 44px;
   }
 }
 
