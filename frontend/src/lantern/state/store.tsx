@@ -99,6 +99,8 @@ export type Action =
 
 export interface LanternActions {
   reload: () => Promise<boolean>;
+  /** When this browser received the shown view (its own clock, epoch ms); not a source date. */
+  loadedAt?: number;
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
   /** Local retained-view filter only; never a read, grant or archive mutation. */
