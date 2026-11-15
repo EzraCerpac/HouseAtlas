@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit is advisory. The ordinary CI workflows remain the merge gate;
+# CodeRabbit does not run this project's tests or builds.
+language: "en-US"
+tone_instructions: "Terse and factual. Report only defects, missed repository rules and unsupported claims. No praise, no filler."
+
+reviews:
+  profile: "chill"
+  # Never touch PR titles or bodies: bodies carry a required disclosure note.
+  high_level_summary: false
+  poem: false
+  in_progress_fortune: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  auto_approvals:
+    enabled: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+  # One writer per checkout: CodeRabbit must not push commits to PR branches.
+  finishing_touches:
+    unit_tests:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+
+  path_filters:
+    - "!docs/publication/source-manifest.json"
+    - "!**/package-lock.json"
+    - "!**/Cargo.lock"
+    - "!backend/src/contracts/generated.rs"
+    - "!backend/src/contracts/generated_v2.rs"
+    - "!backend/src/contracts/stock/catalog-generated.rs"
+    - "!frontend/src/api/generated/**"
+    - "!packages/contracts/generated/**"
+    - "!contracts/electrical-data/generated.fixture.json"
+    - "!frontend/lantern-tests/offline-atlas-browser/generated-pack.ts"
+    - "!contracts/stock-wire3/native/homebox.swagger.json"
+    - "!frontend/licenses/**"
+    - "!frontend/lantern-reference/*.zip"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.glb"
+    - "!**/*.ifc"
+    - "!**/*.woff2"
+
+  path_instructions:
+    - path: "backend/**/*.rs"
+      instructions: |
+        Authority flows only through the existing Access, Store and StockService owners. Flag new bypasses, new listeners or providers, and tests that use real credentials, sockets, live providers or user data. Test fixtures must be synthetic and disposable. HomeBox fields stay read-only projections; unknowns, source dates and uncertainty must be preserved, not defaulted.
+    - path: "{frontend,web}/src/**/*.{tsx,mjs}"
+      instructions: |
+        Interface text follows web/AGENTS.md: each string names data, an action, a state or a limitation; no slogans or decorative prose. Flag changes that drop accessible names, focus targets, scope, uncertainty, stale or freshness dates, access denial or file availability, or that imply fresh or available data without evidence.
+    - path: ".github/{workflows,actions}/**"
+      instructions: |
+        Every added or changed `run:` step, step `env` or step option in ordinary-core.yml, rust-react-ordinary.yml or .github/actions needs a matching row in tools/ci/lanes.json, and the generated table in docs/contributing/verification.md must stay in sync. Flag new secrets, permissions, network access or non-pinned actions.
+    - path: "{backend/tests/**,**/*.test.mjs,**/test_*.py,frontend/*-tests/**}"
+      instructions: |
+        Tests run in isolated, disposable, synthetic environments with fake or local-only transports. Flag real credentials, live providers, network access beyond loopback, user data, or any test that adds a case to default CI without the explicit list and documentation the repository requires.
+    - path: "{docs/**,README.md,**/README.md,**/AGENTS.md}"
+      instructions: |
+        Flag private data: real hostnames, IP addresses, account names, emails, absolute home paths, secrets, and household content (addresses, inventories, photos, floorplans). Evidence claims must state exact source and scope and must not imply security, deployment or acceptance that was not checked.
+
+  pre_merge_checks:
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+    custom_checks:
+      - name: "PR text: disclosure and no closing keywords"
+        mode: "warning"
+        instructions: |
+          Pass/fail. (1) The title and description must not use a GitHub closing keyword (close, closes, closed, fix, fixes, fixed, resolve, resolves, resolved) followed by an issue or PR reference; references must use plain wording such as "References #123". (2) If the description carries an AI-agent attribution (for example a "Generated with" line), it must begin exactly with a GitHub NOTE alert whose second line says "<model name> is writing on behalf of <owner>." Descriptions without such attribution pass (2).
+      - name: "Changed CI run steps have lanes.json rows"
+        mode: "warning"
+        instructions: |
+          Pass/fail. If the diff adds, removes or changes a `run:` step, step env or step option (such as continue-on-error) in .github/workflows/ordinary-core.yml, .github/workflows/rust-react-ordinary.yml or .github/actions/**, the same diff must also change tools/ci/lanes.json accordingly. Workflows listed under outOfScopeWorkflows in lanes.json are exempt. Pass when no such step changed. Do not try to run check_lanes.py.
+      - name: "No private hostnames, paths or credentials"
+        mode: "warning"
+        instructions: |
+          Pass/fail on added lines only. Fail if the diff adds a real hostname or LAN/IP address, an absolute home-directory path of a real user, an account name or email, a token, key or password, or real household content (addresses, inventory, photos, floorplans). Obviously synthetic or placeholder values (example.invalid, 192.0.2.x, "fictional") pass.
+
+  tools:
+    clippy:
+      enabled: true
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    gitleaks:
+      enabled: true
+    # No ESLint or Biome configuration in this repository: default rules would not reflect its style.
+    eslint:
+      enabled: false
+    biome:
+      enabled: false
+    # Prose and workflow files follow repository-specific conventions; these default linters are noisy here.
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    yamllint:
+      enabled: false
+
+chat:
+  art: false
+
+knowledge_base:
+  # Stores nothing beyond this review: no learnings, issue or PR history retained.
+  opt_out: true
