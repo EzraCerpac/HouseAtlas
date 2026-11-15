@@ -68,11 +68,16 @@ function OverviewToggle({ expanded, onToggle }: { expanded: boolean; onToggle: (
 
 function HomePicker({ onClose }: { onClose: () => void }) {
   const { dispatch, projection } = useStore();
+  const homes = projection.view.homes;
+  // A list of one offers no choice; say so instead.
+  if (homes.length === 1) return <Modal title="Home" onClose={onClose}>
+    <p className="setting-static">No other home is available.</p>
+  </Modal>;
   return (
     <Modal title="Home" onClose={onClose}>
       <fieldset className="field radio-cards home-picker">
         <legend className="sr-only">Home</legend>
-        {projection.view.homes.map((home) => {
+        {homes.map((home) => {
           const id = JSON.stringify([home.workspaceId, home.homeId]);
           const selected = projection.view.scope.workspaceId === home.workspaceId && projection.view.scope.homeId === home.homeId;
           return (

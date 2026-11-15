@@ -1,4 +1,5 @@
 import { Component, Suspense, type ReactNode } from 'react';
+import { useStore } from './state/store';
 
 interface Props { readonly label: string; readonly children: ReactNode }
 
@@ -17,9 +18,18 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
   }
 }
 
+/** Holds the view's heading where the loaded view puts it, so nothing jumps. */
+function LoadingView({ label }: { readonly label: string }) {
+  const { house } = useStore();
+  return <section className="view" aria-label={label} aria-busy="true">
+    <header className="view-head"><h1>{label}</h1>
+      <p role="status" aria-live="polite">Loading {label} for {house.name}…</p></header>
+  </section>;
+}
+
 export function DeferredView({ label, children }: Props) {
   return <ViewBoundary label={label}>
-    <Suspense fallback={<div className="view" role="status" aria-live="polite" aria-busy="true">Loading {label}…</div>}>
+    <Suspense fallback={<LoadingView label={label} />}>
       {children}
     </Suspense>
   </ViewBoundary>;

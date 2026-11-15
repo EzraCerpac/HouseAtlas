@@ -157,8 +157,8 @@ export function SavedAtlasHost({ store: supplied, openLastCopy, explicit = false
   const compact = !explicit && !house && last !== null;
   const pill = compact
     ? live.reachable ? <a className="saved-live" href={LIVE_ENTRY}><Icon name="sync" size={16} />{waiting > 0 ? `Back online · Open live to sync ${changes}` : 'Back online · Open live'}</a>
-      : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite" title="Check connection">
-        <Icon name="wifi" size={16} />{live.checking ? 'Checking…' : `Offline${waiting > 0 ? ` · ${changes} waiting` : ''}`}</button>
+      : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite">
+        <Icon name="wifi" size={16} />{live.checking ? 'Checking connection…' : `Offline${waiting > 0 ? ` · ${changes} waiting` : ''} · Check connection`}</button>
     : live.reachable ? <a className="saved-live" href={LIVE_ENTRY}>{waiting > 0 ? `Connected · Open live to sync ${changes}` : 'Connected · Open live'}</a>
       : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite">
         {live.checking ? 'Checking connection…' : live.reachable === false ? `Offline${waiting > 0 ? ` · ${changes} waiting` : ''} · Check connection` : 'Check connection'}</button>;

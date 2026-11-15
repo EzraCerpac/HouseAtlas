@@ -11,6 +11,7 @@ import { SyncSettings } from '../../outbox/ui';
 import { useSourcePorts } from '../source-ports';
 import { BackupSettings } from './BackupSettings';
 import { Choice } from './Choice';
+import { fmtLocalClock } from './ui';
 
 export function SettingsContents() {
   const { state, dispatch, actions } = useStore();
@@ -41,9 +42,14 @@ export function SettingsContents() {
 
       <div className="field">
         <span className="field-label">Saved information</span>
-        <button type="button" className="btn" onClick={check} disabled={checking}>
-          {checking ? 'Reloading saved information…' : 'Reload saved information'}
-        </button>
+        <div className="reload-row">
+          <button type="button" className="btn" onClick={check} disabled={checking}>
+            {checking ? 'Reloading saved information…' : 'Reload saved information'}
+          </button>
+          {actions.loadedAt !== undefined && <span className="setting-static">
+            Last loaded <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
+          </span>}
+        </div>
         <p className="setting-static" role="status" aria-live="polite">
           {checkResult === 'success' ? 'Saved information reloaded.' : checkResult === 'failed' ? 'The reload did not succeed. Saved information has kept its previous date.' : null}
         </p>
