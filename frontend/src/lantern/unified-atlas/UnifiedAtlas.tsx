@@ -5,8 +5,6 @@ import {
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
-import { kindOf } from '../data/query';
-import type { Entry } from '../../app/types';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
@@ -45,7 +43,7 @@ import { NetworkStageConnections, networkRoomConnections } from './NetworkStageC
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
-import { Inspector, listedLevels, RoomList, type HomePlaces } from './AtlasInspector';
+import { Inspector, listedLevels, RoomList } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
@@ -134,8 +132,6 @@ export interface AtlasPresentationEnvironment {
    * replaced or withdrawn with that frame. Otherwise a current frame's own
    * projection for the selected group's ledger is used (only the example house supplies one). */
   readonly electricalData?: ElectricalTraceSource;
-  /** The loaded Home records for a selected room's reviewed home place; absent in the saved viewer. */
-  readonly homePlaces?: HomePlaces;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
@@ -148,41 +144,13 @@ export default function UnifiedAtlas(props: AtlasProps) {
   return props.environment ? <AtlasPresentation {...props} environment={props.environment} /> : <LiveAtlasPresentation {...props} />;
 }
 function LiveAtlasPresentation(props: AtlasProps) {
-  const { dispatch, actions, projection } = useStore(), reducedMotion = useReducedMotion();
-  // HomeBox parentage within one source collection, from the records already loaded (archive filter applied).
-  const homePlaces = useMemo<HomePlaces>(() => {
-    const source = (entry: Entry, id: string) => JSON.stringify([entry.source.sourceInstanceId, entry.source.collectionId, id]);
-    const children = new Map<string, { id: string; entry: Entry }[]>(), places: Entry[] = [];
-    for (const [id, entry] of projection.entries) {
-      const kind = kindOf(id);
-      if (kind === 'space') places.push(entry);
-      if ((kind === 'space' || kind === 'item') && entry.entity.parent) {
-        const key = source(entry, entry.entity.parent.id);
-        children.set(key, [...children.get(key) ?? [], { id, entry }]);
-      }
-    }
-    return {
-      find: nativePlaceId => {
-        const matched = places.filter(entry => entry.source.externalId === nativePlaceId);
-        if (matched.length !== 1) return null;
-        const place = matched[0]!, belongings: { id: string; name: string }[] = [], seen = new Set([place.key]), queue = [place];
-        for (let at = 0; at < queue.length; at++) for (const child of children.get(source(queue[at]!, queue[at]!.entity.id)) ?? []) {
-          if (seen.has(child.entry.key)) continue;
-          seen.add(child.entry.key);
-          if (child.entry.kind === 'place') queue.push(child.entry);
-          else belongings.push({ id: child.id, name: child.entry.entity.name });
-        }
-        return { name: place.entity.name, cacheStatus: place.cacheStatus, retrievedAt: place.retrievedAt, belongings };
-      },
-      open: id => dispatch({ type: 'select', sel: { kind: 'item', id } }),
-    };
-  }, [projection, dispatch]);
+  const { dispatch, actions } = useStore(), reducedMotion = useReducedMotion();
   // Open Network routes to the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
     openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
     ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}),
-    ...(props.lens ? { lens: props.lens } : {}), homePlaces }} />;
+    ...(props.lens ? { lens: props.lens } : {}) }} />;
 }
 
 /** While the room map is not open, the lens panel still says why the model's
@@ -1823,7 +1791,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
       openNetworkLens={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'network', reading: false }); } : undefined}
-      homePlaces={environment.homePlaces}
       open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

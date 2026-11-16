@@ -1741,37 +1741,6 @@
 .lantern-host .ua-contents-row.is-off > .icon,
 .lantern-host .ua-contents-row.is-off .ua-contents-name { color: var(--muted); }
 
-/* Belongings HomeBox records for the room's reviewed home place: each opens
-   its record; the copy's state and retrieval date close the card. */
-.lantern-host .ua-belongings ul { gap: 0; }
-
-.lantern-host .ua-belonging {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  padding: 0 6px;
-  margin-inline: -6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  font: 600 var(--fs-s)/1.3 var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.lantern-host .ua-belonging:hover { background: var(--ua-hover); }
-.lantern-host .ua-belonging > .icon { flex: none; color: var(--ink-2); }
-.lantern-host .ua-belongings-all { justify-self: start; }
-.lantern-host .ua-belongings-source { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
-
-/* Phones and touch: each belonging and Show all take a full 44 px target. */
-@media (max-width: 759px), (pointer: coarse) {
-  .lantern-host :is(.ua-belonging, .ua-belongings-all) { min-height: 44px; min-width: 44px; }
-}
-
 /* Outline spans: a disclosure, open while Measurements is on, named in the
    display face like the other sections and folding a long list away. */
 .lantern-host .ua-spans { display: grid; gap: 8px; }
