@@ -816,6 +816,25 @@ const labelInput = (id, polygon, text, width, tier = 'plain', anchor) => {
 };
 const labelOverlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
 
+test('two Plan names close together: the collision box is the drawn button, 44 px on touch and 32 px for a pointer', () => {
+  // Two fictional rooms whose name centres are 38 px apart.
+  const upper = labelRectangle(300, 200, 400, 238), lower = labelRectangle(300, 238, 400, 276), size = { width: 960, height: 640 };
+  const paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [upper, lower] }]);
+  const rows = height => [labelInput('generated-upper', upper, 'Pantry', 50), labelInput('generated-lower', lower, 'Larder', 50)]
+    .map(row => height === undefined ? row : { ...row, targetHeight: height });
+  for (const [coarse, height] of [[false, undefined], [false, api.labelHitHeight(false)], [true, api.labelHitHeight(true)]]) {
+    const placed = api.placePlanRoomLabels(rows(height), size, [], [], labelFrame, paper);
+    assert.equal(placed.length, coarse ? 1 : 2, coarse ? 'touch: one 44 px target; the other name is chosen from the Rooms list' : 'pointer: both 32 px targets fit');
+    const boxes = api.labelHitBoxes(placed, size, [], [], undefined, coarse);
+    assert.deepEqual([...boxes.keys()], placed, 'every drawn Plan name keeps its target');
+    for (const row of placed) {
+      assert.equal(row.plan.height, coarse ? 44 : 32); assert.equal(row.plan.box.b - row.plan.box.t, coarse ? 44 : 32);
+      assert.deepEqual(boxes.get(row), row.plan.box, 'the collision box is the drawn button');
+    }
+    for (const [i, a] of placed.entries()) for (const b of placed.slice(i + 1)) assert.equal(labelOverlap(a.plan.box, b.plan.box), false);
+  }
+});
+
 test('settled Plan keeps horizontal names and turns a fictional narrow name inside its own source outline', () => {
   const strip = labelRectangle(300, 240, 320, 360), spacious = labelRectangle(500, 220, 660, 380);
   const rows = [labelInput('syn-occ-hall', strip, 'Linen', 50), labelInput('syn-occ-living', spacious, 'Craft room', 76)];
