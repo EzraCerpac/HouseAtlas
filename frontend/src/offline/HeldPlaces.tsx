@@ -4,7 +4,6 @@ import type { OfflineCopyHandle, OfflineReadPort, OfflineViewSnapshotV1 } from '
 import { projectView } from '../lantern/adapters/read';
 import { StoreProvider, type LanternActions } from '../lantern/state/store';
 import { TopologyProvider } from '../lantern/topology/TopologyProvider';
-import { offlineMessage } from '../lantern/topology/BuildingSection';
 import { PlacesContent } from '../lantern/views/RoomsView';
 import { InlineTime } from '../lantern/components/ui';
 import { createHeldTopologyClient, decodeHeldTopology, type HeldTopologyV1 } from './held-topology';
@@ -43,7 +42,7 @@ export default function HeldPlaces({ read, handle, snapshot, signal }: {
   const projection = useMemo(() => projectView(heldReadyView(snapshot.data), { status: 'not-supplied' }, { status: 'unavailable' }), [snapshot]);
   const client = useMemo(() => typeof held === 'object' && held ? createHeldTopologyClient(held) : null, [held]);
   if (held === null) return <p role="status">Reading held building records…</p>;
-  if (held === 'missing') return <p role="status">{offlineMessage}</p>;
+  if (held === 'missing') return <p role="status">Offline: building records are not held in this saved copy. Connect and open live to read them.</p>;
   if (held === 'failed' || !client) return <p role="status">Held building records failed verification. Connect and open live to read them.</p>;
   return <>
     <p>Building records retrieved <InlineTime value={held.capturedAt} />.</p>
