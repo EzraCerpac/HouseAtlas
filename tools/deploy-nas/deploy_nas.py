@@ -53,6 +53,8 @@ MODEL_FLAGS = {
 REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json", "reviewed-room-links.json")
 NO_STORE = "private, no-store"
 IMMUTABLE = "public, max-age=31536000, immutable"
+TARGET_MARKER = ".deploy-nas-cargo-target"
+TARGET_MARKER_CONTENT = "deploy-nas Cargo artifacts only\n"
 
 
 class DeployError(RuntimeError):
@@ -851,14 +853,27 @@ class Deployer:
             raise DeployError("Cargo target directory must be absolute")
         target = real(target)
         checkout = Path(__file__).resolve().parents[2]
+        dedicated = real(cfg.ledger.parent / "cargo-target")
+        setup = real(cfg.setup_root)
+        protected = [real(live["frontend"]), real(live["binary"].parent), real(cfg.plist), real(cfg.smoke_template)]
+        protected += [real(live[k]) for k in ("data_dir", "server_config") if k in live]
         if (target == checkout or checkout in target.parents
                 or any((p / ".git").exists() for p in (target, *target.parents))
-                or any(p.name.startswith("houseatlas-main-") and p.name.endswith("-inputs") for p in (target, *target.parents))
-                or target == real(inp) or real(inp) in target.parents):
-            raise DeployError("Cargo target directory must be outside the checkout and per-install inputs")
+                or any(p.name.startswith("houseatlas-main-") for p in (target, *target.parents))
+                or (overlaps(target, setup) and target != dedicated)
+                or any(overlaps(target, p) for p in protected)
+                or any(p.parent == real(live["frontend"].parent) and p.name.startswith(
+                    ("frontend.before-", "frontend.next-", "frontend.rolled-back-", "frontend.restored-"))
+                       for p in (target, *target.parents))):
+            raise DeployError("Cargo target directory must be dedicated artifacts outside checkout, deploy state and frontend prune paths")
         try:
             target.mkdir(parents=True, exist_ok=True)
-        except OSError as error:
+            marker = target / TARGET_MARKER
+            if any(target.iterdir()) and (marker.is_symlink() or not marker.is_file()
+                                         or marker.read_text() != TARGET_MARKER_CONTENT):
+                raise DeployError("Cargo target directory must be empty or marked by deploy-nas as artifacts only")
+            marker.write_text(TARGET_MARKER_CONTENT)
+        except (OSError, UnicodeError) as error:
             raise DeployError(f"cannot create Cargo target directory {target}: {error}") from error
         self.say(f"  Cargo target: {target}")
         if (prev_inputs / "npm-cache").is_dir():

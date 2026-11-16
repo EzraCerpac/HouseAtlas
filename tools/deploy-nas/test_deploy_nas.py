@@ -757,6 +757,39 @@ class PersistentBuild(unittest.TestCase):
                 self.prepare()
         self.assertEqual(self.builds, [])
 
+    def test_deploy_state_targets_and_their_ancestors_or_children_are_refused(self):
+        install = self.cfg.setup_root / "houseatlas-main-aaaaaaa-old"
+        for target in (self.root, self.cfg.setup_root, install, install / "unused",
+                       self.cfg.ledger.parent, self.cfg.ledger.parent / "other",
+                       self.frontend, self.frontend / "unused", self.cfg.plist, self.cfg.smoke_template):
+            with self.subTest(target=target):
+                self.cfg.cargo_target_dir = target
+                with self.assertRaisesRegex(dn.DeployError, "dedicated artifacts"):
+                    self.prepare()
+        self.assertEqual(self.builds, [])
+        self.assertEqual((install / "candidate/houseatlas").read_text(), "old")
+
+    def test_nonempty_unmarked_target_is_preserved_and_empty_target_becomes_marked(self):
+        self.cfg.cargo_target_dir = self.root / "custom"
+        unrelated = write(self.cfg.cargo_target_dir / "keep", "unrelated")
+        with self.assertRaisesRegex(dn.DeployError, "empty or marked"):
+            self.prepare()
+        self.assertEqual(unrelated.read_text(), "unrelated")
+        self.assertFalse((self.cfg.cargo_target_dir / dn.TARGET_MARKER).exists())
+        unrelated.unlink()
+        self.prepare()
+        self.assertEqual((self.cfg.cargo_target_dir / dn.TARGET_MARKER).read_text(), dn.TARGET_MARKER_CONTENT)
+        self.prepare()  # marked, nonempty targets remain reusable
+
+    def test_frontend_prune_candidates_and_nested_targets_are_refused(self):
+        for name in ("frontend.before-cargo", "frontend.next-cargo", "frontend.rolled-back-cargo", "frontend.restored-cargo"):
+            for target in (self.frontend.parent / name, self.frontend.parent / name / "target"):
+                with self.subTest(target=target):
+                    self.cfg.cargo_target_dir = target
+                    with self.assertRaisesRegex(dn.DeployError, "frontend prune paths"):
+                        self.prepare()
+        self.assertEqual(self.builds, [])
+
     def test_config_and_cli_target_selection(self):
         config = write(self.root / "deploy.env", "\n".join([
             f"SETUP_ROOT={self.cfg.setup_root}", f"PLIST={self.cfg.plist}", "SERVICE_LABEL=synthetic",

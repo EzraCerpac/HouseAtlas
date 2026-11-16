@@ -128,6 +128,12 @@ or `CARGO_TARGET_DIR=<absolute-path>` in the deploy config file;
 the command option wins, and an inherited shell `CARGO_TARGET_DIR` is ignored.
 Keep the selected folder outside Git checkouts and all per-install inputs,
 and use it only with this deployment configuration so all builds share its lock.
+Except for the default dedicated folder, targets cannot overlap `SETUP_ROOT`;
+live binary/frontend, data/config paths and frontend prune paths are also refused.
+An existing target must be empty or contain the tool's `.deploy-nas-cargo-target` marker
+with its original contents; an empty or missing target is marked before use.
+An older unmarked cache must use a new empty dedicated folder instead;
+do not add the marker to an unrelated directory to bypass this check.
 Missing folders are created; creation or Cargo failures stop preparation without fallback.
 Every deploy still checks out the requested main commit and runs Cargo with `--locked`;
 Cargo fingerprints decide which artifacts can be reused.
@@ -146,6 +152,8 @@ the shared cache has no hard size cap and normal `prune` leaves it alone.
 For a clean build or to reclaim accumulated disk space,
 delete only the selected Cargo target folder while no deploy/build is running,
 then deploy normally.
+Check that it is the marked artifacts-only folder and contains no unrelated files;
+never store installation, recovery or other data inside it.
 Do this when diagnosing suspected cache corruption or when a build input Cargo
 cannot track has changed; ordinary commit changes need no manual clean.
 Installed binaries remain intact, but the next build is cold again.
