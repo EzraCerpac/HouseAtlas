@@ -3,7 +3,7 @@ import type { Claim, Doc, EntityKind, WriteStatus } from '../data/types';
 import { CLAIM_HELP, CLAIM_LABEL, KIND_LABEL, kindOf, nameOf } from '../data/query';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
-import { fmtShortDate, recordedTimeView } from '../data/time';
+import { fmtDate, recordedTimeView } from '../data/time';
 
 /** The recorded text of a time that could not be read, kept beside "Unknown". */
 function UnreadableTime({ value }: { value: string }) {
@@ -27,10 +27,10 @@ export function InlineTime({ value }: { value: string }) {
 }
 
 /** A time on this browser's clock, such as when it last loaded the shown
- * view, always with its day: "14 Nov, 20:53". */
+ * view, always with its full date: "14 Nov 2026, 20:53". */
 export function fmtLocalClock(at: number): string {
   const d = new Date(at), pad = (n: number) => String(n).padStart(2, '0');
-  return `${fmtShortDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${fmtDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export const KIND_ICON: Record<EntityKind, string> = {
