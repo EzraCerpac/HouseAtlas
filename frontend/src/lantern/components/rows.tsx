@@ -49,10 +49,12 @@ export function DocList({ docs, empty, showLinked }: { docs: Doc[]; empty?: stri
   );
 }
 
-/** `sharedCache` is a cache status the page already states once for every row. */
+/** A row names its own cache status only where it differs from the one the
+ * page states once (`sharedCache`) or, without one, the house-level HomeBox state. */
 export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTarget?: boolean | undefined; sharedCache?: string | undefined }) {
   const { dispatch, house, projection } = useStore();
   const entry = projection.entries.get(task.id);
+  const stated = sharedCache ?? projection.view.caches.find(cache => cache.owner === 'homebox')?.displayStatus;
   const select = useSelect();
   const can = useCanWrite('HomeBox');
   const st = dueState(task, house.displayNow);
@@ -78,7 +80,7 @@ export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTar
               {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtShortDate(task.due, house.displayNow)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
             </span>
           )}
-          {entry ? <><RecordStatus entry={entry} compact />{entry.cacheStatus !== sharedCache && <span>Source cache: {entry.cacheStatus}</span>}</>
+          {entry ? <><RecordStatus entry={entry} compact />{entry.cacheStatus !== stated && <span>HomeBox record: {entry.cacheStatus.replace(/-/g, ' ')}</span>}</>
             : <span>Source status not supplied</span>}
           {task.cost !== undefined && <span>Recorded cost {task.cost}, currency not recorded</span>}
           {showTarget && <span>{nameOf(house, task.targetId)}</span>}

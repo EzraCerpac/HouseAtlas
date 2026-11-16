@@ -123,8 +123,7 @@ function SyncList({ outbox }: { readonly outbox: Outbox }) {
 }
 
 export function SyncSheet({ outbox = getOutbox(), onClose }: { readonly outbox?: Outbox; readonly onClose: () => void }) {
-  return <Modal title="Changes on this device" onClose={onClose}
-    footer={<button type="button" className="btn btn-primary" onClick={onClose}>Done</button>}>
+  return <Modal title="Changes on this device" onClose={onClose}>
     <SyncList outbox={outbox} />
   </Modal>;
 }

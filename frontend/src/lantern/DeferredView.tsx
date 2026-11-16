@@ -37,7 +37,7 @@ export function UpkeepQualifiers() {
   const can = useCanWrite('HomeBox');
   const cache = useSharedTaskCache();
   const reference = referenceDayLabel(house.displayNow);
-  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `Task source cache: ${cache}`].filter(Boolean).join(' · ');
+  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `HomeBox tasks: ${cache.replace(/-/g, ' ')}`].filter(Boolean).join(' · ');
   return <>
     {dates && <p className="fine">{dates}</p>}
     {!can.ok && house.tasks.some(task => task.status !== 'done') && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}
@@ -55,8 +55,11 @@ function LoadingView({ label }: { readonly label: string }) {
   return <section className="view" aria-label={label} aria-busy="true">
     <header className="view-head"><h1>{label}</h1>
       {label === 'Library' && sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
-        {sections.slice(1).map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
+        {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
       {label === 'Upkeep' && <UpkeepQualifiers />}</header>
+    {/* Upkeep's row of group counts keeps its line, so the timeline does not drop when it arrives. */}
+    {label === 'Upkeep' && <ul className="upkeep-empty loading-rows loading-summary" aria-hidden="true">
+      {[72, 112, 150].map(width => <li key={width}>{'\u200b'}<b style={{ width }} /></li>)}</ul>}
     <div className={label === 'Changes' ? 'changes-grid' : undefined}>
       {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section' : 'loading-section'}>
         {title && <div className="section-head">{label === 'Changes' ? <h3>{title}</h3> : <h2>{title}</h2>}</div>}

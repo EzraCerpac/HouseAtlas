@@ -32,7 +32,7 @@ export function RealPreview() {
   // Shown under the actions so it reads with them; the attachment supplies nothing more.
   const availability = attachment.kind === 'external-link' ? href ? 'Unknown; HouseAtlas does not check external addresses' : 'No usable external address supplied'
     : href ? 'Access link supplied; validity checked on use' : opensHere ? 'Checked when opened; no separate download link supplied' : 'No download link issued';
-  return <Modal wide title={doc.title} kicker={<StorageTag doc={doc} />} onClose={close} footer={<button className="btn btn-primary" type="button" onClick={close}>Done</button>}>
+  return <Modal wide title={doc.title} kicker={<StorageTag doc={doc} />} onClose={close}>
     <div className={image ? 'preview-layout' : 'preview-layout preview-layout-stacked'}>
       {/* Without an image the actions sit in a compact row, not a preview-sized well. */}
       <div className={image ? 'preview-stage' : 'preview-stage preview-actions'}>
@@ -43,7 +43,7 @@ export function RealPreview() {
         {href ? <a className={opensHere ? 'btn' : 'btn btn-primary'} href={href} target="_blank" rel="noopener noreferrer">{attachment.kind === 'external-link' ? 'Open external link' : 'Download original'}</a> : !opensHere && <Note>File access is unavailable.</Note>}
         <p className="preview-availability"><span>Availability</span> {availability}</p>
       </div>
-      <aside className="preview-aside" aria-label="Provenance"><h3>Provenance</h3><dl className="facts">
+      <aside className="preview-aside" aria-label="Source details"><h3>Source details</h3><dl className="facts">
         <div><dt>Owner</dt><dd>HomeBox</dd></div>
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
         <div><dt>Attachment added</dt><dd>{doc.addedAt ? <><InlineTime value={doc.addedAt} />{` by ${doc.addedBy}`}</> : 'Date and actor not supplied'}</dd></div>
