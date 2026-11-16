@@ -14,8 +14,9 @@
 /* Beside a lens or as an inset the frame decides the height. */
 .lantern-host .atlas-workspace.has-lens .atlas-map > .ua-shell { min-height: 0; }
 
-/* A compact stage carries the other sources in its own menu. */
-.lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar > .atlas-source-details { display: none; }
+/* The stage carries the other sources in its own menu; read wide, its
+   controls are set aside and the lens row offers them again. */
+.lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-stage:not(.is-inset)) .atlas-lens-bar > .atlas-source-details { display: none; }
 
 /* On a phone the lens row gives the map its height: Rooms & places and
    Network open from the stage's menu, and an open lens closes itself. */
@@ -232,6 +233,11 @@
    legible over the pale floors and the dusk board alike. */
 .lantern-host .cifc-label .ua-label-chip { fill: var(--ua-panel); stroke: var(--hair-2); stroke-width: 1; }
 .lantern-host .cifc-label.is-context .ua-label-chip { fill: var(--lantern-soft); stroke: var(--lantern-edge); }
+
+/* On touch, a name with no tap target (or beside a selection) is plain haloed
+   text, so only the pills read as tappable. */
+.lantern-host .cifc-label.is-quiet text { font-size: 11.5px; font-weight: 550; }
+.lantern-host .cifc-label.is-quiet .cifc-label-halo { stroke: var(--ua-panel); stroke-width: 4px; }
 
 /* One ring from the selected room's anchor when it is chosen. */
 .lantern-host .cifc-label > circle.ua-ripple {
@@ -796,6 +802,59 @@
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Wide stages: the view, Spread floors, the camera and the menu share one
+   bar, each group ruled off from the next, so the stage holds three control
+   groups: the rail, this bar and the layer bar. */
+.lantern-host .ua-shell:not(.is-compact) .ua-tools {
+  gap: 0;
+  padding: 3px;
+  border: 1px solid var(--ua-line);
+  border-radius: 12px;
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+}
+
+.lantern-host .ua-shell:not(.is-compact) .ua-tools > :is(.seg, .ctrl-group) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.lantern-host .ua-shell:not(.is-compact) .ua-tools > :not(:first-child) {
+  margin-left: 4px;
+  padding-left: 4px;
+  border-left: 1px solid var(--hair);
+}
+
+.lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  color: var(--ink-2);
+}
+
+.lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn:hover { background: rgba(27, 35, 48, 0.07); }
+.lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn[aria-expanded='true'] { background: var(--ink); color: #fff; }
+
+@media not (pointer: coarse) {
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn { height: 36px; }
+}
+
+/* Fit view says its short name beside its glyph. */
+.lantern-host .ua-tools .ua-fit {
+  display: inline-flex;
+  gap: 5px;
+  width: auto;
+  padding: 0 10px 0 8px;
+  font: 600 var(--fs-s)/1 var(--text);
+}
+
 /* Compact stages only (rendered there): the snapshot stamped at the row's
    end like a drawing's revision box, and the menu beside it. */
 .lantern-host .ua-stamp {
@@ -873,6 +932,12 @@
 }
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
+/* A menu holding only the camera, which the dock already offers, is not shown. */
+.lantern-host .ua-menu:not(:has(.ua-menu-panel > :not(.ua-menu-camera))) { display: none; }
+
+@media (max-height: 480px) {
+  .lantern-host .ua-menu:not(:has(.ua-menu-panel > :not(.ua-menu-camera))) { display: block; }
+}
 
 /* Spread floors beside 3D and Plan: the view's one toggle, in the same segment. */
 .lantern-host .ua-spread { display: inline-flex; align-items: center; gap: 6px; }
@@ -1010,7 +1075,7 @@
 }
 
 .lantern-host .ua-menu-camera {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
   padding-bottom: 6px;
@@ -2193,10 +2258,15 @@
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
 
+  /* Open, the sheet takes that whole height whatever it holds, so the model
+     framed above it moves only as the sheet opens or closes. */
+  .lantern-host .ua-inspector.is-open { height: min(52%, calc(100% - var(--ua-scope-end, 150px) - 8px)); }
+
   @media (max-height: 480px) {
     /* The open picker needs its measured head, a whole 44px room row,
        30px of body padding and the top border, even over the side rail. */
     .lantern-host .ua-inspector.is-open {
+      height: min(100%, max(72%, calc(var(--ua-peek) + 75px)));
       max-height: min(100%, max(72%, calc(var(--ua-peek) + 75px)));
     }
 
@@ -2246,9 +2316,6 @@
     padding-top: 10px;
     padding-bottom: 5px;
   }
-
-  /* The rooms head holds Places and Network before its toggle: one column each. */
-  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto auto; }
 
   /* Tighter columns and toggle, so the floor caption fits beside the name. */
   .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; column-gap: 6px; }
@@ -2353,13 +2420,10 @@
   white-space: nowrap;
 }
 
-/* Phones: Places and Network show their glyphs only, their names kept as the
-   controls' names, so the room count stays whole beside them. */
+/* Phones: Places keeps its name and drops its glyph, so the room count stays whole beside it. */
 @media (max-width: 429px) {
-  .lantern-host .ua-sheet-lens { justify-content: center; padding: 0; }
-  .lantern-host .ua-sheet-lens > span { display: none; }
-  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) { column-gap: 2px; }
-  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) .ua-sheet-sub { margin-left: 6px; }
+  .lantern-host .ua-sheet-lens { justify-content: center; padding: 0 10px; }
+  .lantern-host .ua-sheet-lens > svg { display: none; }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
@@ -2943,10 +3007,11 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
+  .lantern-host .ua-dock-btn > :is(svg, .ua-dock-dots) { flex: none; }
   .lantern-host .ua-dock-btn:hover { background: var(--ua-hover); }
   .lantern-host .ua-dock-btn:focus-visible { outline-offset: -2px; }
   .lantern-host .ua-dock-view { display: flex; gap: 2px; padding-right: 3px; }
-  .lantern-host .ua-dock-fit { padding: 0; color: var(--ink); box-shadow: 1px 0 0 var(--hair); border-radius: 9px 0 0 9px; }
+  .lantern-host .ua-dock-fit { gap: 5px; padding: 0 11px 0 9px; color: var(--ink); box-shadow: 1px 0 0 var(--hair); border-radius: 9px 0 0 9px; }
   .lantern-host .ua-dock-view > [aria-pressed='true'] { background: var(--ink); color: #fff; }
   .lantern-host .ua-dock-layers[aria-expanded='true'] { background: var(--lantern-soft); }
   .lantern-host .ua-dock-view + .ua-dock-layers { box-shadow: -1px 0 0 var(--hair); border-radius: 0 9px 9px 0; }
@@ -2963,7 +3028,9 @@
 
   .lantern-host .ua-dock-dots > i.is-on { background: var(--layer); }
 
-  .lantern-host .ua-dock-camera { gap: 0; padding: 0; border-radius: 0; margin-right: 3px; box-shadow: 1px 0 0 var(--hair); color: var(--ink); }
+  .lantern-host .ua-dock-camera { gap: 4px; padding: 0 9px 0 11px; border-radius: 0; margin-right: 3px; box-shadow: 1px 0 0 var(--hair); color: var(--ink); }
+  .lantern-host .ua-dock-camera > svg { color: var(--ink-2); transition: transform 0.2s ease; }
+  .lantern-host .ua-dock-camera[aria-expanded='true'] > svg { transform: rotate(180deg); }
   .lantern-host .ua-dock-camera[aria-expanded='true'] { background: var(--lantern-soft); }
 
   .lantern-host .ua-bottom .ua-dock-tray {
@@ -3035,6 +3102,9 @@
     .lantern-host .ua-dock-layers,
     .lantern-host .ua-dock-camera { display: none; }
 
+    /* With no Camera tray here, turn and zoom stand in the menu. */
+    .lantern-host .ua-menu-camera { display: grid; }
+
     .lantern-host .ua-bottom .ua-dock-tray {
       position: static;
       display: flex;
@@ -3065,6 +3135,17 @@
    full name kept as the control's name. */
 @container ua-stage (max-width: 330px) {
   .lantern-host .ua-stack.is-chip .ua-stack-where { display: none; }
+}
+
+/* Narrower phones: the dock keeps every button at 44px by tightening its
+   spacing; Fit shows its glyph alone, named for assistive tech. */
+@container ua-stage (max-width: 389px) {
+  .lantern-host .ua-dock-btn { padding: 0 7px; }
+  .lantern-host .ua-dock-fit { padding: 0; }
+  .lantern-host .ua-dock-fit > span { display: none; }
+  .lantern-host .ua-dock-camera { gap: 2px; padding: 0 7px; }
+  .lantern-host .ua-dock-layers { gap: 4px; }
+  .lantern-host .ua-dock-dots { gap: 3px; }
 }
 
 /* Touch: every control keeps a full-size target. */

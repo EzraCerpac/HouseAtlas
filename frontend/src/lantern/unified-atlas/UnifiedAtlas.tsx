@@ -432,6 +432,8 @@ const MIN_FRAME = 96;
 const COMPACT_STAGE = 720;
 /** Least height, in pixels, of the floor list beside a docked key column: All floors and one whole floor row. */
 const LADDER_FLOOR = 112;
+/** Largest share of a phone stage an open sheet may take and still count whole; a taller one (a short landscape stage) counts as its head. */
+const OPEN_SHEET = .6;
 
 // A top-layer reading sheet never claims space in the map's fitted frame.
 const laidOut = (node: Element) => !node.matches(':modal') && getComputedStyle(node).display !== 'none';
@@ -468,11 +470,14 @@ function insetProjection(base: Projection, dx: number, dy: number, viewport: Vie
 }
 
 /** Panels over the stage, in stage pixels: the view tools, the building and
- * floor rail, the overlays, the network graph and the sheet head. Each
- * container is a transparent band, so its visible children are measured
- * within it. An open sheet counts as its head, and the overlays it hides keep
- * their place, so opening it never moves the model while a resize still
- * re-fits it. The graph beside the model claims its own band; over a narrow
+ * floor rail, the overlays, the network graph and the sheet. Each container is
+ * a transparent band, so its visible children are measured within it. A closed
+ * sheet counts as its head. On a phone an open sheet counts whole: the
+ * stylesheet opens it to one height whatever it lists, so the model is framed
+ * in the stage above it, moving once as it opens and once as it closes, never
+ * with its content; the overlays it hides keep their place. A tablet's card,
+ * or a sheet taller than OPEN_SHEET of the stage, still counts as its head. The
+ * graph beside the model claims its own band; over a narrow
  * stage it is the whole view, and the model keeps its frame behind it.
  * Wide stages dock the layer keys under the floor rail: the dock counts with
  * the rail it continues, never as one span across to the layer bar, so
@@ -531,7 +536,8 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   let peek: Box | null = null;
   if (panel && head && style && sheet) {
     const rect = panel.getBoundingClientRect();
-    const top = rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+    const whole = frame.width <= COMPACT_STAGE && panel.classList.contains('is-open') && rect.height <= frame.height * OPEN_SHEET;
+    const top = whole ? rect.top : rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
     peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
   }
   const graphPanel = root.querySelector('.ua-graph');
@@ -702,10 +708,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const graphStageFocus = useRef<HTMLElement | null>(null);
   const [cover, setCover] = useState<readonly Box[]>([]);
   // A phone-sized stage keeps one slim row above the model and one below it:
-  // the camera, the lenses, the archive filter and the other sources fold into
-  // one menu, building and floor into the Floor Stack, the view and layers
-  // into one dock. One of them opens at a time; on a wide stage only the
-  // stack, pinned open, uses the same state.
+  // the lighting time, the Network lens, the archive filter and the other
+  // sources fold into one menu, building and floor into the Floor Stack, the
+  // view, the camera and the layers into one dock. One of them opens at a time. A wide stage keeps the rail,
+  // one bar of view tools ending in the same menu (the lighting time, the
+  // archive filter and the other sources), and the layer bar.
   const [compact, setCompact] = useState(false);
   const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | 'camera' | null>(null);
@@ -1155,6 +1162,12 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
   const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance, coarse), [labels, size, cover, counts, planTextMetrics, coarse]);
   const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
+  // On touch a pill promises a tap: a name left without a target (an open
+  // sheet sets every target aside), and with a room selected the other rooms
+  // named on its floor, draw as plain haloed text.
+  const selectedLevel = selected === null ? null : model.occurrencesById.get(selected)!.levelId;
+  const quietLabel = (label: (typeof labels)[number]) => coarse && label.tier !== 'selected' && (!hitBoxes.has(label) || sheetOpen
+    || (label.tier === 'plain' && model.occurrencesById.get(label.id)!.levelId === selectedLevel));
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
@@ -1233,7 +1246,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const tiles = useMemo(() => !plan || compact ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
     .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, compact, ladderBuildingId, buildings, model, planned]);
-  // Turn and zoom with their names shown, in the phone's dock tray and its menu.
+  // Turn and zoom with their names shown, in the phone dock's Camera tray (in the menu on a short landscape stage).
   const cameraButtons = <>
     {!plan && <>
       <button type="button" className="ua-cam-btn" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /><span>Turn left</span></button>
@@ -1535,20 +1548,19 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           </>}
           <button type="button" className="ctrl-btn" aria-label="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
-          <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
+          <button type="button" className="ctrl-btn ua-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /><span aria-hidden="true">Fit</span></button>
         </div>
-        {!compact && !plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
-        {/* Compact: the snapshot stamp takes the free width, and one menu holds the
-            camera, the lighting time, the lenses, the archive filter and the other sources. */}
+        {/* Compact: the snapshot stamp takes the free width. One menu holds the lighting
+            time, the archive filter and the other sources, and on a phone the Network lens too. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
             <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
-        {compact && <div className="ua-menu" onBlur={menuBlur('view')}>
+        {(compact || !plan || archive || otherSources.length > 0) && <div className="ua-menu" onBlur={menuBlur('view')}>
           <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
-            {/* Named for what it holds: the camera and lighting time (the view), Network and the other sources. */}
+            {/* Named for what it holds: the lighting time and archive filter (the view), Network and the other sources. */}
             <span aria-hidden="true">View &amp; sources</span>
           </button>
           <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
@@ -1559,10 +1571,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                 aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens('network')}>
                 <Icon name="network" size={16} /><span>Network</span><Icon name="chevron" size={15} /></button>
             </nav>}
-            <div className="ua-menu-camera" role="group" aria-label="Camera">
+            {/* Shown only on a short landscape stage, whose dock has no Camera tray. */}
+            {compact && <div className="ua-menu-camera" role="group" aria-label="Camera">
               <p className="ua-menu-label" aria-hidden="true">Camera</p>
               {cameraButtons}
-            </div>
+            </div>}
             {!plan && <div className="ua-menu-time">
               <p className="ua-menu-label" aria-hidden="true">Lighting time</p>
               <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />
@@ -1667,13 +1680,13 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
                   || <text className="cifc-label-halo" textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{label.text}</text>}
                 <text textAnchor={label.plan.textAnchor} x={label.plan.textX} dy="0.35em">{nameText(label)}</text>
               </g>
-            </g> : <g key={label.id} className={`cifc-label is-${label.tier}`} transform={`translate(${label.x.toFixed(1)} ${label.y.toFixed(1)})`}>
+            </g> : <g key={label.id} className={`cifc-label is-${label.tier}${quietLabel(label) ? ' is-quiet' : ''}`} transform={`translate(${label.x.toFixed(1)} ${label.y.toFixed(1)})`}>
               {/* Mounted once per selection: one ring answers the choice. */}
               {label.tier === 'selected' && <circle className="ua-ripple" r={18} />}
               {label.rise > .02 && <><line x1={0} y1={0} x2={0} y2={(-LEADER * label.rise).toFixed(1)} /><circle r={3.5} /></>}
               <g transform={label.rise > 0 ? `translate(0 ${(-TAG_RISE * label.rise).toFixed(1)})` : undefined}>
                 {/* Each name is one measured pill: the selected tag, or a quiet chip; a stroked halo only without a measurement. */}
-                {nameTag(label.id, label.tier) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
+                {(!quietLabel(label) && nameTag(label.id, label.tier)) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
                 <text textAnchor="middle" dy="0.35em">{nameText(label)}</text>
               </g>
             </g>)}
@@ -1738,11 +1751,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {/* Compact: one dock holds Fit view by the thumb, the view, 3D or Plan, and the
             layers, as three dots and their name that open the labelled layer chips above them. */}
         {compact ? <div className="ua-dock" onBlur={menuBlur(menu === 'camera' ? 'camera' : 'layers')}>
-          <button type="button" className="ua-dock-btn ua-dock-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={18} /></button>
+          <button type="button" className="ua-dock-btn ua-dock-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={18} /><span aria-hidden="true">Fit</span></button>
           {/* Turn and zoom by the thumb: they open above the dock, as the layers do. */}
           <button ref={cameraButton} type="button" className="ua-dock-btn ua-dock-camera" aria-expanded={menu === 'camera'} aria-controls={`${menuIds}-camera`}
-            aria-label={plan ? 'Zoom' : 'Turn and zoom'} title={plan ? 'Zoom' : 'Turn and zoom'} onClick={() => setMenu(value => value === 'camera' ? null : 'camera')}>
-            <Icon name="plus" size={14} /><Icon name="minus" size={14} /></button>
+            onClick={() => setMenu(value => value === 'camera' ? null : 'camera')}>
+            <span>Camera</span><Icon name="chevronDown" size={14} /></button>
           <div id={`${menuIds}-camera`} className="ua-dock-tray ua-dock-camera-tray" role="group" aria-label="Camera" hidden={menu !== 'camera'}>
             {cameraButtons}
           </div>
@@ -1790,7 +1803,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
-      openNetworkLens={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'network', reading: false }); } : undefined}
       open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
