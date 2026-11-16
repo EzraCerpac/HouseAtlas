@@ -2632,7 +2632,10 @@
     right: auto;
     bottom: auto;
     width: auto;
-    max-width: calc(100% - 80px);
+    /* The floor chip may use the row up to the tool beside it: that tool's
+       measured width from the stage edge (the View button), less the stage
+       margin and the gap. */
+    max-width: calc(100% - var(--ua-tools-w, 134px) - 14px);
     flex-direction: row;
     align-items: center;
     gap: 6px;
