@@ -185,7 +185,8 @@ export function Section({ title, count, children, action }: { title: string; cou
       <header className="section-head">
         <h3>
           {title}
-          {count !== undefined && <span className="section-count">{count}</span>}
+          {/* A section with none states its empty sentence instead of a zero. */}
+          {count !== undefined && count > 0 && <span className="section-count">{count}</span>}
         </h3>
         {action}
       </header>

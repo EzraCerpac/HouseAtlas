@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExt
 import { useSourcePorts } from '../source-ports';
 import { Empty, fmtBytes } from '../components/ui';
 import { ExampleLabel } from '../example-label';
+import { Icon } from '../components/Icon';
 import { useTopology } from '../topology/TopologyProvider';
 import type { NativeEvidenceDocumentClient } from '../scans/native-evidence-document-types';
 import type { ElectricalLibraryDocument, ElectricalLibraryFrame, ElectricalLibraryPage, ElectricalLibraryPort, ElectricalLibraryReader, ElectricalLibrarySheet } from './types';
@@ -152,7 +153,7 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
           <ul className="electrical-library-sheets">{pages.map(page => <li key={page.sheet.id}>
             <button type="button" className="row-title" onClick={event => {
               if (reader.isCurrent(current)) setOpened({ frame: current, page, opener: event.currentTarget });
-            }} aria-label={`Open ${page.sheet.title}, PDF page ${page.reference.pdfPage}`}>{page.sheet.title} · Page {page.reference.pdfPage}</button>
+            }} aria-label={`Open ${page.sheet.title}, PDF page ${page.reference.pdfPage}`}>{page.sheet.title} · Page {page.reference.pdfPage}<Icon name="chevron" size={15} /></button>
             <SheetFacts entry={page} />
           </li>)}</ul>
         </li>)}</ul>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { Empty } from '../components/ui';
+import { Icon } from '../components/Icon';
 import { Sources } from '../components/DetailPanel';
 
 export function ChangesView() {
@@ -25,10 +26,10 @@ export function ChangesView() {
     <div className="changes-grid"><section className="section"><header className="section-head"><h3 ref={heading} tabIndex={-1}>Operation history</h3></header>
       {history.status === 'loading' && !retrying && <p className="body-text" role="status">Loading operation history…</p>}
       {/* The read failed or this home has no history to read; the client cannot tell which. The button repeats that read. */}
-      {(history.status === 'unavailable' || retrying) && <><p className="body-text" role="status">{retrying ? 'Reading operation history…'
-        : 'Operation history is unavailable for this home. Past changes are unknown; sources are read separately.'}</p>
+      {(history.status === 'unavailable' || retrying) && <><p className="note note-info" role="status"><Icon name="info" size={15} /><span>{retrying ? 'Reading operation history…'
+        : 'Operation history is unavailable for this home, so past changes are unknown.'}</span></p>
         {actions.retryOperationHistory && <button type="button" className="btn changes-retry" aria-disabled={retrying}
-          onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Read operation history again</button>}</>}
+          onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Retry history</button>}</>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>

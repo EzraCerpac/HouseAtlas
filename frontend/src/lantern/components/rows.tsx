@@ -28,7 +28,7 @@ export function DocRow({ doc, showLinked }: { doc: Doc; showLinked?: boolean | u
       </span>
       <button
         type="button"
-        className="btn btn-quiet btn-small"
+        className="btn btn-small"
         onClick={() => dispatch({ type: 'dialog', dialog: { type: 'preview', docId: doc.id } })}
         aria-label={`${doc.storage === 'link' ? 'Open link details for' : 'File details for'} ${doc.title}`}
       >
