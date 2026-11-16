@@ -141,21 +141,22 @@ try {
   const desktopDisclosure = await sourceDisclosure();
   // Zoom in, then Fit view back to the baseline pose; a draw must follow the fit.
   const settledDraw = async page => {
-    const menuButton = shell.getByRole('button', { name: 'View and sources', exact: true });
-    const compact = await menuButton.isVisible();
+    // A phone turns and zooms from the dock's Camera tray; a wide stage from its view bar.
+    const compact = await shell.evaluate(node => node.classList.contains('is-compact'));
+    const cameraButton = shell.locator('.ua-dock').getByRole('button', { name: 'Camera', exact: true });
     if (compact) {
-      await menuButton.click();
-      assert.equal(await menuButton.getAttribute('aria-expanded'), 'true');
+      await cameraButton.click();
+      assert.equal(await cameraButton.getAttribute('aria-expanded'), 'true');
     }
-    const camera = shell.locator(compact ? '.ua-menu-camera' : '.ua-tools > .ctrl-group');
+    const camera = shell.locator(compact ? '.ua-dock-camera-tray' : '.ua-tools > .ctrl-group');
     await camera.getByRole('button', { name: 'Zoom in', exact: true }).click();
     await frames(page);
     if (compact) {
-      // The phone's menu keeps zoom; Fit view sits in the bottom dock, so close the menu first.
+      // Close the tray before Fit view, so the settled stage is captured with it closed.
       await atlas.keyboard.press('Escape');
-      assert.equal(await menuButton.getAttribute('aria-expanded'), 'false');
-      assert.equal(await menuButton.evaluate(node => document.activeElement === node), true);
-      await shell.locator(`[id="${await menuButton.getAttribute('aria-controls')}"]`).waitFor({ state: 'hidden' });
+      assert.equal(await cameraButton.getAttribute('aria-expanded'), 'false');
+      assert.equal(await cameraButton.evaluate(node => document.activeElement === node), true);
+      await camera.waitFor({ state: 'hidden' });
       await frames(page);
     }
     await page.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
