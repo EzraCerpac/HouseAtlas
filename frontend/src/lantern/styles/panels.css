@@ -1054,11 +1054,11 @@
 }
 
 /* Upkeep: bars in the place of the row of group counts. */
-.lantern-host .loading-summary {
+.lantern-host .upkeep-empty.loading-summary {
   margin-bottom: 12px;
 }
 
-.lantern-host .loading-summary li {
+.lantern-host .upkeep-empty.loading-summary li {
   gap: 0;
 }
 
