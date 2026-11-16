@@ -30,13 +30,14 @@ export function useSharedTaskCache(): string | undefined {
 }
 
 /** Upkeep's lines under its heading: what every date is relative to, the shared
- * cache state, and why Mark done is unavailable. Drawn while Upkeep loads too. */
-export function UpkeepQualifiers() {
+ * cache state, and why Mark done is unavailable. Drawn while Upkeep loads too,
+ * where no task is shown yet, so the cache is not yet said to be every task's. */
+export function UpkeepQualifiers({ loading = false }: { readonly loading?: boolean }) {
   const { house } = useStore();
   const can = useCanWrite('HomeBox');
   const cache = useSharedTaskCache();
   const reference = referenceDayLabel(house.displayNow);
-  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `Source cache: ${cache} for every task`].filter(Boolean).join(' · ');
+  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `Source cache: ${cache}${loading ? '' : ' for every task'}`].filter(Boolean).join(' · ');
   return <>
     {dates && <p className="fine">{dates}</p>}
     {!can.ok && house.tasks.some(task => task.status !== 'done') && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}
@@ -53,14 +54,17 @@ function LoadingView({ label }: { readonly label: string }) {
   const status = <p className="fine loading-status" role="status" aria-live="polite">Loading {label} for {house.name}…</p>;
   return <section className="view" aria-label={label} aria-busy="true">
     <header className="view-head"><h1>{label}</h1>
-      {label === 'Library' && sections.length > 1 && <nav className="seg library-jump" aria-label="Library sections">
+      {label === 'Library' && sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
         {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
-      {label === 'Upkeep' && <UpkeepQualifiers />}</header>
+      {label === 'Upkeep' && <UpkeepQualifiers loading />}</header>
     <div className={label === 'Changes' ? 'changes-grid' : undefined}>
       {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section' : 'loading-section'}>
         {title && <div className="section-head">{label === 'Changes' ? <h3>{title}</h3> : <h2>{title}</h2>}</div>}
         {index === 0 && status}
-        <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>
+        {label === 'Upkeep'
+          // Upkeep's rows take the timeline's shape: date, mark, then title and date lines.
+          ? <span className="loading-rows loading-timeline" aria-hidden="true">{[0, 1, 2].map(row => <i key={row}><b /><b /><b /></i>)}</span>
+          : <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>}
       </section>)}
     </div>
   </section>;

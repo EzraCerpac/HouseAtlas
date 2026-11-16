@@ -26,7 +26,7 @@ export function ChangesView() {
       {history.status === 'loading' && !retrying && <p className="body-text" role="status">Loading operation history…</p>}
       {/* The read failed or this view has no history to read; the client cannot tell which. The button repeats that read. */}
       {(history.status === 'unavailable' || retrying) && <><p className="body-text" role="status">{retrying ? 'Reading operation history…'
-        : 'Operation history could not be read in this view, so past changes are unknown here.'}</p>
+        : 'Operation history could not be read in this view, so past changes are unknown here. Sources are read separately and still shown.'}</p>
         {actions.retryOperationHistory && <button type="button" className="btn" aria-disabled={retrying}
           onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Read operation history again</button>}</>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
