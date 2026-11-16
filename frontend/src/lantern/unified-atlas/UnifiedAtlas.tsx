@@ -25,7 +25,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -917,10 +917,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // section in 3D, the target floor's plan once the camera has tipped into Plan.
   const live = planBlend >= .5 ? presentation.pickable : shown.pickable;
   // In 3D, a name drawn on more than one floor adds that room's own floor, selected
-  // floor or not; unique names stay bare, and a plan shows bare names.
+  // floor or not; unique names stay bare, and a plan shows bare names. Spread
+  // floors stand apart, so there the floor is left off a name whose namesakes
+  // each stand on their own floor; the accessible name keeps it.
   // An estimated room outline keeps its Preliminary marker on the model, measured with its name.
-  const labelTexts = useMemo(() => new Map([...drawnRoomNames(model, live, state.buildingId, !plan)].map(([key, name]) =>
-    [key, isPreliminary(model, key) ? `${name}${PRELIMINARY}` : name] as const)), [live, model, plan, state.buildingId]);
+  const spreadNames = state.exploded && !plan;
+  const labelTexts = useMemo(() => new Map([...drawnRoomNames(model, live, state.buildingId, !plan,
+    spreadNames ? key => occurrenceLiftLevel(model, key) : undefined)].map(([key, name]) =>
+    [key, isPreliminary(model, key) ? `${name}${PRELIMINARY}` : name] as const)), [live, model, plan, state.buildingId, spreadNames]);
   const nameText = (label: RoomLabel) => isPreliminary(model, label.id) && label.text.endsWith(PRELIMINARY)
     ? <>{label.text.slice(0, -PRELIMINARY.length)}<tspan className="ua-label-note">{PRELIMINARY}</tspan></> : label.text;
   const labelFloors = useMemo(() => drawnRoomFloors(model, live, state.buildingId, !plan), [live, model, plan, state.buildingId]);
@@ -1162,12 +1166,18 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
   const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance, coarse), [labels, size, cover, counts, planTextMetrics, coarse]);
   const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
-  // On touch a pill promises a tap: a name left without a target (an open
-  // sheet sets every target aside), and with a room selected the other rooms
-  // named on its floor, draw as plain haloed text.
+  // On touch a drawn name promises a tap: names without a target are not drawn
+  // (an open sheet sets every target aside), and with a room selected the other
+  // rooms named on its floor step back to a quiet pill of the same size.
+  const drawnLabels = useMemo(() => drawnStageLabels(labels, hitBoxes, coarse, sheetOpen), [labels, hitBoxes, coarse, sheetOpen]);
   const selectedLevel = selected === null ? null : model.occurrencesById.get(selected)!.levelId;
-  const quietLabel = (label: (typeof labels)[number]) => coarse && label.tier !== 'selected' && (!hitBoxes.has(label) || sheetOpen
-    || (label.tier === 'plain' && model.occurrencesById.get(label.id)!.levelId === selectedLevel));
+  const quietLabel = (label: (typeof labels)[number]) => coarse && label.tier === 'plain'
+    && model.occurrencesById.get(label.id)!.levelId === selectedLevel;
+  // Rooms in view the model leaves unnamed, for the Rooms list's note. Taken with
+  // the sheet closed, since the open sheet covers the stage and sets names aside.
+  const unnamedNow = undrawn ? 0 : live.size - drawnStageLabels(labels, hitBoxes, coarse).length;
+  const [unnamed, setUnnamed] = useState(0);
+  useLayoutEffect(() => { if (!sheetOpen) setUnnamed(unnamedNow); }, [sheetOpen, unnamedNow]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
@@ -1538,8 +1548,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         </div>}
         {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack only. */}
         {!compact && canExplode && <div className="seg">
-          <button type="button" className="ua-spread" aria-pressed={state.exploded}
-            onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span>Spread floors</span></button>
+          <button type="button" className="ua-spread" aria-pressed={state.exploded} aria-label="Spread floors" title="Spread floors"
+            onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span aria-hidden="true">Spread floors</span></button>
         </div>}
         <div className="ctrl-group" role="group" aria-label="Camera">
           {!plan && <>
@@ -1561,7 +1571,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
             {/* Named for what it holds: the lighting time and archive filter (the view), Network and the other sources. */}
-            <span aria-hidden="true">View &amp; sources</span>
+            <Icon name="sliders" size={17} className="ua-menu-glyph" /><span aria-hidden="true">View &amp; sources</span>
           </button>
           <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
             {/* The host's lens row gives way on a phone: Network opens from here, Rooms & places from the Rooms sheet's Places. */}
@@ -1663,7 +1673,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             </g>)}
           </g>}
           <g className="cifc-labels">
-            {labels.map(label => label.plan ? <g key={label.id} className={`cifc-label is-${label.tier}${label.plan.mode === 'rotated' || label.plan.mode === 'callout' ? ' ua-plan-label-new' : ''}`}>
+            {drawnLabels.map(label => label.plan ? <g key={label.id} className={`cifc-label is-${label.tier}${label.plan.mode === 'rotated' || label.plan.mode === 'callout' ? ' ua-plan-label-new' : ''}`}>
               {label.tier === 'selected' && <circle className="ua-ripple" cx={label.anchorX} cy={label.anchorY} r={18} />}
               {label.plan.mode === 'callout' && label.plan.leader && <g className="ua-plan-label-leader">
                 <polyline className="ua-plan-label-leader-halo" points={label.plan.leader.points.map(point => point.join(',')).join(' ')} />
@@ -1686,7 +1696,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               {label.rise > .02 && <><line x1={0} y1={0} x2={0} y2={(-LEADER * label.rise).toFixed(1)} /><circle r={3.5} /></>}
               <g transform={label.rise > 0 ? `translate(0 ${(-TAG_RISE * label.rise).toFixed(1)})` : undefined}>
                 {/* Each name is one measured pill: the selected tag, or a quiet chip; a stroked halo only without a measurement. */}
-                {(!quietLabel(label) && nameTag(label.id, label.tier)) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
+                {nameTag(label.id, label.tier) || <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>}
                 <text textAnchor="middle" dy="0.35em">{nameText(label)}</text>
               </g>
             </g>)}
@@ -1749,7 +1759,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <Icon name="chevronDown" size={15} /></button>}
         </div>}
         {/* Compact: one dock holds Fit view by the thumb, the view, 3D or Plan, and the
-            layers, as three dots and their name that open the labelled layer chips above them. */}
+            layers, as one glyph, their name and how many are on, that open the labelled layer chips above them. */}
         {compact ? <div className="ua-dock" onBlur={menuBlur(menu === 'camera' ? 'camera' : 'layers')}>
           <button type="button" className="ua-dock-btn ua-dock-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={18} /><span aria-hidden="true">Fit</span></button>
           {/* Turn and zoom by the thumb: they open above the dock, as the layers do. */}
@@ -1766,8 +1776,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button ref={layersButton} type="button" className="ua-dock-btn ua-dock-layers" aria-expanded={menu === 'layers'} aria-controls={`${menuIds}-layers`}
             aria-label={`Layers: ${LAYER_KINDS.filter(kind => state.layers[kind]).map(kind => LAYER_LABEL[kind]).join(', ') || 'none shown'}`}
             onClick={() => setMenu(value => value === 'layers' ? null : 'layers')}>
-            <span className="ua-dock-dots" aria-hidden="true">{LAYER_KINDS.map(kind => <i key={kind} className={state.layers[kind] ? 'is-on' : undefined}
-              style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} />)}</span><span>Layers</span>
+            <Icon name="layers" size={18} /><span>Layers</span>
+            {LAYER_KINDS.some(kind => state.layers[kind]) && <span className="ua-dock-count" aria-hidden="true">{LAYER_KINDS.filter(kind => state.layers[kind]).length}</span>}
           </button>
           {/* A short landscape stage shows the chips inline, always open. */}
           <div id={`${menuIds}-layers`} className="layer-bar ua-dock-tray" role="group" aria-label="Layers" hidden={menu !== 'layers' && !shortLayerDetails}>
@@ -1803,7 +1813,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
-      open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
+      open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
 

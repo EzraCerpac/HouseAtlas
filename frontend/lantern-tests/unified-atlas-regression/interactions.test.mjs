@@ -312,6 +312,28 @@ test('label actions use their full mounted targets and reserve surviving enlarge
     } }
 });
 
+test('on touch a name is drawn only with its own target; a pointer draws every placed name', () => {
+  const label = (id, x, y, tier = 'plain') => ({ id, text: 'Bedroom', x, y, rise: 0, tier });
+  const size = { width: 900, height: 500 }, advance = () => 60;
+  // Three names 26 px apart: their drawn chips stand, but only alternate 44 px targets fit.
+  const rows = [label('a', 200, 120), label('b', 230, 146), label('c', 260, 172), label('s', 600, 300, 'selected')];
+  const placed = api.placeStageLabels(rows, advance, size, []);
+  assert.deepEqual(placed, rows, 'every chip stands');
+  const coarse = api.labelHitBoxes(placed, size, [], [], advance, true);
+  const drawn = api.drawnStageLabels(placed, coarse, true);
+  assert.ok(drawn.length < placed.length, 'some names lose the target contest');
+  assert.ok(drawn.every(row => coarse.has(row)), 'each drawn name has its tap target');
+  assert.ok(drawn.includes(rows[3]), 'the selected tag stands');
+  for (const row of drawn) assert.equal(coarse.get(row).b - coarse.get(row).t, 44, 'touch targets stay 44 px');
+  // An open sheet sets every target aside: only the selected tag is drawn.
+  assert.deepEqual(api.drawnStageLabels(placed, coarse, true, true), [rows[3]]);
+  // With nothing selected and no targets, nothing is drawn on touch.
+  assert.deepEqual(api.drawnStageLabels(rows.slice(0, 3), new Map(), true), []);
+  // A pointer keeps every placed name, with or without a target.
+  assert.deepEqual(api.drawnStageLabels(placed, api.labelHitBoxes(placed, size, [], [], advance, false), false), placed);
+  assert.deepEqual(api.drawnStageLabels(placed, new Map(), false, true), placed);
+});
+
 test('3D names reserve their whole measured chip, however long the floor name', () => {
   const label = (id, x, tier = 'plain') => ({ id, text: `Bedroom · ${'Upper floor under the roof '.repeat(3)}`, x, y: 150, rise: 0, tier });
   const size = { width: 900, height: 500 }, advance = () => 420;

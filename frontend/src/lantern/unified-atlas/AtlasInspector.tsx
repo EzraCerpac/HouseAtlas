@@ -23,7 +23,7 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed = 0, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
@@ -33,6 +33,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openPlaces?: (() => void) | undefined;
   /** Opens the host's Network lens from the same head; absent elsewhere. */
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
+  /** Rooms in view that the model or plan leaves unnamed because their names do not fit. */
+  readonly unnamed?: number;
   /** The one floor Plan draws of a whole building, else null. */
   readonly shownLevel: string | null;
   readonly electricalGroup: ElectricalGroup | null; readonly canElectricalGroup: (key: string) => boolean; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
@@ -79,8 +81,10 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       <div className="ua-sheet-head">
         <div className="ua-sheet-title">
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
-          <p className="ua-sheet-sub">{shown !== null && <><span className="ua-sub-plan">Plan: {levelName(shown)}</span><span className="ua-sub-sep"> · </span></>}
-            <span>{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</span></p>
+          {/* Plan draws one floor: its own count leads; the list below still holds every floor. */}
+          <p className="ua-sheet-sub"><span>{shown !== null
+            ? `${levelName(shown)} · ${plural(model.levelsById.get(shown)!.occurrenceIds.filter(key => model.selectable.has(key)).length, 'room')}`
+            : `${plural(count, 'room')}${levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}`}</span></p>
         </div>
         {/* The fuller list, with home places and building scope, opens from this head. */}
         {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" title="Rooms & places" onClick={openPlaces}>
@@ -90,7 +94,9 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       <div className="ua-sheet-body" id={bodyId}>
         {/* Stacked under its roof veil, a building's model names its top floor's rooms only. */}
         {state.view === '3d' && !state.exploded && state.levelId === null && state.buildingId !== null && hasExplodableLevels(model, state.buildingId)
-          && <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>}
+          ? <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>
+          // Names that would not fit (on touch, without a full target) are left off; the list holds every room.
+          : unnamed > 0 && <p className="ua-coverage ua-stacked-note">{`${plural(unnamed, 'room')} ${unnamed === 1 ? 'is' : 'are'} not named on the ${state.view === 'plan' ? 'plan' : 'model'}; ${unnamed === 1 ? 'its name does' : 'their names do'} not fit.`}</p>}
         {/* Choosing from the list hands the stage back to the model. */}
         <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />

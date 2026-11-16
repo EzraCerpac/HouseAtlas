@@ -57,6 +57,15 @@ export function placeStageLabels<T extends RoomLabel>(rows: readonly T[], advanc
   });
 }
 
+/** The names drawn on the model. A pointer draws every placed name. On touch a
+ * drawn name promises a tap: the selected tag always stands, another name is
+ * drawn only with its own target, and none while an open sheet sets the
+ * targets aside. Rooms left unnamed are chosen from the Rooms list. */
+export function drawnStageLabels<T extends RoomLabel>(rows: readonly T[], targets: ReadonlyMap<T, ScreenBox>, coarse: boolean,
+  targetsAside = false): readonly T[] {
+  return coarse ? rows.filter(row => row.tier === 'selected' || (!targetsAside && targets.has(row))) : rows;
+}
+
 /** SVG names remain visible independently; only safe action targets enter the tab order. */
 export function visibleLabelHits<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
   cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined, coarse = false): readonly T[] {
@@ -132,13 +141,17 @@ export function drawnRoomFloors(model: AtlasModel, keys: Iterable<string>, build
     ? atlasScopedLevelName(model, model.occurrencesById.get(key)!.levelId, buildingId) : null]));
 }
 
-/** Visible names for the rooms drawn together: the room name, then its floor where it has one. */
-export function drawnRoomNames(model: AtlasModel, keys: Iterable<string>, buildingId: string | null, qualify = true): ReadonlyMap<string, string> {
+/** Visible names for the rooms drawn together: the room name, then its floor where it has one.
+ * With the floors spread apart, `plate` gives the floor each room is lifted with (null for a
+ * room that stays at its source height); a name whose drawn namesakes all stand on their own
+ * floors' plates leaves its floor off, which its accessible name still gives. */
+export function drawnRoomNames(model: AtlasModel, keys: Iterable<string>, buildingId: string | null, qualify = true,
+  plate?: (key: string) => string | null): ReadonlyMap<string, string> {
   const floors = drawnRoomFloors(model, keys, buildingId, qualify);
-  return new Map([...floors].map(([key, floor]) => {
-    const name = model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
-    return [key, floor === null ? name : `${name} · ${floor}`];
-  }));
+  const name = (key: string) => model.roomsById.get(model.occurrencesById.get(key)!.roomId)!.label;
+  const unplated = new Set(plate ? [...floors.keys()].filter(key => plate(key) === null).map(name) : []);
+  return new Map([...floors].map(([key, floor]) =>
+    [key, floor === null || (plate && !unplated.has(name(key))) ? name(key) : `${name(key)} · ${floor}`]));
 }
 
 /** Final display strings that still collide get a source-order suffix on every member. */

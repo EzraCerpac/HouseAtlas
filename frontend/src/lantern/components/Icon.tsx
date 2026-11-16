@@ -40,6 +40,8 @@ const PATHS: Record<string, string> = {
   moon: 'M19.5 14.5A8 8 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M4.5 20.5a7.5 7.5 0 0 1 15 0',
   layers: 'M12 4 20 8.5 12 13 4 8.5Z M4 13l8 4.5 8-4.5',
+  // Settings for a view: two sliders.
+  sliders: 'M4 8h9 M17 8h3 M15 5.5v5 M4 16h3 M11 16h9 M9 13.5v5',
   building: 'M5 20.5V9.5L12 4l7 5.5v11 M9.5 20.5v-5.5h5v5.5 M3 20.5h18',
   tools: 'M4 9.5h16v9.5H4Z M9 9.5V6.5h6v3 M4 13.5h16 M10.5 13.5v2h3v-2',
   // A drawn plan symbol, as read from a document; not an installed fixture.
