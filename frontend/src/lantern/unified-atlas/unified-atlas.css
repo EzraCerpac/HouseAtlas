@@ -234,10 +234,11 @@
 .lantern-host .cifc-label .ua-label-chip { fill: var(--ua-panel); stroke: var(--hair-2); stroke-width: 1; }
 .lantern-host .cifc-label.is-context .ua-label-chip { fill: var(--lantern-soft); stroke: var(--lantern-edge); }
 
-/* On touch, a name with no tap target (or beside a selection) is plain haloed
-   text, so only the pills read as tappable. */
-.lantern-host .cifc-label.is-quiet text { font-size: 11.5px; font-weight: 550; }
-.lantern-host .cifc-label.is-quiet .cifc-label-halo { stroke: var(--ua-panel); stroke-width: 4px; }
+/* On touch, beside a selection, the other names on its floor step back: the
+   same measured pill, so its target and collision box are unchanged, in a
+   lighter paper with softer ink. */
+.lantern-host .cifc-label.is-quiet .ua-label-chip { fill: rgba(251, 248, 241, 0.74); stroke: transparent; }
+.lantern-host .cifc-label.is-quiet text { fill: var(--muted); }
 
 /* One ring from the selected room's anchor when it is chosen. */
 .lantern-host .cifc-label > circle.ua-ripple {
@@ -853,6 +854,31 @@
   width: auto;
   padding: 0 10px 0 8px;
   font: 600 var(--fs-s)/1 var(--text);
+}
+
+/* The wide bar keeps one row. A side panel narrows the stage, so the bar
+   folds its words in a fixed order: View & sources to its glyph, then Fit,
+   then Spread floors. Each button keeps its full accessible name. Each step
+   is where the bar, with every group shown, would outgrow its room (the
+   stage less the rail and margins). */
+.lantern-host .ua-menu-glyph { display: none; }
+.lantern-host .ua-shell:not(.is-compact) .ua-tools { flex-wrap: nowrap; white-space: nowrap; }
+
+@container ua-stage (max-width: 881px) {
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn { width: 36px; padding: 0; justify-content: center; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn > span { display: none; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-glyph { display: block; }
+  @media (pointer: coarse) { .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn { width: 44px; } }
+}
+
+@container ua-stage (max-width: 798px) {
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-fit { width: 36px; padding: 0; justify-content: center; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-fit > span { display: none; }
+}
+
+@container ua-stage (max-width: 777px) {
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-spread { min-width: 40px; padding: 0 11px; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-spread > span { display: none; }
 }
 
 /* Compact stages only (rendered there): the snapshot stamped at the row's
@@ -2370,9 +2396,7 @@
     overflow-wrap: anywhere;
   }
   /* In Plan the drawn floor keeps its own line and the counts follow below it, so neither is cut. */
-  .lantern-host .ua-sheet-sub:has(> .ua-sub-plan) { white-space: normal; line-height: 1.25; }
   .lantern-host .ua-sheet-sub > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lantern-host .ua-sheet-sub > .ua-sub-sep { display: none; }
 }
 
 /* The rooms head is its own opener: the chevron marks it, and the button's
@@ -2994,8 +3018,8 @@
   .lantern-host .ua-bottom .layer-chip[aria-pressed='false'] .layer-swatch { box-shadow: inset 0 0 0 1.5px var(--layer); }
   .lantern-host .ua-bottom .layer-chip .ua-chip-note { margin: 0; font-size: 10.5px; }
 
-  /* The dock: 3D or Plan, and the layers as three dots, each filled while its
-     layer is on. The dots open the labelled layer switches above them. */
+  /* The dock: 3D or Plan, and the layers as one glyph with how many are on.
+     It opens the labelled layer switches above it. */
   .lantern-host .ua-dock {
     position: relative;
     display: flex;
@@ -3026,7 +3050,7 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  .lantern-host .ua-dock-btn > :is(svg, .ua-dock-dots) { flex: none; }
+  .lantern-host .ua-dock-btn > svg { flex: none; }
   .lantern-host .ua-dock-btn:hover { background: var(--ua-hover); }
   .lantern-host .ua-dock-btn:focus-visible { outline-offset: -2px; }
   .lantern-host .ua-dock-view { display: flex; gap: 2px; padding-right: 3px; }
@@ -3035,17 +3059,19 @@
   .lantern-host .ua-dock-layers[aria-expanded='true'] { background: var(--lantern-soft); }
   .lantern-host .ua-dock-view + .ua-dock-layers { box-shadow: -1px 0 0 var(--hair); border-radius: 0 9px 9px 0; }
 
-  .lantern-host .ua-dock-dots { display: flex; gap: 5px; }
-
-  .lantern-host .ua-dock-dots > i {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 2px var(--layer);
-    transition: background-color 0.2s ease;
+  /* How many layers are on, shown only while any is. */
+  .lantern-host .ua-dock-count {
+    flex: none;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--ink);
+    color: #fff;
+    font: 700 var(--fs-xs)/18px var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
   }
-
-  .lantern-host .ua-dock-dots > i.is-on { background: var(--layer); }
 
   .lantern-host .ua-dock-camera { gap: 4px; padding: 0 9px 0 11px; border-radius: 0; margin-right: 3px; box-shadow: 1px 0 0 var(--hair); color: var(--ink); }
   .lantern-host .ua-dock-camera > svg { color: var(--ink-2); transition: transform 0.2s ease; }
@@ -3164,7 +3190,6 @@
   .lantern-host .ua-dock-fit > span { display: none; }
   .lantern-host .ua-dock-camera { gap: 2px; padding: 0 7px; }
   .lantern-host .ua-dock-layers { gap: 4px; }
-  .lantern-host .ua-dock-dots { gap: 3px; }
 }
 
 /* Touch: every control keeps a full-size target. */
@@ -3234,8 +3259,7 @@
   .lantern-host .ua-stack-chevron,
   .lantern-host .ua-stack-switch,
   .lantern-host .ua-stack-switch::after,
-  .lantern-host .ua-dock-btn,
-  .lantern-host .ua-dock-dots > i { transition: none; }
+  .lantern-host .ua-dock-btn { transition: none; }
   .lantern-host .ua-stage::before,
   .lantern-host .ua-marker,
   .lantern-host .ua-tile,
@@ -3266,8 +3290,7 @@
     background: CanvasText;
   }
 
-  .lantern-host .ua-dock-dots > i { forced-color-adjust: none; box-shadow: inset 0 0 0 2px CanvasText; }
-  .lantern-host .ua-dock-dots > i.is-on { background: Highlight; }
+  .lantern-host .ua-dock-count { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 
   .lantern-host .ua-stack-head:focus-visible,
   .lantern-host .ua-dock-btn:focus-visible,

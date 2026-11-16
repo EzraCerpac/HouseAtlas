@@ -61,6 +61,13 @@ assert.deepEqual(['o:bed-1', 'o:bed-2'].map(key => drawnRoomNames(generated, ['o
 assert.equal(drawnRoomNames(generated, drawn, 'b:house', false).get('o:bed-3'), 'Bedroom');
 // The floor is also given on its own, for the accessible name: the visible floor only where the name is shared.
 assert.deepEqual(drawn.map(key => drawnRoomFloors(generated, drawn, 'b:house').get(key)), ['Ground Floor', 'Upper Floor', 'Ground Floor', 'Upper Floor', null]);
+// Spread floors: each namesake stands on its own floor's plate, so the visible name drops the floor
+// while the floor stays available for the accessible name; one unlifted namesake keeps it on all.
+const plates = key => generated.occurrencesById.get(key).levelId;
+assert.deepEqual(drawn.map(key => drawnRoomNames(generated, drawn, 'b:house', true, plates).get(key)), ['Bedroom', 'Bedroom', 'Hall', 'Hall', 'Kitchen']);
+assert.deepEqual(drawn.map(key => drawnRoomNames(generated, drawn, 'b:house', true, key => key === 'o:hall-3' ? null : plates(key)).get(key)),
+  ['Bedroom', 'Bedroom', 'Hall · Ground Floor', 'Hall · Upper Floor', 'Kitchen']);
+assert.deepEqual(drawn.map(key => drawnRoomFloors(generated, drawn, 'b:house').get(key)), ['Ground Floor', 'Upper Floor', 'Ground Floor', 'Upper Floor', null]);
 // Namesakes on two levels (as in one display group) take each room's own level name.
 const split = model({
   buildings: [building('b:split', 'Split', ['l:a', 'l:b'])],

@@ -312,6 +312,34 @@ test('label actions use their full mounted targets and reserve surviving enlarge
     } }
 });
 
+test('on touch a name is drawn only with its own target; a pointer draws every placed name', () => {
+  const label = (id, x, y, tier = 'plain') => ({ id, text: 'Bedroom', x, y, rise: 0, tier });
+  const size = { width: 900, height: 500 }, advance = () => 60;
+  // Three names 26 px apart: their drawn chips stand, but only alternate 44 px targets fit.
+  const rows = [label('a', 200, 120), label('b', 230, 146), label('c', 260, 172), label('s', 600, 300, 'selected')];
+  const placed = api.placeStageLabels(rows, advance, size, []);
+  assert.deepEqual(placed, rows, 'every chip stands');
+  const coarse = api.labelHitBoxes(placed, size, [], [], advance, true);
+  const drawn = api.drawnStageLabels(placed, coarse, true);
+  assert.ok(drawn.length < placed.length, 'some names lose the target contest');
+  assert.ok(drawn.every(row => coarse.has(row)), 'each drawn name has its tap target');
+  assert.ok(drawn.includes(rows[3]), 'the selected tag stands');
+  for (const row of drawn) assert.equal(coarse.get(row).b - coarse.get(row).t, 44, 'touch targets stay 44 px');
+  // An open sheet sets every target aside: only the selected tag is drawn.
+  assert.deepEqual(api.drawnStageLabels(placed, coarse, true, true), [rows[3]]);
+  // With nothing selected and no targets, nothing is drawn on touch.
+  assert.deepEqual(api.drawnStageLabels(rows.slice(0, 3), new Map(), true), []);
+  // A pointer keeps every placed name, with or without a target.
+  assert.deepEqual(api.drawnStageLabels(placed, api.labelHitBoxes(placed, size, [], [], advance, false), false), placed);
+  assert.deepEqual(api.drawnStageLabels(placed, new Map(), false, true), placed);
+  // The Rooms note counts only rooms in view and in the label focus whose name is not drawn:
+  // rooms on another floor while one is chosen are out of focus, not unnamed.
+  const live = ['a', 'b', 'c', 'other-floor-1', 'other-floor-2'], focus = id => !id.startsWith('other-floor');
+  assert.equal(api.unnamedRoomCount(live, focus, drawn), 3 - drawn.filter(row => live.includes(row.id)).length);
+  assert.equal(api.unnamedRoomCount(live, focus, rows.slice(0, 3)), 0, 'every focused room named: nothing to report');
+  assert.equal(api.unnamedRoomCount(live, () => true, rows.slice(0, 3)), 2);
+});
+
 test('3D names reserve their whole measured chip, however long the floor name', () => {
   const label = (id, x, tier = 'plain') => ({ id, text: `Bedroom · ${'Upper floor under the roof '.repeat(3)}`, x, y: 150, rise: 0, tier });
   const size = { width: 900, height: 500 }, advance = () => 420;
@@ -787,6 +815,25 @@ const labelInput = (id, polygon, text, width, tier = 'plain', anchor) => {
     shape: api.preparePlanLabelShape([polygon]), metrics: { width, height: 18 } };
 };
 const labelOverlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+
+test('two Plan names close together: the collision box is the drawn button, 44 px on touch and 32 px for a pointer', () => {
+  // Two fictional rooms whose name centres are 38 px apart.
+  const upper = labelRectangle(300, 200, 400, 238), lower = labelRectangle(300, 238, 400, 276), size = { width: 960, height: 640 };
+  const paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [upper, lower] }]);
+  const rows = height => [labelInput('generated-upper', upper, 'Pantry', 50), labelInput('generated-lower', lower, 'Larder', 50)]
+    .map(row => height === undefined ? row : { ...row, targetHeight: height });
+  for (const [coarse, height] of [[false, undefined], [false, api.labelHitHeight(false)], [true, api.labelHitHeight(true)]]) {
+    const placed = api.placePlanRoomLabels(rows(height), size, [], [], labelFrame, paper);
+    assert.equal(placed.length, coarse ? 1 : 2, coarse ? 'touch: one 44 px target; the other name is chosen from the Rooms list' : 'pointer: both 32 px targets fit');
+    const boxes = api.labelHitBoxes(placed, size, [], [], undefined, coarse);
+    assert.deepEqual([...boxes.keys()], placed, 'every drawn Plan name keeps its target');
+    for (const row of placed) {
+      assert.equal(row.plan.height, coarse ? 44 : 32); assert.equal(row.plan.box.b - row.plan.box.t, coarse ? 44 : 32);
+      assert.deepEqual(boxes.get(row), row.plan.box, 'the collision box is the drawn button');
+    }
+    for (const [i, a] of placed.entries()) for (const b of placed.slice(i + 1)) assert.equal(labelOverlap(a.plan.box, b.plan.box), false);
+  }
+});
 
 test('settled Plan keeps horizontal names and turns a fictional narrow name inside its own source outline', () => {
   const strip = labelRectangle(300, 240, 320, 360), spacious = labelRectangle(500, 220, 660, 380);
