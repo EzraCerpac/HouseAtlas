@@ -256,8 +256,7 @@ checks:
   static markup;
 - the actual `Modal` head renders the example label only under the example's
   `ExampleLabelContext` (and nothing without it); the drawing viewer's header
-  and the example entry's provider (only with several homes) are checked in
-  source;
+  and the example entry's provider are checked in source;
 - that fixture's topology records pass the production stock result validator,
   and the actual Places view (`RoomsView.tsx`), rendered to static markup with
   the example projection and a topology index built from those records, lists
