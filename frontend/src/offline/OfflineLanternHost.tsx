@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HeldDraft, LiveCopyRetention } from '../../integration/live-copy-retention';
 import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalAvailability, OfflineHomeboxAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
@@ -20,6 +20,9 @@ import { OfflineStorageSettings, storageSize } from './OfflineStorageSettings';
 import './offline-app.css';
 import '../lantern/styles/panels.css';
 import '../lantern/styles/integration.css';
+
+// The Rooms & places lens and its held building records load only when chosen.
+const HeldPlaces = lazy(() => import('./HeldPlaces'));
 
 interface Selection {
   readonly handle: OfflineCopyHandle; readonly snapshot: OfflineViewSnapshotV1; readonly signal: AbortSignal;
@@ -111,12 +114,17 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
     }, () => { if (!ended && !signal.aborted) setAtlasLoading(false); });
     return () => { ended = true; stop?.(); void held?.close(); };
   }, [openAtlas, signal, selection.handle]);
+  const lens = <div className="seg offline-lens" role="group" aria-label="Atlas lens">
+    <button type="button" aria-pressed={view === 'atlas'} onClick={() => setView('atlas')}><Icon name="atlas" size={16} />Map</button>
+    <button type="button" aria-pressed={view === 'rooms'} onClick={() => setView('rooms')}><Icon name="rooms" size={16} />Rooms &amp; places</button>
+  </div>;
+  const stamp = <>Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</>;
   const count = outbox.waiting;
   const waiting = count ? ` · ${count} ${count === 1 ? 'change' : 'changes'} waiting` : '';
   return <div className={`lantern-host app view-${view} offline-app`}>
     <a className="skip" href="#main">Skip to content</a>
     <header className="topbar"><span className="brand-name">HouseAtlas</span><span className="house-name">{snapshot.data.homeLabel}</span></header>
-    <SectionNavigation view={view} onView={setView} />
+    <SectionNavigation view={view === 'rooms' ? 'atlas' : view} onView={setView} />
     <div className="shell-tools">
       {live.reachable ? <a className="offline-pill" href="/?live">Back online · Open live{count ? ` to sync ${count} changes` : ''}</a>
         : <button className="offline-pill" type="button" onClick={live.check} disabled={live.checking} aria-live="polite">
@@ -124,12 +132,15 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
       <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={20} /></button>
     </div>
     <main id="main" className="main" tabIndex={-1}>
-      {view === 'atlas' ? atlas ? <>
-          <p className="offline-stamp">Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</p>
+      {view === 'atlas' ? atlas ? <>{lens}
+          <p className="offline-stamp">{stamp}</p>
           <div className="offline-atlas"><UnifiedAtlas port={atlas.port} environment={{ reducedMotion, openDocuments: () => setView('library') }} /></div></>
-        : <div className="view"><h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
+        : <div className="view">{lens}<h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
+        : view === 'rooms' ? <div className="view">{lens}<header className="view-head"><h1>Rooms &amp; places</h1><p>{stamp}</p></header>
+          <Suspense fallback={<p role="status">Reading held building records…</p>}>
+            <HeldPlaces read={owner.read} handle={selection.handle} snapshot={snapshot} signal={signal} /></Suspense></div>
         : <div className="view"><header className="view-head"><h1>{view === 'upkeep' ? 'Upkeep' : view === 'library' ? 'Library' : 'Changes'}</h1>
-          <p>Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</p></header>
+          <p>{stamp}</p></header>
           {view === 'upkeep' && <OfflineUpkeep snapshot={snapshot} />}
           {view === 'library' && <OfflineLibrary owner={owner} selection={selection} openDocument={openDocument} />}
           {view === 'changes' && <><h2>Waiting changes</h2><p>{outbox.loaded ? `${count} changes waiting on this device.` : 'Reading waiting changes…'}</p>

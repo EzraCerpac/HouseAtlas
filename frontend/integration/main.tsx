@@ -834,6 +834,10 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
               return owner.capture(view, signal).then(async result => {
                 if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
+                // Building records for Rooms & places offline, through the lens's own reads; a failed read is recorded as not held.
+                const { retainOfflineTopology } = await import('./offline-topology-policy');
+                await retainOfflineTopology({ owner, topology, view, signal, current: () => currentReadyView === view }).catch(() => undefined);
+                if (signal.aborted || currentReadyView !== view) return;
                 await fillDeviceLibrary(owner, signal, keepLibrary);
               });
           }).catch(() => undefined);

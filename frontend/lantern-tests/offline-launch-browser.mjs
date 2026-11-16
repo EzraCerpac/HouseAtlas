@@ -117,6 +117,30 @@ async function liveLaunchSeed() {
       sourceDate: '2020', correlationId: 'generated-correlation', correlationSha256: 'a'.repeat(64),
       originalPhotoSha256: 'b'.repeat(64), renderedPhotoSha256: 'c'.repeat(64) }] }] };
 
+  // Generated building records as the Rooms & places lens reads them (#560), encoded by the actual codec:
+  // a building, a level at an exact recorded elevation, a level with an unknown elevation and a room.
+  const { loadNumericSource } = await import('./load-numeric-source.mjs');
+  const { encodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
+  const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
+  const place = n => `00000000-0000-4000-8000-0000000009${n}`;
+  const record = (recordType, recordId, payload) => ({ target: { authority: 'atlas', recordType, recordId }, revision: 1, lifecycle: 'active', payload });
+  const location = n => record('identity', place(n), { kind: 'location' });
+  const named = (n, atlasId, semanticKind, label, extra = {}) => record('location-semantics', place(n),
+    { atlasId, semanticKind, reviewStatus: 'accepted', label, evidenceIds: [], ...extra });
+  const contains = (n, from, to, membershipKind) => record('relation', place(n), { kind: 'location-membership', membershipKind,
+    from: { ref: { authority: 'atlas', recordType: 'identity', recordId: place(from) } },
+    to: { ref: { authority: 'atlas', recordType: 'identity', recordId: place(to) } },
+    reviewStatus: 'accepted', uncertainty: { status: 'unknown' }, evidenceIds: [] });
+  const locations = ['10', '11', '12', '13'].map(location);
+  const topology = encodeHeldTopology({ version: 1, scope, capturedAt: '2026-01-03T10:20:00.000Z', snapshotSha256: 'f'.repeat(64),
+    lists: { identity: { records: locations, sourceStatus: 'current' }, binding: { records: [], sourceStatus: 'current' },
+      'location-semantics': { records: [named('20', place('10'), 'building', 'Generated barn'),
+        named('21', place('11'), 'floor', 'Generated ground level', { elevation: { status: 'known', metres: ExactDecimal.parse('2.750'), datumAtlasId: place('10') } }),
+        named('22', place('12'), 'floor', 'Generated loft', { elevation: { status: 'unknown' } }),
+        named('23', place('13'), 'room', 'Generated tack room')], sourceStatus: 'current' },
+      relation: { records: [contains('30', '10', '11', 'building'), contains('31', '10', '12', 'building'), contains('32', '11', '13', 'level')], sourceStatus: 'current' } },
+    buildings: [{ buildingId: place('10'), members: { records: locations, sourceStatus: 'current' } }] });
+  console.log(`INFO held building records, generated live-launch home: ${topology.byteLength} bytes`);
   const owner = { actorId: 'synthetic-offline-launch-actor', ...scope };
   const requestId = 'synthetic-offline-launch-request';
   // Same persisted entry shape as the existing generated outbox examples. It
@@ -129,7 +153,7 @@ async function liveLaunchSeed() {
     body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
       idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
     createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
-  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+  return { topology: [...topology], cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
@@ -313,7 +337,7 @@ try {
   const reopenWrites = [];
   if (selected === 'live-launch') {
     seeded = await liveLaunchSeed();
-    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
+    const { topology, cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -344,6 +368,7 @@ try {
         check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
         check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
         check(await copies.keepHomeboxDocument(home, ${JSON.stringify(homeboxPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
+        check(await copies.keepTopology(home, new Uint8Array(${JSON.stringify(topology)}), signal));
       } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
@@ -409,6 +434,44 @@ try {
     assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Inspect generated pump')`), true);
     await tab('Changes');
     assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Operation history is not held')`), true);
+    // Rooms & places from the held building records: the Atlas lens, the held-copy stamp, exact
+    // elevation tokens and explicit unknowns, 44 px phone targets, nothing fetched.
+    await evaluate(`[...document.querySelectorAll('.navrail button')].find(button => button.textContent === 'Atlas').click()`);
+    await poll(`[...document.querySelectorAll('.offline-lens button')].some(button => button.textContent === 'Rooms & places')`, 5_000, 'Atlas lens switch not shown');
+    await evaluate(`[...document.querySelectorAll('.offline-lens button')].find(button => button.textContent === 'Rooms & places').click()`);
+    await poll(`document.querySelector('main h1')?.textContent === 'Rooms & places'
+      && [...document.querySelectorAll('main button')].some(button => button.getAttribute('aria-label')?.startsWith('Generated barn, Atlas identity'))`, 15_000, 'Held Rooms & places did not open');
+    assert.equal(await evaluate(`(() => { const head = document.querySelector('main .view-head p'), text = document.querySelector('main').textContent;
+      return /^Read-only held copy from .+\.$/.test(head?.textContent ?? '') && head.querySelector('time[datetime]') !== null
+        && text.includes('Building records retrieved') && text.includes('Building records: current')
+        && document.querySelector('.navrail button[aria-current="page"]')?.textContent === 'Atlas'
+        && document.querySelector('.offline-lens button[aria-pressed="true"]')?.textContent === 'Rooms & places'; })()`), true,
+      'Held Rooms & places must carry the held-copy stamp and its own retrieval time');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.getAttribute('aria-label')?.startsWith('Generated barn, Atlas identity')).click()`);
+    await poll(`document.querySelector('main').textContent.includes('Generated barn: 3 locations in reviewed membership')`, 5_000, 'Held building membership not shown');
+    assert.equal(await evaluate(`(() => { const text = document.querySelector('main').textContent;
+      return text.includes('+2.750 m') && text.includes('elevation unknown') && text.includes('Generated tack room'); })()`), true,
+      'Held levels keep the exact recorded elevation and the explicit unknown');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.offline-lens button, main .chip-btn')].filter(node => node.getClientRects().length)
+      .map(node => node.getBoundingClientRect().height).filter(height => height < 44)`), [], 'Phone lens and building controls are 44 px');
+    await screenshot('phone-offline-rooms-places');
+    assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Held Rooms & places must not fetch public bytes or data from network');
+    // A copy saved without building records (as before #560) keeps the not-held sentence.
+    const withoutRecords = await evaluate(`(async () => {
+      const { createLiveCopyOwner } = await import(${JSON.stringify(seeded.copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(seeded.copyBackendURL)});
+      const channel = new BroadcastChannel('houseatlas-live-readonly-copy-v1');
+      const copies = createLiveCopyOwner(openLiveCopyBackend(indexedDB), { changed: () => channel.postMessage('changed') });
+      try {
+        const actor = await copies.observeActor(${JSON.stringify(seeded.owner.actorId)}, () => true);
+        const home = copies.bindHome(actor.value, ${JSON.stringify(seeded.view.scope)}, () => true);
+        return (await copies.removeTopology(home.value, new AbortController().signal)).status;
+      } finally { copies.close(); channel.close(); }
+    })()`);
+    assert.equal(withoutRecords, 'ok');
+    await poll(`document.querySelector('main h1')?.textContent === 'Rooms & places'
+      && document.querySelector('main').textContent.includes('Offline: building records are not held in this saved copy. Connect and open live to read them.')
+      && !document.querySelector('main').textContent.includes('Generated barn')`, 10_000, 'A copy without building records lost the not-held sentence');
     await tab('Library');
     // Wait for the native row's own action: electrical rows can report "On this device" first.
     await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Generated held PDF')`, 5_000, 'PDF availability not shown');
@@ -520,7 +583,7 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
-    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    console.log('PASS live-launch: cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {
