@@ -1451,6 +1451,11 @@
   color: var(--muted);
 }
 
+/* The device load time, a quiet line under the counts. */
+.lantern-host .overview-loaded {
+  margin-top: 6px;
+}
+
 .lantern-host .tl-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);

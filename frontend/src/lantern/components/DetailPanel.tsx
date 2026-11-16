@@ -31,7 +31,7 @@ import { useSourcePorts } from '../source-ports';
 import { Icon } from './Icon';
 import { MediaScene } from './Art';
 import { photoNote } from '../adapters/read';
-import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
+import { ClaimBadge, EntityLink, Empty, fmtLocalClock, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { ExampleLabel } from '../example-label';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
 import { sourceLocation } from '../../app/model';
@@ -159,7 +159,7 @@ export function attentionCount(house: HouseData): number {
 }
 
 function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; onLeave?: (() => void) | undefined }) {
-  const { state, house, dispatch, projection } = useStore();
+  const { state, house, dispatch, projection, actions } = useStore();
   const { overdue, review, disputed, count } = attention(house);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
   const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
@@ -191,6 +191,8 @@ function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; on
             <strong>{soon.length}</strong> due in two weeks
           </li>
         </ul>
+        {/* The device's load time, worded as Settings words it, beside the other dates. */}
+        {actions.loadedAt !== undefined && <p className="overview-asof overview-loaded">Loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time></p>}
       </header>
       <div className="detail-body">
         {count > 0 && <Section title="Needs attention" count={count}>
