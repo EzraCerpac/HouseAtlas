@@ -1,10 +1,10 @@
 import type { Task } from '../data/types';
 import { dueState } from '../data/query';
-import { fmtDate, referenceDayLabel } from '../data/time';
-import { useCanWrite, useStore } from '../state/store';
+import { fmtDate } from '../data/time';
+import { useStore } from '../state/store';
 import { TaskRow } from '../components/rows';
+import { UpkeepQualifiers, useSharedTaskCache } from '../DeferredView';
 import { Empty, Note } from '../components/ui';
-import { Icon } from '../components/Icon';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -50,7 +50,7 @@ function Group({ title, tasks, tone, dateOf, now, sharedCache }: { title: string
 }
 
 export function UpkeepView() {
-  const { house, state, projection } = useStore();
+  const { house, state } = useStore();
   const byDue = (a: Task, b: Task) => (a.due ?? '9999').localeCompare(b.due ?? '9999');
   const overdue = house.tasks.filter((t) => dueState(t, house.displayNow) === 'overdue').sort(byDue);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon').sort(byDue);
@@ -58,22 +58,14 @@ export function UpkeepView() {
   const undated = house.tasks.filter(t => t.status === 'unknown');
   const done = house.tasks.filter((t) => t.status === 'done').sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
   // One cache status for every task is stated once; a differing row keeps its own.
-  const statuses = new Set(house.tasks.map(t => projection.entries.get(t.id)?.cacheStatus));
-  const [only] = statuses;
-  const sharedCache = statuses.size === 1 && only !== undefined ? only : undefined;
+  const sharedCache = useSharedTaskCache();
   const groups = [['Overdue', overdue], ['Next two weeks', soon], ['Later', later], ['No schedule supplied', undated], ['Completed', done]] as const;
   const empty = groups.filter(([, tasks]) => !tasks.length).map(([title]) => title);
-  // Reference date and cache state qualify every date below, so they sit under the heading.
-  const reference = referenceDayLabel(house.displayNow);
-  const qualifier = [reference !== undefined && `Dates relative to ${reference}`, sharedCache !== undefined && `Source cache: ${sharedCache} for every task`].filter(Boolean).join(' · ');
-  const can = useCanWrite('HomeBox');
-  const open = house.tasks.some(task => task.status !== 'done');
   return (
     <div className="view">
       <header className="view-head">
         <h1>Upkeep</h1>
-        {qualifier && <p className="fine">{qualifier}</p>}
-        {!can.ok && open && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}
+        <UpkeepQualifiers />
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
       {empty.length === groups.length ? <Empty>No tasks.</Empty>

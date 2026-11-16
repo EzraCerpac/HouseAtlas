@@ -622,22 +622,22 @@
   border-style: dashed;
 }
 
-/* An open task while Mark done is unavailable: a due-state ring, not a box to tick. */
+/* An open task while Mark done is unavailable: a due-state dot, not a box to tick. */
 .lantern-host .task-mark.task-mark-status {
-  width: 12px;
-  height: 12px;
-  margin: 4px;
-  border: 2px solid var(--hair-2);
+  width: 8px;
+  height: 8px;
+  margin: 6px;
+  border: 0;
   border-radius: 50%;
+  background: var(--hair-2);
 }
 
 .lantern-host .due-overdue .task-mark-status {
-  border-color: var(--alert);
   background: var(--alert);
 }
 
 .lantern-host .due-soon .task-mark-status {
-  border-color: var(--l-upkeep);
+  background: var(--l-upkeep);
 }
 
 .lantern-host .due-text.due-overdue {
@@ -1010,8 +1010,8 @@
   color: var(--muted);
 }
 
-/* A view still loading: its known headings over quiet placeholder rows,
-   one hairline-ruled row per 64 px, that claim no data. */
+/* A view still loading: its known headings over three quiet rows that claim
+   no data and fade toward the bottom, breathing slowly until the view arrives. */
 .lantern-host .loading-section + .loading-section {
   margin-top: 36px;
   padding-top: 18px;
@@ -1024,11 +1024,54 @@
 
 .lantern-host .loading-rows {
   display: block;
-  height: 192px;
-  background:
-    linear-gradient(var(--hair) 0 1px, transparent 1px) 0 0 / 100% 64px repeat-y,
-    linear-gradient(transparent 20px, var(--hair) 20px 32px, transparent 32px) 0 0 / min(46%, 280px) 64px repeat-y,
-    linear-gradient(transparent 42px, var(--hair) 42px 50px, transparent 50px) 0 0 / min(28%, 180px) 64px repeat-y;
+  animation: loading-breathe 1.4s ease-in-out infinite alternate;
+}
+
+.lantern-host .loading-rows i {
+  display: block;
+  height: 64px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .loading-rows i::before,
+.lantern-host .loading-rows i::after {
+  content: '';
+  display: block;
+  width: min(44%, 260px);
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hair) 70%, transparent);
+}
+
+.lantern-host .loading-rows i::after {
+  width: min(26%, 160px);
+  height: 8px;
+  margin-top: 10px;
+}
+
+.lantern-host .loading-rows i:nth-child(2) {
+  opacity: 0.65;
+}
+
+.lantern-host .loading-rows i:nth-child(2)::before {
+  width: min(34%, 210px);
+}
+
+.lantern-host .loading-rows i:nth-child(3) {
+  opacity: 0.35;
+}
+
+@keyframes loading-breathe {
+  to {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern-host .loading-rows {
+    animation: none;
+  }
 }
 
 /* The saved Network relations' standing qualifier, above their tabs. */
@@ -1272,16 +1315,20 @@
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 20px;
-  font-size: var(--fs-s);
-  font-weight: 600;
+  gap: 4px 18px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--muted);
 }
 
 .lantern-host .upkeep-empty li {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
+}
+
+.lantern-host .upkeep-empty .section-count {
+  font-size: inherit;
 }
 
 .lantern-host .tally .tally-asof {
@@ -1655,12 +1702,14 @@
   margin: 8px 0 0;
   padding: 0;
   display: grid;
-  /* auto-fit: a single file spans the width instead of leaving an empty column. */
+  /* auto-fit: a single file is not left beside an empty column; rows are
+     capped so a lone row's action stays near its title. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
   gap: 0 36px;
 }
 
 .lantern-host .lib-row {
+  max-width: 720px;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 4px 14px;
