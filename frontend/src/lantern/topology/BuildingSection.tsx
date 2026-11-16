@@ -18,10 +18,13 @@ export const messages = {
 // device is online. This live lens does not check the saved copy's building records.
 const offlineMessage = 'Live building records cannot be read offline. Use “Open saved house copy” in Atlas tools to check saved records.';
 const watchOnline = (notify: () => void) => { addEventListener('online', notify); addEventListener('offline', notify); return () => { removeEventListener('online', notify); removeEventListener('offline', notify); }; };
-/** The text for a building-record read status; an unavailable read while the browser reports offline names the limitation. */
+/** Unavailable held membership names the copy's limit; live reads name the offline limitation. */
 export function useBuildingMessages(): (key: keyof typeof messages) => string {
+  const { actions } = useStore();
   const offline = useSyncExternalStore(watchOnline, () => navigator.onLine === false, () => false);
-  return key => key === 'unavailable' && offline ? offlineMessage : messages[key];
+  return key => key === 'unavailable' && actions.heldCopy
+    ? 'This saved copy has no membership record for the selected building.'
+    : key === 'unavailable' && offline ? offlineMessage : messages[key];
 }
 
 /** A member place on a level slab. Only current place-list records are selectable. */

@@ -1994,6 +1994,8 @@ const scope = readFileSync(new URL('../src/lantern/topology/BuildingScope.tsx', 
 assert(section.includes('Live building records cannot be read offline. Use “Open saved house copy” in Atlas tools to check saved records.'));
 assert.doesNotMatch(section, /not held in this saved copy|Connect and open live/);
 assert.match(section, /navigator\.onLine === false/);
+assert.match(section, /const \{ actions \} = useStore\(\);/);
+assert.match(section, /return key => key === 'unavailable' && actions\.heldCopy\s*\? 'This saved copy has no membership record for the selected building\.'\s*: key === 'unavailable' && offline \? offlineMessage : messages\[key\]/);
 assert.match(section, /key === 'unavailable' && offline \? offlineMessage : messages\[key\]/);
 const heldPlaces = readFileSync(new URL('../src/offline/HeldPlaces.tsx', import.meta.url), 'utf8');
 assert(heldPlaces.includes(`if (held === 'missing') return <p role="status">Offline: building records are not held in this saved copy. Connect and open live to read them.</p>;`));
