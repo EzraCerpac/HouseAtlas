@@ -255,6 +255,26 @@ test('label actions use their full mounted targets and reserve surviving enlarge
   assert.deepEqual(api.visibleLabelHits(rows, size, [panel], []), [rows[0]]);
   assert.equal(api.labelHitWidth('a'), 44); assert.equal(api.labelHitWidth('A'.repeat(40)), 292);
   assert.equal(api.labelHitTarget(rows[0]).b - api.labelHitTarget(rows[0]).t, 32);
+  // A measured long name near the stage edge keeps its action target: the estimate would overrun the stage.
+  { const long = label('long', 100, 'W'.repeat(40));
+    assert.deepEqual(api.visibleLabelHits([long], size, [], []), [], 'the estimated target overruns the stage');
+    assert.deepEqual(api.visibleLabelHits([long], size, [], [], () => 150), [long]);
+    const hit = api.labelHitTarget(long, 150); assert.equal(hit.r - hit.l, 162); assert.equal(api.stageHitWidth(long, 150), 162);
+    assert.equal(api.stageHitWidth(label('s', 150), 10), 44); }
+});
+
+test('3D names reserve their whole measured chip, however long the floor name', () => {
+  const label = (id, x, tier = 'plain') => ({ id, text: `Bedroom · ${'Upper floor under the roof '.repeat(3)}`, x, y: 150, rise: 0, tier });
+  const size = { width: 900, height: 500 }, advance = () => 420;
+  const box = api.stageLabelBox(label('a', 450), 420);
+  assert.equal(box.r - box.l, 420 + 2 * api.stageLabelPad('plain') + 4, 'The reserved box is the drawn chip, not a capped estimate');
+  // Centres 300 px apart: capped 220 px boxes would both stand while the drawn names overlap.
+  const rows = [label('a', 250), label('b', 550)];
+  assert.deepEqual(api.placeStageLabels(rows, advance, size, []), [rows[0]]);
+  assert.deepEqual(api.placeStageLabels([label('s', 250, 'selected'), rows[1]], advance, size, []).map(row => row.id), ['s']);
+  // Clear of a panel the drawn chip would reach, and inside the stage.
+  assert.deepEqual(api.placeStageLabels([label('c', 450)], advance, size, [{ l: 640, r: 700, t: 140, b: 160 }]), []);
+  assert.deepEqual(api.placeStageLabels([label('e', 100)], advance, size, []), []);
 });
 
 test('duplicate floor names use source facts and stable source-order qualifiers without changing identities', async () => {
