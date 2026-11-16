@@ -1548,6 +1548,11 @@ test('stale electrical absence session or currentness refuses catalog retirement
 const { loadNumericSource } = await import('./load-numeric-source.mjs');
 const { retainOfflineTopology, createBuildingRecordsPasses } = await import(await loadNumericSource('integration/offline-topology-policy.ts'));
 const { decodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
+// AbortSignal.timeout is unreferenced; a referenced timer keeps the process alive until a deadline-only wait settles.
+async function settled(promise) {
+  const alive = setInterval(() => {}, 1000);
+  try { return await promise; } finally { clearInterval(alive); }
+}
 function generatedTopology(scope, fail = null) {
   const binding = Object.freeze({ scope }), calls = [];
   const record = (recordType, n, payload) => ({ target: { authority: 'atlas', recordType, recordId: uuid(n) }, revision: 1, lifecycle: 'active', payload });
@@ -1618,7 +1623,7 @@ test('a failed, changed, partial, timed-out or storage-refused building-record s
       assert.equal((await f.keep()).result, 'held');
       const before = await f.owner.read.readLast(signal());
       if (fail === 'quota') f.refuse(true);
-      const outcome = fail === 'hang' ? await f.pass(createBuildingRecordsPasses({ deadlineMs: 20 }), 'hang')
+      const outcome = fail === 'hang' ? await settled(f.pass(createBuildingRecordsPasses({ deadlineMs: 20 }), 'hang'))
         : (await f.keep(fail === 'quota' ? null : fail)).result;
       assert.equal(outcome, 'not-held', fail);
       f.refuse(false);
@@ -1641,9 +1646,9 @@ test('a pass whose module load never settles times out, releases its slot and pe
     const keeper = createBuildingRecordsPasses({ deadlineMs: 20, load: () => stalled });
     const first = f.pass(keeper);
     assert.equal(await f.pass(keeper), 'queued', 'a capture during the pass joins it');
-    assert.equal(await first, 'not-held', 'the deadline covers the module load');
+    assert.equal(await settled(first), 'not-held', 'the deadline covers the module load');
     assert.equal((await f.held()).status, 'missing');
-    assert.equal(await f.pass(keeper), 'not-held', 'the slot is free again after the timeout');
+    assert.equal(await settled(f.pass(keeper)), 'not-held', 'the slot is free again after the timeout');
     const tables = structuredClone(f.backend.tables());
     settle(await Promise.all([import(await loadNumericSource('lantern/topology/model.ts')), import(await loadNumericSource('offline/held-topology.ts'))]));
     await new Promise(done => setTimeout(done, 30));

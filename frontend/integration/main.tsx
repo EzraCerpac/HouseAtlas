@@ -142,6 +142,13 @@ const retainedSourceDocuments: import('../src/lantern/source-documents/types').S
     await owner.retainDocumentFrame(reader, frame, document, signal);
   },
 };
+// Building records for Rooms & places offline, beside (never before) the library fill. The pass owner is
+// loaded with this entry, so its one deadline covers the lazy codec/model load, the reads and storage.
+const keepBuildingRecordPasses = createBuildingRecordsPasses();
+function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRetention, view: ReadyView, signal: AbortSignal): void {
+  const actorId = currentSession?.actorId;
+  if (actorId) void keepBuildingRecordPasses({ owner, topology, view, signal, actorId, current: () => currentReadyView === view });
+}
 async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
@@ -170,13 +177,6 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
   const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
   return `${native} ${electrical.message} ${homebox.message}`;
-}
-// Building records for Rooms & places offline, beside (never before) the library fill. The pass owner is
-// loaded with this entry, so its one deadline covers the lazy codec/model load, the reads and storage.
-const keepBuildingRecordPasses = createBuildingRecordsPasses();
-function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRetention, view: ReadyView, signal: AbortSignal): void {
-  const actorId = currentSession?.actorId;
-  if (actorId) void keepBuildingRecordPasses({ owner, topology, view, signal, actorId, current: () => currentReadyView === view });
 }
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);
