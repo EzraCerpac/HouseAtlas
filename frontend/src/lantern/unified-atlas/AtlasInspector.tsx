@@ -23,7 +23,7 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, openNetworkLens, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
@@ -31,6 +31,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openDocuments: (() => void) | undefined;
   /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
   readonly openPlaces?: (() => void) | undefined;
+  /** Opens the host's Network lens from the same head; absent elsewhere. */
+  readonly openNetworkLens?: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** The one floor Plan draws of a whole building, else null. */
   readonly shownLevel: string | null;
@@ -82,8 +84,10 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
             <span>{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</span></p>
         </div>
         {/* The fuller list, with home places and building scope, opens from this head. */}
-        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" onClick={openPlaces}>
+        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" title="Rooms & places" onClick={openPlaces}>
           <Icon name="rooms" size={16} /><span>Places</span></button>}
+        {openNetworkLens && <button type="button" className="ua-sheet-lens" aria-label="Open Network" title="Network" onClick={openNetworkLens}>
+          <Icon name="network" size={16} /><span>Network</span></button>}
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
@@ -241,7 +245,9 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null,
           })}</ul>}
       </section>;
     })}
-    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected.</p>}
+    {coverage.unselectableCount > 0 && <p className="ua-coverage">{coverage.unselectable?.every(id => model.occurrencesById.has(id))
+      ? `Not selectable in this model: ${coverage.unselectable.map(id => `${atlasOccurrenceName(model, id)} (${atlasLevelName(model, model.occurrencesById.get(id)!.levelId, model.floorBuildings.length > 1)})`).join('; ')}.`
+      : `${plural(coverage.unselectableCount, 'room part')} in this model cannot be selected.`}</p>}
   </div>;
 }
 

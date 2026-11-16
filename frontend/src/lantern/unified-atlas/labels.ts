@@ -23,9 +23,14 @@ export interface RoomLabel { readonly id: string; readonly text: string; readonl
  * measured (never under 44 px), so a name that stands keeps its target. */
 export const stageHitWidth = (row: RoomLabel, advance: number | undefined) =>
   advance === undefined ? labelHitWidth(row.text) : Math.max(44, advance + 2 * stageLabelPad(row.tier));
-export const labelHitTarget = (row: RoomLabel, advance?: number): ScreenBox => { if (row.plan) return row.plan.box;
+/** A full 3D name target's height: the 44 px touch floor on coarse pointers, else 32 px. */
+export const labelHitHeight = (coarse: boolean) => coarse ? 44 : 32;
+export const labelHitTarget = (row: RoomLabel, advance?: number, height = labelHitHeight(false)): ScreenBox => { if (row.plan) return row.plan.box;
   const w = stageHitWidth(row, advance), middle = row.y - LABEL_TAG_RISE * row.rise;
-  return { l: row.x - w / 2, r: row.x + w / 2, t: middle - 16, b: middle + 16 }; };
+  return { l: row.x - w / 2, r: row.x + w / 2, t: middle - height / 2, b: middle + height / 2 }; };
+/** A 3D name's button drawn exactly as its computed box, so collisions use the rendered size. */
+export const stageHitStyle = (box: ScreenBox) => ({ left: (box.l + box.r) / 2, top: (box.t + box.b) / 2,
+  width: box.r - box.l, height: box.b - box.t, minWidth: 0, minHeight: 0 });
 
 /** Side padding and height of a drawn 3D name: the selected tag, or a quiet chip. */
 export const stageLabelPad = (tier: RoomLabel['tier']) => tier === 'selected' ? 9 : 6;
@@ -54,10 +59,31 @@ export function placeStageLabels<T extends RoomLabel>(rows: readonly T[], advanc
 
 /** SVG names remain visible independently; only safe action targets enter the tab order. */
 export function visibleLabelHits<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
-  cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined): readonly T[] {
+  cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined, coarse = false): readonly T[] {
+  const boxes = labelHitBoxes(rows, size, cover, counts, advance, coarse);
+  return rows.filter(row => boxes.has(row));
+}
+/** Each mounted name's action target, the box its button is drawn at. On a
+ * coarse pointer every target is 44 px tall and a name whose target would
+ * overlap one already kept (selected, then context, then stable order) gets
+ * none: it is chosen from the Rooms list. On a fine pointer a name whose 32 px
+ * target would overlap a neighbour's keeps one as tall as its drawn chip. */
+export function labelHitBoxes<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
+  cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined, coarse = false): ReadonlyMap<T, ScreenBox> {
   const rank = { selected: 0, context: 1, plain: 2 };
   const ordered = [...rows].sort((a, b) => rank[a.tier] - rank[b.tier] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return nonOverlappingTargets(rows, ordered, row => labelHitTarget(row, advance?.(row)), size, cover, counts.map(countMarkerTarget));
+  const full = (row: T) => labelHitTarget(row, advance?.(row), labelHitHeight(coarse));
+  if (coarse) return new Map(nonOverlappingTargets(rows, ordered, full, size, cover, counts.map(countMarkerTarget)).map(row => [row, full(row)]));
+  const chip = (row: T): ScreenBox => { const box = full(row); if (row.plan) return box;
+    const drawn = stageLabelBox(row, advance?.(row)); return { ...box, t: drawn.t + 1, b: drawn.b - 1 }; };
+  const reserved = counts.map(countMarkerTarget), kept = nonOverlappingTargets(rows, ordered, chip, size, cover, reserved);
+  const boxes = new Map(kept.map(row => [row, chip(row)]));
+  // Grow each kept target to its full height where that stays clear of everything else.
+  for (const row of ordered) if (boxes.has(row)) {
+    const box = full(row), others = [...boxes].filter(([other]) => other !== row).map(([, other]) => other);
+    if (box.t >= 0 && box.b <= size.height && ![...cover, ...reserved, ...others].some(other => intersects(box, other))) boxes.set(row, box);
+  }
+  return boxes;
 }
 
 const levelNames = new WeakMap<AtlasModel, ReadonlyMap<string, string>>();
