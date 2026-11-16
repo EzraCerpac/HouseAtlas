@@ -2649,7 +2649,7 @@
   /* Back has its own slim row under the chip, named for where it leads, so
      the chip keeps its whole width and its card hangs from it on screen. */
   .lantern-host .ua-scope:has(> .ua-back) { flex-direction: column; align-items: flex-start; }
-  .lantern-host .ua-scope .ua-back { min-height: 40px; padding: 0 12px 0 8px; }
+  .lantern-host .ua-scope .ua-back { min-height: 44px; min-width: 44px; padding: 0 12px 0 8px; }
   /* The open card takes Back's place until it folds. */
   .lantern-host .ua-scope:has(> .ua-stack.is-open) > .ua-back { visibility: hidden; }
 
