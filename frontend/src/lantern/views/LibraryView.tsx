@@ -104,7 +104,7 @@ export function LibraryView() {
     <div className="view">
       <header className="view-head library-head">
         <h1>Library</h1>
-        {sections.length > 1 && <nav className="seg library-jump" aria-label="Library sections">
+        {sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
           {sections.map(({ label, ref }) => <button key={label} type="button" onClick={() => jumpTo(ref)}>{label}</button>)}
         </nav>}
       </header>

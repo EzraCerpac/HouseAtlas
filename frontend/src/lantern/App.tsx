@@ -286,7 +286,8 @@ export function App() {
           <span>{state.selection ? 'Close details' : sheetOpen ? 'Hide overview' : `${house.name} overview`}</span>
         </button>
         {sheetExpanded && <div className="detail-scroll">
-          <DetailPanel onCloseOverview={() => { setSheetOpen(false); document.querySelector<HTMLElement>('.source-status')?.focus(); }} />
+          <DetailPanel onCloseOverview={() => { setSheetOpen(false); document.querySelector<HTMLElement>('.source-status')?.focus(); }}
+            onLeaveOverview={() => setSheetOpen(false)} />
           <SourceDetails key={state.selection?.id ?? "overview"} />
         </div>}
       </aside>

@@ -166,7 +166,7 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
     name: view.homeLabel,
     tagline: '',
     geometry: 'none',
-    floors: [{ id: 'fl-index', name: 'Rooms & places', short: '—', hasPlan: false, order: 0 }],
+    floors: [{ id: 'fl-index', name: 'HomeBox places', short: '—', hasPlan: false, order: 0 }],
     spaces,
     openings: [],
     containers: [],

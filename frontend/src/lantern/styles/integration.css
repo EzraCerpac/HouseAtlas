@@ -1,5 +1,7 @@
 /* Adapter states inherit Lantern materials; original authored layout stays intact. */
-.lantern-host .source-details { padding: 0 24px 24px; }
+/* Continues the detail body above: its inset, and one section rule in place of the body's bottom padding. */
+.lantern-host .source-details { margin-top: -36px; padding: 0 22px 24px; }
+.lantern-host .source-details > .section:first-child { border-top: 1px solid var(--hair); }
 .lantern-host code, .lantern-host .url { overflow-wrap: anywhere; word-break: break-word; }
 .lantern-host .authorized-preview { max-width: 100%; max-height: 65vh; object-fit: contain; }
 .lantern-host .source-details .place-editor { margin-top: 20px; }

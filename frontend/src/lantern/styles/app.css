@@ -55,6 +55,12 @@
   outline-offset: 2px;
 }
 
+/* Headings, sections and landmarks that take focus only by script (tabindex
+   -1) to keep the reader's place show no ring; controls keep theirs. */
+.lantern-host :is(h1, h2, h3, h4, p, main, section, article, aside, [role="dialog"])[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 .lantern-host .sr-only {
   position: absolute;
   width: 1px;
@@ -186,10 +192,6 @@
   outline: none;
 }
 
-.lantern-host .main:focus-visible {
-  outline: 2.5px solid var(--focus);
-  outline-offset: -2.5px;
-}
 
 .lantern-host.view-atlas .main {
   overflow: hidden;
@@ -321,7 +323,6 @@
 }
 
 .lantern-host .atlas-lens-head h2:focus { outline: none; }
-.lantern-host .atlas-lens-head h2:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
 
 .lantern-host .atlas-lens-body {
   flex: 1;
@@ -1427,6 +1428,13 @@
   padding-top: 4px;
 }
 
+/* A floated legend is laid out as the group's first row, inside the box,
+   so the separator above the group never runs through it. */
+.lantern-host .settings > fieldset.field > legend {
+  float: left;
+  margin-bottom: 0;
+}
+
 .lantern-host .settings .btn {
   justify-self: start;
 }
@@ -1885,6 +1893,24 @@
   color: var(--muted);
   display: grid;
   gap: 12px;
+}
+
+/* No match: the message with Clear search beside it, wrapping under it when narrow. */
+.lantern-host .palette-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
+  padding-block: 4px;
+}
+
+.lantern-host .palette-empty p {
+  margin: 0;
+}
+
+.lantern-host .palette-empty .text-btn {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .lantern-host .palette-try {

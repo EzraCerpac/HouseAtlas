@@ -5,7 +5,7 @@ with the original fictional Alder house. It reuses the documented
 `readme-house-visual` StoreProvider house override. It is presentation evidence,
 not a HomeBox projection, current source binding, native admission or write path.
 No session or transport client is supplied; application fetches return 404.
-Geometry metadata and native operation history are explicitly unavailable;
+Geometry imports and native operation history are explicitly unavailable;
 there is no pending reader behind either state.
 The original fictional records, counts, notes, claims and dates are unchanged.
 

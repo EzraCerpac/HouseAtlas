@@ -29,7 +29,8 @@
 .native-scene-pdf-page label { display: inline-flex; align-items: center; gap: 6px; }
 .native-scene-pdf-page input { box-sizing: border-box; width: 4.5rem; min-height: 34px; padding: 4px 8px; border: 1px solid var(--hair-2, #ccc); border-radius: var(--r-control, 8px); background: #fff; font: inherit; }
 .native-scene-pdf-zoom span { min-width: 3.5em; text-align: center; }
-.native-scene-drawing-payload > .native-scene-pdf { display: block; box-sizing: border-box; flex: 1 1 0; width: 100%; min-width: 0; min-height: 220px; overflow: auto; border: 1px solid var(--line, #ddd); background: #fff; }
-.native-scene-pdf-canvas { display: block; max-width: none; margin: 0 auto; background: #fff; }
+/* The page sits centred on a tinted stage, so space the page does not fill reads as stage, not page; auto margins never clip a zoomed page. */
+.native-scene-drawing-payload > .native-scene-pdf { display: flex; box-sizing: border-box; flex: 1 1 0; width: 100%; min-width: 0; min-height: 220px; padding: 12px; overflow: auto; border: 1px solid var(--line, #ddd); background: color-mix(in srgb, var(--hair, #ddd) 40%, #fff); }
+.native-scene-pdf-canvas { display: block; flex: none; max-width: none; margin: auto; background: #fff; box-shadow: 0 1px 3px rgba(22, 50, 79, 0.18); }
 @media (max-width: 600px) { .native-fixture-summary { left: 8px; bottom: 56px; max-width: calc(100% - 16px); } .native-fixture-details { right: 8px; top: 68px; width: calc(100% - 16px); max-height: calc(100% - 126px); } }
 @media (max-width: 600px) { .native-scene-drawing { inset: 6px; padding: 8px 10px; } .native-scene-drawing > header { top: -8px; gap: 6px; } .native-scene-pdf-controls { align-items: flex-start; } }

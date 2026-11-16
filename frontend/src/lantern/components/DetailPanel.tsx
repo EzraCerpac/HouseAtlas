@@ -33,12 +33,13 @@ import { ItemArt, MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
 
-export function DetailPanel({ onCloseOverview }: { onCloseOverview?: () => void }) {
+/** `onLeaveOverview` sets the overview aside without moving focus, for a link that takes focus elsewhere. */
+export function DetailPanel({ onCloseOverview, onLeaveOverview }: { onCloseOverview?: () => void; onLeaveOverview?: () => void }) {
   const { state, house } = useStore();
   const sel = state.selection;
-  if (!sel) return <Overview onClose={onCloseOverview} />;
+  if (!sel) return <Overview onClose={onCloseOverview} onLeave={onLeaveOverview} />;
   const rec = getRecord(house, sel.id);
-  if (!rec) return <Overview onClose={onCloseOverview} />;
+  if (!rec) return <Overview onClose={onCloseOverview} onLeave={onLeaveOverview} />;
   switch (sel.kind) {
     case 'space':
       return <SpaceDetail space={rec as Space} />;
@@ -64,7 +65,7 @@ export function DetailPanel({ onCloseOverview }: { onCloseOverview?: () => void 
     case 'task':
       return <TaskDetail t={rec as Task} />;
     default:
-      return <Overview onClose={onCloseOverview} />;
+      return <Overview onClose={onCloseOverview} onLeave={onLeaveOverview} />;
   }
 }
 
@@ -156,7 +157,7 @@ export function attentionCount(house: HouseData): number {
   return attention(house).count;
 }
 
-function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
+function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; onLeave?: (() => void) | undefined }) {
   const { state, house, dispatch } = useStore();
   const { overdue, review, disputed, count } = attention(house);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
@@ -235,8 +236,8 @@ function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
           <TaskList tasks={soon} showTarget />
         </Section>}
         {un.noRoomItems.length > 0 && <Section title="Without reviewed placement" count={un.noRoomItems.length}>
-          <button type="button" className="text-btn" onClick={() => dispatch({ type: 'view', view: 'rooms' })}>
-            Review them in Rooms
+          <button type="button" className="text-btn" onClick={() => { onLeave?.(); dispatch({ type: 'view', view: 'rooms', focus: 'unplaced' }); }}>
+            Show {un.noRoomItems.length} {un.noRoomItems.length === 1 ? 'belonging' : 'belongings'} in Rooms &amp; places
           </button>
         </Section>}
         <Sources house={house} outage={state.settings.outage} />

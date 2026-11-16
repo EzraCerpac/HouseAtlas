@@ -64,12 +64,14 @@ export interface AppState {
   toasts: Toast[];
   settings: Settings;
   ask: Record<string, AskEntry[]>;
-  changesFocus?: string | undefined;
+  /** Where a route asked the view to land; the view clears it once there. */
+  viewFocus?: string | undefined;
 }
 
 export type Action =
   | { type: 'house'; id: string }
   | { type: 'view'; view: ViewId; focus?: string }
+  | { type: 'viewFocusDone' }
   | { type: 'select'; sel: Selection | null; keepOverlay?: boolean; view?: ViewId; lens?: AtlasLens | null }
   | { type: 'atlasLens'; lens: AtlasLens | null }
   /** Ends a reading a record began, only while that same lens is still current. */
@@ -138,7 +140,8 @@ function route(s: AppState, view: ViewId | undefined, lens: AtlasLens | null | u
 }
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
-    case 'view': return { ...s, ...route(s, a.view, undefined), changesFocus: a.focus };
+    case 'view': return { ...s, ...route(s, a.view, undefined), viewFocus: a.focus };
+    case 'viewFocusDone': return s.viewFocus === undefined ? s : { ...s, viewFocus: undefined };
     case 'select': {
       const loc = a.sel ? locate(s.houses[s.houseId]!, a.sel.id) : {};
       return { ...s, selection: a.sel, floorId: loc.floorId ?? s.floorId,
@@ -213,5 +216,5 @@ export function useReducedMotion(): boolean {
   return state.settings.motion === 'reduce' || (state.settings.motion === 'system' && system);
 }
 export function useCanWrite(system: System): { ok: boolean; reason?: string } {
-  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. Open it in HomeBox when a verified link is available.' : 'No admitted Atlas operation for this action.' };
+  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. Open it in HomeBox when a verified link is available.' : 'Not available in this app.' };
 }
