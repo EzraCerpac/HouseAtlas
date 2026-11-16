@@ -193,7 +193,8 @@ function LeasedPayload({ reader, document, mode }: {
     <div ref={box} className="source-doc-payload">
       {live && live.frame.mode === 'preview' && lineage && <figure className="source-doc-preview">
         <img src={live.url} alt={`Preview of ${document.title}`} />
-        <figcaption>Qualified stripped PNG, rendered by {lineage.renderer} {lineage.rendererVersion}. {lineage.description}</figcaption>
+        {/* Renderer, version and format stay under Source details. */}
+        <figcaption>Preview. {lineage.description}</figcaption>
       </figure>}
       {live && original && <>
         {live.frame.measuredContentType === 'application/pdf'
@@ -232,7 +233,7 @@ function Provenance({ document }: { readonly document: SourceDocument }) {
         <div><dt>Axes and unit</dt><dd>{frame.axes.length ? frame.axes.join(', ') : 'Axes not recorded'}; {frame.linearUnit ?? 'unit not recorded'}</dd></div>
         <div><dt>Extent</dt><dd>{frame.extent ? frame.extent.join(', ') : 'Not recorded'}</dd></div>
         <div><dt>Original</dt><dd>{count(original.bytes)} bytes, asset revision {original.revision}, {AVAILABILITY[document.availability.original].toLowerCase()}</dd></div>
-        <div><dt>Preview</dt><dd>{preview ? <>{preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
+        <div><dt>Preview</dt><dd>{preview ? <>Qualified stripped PNG, rendered by {preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
           from this original{preview.sourceCropExtent ? `, cropped to ${preview.sourceCropExtent.join(', ')}` : ''}. {preview.description}</>
           : 'No qualified preview'}</dd></div>
         <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated <RecordedTime value={document.updatedAt} /></dd></div>

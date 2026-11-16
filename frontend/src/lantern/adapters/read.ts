@@ -103,7 +103,6 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryMetadata 
         ...(entry.entity.modelNumber ? { model: entry.entity.modelNumber } : {}),
         ...(entry.entity.serialNumber ? { serial: entry.entity.serialNumber } : {}),
         ...(sourceText(entry) ? { note: sourceText(entry) } : {}),
-        illustration: 'box',
         homeboxRef: entry.source.externalId,
         rev: 0,
       });

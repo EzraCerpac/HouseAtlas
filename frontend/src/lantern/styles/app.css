@@ -1957,6 +1957,11 @@
   color: var(--muted);
 }
 
+.lantern-host .palette-group-note {
+  margin-left: 4px;
+  font-weight: 400;
+}
+
 .lantern-host .palette-hit {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

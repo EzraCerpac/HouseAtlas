@@ -79,30 +79,6 @@ export interface Container {
   note?: string;
 }
 
-export type Illustration =
-  | 'dishwasher'
-  | 'fridge'
-  | 'oven'
-  | 'washer'
-  | 'boiler'
-  | 'sofa'
-  | 'tv'
-  | 'piano'
-  | 'desk'
-  | 'router'
-  | 'printer'
-  | 'clock'
-  | 'tent'
-  | 'drill'
-  | 'bike'
-  | 'freezer'
-  | 'alarm'
-  | 'lamp'
-  | 'box'
-  | 'stove'
-  | 'mower'
-  | 'dehumidifier';
-
 export interface Item {
   id: string;
   name: string;
@@ -117,7 +93,6 @@ export interface Item {
   serial?: string | undefined;
   acquired?: string;
   note?: string | undefined;
-  illustration: Illustration;
   homeboxRef: string;
   rev: number;
 }

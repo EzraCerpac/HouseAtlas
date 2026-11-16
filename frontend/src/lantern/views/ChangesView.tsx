@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { Empty } from '../components/ui';
 import { Icon } from '../components/Icon';
-import { Sources } from '../components/DetailPanel';
 
 export function ChangesView() {
-  const { house, dispatch, projection, actions } = useStore();
+  const { dispatch, projection, actions } = useStore();
   const history = projection.operationHistory;
   // A read asked from the button: 'asked' until the host shows it loading, 'reading' until it settles.
   // The button stays mounted through both, so keyboard focus is kept while the read runs.
@@ -23,7 +22,7 @@ export function ChangesView() {
   const events = history.status === 'ready' ? [...(history.earlierPages ?? []), history.page].flatMap(page => page.entries) : [];
   return <div className="view"><header className="view-head view-head-row"><h1>Changes</h1>
       {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
-    <div className="changes-grid"><section className="section"><header className="section-head"><h3 ref={heading} tabIndex={-1}>Operation history</h3></header>
+    <div className="changes-grid"><section className="section"><header className="section-head"><h2 ref={heading} tabIndex={-1}>Operation history</h2></header>
       {history.status === 'loading' && !retrying && <p className="body-text" role="status">Loading operation history…</p>}
       {/* The read failed or this home has no history to read; the client cannot tell which. The button repeats that read. */}
       {(history.status === 'unavailable' || retrying) && <><p className="note note-info" role="status"><Icon name="info" size={15} /><span>{retrying ? 'Reading operation history…'
@@ -59,6 +58,8 @@ export function ChangesView() {
         {history.loadingMore && <p className="body-text" role="status">Loading more operation history…</p>}
         {history.moreUnavailable && <p className="body-text" role="status">More events could not be loaded. The displayed pages remain partial.</p>}
       </>}
-    </section><Sources house={house} outage={false} /></div>
+    </section>
+    {/* Source states are Overview's; this page names it instead of repeating them. */}
+    <p className="fine changes-sources">Source states and update dates are in Overview.</p></div>
   </div>;
 }

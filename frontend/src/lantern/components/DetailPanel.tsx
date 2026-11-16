@@ -29,7 +29,7 @@ import { fmtDate, fmtDateTime, fmtDateTimeReadable, fmtShortDate, referenceDayLa
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { useSourcePorts } from '../source-ports';
 import { Icon } from './Icon';
-import { ItemArt, MediaScene } from './Art';
+import { MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, fmtLocalClock, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { ExampleLabel } from '../example-label';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
@@ -125,10 +125,11 @@ function OutageHint() {
   return <Note>{can.reason}</Note>;
 }
 
-function Facts({ rows }: { rows: [string, ReactNode][] }) {
+function Facts({ rows, className }: { rows: [string, ReactNode][]; className?: string }) {
   const shown = rows.filter(([, v]) => v !== undefined && v !== null && v !== '');
+  if (!shown.length) return null;
   return (
-    <dl className="facts">
+    <dl className={className ? `facts ${className}` : 'facts'}>
       {shown.map(([k, v]) => (
         <div key={k}>
           <dt>{k}</dt>
@@ -271,7 +272,7 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'House model selected; no reviewed shapes supplied.' : 'No reviewed shapes supplied for this home.'}</dd></div>}
+    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'From the house model; none reviewed.' : 'No reviewed shapes supplied for this home.'}</dd></div>}
   </dl></Section>;
 }
 
@@ -510,16 +511,17 @@ function ItemDetail({ item }: { item: Item }) {
       claim={!sp && item.locationClaim === 'unknown' ? undefined : <ClaimBadge claim={item.locationClaim} prefix="Location" />}
       lead={
         <div className="item-lead">
-          {!isUnknown && <ItemArt kind={item.illustration} label="Generic item illustration" />}
+          {/* Short identity values pair up two to a row; a note keeps the full width. */}
           <Facts
+            className="facts-pairs"
             rows={[
               [isUnknown ? 'Source type' : 'Category', item.category],
               ['Model', item.model ?? 'Unknown'],
               ['Serial', item.serial ?? 'Unknown'],
               ['Acquired', item.acquired ? fmtDate(item.acquired) : undefined],
-              ['Note', item.note],
             ]}
           />
+          <Facts rows={[['Note', item.note]]} />
         </div>
       }
       actions={
@@ -591,6 +593,7 @@ function ItemDetail({ item }: { item: Item }) {
       )}
       <Section title="Manuals, receipts and photos" count={docs.length}>
         <DocList docs={docs} />
+        {docs.length > 0 && !docs.some((d) => d.kind === 'photo') && <p className="fine">Photo not supplied.</p>}
         {!isUnknown && !canLink.ok && <p className="fine">Document linking is unavailable in this app.</p>}
       </Section>
       <Section

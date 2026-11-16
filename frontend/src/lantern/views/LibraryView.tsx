@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import type { Entry } from '../../app/types';
 import type { Doc } from '../data/types';
 import { nameOf } from '../data/query';
@@ -84,6 +84,42 @@ function jumpTo(target: RefObject<HTMLElement | null>) {
   section.focus({ preventScroll: true });
 }
 
+/** The section under the sticky shortcuts: the last whose top has reached
+ * them. A chosen shortcut holds until the reader scrolls or presses, so a short final
+ * section still reads as current after its jump. */
+function useCurrentSection(sections: readonly RefObject<HTMLElement | null>[], bar: RefObject<HTMLElement | null>) {
+  const [current, setCurrent] = useState(0);
+  const chosen = useRef<number | null>(null);
+  useEffect(() => {
+    const nav = bar.current;
+    const scroller = nav?.closest<HTMLElement>('.main');
+    if (!nav || !scroller) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (chosen.current !== null) return;
+      const line = nav.getBoundingClientRect().bottom + 24;
+      let index = 0;
+      sections.forEach((ref, i) => { const top = ref.current?.getBoundingClientRect().top; if (top !== undefined && top <= line) index = i; });
+      setCurrent(index);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(measure); };
+    const release = () => { chosen.current = null; };
+    const input = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    input.forEach(type => scroller.addEventListener(type, release, { passive: true }));
+    measure();
+    return () => {
+      cancelAnimationFrame(frame);
+      scroller.removeEventListener('scroll', onScroll);
+      input.forEach(type => scroller.removeEventListener(type, release));
+    };
+    // The refs are stable objects; only how many sections there are changes.
+  }, [sections.length, bar]);
+  const choose = (index: number) => { chosen.current = index; setCurrent(index); };
+  return [current, choose] as const;
+}
+
 export function LibraryView() {
   const { house, dispatch, projection } = useStore();
   const { documents, electricalLibrary } = useSourcePorts();
@@ -104,14 +140,18 @@ export function LibraryView() {
     ...(documents ? [{ label: 'Source documents', ref: documentsRef }] : []),
     ...(electricalLibrary ? [{ label: 'Electrical drawings', ref: drawingsRef }] : []),
   ];
+  const barRef = useRef<HTMLElement>(null);
+  const [current, choose] = useCurrentSection(sections.map(s => s.ref), barRef);
   return (
     <div className="view">
-      <header className="view-head library-head">
+      {/* With shortcuts, the heading's rule moves under them and they stay at the top while the page scrolls. */}
+      <header className={`view-head library-head${sections.length > 1 ? ' has-jump' : ''}`}>
         <h1>Library</h1>
-        {sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
-          {sections.map(({ label, ref }) => <button key={label} type="button" onClick={() => jumpTo(ref)}>{label}</button>)}
-        </nav>}
       </header>
+      {sections.length > 1 && <nav ref={barRef} className="library-jump" aria-label="Library sections">
+        {sections.map(({ label, ref }, index) => <button key={label} type="button" aria-current={index === current ? 'true' : undefined}
+          onClick={() => { choose(index); jumpTo(ref); }}>{label}</button>)}
+      </nav>}
       <section ref={homeboxRef} className="library-section" tabIndex={-1} aria-labelledby={homeboxHeading}>
         <div className="section-head"><h2 id={homeboxHeading}>HomeBox files</h2></div>
         <p className="library-scope">
