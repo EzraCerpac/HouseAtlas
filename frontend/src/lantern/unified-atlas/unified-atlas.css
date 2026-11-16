@@ -1010,16 +1010,36 @@
 }
 
 .lantern-host .ua-menu-camera {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--hair);
 }
 
-.lantern-host .ua-menu-camera .ctrl-btn { width: 44px; height: 44px; }
-/* Each group below the lists is named, so the lists stand apart as the first. */
-.lantern-host .ua-menu-camera > .ua-menu-label { flex: 1 0 100%; }
+.lantern-host .ua-menu-camera > .ua-menu-label { grid-column: 1 / -1; }
+
+/* Turn and zoom with their names: in the phone menu and the dock's tray. */
+.lantern-host .ua-cam-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font: 600 var(--fs-s)/1.2 var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lantern-host .ua-cam-btn > .icon { flex: none; color: var(--ink-2); }
+.lantern-host .ua-cam-btn:hover:not(:disabled) { background: var(--ua-hover); }
+.lantern-host .ua-cam-btn:disabled { color: var(--muted); cursor: default; }
+.lantern-host .ua-cam-btn:disabled > .icon { color: var(--hair-2); }
 
 
 .lantern-host .ua-menu-time {
@@ -2227,6 +2247,9 @@
     padding-bottom: 5px;
   }
 
+  /* The rooms head holds Places and Network before its toggle: one column each. */
+  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) { grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto auto; }
+
   /* Tighter columns and toggle, so the floor caption fits beside the name. */
   .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; column-gap: 6px; }
   .lantern-host .ua-inspector.is-room .ua-sheet-toggle { padding-right: 8px; }
@@ -2330,10 +2353,13 @@
   white-space: nowrap;
 }
 
-/* Smallest phones: Places drops its glyph, so the room count stays whole. */
-@media (max-width: 379px) {
-  .lantern-host .ua-sheet-lens { padding: 0 10px; }
-  .lantern-host .ua-sheet-lens > svg { display: none; }
+/* Phones: Places and Network show their glyphs only, their names kept as the
+   controls' names, so the room count stays whole beside them. */
+@media (max-width: 429px) {
+  .lantern-host .ua-sheet-lens { justify-content: center; padding: 0; }
+  .lantern-host .ua-sheet-lens > span { display: none; }
+  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) { column-gap: 2px; }
+  .lantern-host .ua-sheet-head:has(> .ua-sheet-lens + .ua-sheet-lens) .ua-sheet-sub { margin-left: 6px; }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
@@ -2477,6 +2503,10 @@
   }
 
   .lantern-host .ua-fold:not([aria-expanded='true']):hover { background: #fff; color: var(--ink); }
+  /* A count across buildings says so on a second line, so the fold stays narrow. */
+  .lantern-host .ua-fold-name { display: inline-grid; text-align: left; }
+  .lantern-host .ua-fold-scope { color: var(--muted); font: 600 11px/1.15 var(--text); }
+  .lantern-host .ua-fold[aria-expanded='true'] .ua-fold-scope { color: inherit; }
 
   .lantern-host .ua-fold-count {
     display: inline-grid;
@@ -2933,6 +2963,9 @@
 
   .lantern-host .ua-dock-dots > i.is-on { background: var(--layer); }
 
+  .lantern-host .ua-dock-camera { gap: 0; padding: 0; border-radius: 0; margin-right: 3px; box-shadow: 1px 0 0 var(--hair); color: var(--ink); }
+  .lantern-host .ua-dock-camera[aria-expanded='true'] { background: var(--lantern-soft); }
+
   .lantern-host .ua-bottom .ua-dock-tray {
     position: absolute;
     right: -1px;
@@ -2949,6 +2982,15 @@
   }
 
   .lantern-host .ua-bottom .ua-dock-tray[hidden] { display: none; }
+
+  .lantern-host .ua-bottom .ua-dock-camera-tray {
+    left: -1px;
+    right: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    border-radius: var(--r-panel);
+  }
 
   .lantern-host .ua-bottom .ua-dock-tray .layer-chip {
     display: flex;
@@ -2990,7 +3032,8 @@
       pointer-events: auto;
     }
 
-    .lantern-host .ua-dock-layers { display: none; }
+    .lantern-host .ua-dock-layers,
+    .lantern-host .ua-dock-camera { display: none; }
 
     .lantern-host .ua-bottom .ua-dock-tray {
       position: static;
