@@ -2105,3 +2105,42 @@ for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(s
   assert.match(inspector, /if \(!canRetryNow && document\.activeElement === document\.body\) heading\.current\?\.focus\(\);/);
 }
 console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only; deleted, unresolved, unreviewed and archived (archive visibility on and off) records flagged after present ones; unknown-kind records listed as unclassified; linked place state flagged or hidden while archived; freshness only from a fitting cache; retry focus');
+
+// Saved copy (#560): the building records the lens reads round-trip through the held codec with exact
+// tokens, and the held client returns them to the same index and building model. Bound to one home;
+// altered rows, unheld buildings and other kinds read as unavailable. No browser, IndexedDB or network.
+{
+  const held = await import(await loadNumericSource('offline/held-topology.ts'));
+  const list = read => ({ records: read.records, sourceStatus: read.sourceStatus });
+  const bytes = held.encodeHeldTopology({ version: 1, scope: fixture.scope, capturedAt: '2026-01-02T10:06:00.000Z', snapshotSha256,
+    lists: { identity: list(identity), binding: list(bindings), 'location-semantics': list(semantics), relation: list(relations) },
+    buildings: [{ buildingId: fixture.members[0], members: list(selected) }] });
+  console.log(`INFO held building records, synthetic topology fixture: ${bytes.byteLength} bytes`);
+  const decoded = held.decodeHeldTopology(bytes, fixture.scope), client = held.createHeldTopologyClient(decoded);
+  const binding = client.getBinding();
+  assert.deepEqual(binding.scope, fixture.scope);
+  for (const [kind, live] of [['identity', identity], ['binding', bindings], ['location-semantics', semantics], ['relation', relations]]) {
+    const read = await client.listAll(binding, kind, signal);
+    assert.equal(read.status, 'ready'); assert.equal(read.snapshotSha256, snapshotSha256); assert.equal(read.sourceStatus, live.sourceStatus);
+    assert.deepStrictEqual(read.records, live.records);
+  }
+  const members = await client.buildingMembers(binding, fixture.members[0], signal);
+  assert.deepStrictEqual(members.records, selected.records);
+  const heldIndex = buildTopologyIndex({ identities: decoded.lists.identity.records, bindings: decoded.lists.binding.records,
+    semantics: decoded.lists['location-semantics'].records, relations: decoded.lists.relation.records, sourceStatuses: ['current'] }, fixture.view, selectable);
+  assert.deepStrictEqual(buildBuildingModel(heldIndex, fixture.members[0], members.records), model);
+  // Exact elevation tokens survive serialization (no float rounding).
+  const tokens = records => records.flatMap(r => r.payload.elevation?.status === 'known' ? [r.payload.elevation.metres.token] : []);
+  assert(tokens(semantics.records).length > 0);
+  assert.deepEqual(tokens(decoded.lists['location-semantics'].records), tokens(semantics.records));
+  assert.equal((await client.buildingMembers(binding, fixture.members[1], signal)).status, 'unavailable');
+  assert.equal((await client.listAll(binding, 'circuit', signal)).status, 'unavailable');
+  assert.equal((await client.listAll({ scope: fixture.scope }, 'identity', signal)).status, 'unavailable');
+  assert.throws(() => held.decodeHeldTopology(bytes, { ...fixture.scope, homeId: '00000000-0000-4000-8000-000000000899' }));
+  const text = new TextDecoder().decode(bytes);
+  assert.throws(() => held.decodeHeldTopology(new TextEncoder().encode(text.replace('"lifecycle":"active"', '"lifecycle":"tombstoned"')), fixture.scope));
+  assert.throws(() => held.decodeHeldTopology(new TextEncoder().encode(text.replace('"version":1', '"version":2')), fixture.scope));
+  assert.throws(() => held.encodeHeldTopology({ ...held.decodeHeldTopology(bytes, fixture.scope), buildings: [{ buildingId: fixture.members[0],
+    members: { records: selected.records.filter(r => r.target.recordId !== fixture.members[0]), sourceStatus: 'current' } }] }));
+}
+console.log('PASS held building records: exact codec round trip, same index/model, home-bound, altered and unheld reads refused');

@@ -45,6 +45,7 @@ import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 import { forgetSavedEntry } from "../src/offline/saved-entry";
+import { createBuildingRecordsPasses } from "./offline-topology-policy";
 
 // Settings UI loads only when its live settings leaf mounts. Retained bootstrap
 // and actor retirement remain independent of this presentation chunk.
@@ -141,6 +142,13 @@ const retainedSourceDocuments: import('../src/lantern/source-documents/types').S
     await owner.retainDocumentFrame(reader, frame, document, signal);
   },
 };
+// Building records for Rooms & places offline, beside (never before) the library fill. The pass owner is
+// loaded with this entry, so its one deadline covers the lazy codec/model load, the reads and storage.
+const keepBuildingRecordPasses = createBuildingRecordsPasses();
+function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRetention, view: ReadyView, signal: AbortSignal): void {
+  const actorId = currentSession?.actorId;
+  if (actorId) void keepBuildingRecordPasses({ owner, topology, view, signal, actorId, current: () => currentReadyView === view });
+}
 async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
@@ -834,6 +842,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
               return owner.capture(view, signal).then(async result => {
                 if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
+                keepBuildingRecords(owner, view, signal);
                 await fillDeviceLibrary(owner, signal, keepLibrary);
               });
           }).catch(() => undefined);

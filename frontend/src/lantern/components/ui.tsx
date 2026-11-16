@@ -101,8 +101,12 @@ export function ClaimBadge({ claim, prefix }: { claim: Claim; prefix?: string })
 export function EntityLink({ id, label, view, sub }: { id: string; label?: string | undefined; view?: ViewId | undefined; sub?: string | undefined }) {
   const { house } = useStore();
   const select = useSelect();
-  const kind = kindOf(id);
+  const kind = kindOf(id), held = useStore().actions.heldCopy;
   if (!kind) return <span>{label ?? id}</span>;
+  if (held) return <span className="entity-link is-held">
+    <Icon name={KIND_ICON[kind]} size={15} />
+    <span className="entity-link-text"><span>{label ?? nameOf(house, id)}</span>{sub && <span className="entity-link-sub">{sub}</span>}</span>
+  </span>;
   return (
     <button type="button" className="entity-link" onClick={() => select(id, view ? { view } : undefined)}>
       <Icon name={KIND_ICON[kind]} size={15} />

@@ -11,6 +11,12 @@ function sourceReference(ref: SourceRef): string {
 
 /** Read only when the user activates the linked UUID. References remain plain text. */
 export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
+  // A held copy holds evidence IDs only, never the evidence records.
+  return useStore().actions.heldCopy
+    ? isEvidenceId(evidenceId) ? <p className="body-text linked-evidence" data-evidence-id={evidenceId}>Evidence not held in this saved copy.</p> : null
+    : <LiveLinkedEvidence evidenceId={evidenceId} />;
+}
+function LiveLinkedEvidence({ evidenceId }: { evidenceId: string }) {
   const { projection, actions } = useStore();
   const { nativeEvidenceDocuments } = useTopology();
   const view = projection.view;

@@ -191,6 +191,39 @@ exact-head source/frontend/browser and startup raw/gzip budgets must qualify
 the composed candidate. Fill limits, mounting and persistence authority remain
 unchanged; the compound PDF-storage and real-iPhone acceptance stays open.
 
+## Offline building records (#560)
+
+The held copy also keeps the building records the Rooms & places lens reads:
+the four topology lists and each reviewed building's membership list, read
+through the lens's own client under one server snapshot, with no new endpoint.
+They are a separate versioned owner row; copies without one keep the not-held
+sentence, and a failed, changed, partial, timed-out (one 120 s deadline covering
+module load, reads and storage; a late pass persists nothing) or storage-refused
+save removes the row. The pass runs beside the
+library fill, one per account and home at a time. The held lens shows records
+without opening them and states that evidence is not held in the saved copy.
+Three existing entries carry the controls; no command, selection or deadline
+is added, so the runner inventory is unchanged.
+
+- `topology-read.mjs` encodes its generated live reads with the actual codec
+  and checks the held client returns equal records, index and building model,
+  exact elevation tokens, home binding and refusal of altered or unheld rows.
+- `offline-electrical-copy.test.mjs` runs the actual policy, codec, retention
+  adapter and owner over its in-memory backend: round trip; failed, changed,
+  partial, timed-out and quota-refused saves recorded as not held with the view
+  kept; a never-settling module load timing out, freeing the slot and
+  persisting nothing late; retired views and in-flight cancellation writing nothing; another home
+  or account reading nothing; sign-out and clearing.
+- `offline-launch-browser.mjs --case live-launch` checks the mounted lens,
+  including no record-selection or evidence-read controls and the evidence
+  not-held sentence for a generated evidence ID.
+
+Generated sizes: 25,631 bytes for the topology-read fixture (one building
+membership), 4,872 bytes for the live-launch home and 1,403 bytes for the
+two-location policy home. The row uses the existing 8 MiB view bound and the
+shared budget and eviction. These are synthetic, headless checks; they are not
+real-home sizes or device evidence.
+
 ## Immutable Core read preparation
 
 Existing HTTP read/admission helpers and their preparation closures borrow
@@ -1331,7 +1364,11 @@ instead of the Saved entry: the live app registers both workers after every
 launch (no backend answers it here). That case seeds a generated Atlas and one
 waiting edit through the production storage APIs, closes the application tab,
 then opens a new tab offline. It checks the actual cached Atlas and waiting
-count, unchanged full queue record, and absence of write dispatch. It does not
+count, unchanged full queue record, and absence of write dispatch.
+It also seeds generated building records encoded by the actual held codec,
+then checks the offline Rooms & places lens (held-copy stamp, retrieval time,
+exact elevation token, explicit unknown elevation, 44 px phone controls,
+no network bytes) and, after the records are removed, the not-held sentence. It does not
 simulate a canonical session or claim an edit was accepted by a native backend.
 All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
@@ -5811,7 +5848,8 @@ its explicit list, including the `offline-launch`, `hung-network` and
 (generated build output on a loopback listener, no backend; live-launch also
 seeds a generated Atlas and waiting outbox entry through production storage APIs,
 closes and reopens the tab, and checks cached content, exact queue retention and
-no write dispatch), and fake-child/temporary-directory shutdown and bounded
+no write dispatch; since #560 also held Rooms & places building records and the
+not-held sentence), and fake-child/temporary-directory shutdown and bounded
 profile-cleanup and combined-failure diagnostic checks inside the existing offline-root-entry healthy case
 (no browser or real child launch), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
@@ -5868,6 +5906,9 @@ exact numeric provenance and refusal of withdrawn/disputed/superseded evidence.
 Full record/reference closure and independent electrical-review authority remain
 unavailable; the owner stays unmounted. These supplied controls are not native
 Access revocation, ongoing freshness, a verified trace or device acceptance.
+Since #560 the topology-read, `offline-electrical-copy.test.mjs` and live-launch
+cases also carry the held building-record controls listed under
+[Offline building records (#560)](#offline-building-records-560).
 The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 (#552): the pure network route search over generated topologies, with no DOM,
 browser, native host or source reads. The same list runs

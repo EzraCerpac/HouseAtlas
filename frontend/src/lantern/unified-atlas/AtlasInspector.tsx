@@ -57,7 +57,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openDocuments: (() => void) | undefined;
   /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
   readonly openPlaces?: (() => void) | undefined;
-  /** The live host's building records; absent in a saved copy, which holds none. */
+  /** The live host's building records; absent in a saved copy, whose card lists none. */
   readonly belongings?: RoomBelongingsSource | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** Rooms in view that the model or plan leaves unnamed because their names do not fit. */
@@ -276,7 +276,7 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
   }, [retrying, state.status, canRetryNow]);
   const unknown = "so this room's HomeBox place is not known.";
   const text = state.status === 'loading' ? "Loading building records for this room's HomeBox place…"
-    : state.status === 'not-readable' ? `Building records ${source ? 'cannot be read here' : 'are not held in this saved copy'}, ${unknown}`
+    : state.status === 'not-readable' ? source ? `Building records cannot be read here, ${unknown}` : 'Belongings are listed only in the live app, not in a saved copy.'
     : state.status === 'failed' ? `${FAILURE[state.reason] ?? 'Building records could not be loaded'}, ${unknown}`
     : state.status === 'unlinked' ? 'No reviewed HomeBox place link for this room.'
     : state.status === 'ambiguous' ? 'Reviewed links name more than one HomeBox place for this room, so none is listed.'

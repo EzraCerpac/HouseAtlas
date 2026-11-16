@@ -622,7 +622,7 @@ export function createLiveCopyRetention(options: {
     finally { reader?.dispose(); }
   }
   return {
-    read: { homeboxStatus: owner.homeboxStatus, readHomeboxDocument: owner.readHomeboxDocument, readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
+    read: { homeboxStatus: owner.homeboxStatus, readHomeboxDocument: owner.readHomeboxDocument, readTopology: owner.readTopology, readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
       async atlasReference(handle, signal) {
         const identity = await owner.copyIdentity(handle, signal); if (identity.status !== 'ok') return identity;
         try {
@@ -771,6 +771,18 @@ export function createLiveCopyRetention(options: {
     async retainHomeboxOriginal(ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal,
       additionalCurrent: () => boolean = () => true): Promise<OfflineResult<OfflineHomeboxPinV1>> {
       return bulkOriginal(ref, signal, additionalCurrent);
+    },
+    /** Holds encoded building records of one complete read for the current live home; null (a failed or
+     * partial read) records them as not held. The view, catalog and originals are untouched either way. */
+    async retainTopology(payload: Uint8Array | null, signal: AbortSignal, current: () => boolean): Promise<OfflineResult<unknown>> {
+      const b = binding(); if (b.status !== 'ok') return remember(b);
+      const live = () => !signal.aborted && b.value.current() && current();
+      try {
+        if (!live() || !actor) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+        const home = owner.bindHome(actor, options.state().view!.scope, live);
+        if (home.status !== 'ok') return remember(home);
+        return remember(payload ? await owner.keepTopology(home.value, payload, signal) : await owner.removeTopology(home.value, signal));
+      } catch { return remember({ status: signal.aborted ? 'aborted' : 'unavailable' }); }
     },
     /** Confirmed absence retires only this building's local catalog membership.
      * Empty provenance grants no source access; original bytes remain subject to

@@ -136,7 +136,7 @@ export interface AtlasPresentationEnvironment {
    * projection for the selected group's ledger is used (only the example house supplies one). */
   readonly electricalData?: ElectricalTraceSource;
   /** The live host's building records for a selected room's belongings;
-   * absent in a saved copy, which holds no building records. */
+   * absent in a saved copy, whose card lists none (it does not read the copy's held records). */
   readonly roomBelongings?: RoomBelongingsSource;
 }
 interface AtlasProps {

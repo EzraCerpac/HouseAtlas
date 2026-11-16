@@ -17,6 +17,7 @@ export interface OfflineViewSnapshotV1 {
   readonly version: 1; readonly kind: 'stored-display'; readonly freshness: 'stale';
   readonly actorRevision: string; readonly snapshotRevision: string; readonly capturedAt: string;
   readonly payloadSha256: string; readonly data: OfflineDisplayData;
+  /** What this view row holds. Building records and electrical drawings are separate rows, so they stay 'unavailable' here. */
   readonly coverage: Readonly<{ entries: 'captured'; geometry: 'unavailable'; history: 'unavailable';
     topology: 'unavailable'; electrical: 'unavailable'; nativeCatalog: 'separate-read' }>;
 }
@@ -108,6 +109,8 @@ export interface OfflineReadPort {
   /** Held observation for one exact association still present in the held view; no catalog completeness. */
   homeboxStatus(handle: OfflineCopyHandle, ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal): Promise<OfflineResult<OfflineHomeboxAvailability>>;
   readHomeboxDocument(handle: OfflineCopyHandle, pin: OfflineHomeboxPinV1, signal: AbortSignal): Promise<OfflineResult<Blob>>;
+  /** Encoded building records held for the copy's home; 'missing' when this copy holds none. */
+  readTopology(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<Uint8Array>>;
   subscribe(changed: () => void): () => void;
 }
 export interface OfflineStorageStatus {

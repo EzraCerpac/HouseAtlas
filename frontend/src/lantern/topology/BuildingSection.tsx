@@ -14,9 +14,9 @@ export const messages = {
   changed: 'Building records differ between reads. Reload saved information in Settings.', ready: '',
 };
 
-// Offline, a failed read is not a fault to retry: saved copies hold no topology
-// (coverage: topology unavailable), so no reload repeats it until the device is online.
-const offlineMessage = 'Offline: building records are not held in this saved copy. Connect and open live to read them.';
+// Offline, a failed live read is not a fault to retry: no reload repeats it until the
+// device is online. The offline host says the same for a held copy saved without them.
+export const offlineMessage = 'Offline: building records are not held in this saved copy. Connect and open live to read them.';
 const watchOnline = (notify: () => void) => { addEventListener('online', notify); addEventListener('offline', notify); return () => { removeEventListener('online', notify); removeEventListener('offline', notify); }; };
 /** The text for a building-record read status; an unavailable read while the browser reports offline names the limitation. */
 export function useBuildingMessages(): (key: keyof typeof messages) => string {

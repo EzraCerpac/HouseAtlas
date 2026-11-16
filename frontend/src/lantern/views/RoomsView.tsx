@@ -31,7 +31,7 @@ export function RoomsView() {
 }
 
 export function RoomIndex() {
-  const { house, state, dispatch, projection } = useStore();
+  const { house, state, dispatch, projection, actions } = useStore();
   const select = useSelect();
   const unplacedHeading = useRef<HTMLHeadingElement>(null), reducedMotion = useReducedMotion();
   // Sent here from the Overview's count: land on the records it counted. A
@@ -109,9 +109,7 @@ export function RoomIndex() {
                     { icon: 'valve', count: c.valves.length, one: 'valve', many: 'valves' },
                     { icon: 'wifi', count: c.devices.length, one: 'device', many: 'devices' },
                   ];
-                  return (
-                    <li key={r.id} className={`ledger-row${selectedId === r.id ? ' is-selected' : ''}`}>
-                      <button type="button" className="ledger-main" onClick={() => select(r.id)}>
+                  const content = <>
                         <span className="ledger-swatch" style={{ background: entry ? "#8a8f99" : ROOM_TINT[r.kind] }} aria-hidden="true" />
                         <span className="ledger-name">{r.name}</span>
                         <span className="ledger-facts">
@@ -124,7 +122,12 @@ export function RoomIndex() {
                           {entry && sourceException && <span className="ledger-flag">{status(r.id)}</span>}
                           {r.geometry !== 'reviewed' && !noShapes && <span className="ledger-flag is-quiet">No shape</span>}
                         </span>}
-                      </button>
+                  </>;
+                  return (
+                    <li key={r.id} className={`ledger-row${selectedId === r.id ? ' is-selected' : ''}`}>
+                      {/* A held copy has no record details to open. */}
+                      {actions.heldCopy ? <div className="ledger-main">{content}</div>
+                        : <button type="button" className="ledger-main" onClick={() => select(r.id)}>{content}</button>}
                       {c.containers.length > 0 && (
                         <ul className="ledger-storage" aria-label={`Storage in ${r.name}`}>
                           {c.containers.map((ct) => (

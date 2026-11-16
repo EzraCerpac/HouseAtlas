@@ -1542,3 +1542,151 @@ test('stale electrical absence session or currentness refuses catalog retirement
     } finally { f.owner.close(); }
   }
 });
+
+// Building records for Rooms & places offline (#560): the actual policy, codec, retention adapter and owner
+// over the generated in-memory backend and a generated topology client. No browser, IndexedDB or transport.
+const { loadNumericSource } = await import('./load-numeric-source.mjs');
+const { retainOfflineTopology, createBuildingRecordsPasses } = await import(await loadNumericSource('integration/offline-topology-policy.ts'));
+const { decodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
+// AbortSignal.timeout is unreferenced; a referenced timer keeps the process alive until a deadline-only wait settles.
+async function settled(promise) {
+  const alive = setInterval(() => {}, 1000);
+  try { return await promise; } finally { clearInterval(alive); }
+}
+function generatedTopology(scope, fail = null) {
+  const binding = Object.freeze({ scope }), calls = [];
+  const record = (recordType, n, payload) => ({ target: { authority: 'atlas', recordType, recordId: uuid(n) }, revision: 1, lifecycle: 'active', payload });
+  const building = record('identity', 900, { kind: 'location' });
+  const lists = { identity: [building, record('identity', 901, { kind: 'location' })], binding: [], relation: [],
+    'location-semantics': [record('location-semantics', 910, { atlasId: uuid(900), semanticKind: 'building', reviewStatus: 'accepted',
+      label: 'Generated building ✓', evidenceIds: [] })] };
+  const ready = records => ({ status: 'ready', records: structuredClone(records), sourceStatus: 'stale', snapshotSha256: 'a'.repeat(64) });
+  return { calls, client: { getBinding: () => binding, subscribe: () => () => {},
+    async listAll(given, kind, selected) { assert.equal(given, binding); calls.push(kind);
+      // Never answers; ends only when the pass's signal or deadline aborts it.
+      if (fail === 'hang') return new Promise((_, reject) => selected.addEventListener('abort', () => reject(selected.reason), { once: true }));
+      if (fail === kind) return { status: 'unavailable' };
+      return fail === 'changed' && kind === 'relation' ? { ...ready([]), snapshotSha256: 'b'.repeat(64) } : ready(lists[kind]); },
+    async buildingMembers(given, id) { assert.equal(given, binding); calls.push('members ' + id);
+      return fail === 'members' ? { status: 'timedOut' } : ready([building]); } } };
+}
+async function topologyHarness() {
+  // Storage that refuses building-record rows with a quota error while `refuse` is set.
+  const base = memory(); let refuse = false;
+  const backend = { ...base, transaction: (write, work) => base.transaction(write, tx => work({ ...tx,
+    put: async (table, key, value) => { if (refuse && key.includes('"topology"')) throw Object.assign(new Error('Generated quota'), { name: 'QuotaExceededError' });
+      return tx.put(table, key, value); } })) };
+  const other = { workspaceId: scope.workspaceId, homeId: uuid(3) };
+  const sessions = { a: { actorId: 'generated-actor-a', expiresAt: '2099-01-01T00:00:00Z' }, b: { actorId: 'generated-actor-b', expiresAt: '2099-01-01T00:00:00Z' } };
+  let state = { session: sessions.a, view };
+  const owner = createLiveCopyRetention({ factory: undefined, backend, state: () => state,
+    documents: () => { throw new Error('Synthetic native Document v2 transport trap'); } });
+  const observe = async session => { state = { ...state, session }; assert.equal((await owner.observe(session, () => state.session === session)).status, 'ok'); };
+  await observe(sessions.a);
+  assert.equal((await owner.capture(view, signal())).status, 'ok');
+  const keep = (fail = null, current = () => true, { signal: selected = signal() } = {}) => { const t = generatedTopology(state.view.scope, fail);
+    return retainOfflineTopology({ owner, topology: t.client, view: state.view, current, signal: selected }).then(result => ({ result, calls: t.calls })); };
+  // The pass owner the live host uses: single-flight per account and home, one deadline over load, reads and storage.
+  const pass = (keeper, fail = null) => keeper({ owner, topology: generatedTopology(state.view.scope, fail).client, view: state.view,
+    current: () => true, signal: signal(), actorId: state.session.actorId });
+  const held = async () => owner.read.readTopology(await readCopy(owner), signal());
+  return { owner, backend, keep, pass, held, observe, sessions, refuse: value => { refuse = value; },
+    async home(next = view) { state = { ...state, view: next }; assert.equal((await owner.capture(next, signal())).status, 'ok'); },
+    otherHome: () => ({ ...view, scope: other }) };
+}
+
+test('building records save with the copy, round-trip for its home and leave the rest of the copy as it was', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.held()).status, 'missing', 'a copy saved without building records holds none');
+    const { result, calls } = await f.keep();
+    assert.equal(result, 'held');
+    assert.deepEqual(calls.sort(), ['binding', 'identity', 'location-semantics', 'members ' + uuid(900), 'relation']);
+    const held = await f.held(); assert.equal(held.status, 'ok');
+    console.log(`INFO held building records, generated two-location home: ${held.value.byteLength} bytes`);
+    const value = decodeHeldTopology(held.value, scope);
+    assert.equal(value.lists['location-semantics'].records[0].payload.label, 'Generated building ✓');
+    assert.equal(value.lists.identity.sourceStatus, 'stale');
+    assert.deepEqual(value.buildings.map(row => [row.buildingId, row.members.records.length]), [[uuid(900), 1]]);
+    assert(Number.isFinite(Date.parse(value.capturedAt)));
+    const copy = await f.owner.read.readLast(signal()); assert.equal(copy.status, 'ok');
+    assert.equal(copy.value.snapshot.data.homeLabel, 'Generated home');
+    const status = await f.owner.storage.status(signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.documents, 0); assert(status.value.bytes >= held.value.byteLength);
+  } finally { f.owner.close(); }
+});
+
+test('a failed, changed, partial, timed-out or storage-refused building-record save is recorded as not held; the copy stays', async () => {
+  for (const fail of ['relation', 'changed', 'members', 'hang', 'quota']) {
+    const f = await topologyHarness();
+    try {
+      assert.equal((await f.keep()).result, 'held');
+      const before = await f.owner.read.readLast(signal());
+      if (fail === 'quota') f.refuse(true);
+      const outcome = fail === 'hang' ? await settled(f.pass(createBuildingRecordsPasses({ deadlineMs: 20 }), 'hang'))
+        : (await f.keep(fail === 'quota' ? null : fail)).result;
+      assert.equal(outcome, 'not-held', fail);
+      f.refuse(false);
+      assert.equal((await f.held()).status, 'missing', fail);
+      const after = await f.owner.read.readLast(signal());
+      assert.equal(after.status, 'ok'); assert.deepEqual(after.value.snapshot, before.value.snapshot);
+      // A retired live view writes and removes nothing.
+      const tables = structuredClone(f.backend.tables());
+      assert.equal((await f.keep(null, () => false)).result, 'stopped');
+      assert.deepEqual(f.backend.tables(), tables);
+    } finally { f.owner.close(); }
+  }
+});
+
+test('a pass whose module load never settles times out, releases its slot and persists nothing late', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.keep()).result, 'held');
+    let settle; const stalled = new Promise(done => { settle = done; });
+    const keeper = createBuildingRecordsPasses({ deadlineMs: 20, load: () => stalled });
+    const first = f.pass(keeper);
+    assert.equal(await f.pass(keeper), 'queued', 'a capture during the pass joins it');
+    assert.equal(await settled(first), 'not-held', 'the deadline covers the module load');
+    assert.equal((await f.held()).status, 'missing');
+    assert.equal(await settled(f.pass(keeper)), 'not-held', 'the slot is free again after the timeout');
+    const tables = structuredClone(f.backend.tables());
+    settle(await Promise.all([import(await loadNumericSource('lantern/topology/model.ts')), import(await loadNumericSource('offline/held-topology.ts'))]));
+    await new Promise(done => setTimeout(done, 30));
+    assert.deepEqual(f.backend.tables(), tables, 'late module results persist nothing');
+    assert.equal((await f.held()).status, 'missing');
+  } finally { f.owner.close(); }
+});
+
+test('a building-record pass cancelled in flight writes and removes nothing', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.keep()).result, 'held');
+    const tables = structuredClone(f.backend.tables()), controller = new AbortController();
+    const pass = f.keep('hang', () => !controller.signal.aborted, { signal: controller.signal });
+    setTimeout(() => controller.abort(), 5);
+    assert.equal((await pass).result, 'stopped');
+    assert.deepEqual(f.backend.tables(), tables);
+    assert.equal((await f.held()).status, 'ok');
+  } finally { f.owner.close(); }
+});
+
+test('held building records are read only for their account and home; sign-out and clearing remove them', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.keep()).result, 'held');
+    await f.home(f.otherHome());
+    assert.equal((await f.held()).status, 'missing', 'the copy of another home never reads this home\'s records');
+    assert.equal((await f.keep()).result, 'held');
+    await f.observe(f.sessions.b);
+    assert.notEqual((await f.owner.read.readLast(signal())).status, 'ok');
+    assert.deepEqual([...f.backend.tables().get('metadata').keys()], [], 'another account starts with nothing held');
+    await f.observe(f.sessions.a); await f.home();
+    assert.equal((await f.keep()).result, 'held');
+    await f.observe(null);
+    assert.deepEqual([...f.backend.tables().get('metadata').keys()], [], 'sign-out removes them');
+    await f.observe(f.sessions.a); await f.home();
+    assert.equal((await f.keep()).result, 'held');
+    assert.equal((await f.owner.storage.clear()).status, 'ok');
+    assert.deepEqual([...f.backend.tables().get('metadata').keys()], []); assert.deepEqual([...f.backend.tables().get('bytes').keys()], []);
+  } finally { f.owner.close(); }
+});
