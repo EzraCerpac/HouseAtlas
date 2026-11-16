@@ -13,6 +13,9 @@ export interface DocAccess {
   available: boolean;
 }
 
+/** A host without a geometry-import reader supplies no read, which is not a failed read. */
+export type GeometryMetadata = GeometryRead | { status: 'not-supplied' };
+
 /** The source records remain authoritative; Lantern records are display-only. */
 export interface LanternProjection {
   house: HouseData;
@@ -20,7 +23,7 @@ export interface LanternProjection {
   attachments: ReadonlyMap<string, Attachment>;
   docAccess: ReadonlyMap<string, DocAccess>;
   view: ReadyView;
-  geometryMetadata: GeometryRead;
+  geometryMetadata: GeometryMetadata;
   operationHistory: OperationHistoryRead;
   loadMoreOperations: (() => void) | null;
   geometryMappings: ReadonlyMap<string, Array<{ record: GeometryPublicRecord; mapping: GeometryPayloadMappingsItem }>>;
@@ -58,7 +61,7 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   return 'unknown';
 }
 
-export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null, includeArchived = false): LanternProjection {
+export function projectView(view: ReadyView, geometryMetadata: GeometryMetadata = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null, includeArchived = false): LanternProjection {
   const entries = new Map<string, Entry>();
   const attachments = new Map<string, Attachment>();
   const docAccess = new Map<string, DocAccess>();

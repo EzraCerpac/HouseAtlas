@@ -216,5 +216,5 @@ export function useReducedMotion(): boolean {
   return state.settings.motion === 'reduce' || (state.settings.motion === 'system' && system);
 }
 export function useCanWrite(system: System): { ok: boolean; reason?: string } {
-  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. Open it in HomeBox when a verified link is available.' : 'Not available in this app.' };
+  return { ok: false, reason: system === 'HomeBox' ? 'HomeBox owns this record. No verified HomeBox link is available.' : 'Not available in this app.' };
 }

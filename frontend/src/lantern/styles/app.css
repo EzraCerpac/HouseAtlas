@@ -597,6 +597,11 @@
   background: rgba(60, 46, 22, 0.06);
 }
 
+.lantern-host .house-btn.is-static {
+  margin: 0;
+  background: transparent;
+}
+
 .lantern-host .house-btn .icon {
   flex-shrink: 0;
   color: var(--muted);
@@ -1930,6 +1935,10 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 14px 10px;
+}
+
+.lantern-host .palette-group-label + .palette-try {
+  padding-top: 4px;
 }
 
 /* Phones: each suggestion is a 44 px target. */

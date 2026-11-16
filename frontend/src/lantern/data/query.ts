@@ -297,7 +297,7 @@ export function search(h: HouseData, query: string): SearchHit[] {
     const s = scoreText(q, title, extra);
     if (s > 0) hits.push({ id, kind, title, context, score: s });
   };
-  const where = (id: string) => breadcrumb(h, id).join(', ') || 'No location recorded';
+  const where = (id: string) => breadcrumb(h, id).join(', ') || 'No reviewed placement';
 
   for (const s of h.spaces) {
     const former = (s.formerNames ?? []).map((f) => f.name).join(' ');

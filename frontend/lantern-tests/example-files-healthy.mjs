@@ -211,7 +211,7 @@ try {
   }
   const drawingSource = readFileSync(join(root, 'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx'), 'utf8');
   assert.match(drawingSource, /<header><div><ExampleLabel \/><h3>\{sheet\.title\}<\/h3>/, 'the drawing viewer heads with the same label');
-  assert.match(readFileSync(join(root, 'frontend/example/app.tsx'), 'utf8'), /<ExampleLabelContext value=\{view\.homeLabel\}>/);
+  assert.match(readFileSync(join(root, 'frontend/example/app.tsx'), 'utf8'), /<ExampleLabelContext value=\{view\.homes\.length > 1 \? view\.homeLabel : null\}>/);
 
   // Offline worker: exact table of the example's build files, served from its own cache.
   const MIME = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8' };

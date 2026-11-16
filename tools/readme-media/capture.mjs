@@ -553,7 +553,7 @@ try {
   // fresh 3D draw and the house opened through ?building=.
   const exampleReady = async (page, counter) => {
     assert.equal(await page.title(), exampleTitle);
-    await page.getByRole('button', { name: 'Home: Synthetic example house. Choose home.', exact: true }).waitFor();
+    await page.getByRole('banner').getByText('Home: Synthetic example house', { exact: true }).waitFor();
     assert.equal(await page.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
     const stage = page.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
     await stage.waitFor();
@@ -741,12 +741,12 @@ try {
   await belongings.getByRole('button', { name: /^Fictional reading lamp/ }).click();
   const detail = production.getByRole('complementary', { name: 'Details' });
   await detail.getByRole('heading', { name: 'Fictional reading lamp', exact: true }).waitFor();
-  assert.match(await detail.innerText(), /No reviewed placement is recorded for this belonging/);
+  assert.match(await detail.innerText(), /No reviewed placement\./);
   assert.match(await detail.innerText(), /Synthetic house \/ Ground floor \/ Living room/);
   assert.match(await detail.innerText(), /stale/);
   // HomeBox edits are not offered here; the ownership note says where they happen.
   assert.equal(await detail.getByRole('button', { name: 'Edit', exact: true }).count(), 0);
-  assert.match(await detail.innerText(), /HomeBox owns this record\. Open it in HomeBox when a verified link is available\./);
+  assert.match(await detail.innerText(), /HomeBox owns this record\. No verified HomeBox link is available\./);
   examplePhase('inventory detail screenshot starting');
   await production.screenshot({ path: resolve(output, 'example-inventory-detail.png'), animations: 'disabled' });
   examplePhase('inventory detail screenshot complete; final away navigation starting');

@@ -4,13 +4,14 @@ import { shownView, type RefreshHostPort, type RefreshToken, type Withheld } fro
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
+type GeometryClient = ReturnType<typeof createGeometryClient>;
 import type { ReadyView } from '../app/types';
 import type { ModelContextPort } from '../webmcp/ports';
 import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
 import type { PinnedFileClient } from '../api/pinned-file-client';
 import type { HomeboxOriginalsPort } from './homebox-originals/types';
 import type { NetworkRelationsClient } from '../api/network-relations-client';
-import { projectView } from './adapters/read';
+import { projectView, type GeometryMetadata } from './adapters/read';
 import { StoreProvider } from './state/store';
 import { NativeActions } from './components/NativeActions';
 import { App } from './App';
@@ -45,8 +46,10 @@ class OptionalToolBoundary extends Component<{ readonly children: ReactNode }, {
 }
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, homeboxOriginals, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition, offlineStorage }: {
+export function LanternHost({ view, actions, nativeContent, geometry, quantityWebMcp, pinnedFiles, homeboxOriginals, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition, offlineStorage }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
+  /** Geometry-import reader; null when this host supplies none (the example). */
+  geometry?: GeometryClient | null;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
   pinnedFiles?: PinnedFileClient;
@@ -68,7 +71,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   offlineStorage?: ReactNode;
 }) {
   const sources = useMemo(() => ({ ...(sourceModels ? { models: sourceModels } : {}), ...(sourceDocuments ? { documents: sourceDocuments } : {}), ...(sourceElectricalLibrary ? { electricalLibrary: sourceElectricalLibrary } : {}) }), [sourceModels, sourceDocuments, sourceElectricalLibrary]);
-  const client = useMemo(() => createGeometryClient(), []);
+  const client = useMemo(() => geometry === undefined ? createGeometryClient() : geometry, [geometry]);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
   const session = actions.session?.expiresAt;
   // Each successful read delivers a new view; a failed reload keeps the old one and its time.
@@ -83,8 +86,9 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   }, [retrying, actions.notice]);
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
-  const [geometry, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
+  const [geometryRead, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
   useEffect(() => {
+    if (!client) return;
     const controller = new AbortController();
     void client.read(view.scope, controller.signal).then((read) => {
       if (!controller.signal.aborted) setGeometry({ view, session, read });
@@ -139,7 +143,8 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     });
   }, [historyClient, history, view, session]);
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
-  const current = geometry?.view === view && geometry.session === session ? geometry.read : { status: 'loading' as const };
+  const current: GeometryMetadata = !client ? { status: 'not-supplied' }
+    : geometryRead?.view === view && geometryRead.session === session ? geometryRead.read : { status: 'loading' };
   // A revocation recorded by an explicit refresh whose view re-read failed
   // withholds HomeBox entries of every later view of that home in the same
   // session, including one another reload delivered meanwhile.
@@ -170,7 +175,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     <NativeActions />
     {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
     {(actions.notice || retrying) && <div className="lantern-host lantern-reload-notice">
-      <p role="status">{actions.notice ? `${actions.notice} View loaded on this device: ${fmtLocalClock(loaded.at)}.` : 'Reloading saved information…'}</p>
+      <p role="status">{actions.notice ? `${actions.notice} Saved information loaded on this device: ${fmtLocalClock(loaded.at)}.` : 'Reloading saved information…'}</p>
       <button type="button" className="btn btn-small" aria-disabled={actions.busy || retrying} onClick={() => {
         if (actions.busy || retrying) return;
         retried.current = true; setRetrying(true); void Promise.resolve(actions.reload()).finally(() => setRetrying(false));

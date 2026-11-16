@@ -116,7 +116,7 @@ export async function createSyntheticDocumentServer(scope: SyntheticScope): Prom
       custodyReceiptSha256: 'c'.repeat(64),
     }, { asset: previewPin, inputs: [surveyPin], renderer: 'synthetic-renderer', rendererVersion: '1.0.0',
       rendererConfigSha256: 'd'.repeat(64), qualificationReceiptSha256: 'e'.repeat(64), sourceCropExtent: null,
-      description: 'Stripped render of sheet 1 with metadata removed.' }) },
+      description: 'Sheet 1 of the parcel survey.' }) },
     { availability: { original: 'available', preview: 'not-qualified' }, document: record(2, 2, 'Synthetic outline export', geojsonPin, {
       agency: 'Synthetic Mapping Desk', url: null, license: { status: 'unknown', reference: null }, retrievedAt: '2026-10-07T08:15:00+02:00',
       published: { value: '2024-02-29', precision: 'day' }, observed: null,

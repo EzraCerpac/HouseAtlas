@@ -545,7 +545,7 @@ function ItemDetail({ item }: { item: Item }) {
             )}
           </p>
         ) : (
-          <Note tone="warn">No reviewed placement is recorded for this {isUnknown ? 'record' : 'belonging'}.</Note>
+          <Note tone="warn">No reviewed placement.</Note>
         )}
         {item.locationNote && <p className="body-text muted">{item.locationNote}</p>}
       </Section>
@@ -982,6 +982,8 @@ function TaskDetail({ t }: { t: Task }) {
   const st = dueState(t, house.displayNow);
   const docs = house.docs.filter((d) => (t.docIds ?? []).includes(d.id) || d.linkedTo.includes(t.id));
   const evidence = house.docs.filter((d) => t.evidenceIds.includes(d.id));
+  // Without a task manual, the files saved for the task's record are the next place to look.
+  const targetFiles = docs.length ? [] : docsFor(house, t.targetId);
   return (
     <Shell
       id={t.id}
@@ -1014,7 +1016,11 @@ function TaskDetail({ t }: { t: Task }) {
         />
       </Section>
       <Section title="Instructions" count={docs.length}>
-        <DocList docs={docs} empty="No manual linked to this task." />
+        <DocList docs={docs} empty="No manual was supplied for this task." />
+        {targetFiles.length > 0 && <>
+          <h4 className="detail-subhead">Files for {nameOf(house, t.targetId)}</h4>
+          <DocList docs={targetFiles} />
+        </>}
       </Section>
       {t.status === 'done' && (
         <Section title="Evidence" count={evidence.length}>

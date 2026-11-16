@@ -114,6 +114,13 @@
   gap: 8px;
 }
 
+.lantern-host .section > .detail-subhead {
+  margin: 12px 0 4px;
+  font-size: var(--fs-s);
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
 .lantern-host .view .section-head h2 {
   font-size: var(--fs-xl);
 }
@@ -1053,6 +1060,32 @@
   opacity: 0.35;
 }
 
+/* Library: a file row's title bar and action slot over its facts. */
+.lantern-host .loading-lib i {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 12px;
+  height: auto;
+  padding: 14px 0 18px;
+}
+
+.lantern-host .loading-lib i::before { width: min(60%, 260px); }
+.lantern-host .loading-lib i::after { grid-column: 1; margin-top: 0; }
+
+.lantern-host .loading-lib b {
+  grid-column: 2;
+  grid-row: 1;
+  width: 92px;
+  height: 30px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+@media (max-width: 759px) {
+  .lantern-host .loading-lib b { height: 44px; }
+}
+
 /* Upkeep: a timeline row's date column, due mark and two text lines. */
 .lantern-host .loading-timeline i {
   display: grid;
@@ -1343,7 +1376,7 @@
   margin-top: 16px;
 }
 
-.lantern-host .unplaced-grid h3 {
+.lantern-host .unplaced-grid h4 {
   font-size: var(--fs-m);
   margin-bottom: 6px;
 }
@@ -1830,7 +1863,8 @@
 }
 
 .lantern-host .lib-main .row-meta .storage {
-  color: var(--ink);
+  color: inherit;
+  font-weight: 500;
 }
 
 .lantern-host .lib-linked {
@@ -2703,6 +2737,13 @@
   .lantern-host .ledger {
     grid-template-columns: 52px minmax(0, 1fr);
     gap: 10px;
+    padding: 12px 0 14px;
+  }
+
+  /* Rows keep a 44 px target without extra padding around one line. */
+  .lantern-host .ledger-main {
+    min-height: 44px;
+    padding-block: 7px;
   }
 
   .lantern-host .ledger-facts {
