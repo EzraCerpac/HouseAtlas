@@ -2,6 +2,7 @@ import { Component, Suspense, type ReactNode } from 'react';
 import { useCanWrite, useStore } from './state/store';
 import { useSourcePorts } from './source-ports';
 import { referenceDayLabel } from './data/time';
+import { InlineTime } from './components/ui';
 import { Icon } from './components/Icon';
 
 interface Props { readonly label: string; readonly children: ReactNode }
@@ -19,6 +20,21 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
     </section>;
     return this.props.children;
   }
+}
+
+/** Changes' source freshness: each source's state and last successful update
+ * on one line. Drawn the same while Changes loads; identity and refresh stay in Overview. */
+export function SourceStates() {
+  const { projection } = useStore();
+  const caches = projection.view.caches;
+  return <ul className="changes-sources" aria-label="Sources">
+    {caches.map((cache, index) => {
+      const state = cache.displayStatus.replace(/-/g, ' ');
+      return <li key={index}>{cache.owner === 'homebox' ? 'HomeBox' : 'Network'}: <strong>{state.charAt(0).toUpperCase() + state.slice(1)}</strong>, last successful update{' '}
+        {cache.lastSuccessfulFetchAt ? <InlineTime value={cache.lastSuccessfulFetchAt} /> : 'unknown'}</li>;
+    })}
+    {!caches.length && <li>No cache information supplied.</li>}
+  </ul>;
 }
 
 /** The cache status every task shares, if one; the Upkeep page states it once. */
@@ -76,7 +92,7 @@ function LoadingView({ label }: { readonly label: string }) {
           : label === 'Changes' ? <span className="loading-rows" aria-hidden="true"><i /></span>
           : <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>}
       </section>)}
-      {label === 'Changes' && <p className="fine changes-sources">Source states and update dates are in Overview.</p>}
+      {label === 'Changes' && <SourceStates />}
     </div>
   </section>;
 }

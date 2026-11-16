@@ -30,6 +30,7 @@ import { useCanWrite, useSelect, useStore } from '../state/store';
 import { useSourcePorts } from '../source-ports';
 import { Icon } from './Icon';
 import { MediaScene } from './Art';
+import { photoNote } from '../adapters/read';
 import { ClaimBadge, EntityLink, Empty, fmtLocalClock, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { ExampleLabel } from '../example-label';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
@@ -592,8 +593,8 @@ function ItemDetail({ item }: { item: Item }) {
         </Section>
       )}
       <Section title="Manuals, receipts and photos" count={docs.length}>
-        <DocList docs={docs} />
-        {docs.length > 0 && !docs.some((d) => d.kind === 'photo') && <p className="fine">Photo not supplied.</p>}
+        <DocList docs={docs} empty="No files supplied for this record." />
+        {photoNote(docs) && <p className="fine">{photoNote(docs)}</p>}
         {!isUnknown && !canLink.ok && <p className="fine">Document linking is unavailable in this app.</p>}
       </Section>
       <Section

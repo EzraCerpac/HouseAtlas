@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
 import { transformWithOxc } from 'vite';
-import { projectView } from '../src/lantern/adapters/read.ts';
+import { photoNote, projectView } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { checkClientSchemaSubset } from './client-schema-subset.mjs';
@@ -446,6 +446,13 @@ for (const semanticKind of ['room', 'container', 'site', 'other', 'unclassified'
   assert(!variant.house.spaces[0].shape);
 }
 const original = view.entries[0];
+// A belonging's photo line: absent only when nothing or only known non-photos
+// were supplied; a file of unknown kind leaves the photo unknown.
+assert.equal(photoNote([]), 'Photo not supplied.');
+assert.equal(photoNote([{ kind: 'manual' }]), 'Photo not supplied.');
+assert.equal(photoNote([{ kind: 'unknown' }]), 'Whether any file is a photo is unknown.');
+assert.equal(photoNote([{ kind: 'manual' }, { kind: 'unknown' }]), 'Whether any file is a photo is unknown.');
+assert.equal(photoNote([{ kind: 'unknown' }, { kind: 'photo' }]), null);
 const unknown = projectView({ ...view, entries: [{ ...original, kind: 'unknown', semanticKind: undefined }] });
 assert.equal(unknown.house.spaces.length, 0);
 assert.equal(unknown.house.items.length, 1);

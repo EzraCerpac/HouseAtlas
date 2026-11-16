@@ -61,6 +61,15 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   return 'unknown';
 }
 
+/** The files list's photo line. Only a stored image is known to be a photo;
+ * links and other files are of unknown kind, so with one of those present and
+ * no known photo, whether a photo was supplied is unknown, not absent. */
+export function photoNote(docs: readonly Pick<Doc, 'kind'>[]): string | null {
+  if (docs.some(doc => doc.kind === 'photo')) return null;
+  if (docs.some(doc => doc.kind === 'unknown')) return 'Whether any file is a photo is unknown.';
+  return 'Photo not supplied.';
+}
+
 export function projectView(view: ReadyView, geometryMetadata: GeometryMetadata = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null, includeArchived = false): LanternProjection {
   const entries = new Map<string, Entry>();
   const attachments = new Map<string, Attachment>();

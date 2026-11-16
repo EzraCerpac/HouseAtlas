@@ -1874,8 +1874,9 @@
 }
 
 /* A section reached from the links: focus lands on it without an outline. */
-.lantern-host .library-section {
-  /* Clear of the sticky section shortcuts. */
+.lantern-host .library-section,
+.lantern-host .library-section :is(a[href], button, input, select, textarea, summary, [tabindex]) {
+  /* Clear of the sticky section shortcuts, for jumps and for focus moved by Tab. */
   scroll-margin-top: 72px;
 }
 
@@ -2015,9 +2016,20 @@
   gap: 32px;
 }
 
-/* Overview's pointer sits level with the history heading beside it. */
+/* Source states: one quiet line each, level with the history heading beside it. */
 .lantern-host .changes-sources {
+  display: grid;
+  gap: 4px;
   margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .changes-sources strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* Changes' section headings are h2 at the section-heading size. */

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { Empty } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { SourceStates } from '../DeferredView';
 
 export function ChangesView() {
   const { dispatch, projection, actions } = useStore();
@@ -59,7 +60,7 @@ export function ChangesView() {
         {history.moreUnavailable && <p className="body-text" role="status">More events could not be loaded. The displayed pages remain partial.</p>}
       </>}
     </section>
-    {/* Source states are Overview's; this page names it instead of repeating them. */}
-    <p className="fine changes-sources">Source states and update dates are in Overview.</p></div>
+    {/* Each source's state and last successful update, one line each; identity and refresh stay in Overview. */}
+    <SourceStates /></div>
   </div>;
 }
