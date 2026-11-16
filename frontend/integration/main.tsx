@@ -45,6 +45,7 @@ import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 import { forgetSavedEntry } from "../src/offline/saved-entry";
+import { createBuildingRecordsPasses } from "./offline-topology-policy";
 
 // Settings UI loads only when its live settings leaf mounts. Retained bootstrap
 // and actor retirement remain independent of this presentation chunk.
@@ -170,27 +171,12 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
   return `${native} ${electrical.message} ${homebox.message}`;
 }
-// Building records for Rooms & places offline, beside (never before) the library fill. One pass per account and
-// home at a time: a capture during it asks for a single rerun, used only if that pass stopped before finishing.
-let buildingRecordsPass: { readonly key: string; rerun: (() => void) | null } | null = null;
+// Building records for Rooms & places offline, beside (never before) the library fill. The pass owner is
+// loaded with this entry, so its one deadline covers the lazy codec/model load, the reads and storage.
+const keepBuildingRecordPasses = createBuildingRecordsPasses();
 function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRetention, view: ReadyView, signal: AbortSignal): void {
   const actorId = currentSession?.actorId;
-  if (!actorId) return;
-  const key = JSON.stringify([actorId, view.scope.workspaceId, view.scope.homeId]);
-  const start = () => {
-    if (signal.aborted || currentReadyView !== view) return;
-    const pass = { key, rerun: null as (() => void) | null };
-    buildingRecordsPass = pass;
-    void import('./offline-topology-policy')
-      .then(module => module.retainOfflineTopology({ owner, topology, view, signal, current: () => currentReadyView === view }))
-      .catch(() => 'stopped' as const).then(result => {
-        if (buildingRecordsPass !== pass) return;
-        buildingRecordsPass = null;
-        if (result === 'stopped') pass.rerun?.();
-      });
-  };
-  if (buildingRecordsPass?.key === key) buildingRecordsPass.rerun = start;
-  else start();
+  if (actorId) void keepBuildingRecordPasses({ owner, topology, view, signal, actorId, current: () => currentReadyView === view });
 }
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);

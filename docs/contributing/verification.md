@@ -197,8 +197,9 @@ The held copy also keeps the building records the Rooms & places lens reads:
 the four topology lists and each reviewed building's membership list, read
 through the lens's own client under one server snapshot, with no new endpoint.
 They are a separate versioned owner row; copies without one keep the not-held
-sentence, and a failed, changed, partial, timed-out (one 120 s deadline for the
-whole pass) or storage-refused save removes the row. The pass runs beside the
+sentence, and a failed, changed, partial, timed-out (one 120 s deadline covering
+module load, reads and storage; a late pass persists nothing) or storage-refused
+save removes the row. The pass runs beside the
 library fill, one per account and home at a time. The held lens shows records
 without opening them and states that evidence is not held in the saved copy.
 Three existing entries carry the controls; no command, selection or deadline
@@ -210,7 +211,8 @@ is added, so the runner inventory is unchanged.
 - `offline-electrical-copy.test.mjs` runs the actual policy, codec, retention
   adapter and owner over its in-memory backend: round trip; failed, changed,
   partial, timed-out and quota-refused saves recorded as not held with the view
-  kept; retired views and in-flight cancellation writing nothing; another home
+  kept; a never-settling module load timing out, freeing the slot and
+  persisting nothing late; retired views and in-flight cancellation writing nothing; another home
   or account reading nothing; sign-out and clearing.
 - `offline-launch-browser.mjs --case live-launch` checks the mounted lens,
   including no record-selection or evidence-read controls and the evidence

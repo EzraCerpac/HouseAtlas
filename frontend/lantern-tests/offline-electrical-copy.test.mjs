@@ -1546,7 +1546,7 @@ test('stale electrical absence session or currentness refuses catalog retirement
 // Building records for Rooms & places offline (#560): the actual policy, codec, retention adapter and owner
 // over the generated in-memory backend and a generated topology client. No browser, IndexedDB or transport.
 const { loadNumericSource } = await import('./load-numeric-source.mjs');
-const { retainOfflineTopology } = await import(await loadNumericSource('integration/offline-topology-policy.ts'));
+const { retainOfflineTopology, createBuildingRecordsPasses } = await import(await loadNumericSource('integration/offline-topology-policy.ts'));
 const { decodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
 function generatedTopology(scope, fail = null) {
   const binding = Object.freeze({ scope }), calls = [];
@@ -1579,11 +1579,13 @@ async function topologyHarness() {
   const observe = async session => { state = { ...state, session }; assert.equal((await owner.observe(session, () => state.session === session)).status, 'ok'); };
   await observe(sessions.a);
   assert.equal((await owner.capture(view, signal())).status, 'ok');
-  const keep = (fail = null, current = () => true, { signal: selected = signal(), deadlineMs } = {}) => { const t = generatedTopology(state.view.scope, fail);
-    return retainOfflineTopology({ owner, topology: t.client, view: state.view, current, signal: selected, ...(deadlineMs ? { deadlineMs } : {}) })
-      .then(result => ({ result, calls: t.calls })); };
+  const keep = (fail = null, current = () => true, { signal: selected = signal() } = {}) => { const t = generatedTopology(state.view.scope, fail);
+    return retainOfflineTopology({ owner, topology: t.client, view: state.view, current, signal: selected }).then(result => ({ result, calls: t.calls })); };
+  // The pass owner the live host uses: single-flight per account and home, one deadline over load, reads and storage.
+  const pass = (keeper, fail = null) => keeper({ owner, topology: generatedTopology(state.view.scope, fail).client, view: state.view,
+    current: () => true, signal: signal(), actorId: state.session.actorId });
   const held = async () => owner.read.readTopology(await readCopy(owner), signal());
-  return { owner, backend, keep, held, observe, sessions, refuse: value => { refuse = value; },
+  return { owner, backend, keep, pass, held, observe, sessions, refuse: value => { refuse = value; },
     async home(next = view) { state = { ...state, view: next }; assert.equal((await owner.capture(next, signal())).status, 'ok'); },
     otherHome: () => ({ ...view, scope: other }) };
 }
@@ -1616,7 +1618,9 @@ test('a failed, changed, partial, timed-out or storage-refused building-record s
       assert.equal((await f.keep()).result, 'held');
       const before = await f.owner.read.readLast(signal());
       if (fail === 'quota') f.refuse(true);
-      assert.equal((await f.keep(fail === 'quota' ? null : fail, () => true, { deadlineMs: 20 })).result, 'not-held', fail);
+      const outcome = fail === 'hang' ? await f.pass(createBuildingRecordsPasses({ deadlineMs: 20 }), 'hang')
+        : (await f.keep(fail === 'quota' ? null : fail)).result;
+      assert.equal(outcome, 'not-held', fail);
       f.refuse(false);
       assert.equal((await f.held()).status, 'missing', fail);
       const after = await f.owner.read.readLast(signal());
@@ -1627,6 +1631,25 @@ test('a failed, changed, partial, timed-out or storage-refused building-record s
       assert.deepEqual(f.backend.tables(), tables);
     } finally { f.owner.close(); }
   }
+});
+
+test('a pass whose module load never settles times out, releases its slot and persists nothing late', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.keep()).result, 'held');
+    let settle; const stalled = new Promise(done => { settle = done; });
+    const keeper = createBuildingRecordsPasses({ deadlineMs: 20, load: () => stalled });
+    const first = f.pass(keeper);
+    assert.equal(await f.pass(keeper), 'queued', 'a capture during the pass joins it');
+    assert.equal(await first, 'not-held', 'the deadline covers the module load');
+    assert.equal((await f.held()).status, 'missing');
+    assert.equal(await f.pass(keeper), 'not-held', 'the slot is free again after the timeout');
+    const tables = structuredClone(f.backend.tables());
+    settle(await Promise.all([import(await loadNumericSource('lantern/topology/model.ts')), import(await loadNumericSource('offline/held-topology.ts'))]));
+    await new Promise(done => setTimeout(done, 30));
+    assert.deepEqual(f.backend.tables(), tables, 'late module results persist nothing');
+    assert.equal((await f.held()).status, 'missing');
+  } finally { f.owner.close(); }
 });
 
 test('a building-record pass cancelled in flight writes and removes nothing', async () => {
