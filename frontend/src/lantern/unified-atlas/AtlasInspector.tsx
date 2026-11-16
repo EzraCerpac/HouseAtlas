@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
-import { displayLevelIds, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
+import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
 import type { AtlasLevel, AtlasOccurrence, AtlasRoom } from './types';
 import { PublishedOverlayDetails } from './PublishedOverlayDetails';
 import { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName, atlasScopedLevelName } from './labels';
@@ -87,6 +87,9 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
+        {/* Stacked under its roof veil, a building's model names its top floor's rooms only. */}
+        {state.view === '3d' && !state.exploded && state.levelId === null && state.buildingId !== null && hasExplodableLevels(model, state.buildingId)
+          && <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>}
         {/* Choosing from the list hands the stage back to the model. */}
         <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
@@ -129,7 +132,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
           {area?.measured && <span className="ua-measured">Measured</span>}</dd></div>}
       </dl>
 
-      {runtime && <RoomContentsSummary runtime={runtime} roomId={room.roomId} layers={state.layers} />}
+      {(runtime || runtimeConfigured) && <RoomContentsSummary runtime={runtime} reason={runtimeReason} roomId={room.roomId} layers={state.layers} />}
 
       {/* Open while Measurements is on; it folds away when a long list of
           spans would push the records down. */}
@@ -184,16 +187,20 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
 /** What the loaded sources hold for this room, one line per layer: the
  * supplied list's length and the source's own state, or why there is none.
  * A layer that is off still lists what is already loaded, marked off; nothing
- * here toggles a layer, fetches or counts beyond the supplied list. */
-function RoomContentsSummary({ runtime, roomId, layers }: {
-  readonly runtime: PropertyRecords; readonly roomId: string; readonly layers: AtlasViewState['layers'];
+ * here toggles a layer, fetches or counts beyond the supplied list. Before
+ * anything is loaded (no layer on yet) or while it loads, one quiet line says
+ * so, never that the room is empty. */
+function RoomContentsSummary({ runtime, reason, roomId, layers }: {
+  readonly runtime: PropertyRecords | null; readonly reason: string; readonly roomId: string; readonly layers: AtlasViewState['layers'];
 }) {
-  const linked = runtime.rooms.get(roomId);
+  if (!runtime && (reason === 'not-loaded' || reason === 'loading')) return <p className="ua-contents-pending">
+    {reason === 'loading' ? 'Electrical and network records for this room are loading.' : 'Electrical and network records are not loaded while their layers are off.'}</p>;
+  const linked = runtime?.rooms.get(roomId);
   return <section className="ua-contents" aria-label="In this room">
     <h3 className="ua-contents-title">In this room</h3>
     <ul>{OVERLAY_KINDS.map(kind => {
-      const records = linked && runtime[kind] !== 'unavailable' ? linked[kind] : null;
-      const source = !linked ? 'Room source link unavailable' : runtime[kind] === 'unavailable' ? 'Source unavailable'
+      const records = runtime && linked && runtime[kind] !== 'unavailable' ? linked[kind] : null;
+      const source = !runtime ? 'Source unavailable' : !linked ? 'Room source link unavailable' : runtime[kind] === 'unavailable' ? 'Source unavailable'
         : runtime[kind] === 'partial' ? 'Partial source' : null;
       return <li key={kind} className={`ua-contents-row${layers[kind] ? '' : ' is-off'}${source ? ' is-qualified' : ''}`}>
         <Icon name={OVERLAY_ICON[kind]} size={16} />

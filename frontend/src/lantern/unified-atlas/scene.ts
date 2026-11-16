@@ -1411,3 +1411,11 @@ export function occurrenceLiftLevel(model: AtlasModel, occurrenceId: string): st
   const parts = model.pickParts.get(occurrenceId) ?? [];
   return parts.length > 0 && parts.every(part => part.levelId === null) ? null : model.occurrencesById.get(occurrenceId)?.levelId ?? null;
 }
+
+/** Display height of a room's own floor: the base of its room picks (where its tint lies),
+ * not its level's lowest, lifted with them, so its outline stays on that tint in every view. */
+export function occurrenceFloorHeight(model: AtlasModel, presentation: AtlasPresentation, occurrenceId: string, t: number): number {
+  const picks = (model.pickParts.get(occurrenceId) ?? []).filter(part => part.role === 'room-pick');
+  const floor = picks.length > 0 ? Math.min(...picks.map(part => part.mesh.yRange[0])) : model.occurrencesById.get(occurrenceId)!.bounds.min[1];
+  return floor + levelLift(presentation, occurrenceLiftLevel(model, occurrenceId), t);
+}

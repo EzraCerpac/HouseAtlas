@@ -166,6 +166,8 @@ vec(frame.light, [0, 1, 0], 'night light');
 const flags = at => [...lit.subarray(at * STATE_FLOATS + 28, at * STATE_FLOATS + 30)];
 assert.deepEqual(flags(0), [1, 0], 'a shelter mesh roofs the house over');
 assert.deepEqual(flags(1), [0, 1], 'the selected room keeps its tone');
+assert.deepEqual([...lit.subarray(STATE_FLOATS + 8, STATE_FLOATS + 11)], [...lit.subarray(STATE_FLOATS, STATE_FLOATS + 3)],
+  'the selected room is cut in its own full tone, as its floor plate is seen');
 assert.deepEqual(flags(2), [0, 0], 'other meshes take the hour as drawn');
 // Without twoSided (every other viewer) daylight is ignored.
 const other = new Float32Array(meshes.length * STATE_FLOATS), otherFrame = writeAppearance(meshes, { ...base, daylight: midnight, shelterKeys: new Set(['wall']) }, other);

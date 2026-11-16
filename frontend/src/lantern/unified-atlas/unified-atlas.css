@@ -327,10 +327,14 @@
 .lantern-host .ua-marker {
   position: absolute;
   z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   transform: translate(-50%, -50%);
   min-width: 28px;
   height: 28px;
-  padding: 0 7px;
+  padding: 0 6px;
   border-radius: 14px;
   border: 2px solid #fff;
   background: var(--layer);
@@ -351,6 +355,8 @@
   color: var(--layer);
   box-shadow: 0 6px 14px -10px rgba(24, 35, 58, 0.6);
 }
+
+.lantern-host .ua-marker > .icon { flex: none; }
 
 /* Larger touch target without a larger mark. */
 .lantern-host .ua-marker::before {
@@ -832,13 +838,14 @@
 }
 
 .lantern-host .ua-menu-btn circle { fill: currentColor; }
-/* A short visible word beside the dots; the button keeps its full name. */
+/* A short visible name of what the menu holds; the button keeps its full name. */
 .lantern-host .ua-menu-btn:has(> span) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   width: auto;
-  padding: 0 12px 0 10px;
+  padding: 0 13px;
+  white-space: nowrap;
   font: 650 var(--fs-s)/1 var(--text);
 }
 .lantern-host .ua-menu-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
@@ -1699,6 +1706,8 @@
 .lantern-host .ua-contents-name { font-weight: 650; color: var(--ink); }
 .lantern-host .ua-contents-count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .lantern-host .ua-contents-state { color: var(--warn); font-size: var(--fs-xs); font-weight: 600; overflow-wrap: anywhere; }
+/* Not loaded or loading is a state, not a fault: one quiet line. */
+.lantern-host .ua-contents-pending { margin: 0; color: var(--muted); font-size: var(--fs-s); }
 
 .lantern-host .ua-contents-off {
   padding: 0 6px;
@@ -1996,6 +2005,9 @@
 @media (hover: hover) { .lantern-host .ua-room-btn:hover { background: var(--lantern-soft); } }
 .lantern-host .ua-room-btn:focus-visible { outline-offset: -2px; }
 
+/* A model name's Preliminary marker: the list tag's amber, same font so its measured width holds. */
+.lantern-host .cifc-label:not(.is-selected) .ua-label-note { fill: var(--warn); }
+
 .lantern-host .ua-tag {
   flex: none;
   padding: 1px 7px;
@@ -2008,6 +2020,7 @@
 
 .lantern-host .ua-empty,
 .lantern-host .ua-coverage { margin: 0; color: var(--muted); }
+.lantern-host .ua-coverage.ua-stacked-note { margin-bottom: 12px; font-size: var(--fs-s); }
 
 /* ---- States -------------------------------------------------------------- */
 

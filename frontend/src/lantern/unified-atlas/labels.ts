@@ -9,7 +9,8 @@ export function floorLabel(source: string): string {
 
 export interface CountMarker { readonly key: string; readonly occurrenceId: string; readonly count: number; readonly x: number; readonly y: number }
 export interface ScreenBox { readonly l: number; readonly t: number; readonly r: number; readonly b: number }
-export const countMarkerWidth = (count: number) => Math.max(28, String(count).length * 8 + 18);
+/** The layer's glyph, then the count: one 12 px glyph and a 3 px gap ahead of the digits. */
+export const countMarkerWidth = (count: number) => Math.max(28, String(count).length * 8 + 33);
 /** Includes the marker's nine-pixel CSS pseudo-element on every side. */
 export const countMarkerTarget = (row: CountMarker): ScreenBox => ({ l: row.x - countMarkerWidth(row.count) / 2 - 9,
   r: row.x + countMarkerWidth(row.count) / 2 + 9, t: row.y - 23, b: row.y + 23 });
