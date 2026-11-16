@@ -28,7 +28,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, unnamedRoomCount, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRoomCount, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -1048,6 +1048,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     document.fonts.addEventListener('loadingdone', measure);
     return () => { mounted = false; document.fonts.removeEventListener('loadingdone', measure); };
   }, []);
+  // Touch targets, 3D and Plan alike, are reserved at the 44 px they are drawn at.
+  const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
+  const targetHeight = labelHitHeight(coarse);
   const planTextMetrics = useMemo(() => {
     const canvas = document.createElement('canvas'), drawing = canvas.getContext('2d');
     const metrics = new Map<string, { width: number; height: number; advance?: number }>();
@@ -1086,9 +1089,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const ownCounts = currentAnchor ? (countGroups.get(selected) ?? []).map(marker => ({ ...marker,
       x: x + marker.x - currentAnchor.x, y: y + marker.y - currentAnchor.y })) : [];
     return !planRoomLabelFits({ id: selected, text: '', tier: 'selected', x, y: y - (markerAt.has(selected) ? 22 : 0), anchorX: x, anchorY: y,
-      rise: 0, clearance: anchor.clearance, shape: preparePlanLabelShape(polygons), metrics }, frame, ownCounts);
+      rise: 0, clearance: anchor.clearance, shape: preparePlanLabelShape(polygons), metrics, targetHeight }, frame, ownCounts);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, selected, presentation, shown, model, planTextMetrics, size, inset, camera.eased, readable.zoom, bounds, markerAt, countGroups, projection, t, planBlend]);
+  }, [plan, selected, presentation, shown, model, planTextMetrics, size, inset, camera.eased, readable.zoom, bounds, markerAt, countGroups, projection, t, planBlend, targetHeight]);
   const standingSelection = useRef<string | null>(null);
   // The standing goal survives the early return tilt, until the ordinary
   // 3D rise reaches one. Otherwise it would dip and then rise a second time.
@@ -1116,7 +1119,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       const metrics = planTextMetrics.get(occurrenceId), preferredY = at.y - lifted;
       // Ease the extra full-target clearance with Plan, so settlement itself
       // never changes the name's offset from 22 pixels to its resolved height.
-      const clearY = metrics ? countClearedLabelY({ id: occurrenceId, x: at.x, y: preferredY, metrics }, countGroups.get(occurrenceId) ?? []) : preferredY;
+      const clearY = metrics ? countClearedLabelY({ id: occurrenceId, x: at.x, y: preferredY, metrics, targetHeight }, countGroups.get(occurrenceId) ?? []) : preferredY;
       rows.push({ id: occurrenceId, text: labelTexts.get(occurrenceId)!, x: at.x, y: preferredY + (clearY - preferredY) * settle,
         anchorX: at.x, anchorY: at.y, tier, clearance: at.clearance, rise: tier === 'selected' ? rise : 0 });
     }
@@ -1126,14 +1129,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       const frame = planLabelFrame(projection.project, model.floorY.get(presentation.focusLevelId!)! + levelLift(presentation, presentation.focusLevelId!, t));
       const candidates: PlanLabelInput[] = rows.flatMap(row => {
         const polygons = model.roomPolygons.get(row.id), at = anchorOf(row.id), metrics = planTextMetrics.get(row.id);
-        return polygons && at && metrics ? [{ ...row, anchorX: at.x, anchorY: at.y, metrics, shape: preparePlanLabelShape(polygons) }] : [];
+        return polygons && at && metrics ? [{ ...row, anchorX: at.x, anchorY: at.y, metrics, targetHeight, shape: preparePlanLabelShape(polygons) }] : [];
       });
       return placePlanRoomLabels(candidates, size, cover, counts, frame, labelPaper, calloutDirections.current);
     }
     // Panels count as placed: a room name under one is left to the room list.
     return placeStageLabels(rows, row => planTextMetrics.get(row.id)?.advance, size, cover);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn, labelTexts]);
+  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover, settledPlan, planTextMetrics, counts, countGroups, labelPaper, rise, undrawn, labelTexts, targetHeight]);
   useLayoutEffect(() => {
     if (settledPlan) {
       const directions = new Map(calloutDirections.current);
@@ -1206,8 +1209,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
 
   // Stage buttons exist only where the whole control is in view: inside the
   // stage and clear of every panel. Covered rooms stay in the room list.
-  // Touch targets are computed at the 44 px they are drawn at; the pointer can change (a docked tablet).
-  const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
+  // Touch targets are computed at the 44 px they are drawn at (coarse, above); the pointer can change (a docked tablet).
   const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance, coarse), [labels, size, cover, counts, planTextMetrics, coarse]);
   const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
   // On touch a drawn name promises a tap: names without a target are not drawn
@@ -1750,7 +1752,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         </svg>
         {hits.map(label => <button key={label.id} type="button" className={`ua-label-hit${label.plan?.mode === 'rotated' || label.plan?.mode === 'callout' ? ' ua-plan-label-new' : ''}`}
           data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
-          style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height,
+          style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height, minWidth: 0, minHeight: 0,
             transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : stageHitStyle(hitBoxes.get(label)!)}
           aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}${labelFloors.get(label.id) ? ` · ${labelFloors.get(label.id)}` : ''}${isPreliminary(model, label.id) ? ', preliminary' : ''}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}

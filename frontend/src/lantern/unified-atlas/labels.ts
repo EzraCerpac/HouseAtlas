@@ -388,7 +388,10 @@ export interface PlanLabelInput extends RoomLabel {
   readonly shape: PlanLabelShape;
   /** Includes the painted halo, measured with the actual tier's font. */
   readonly metrics: PlanTextMetrics;
+  /** The action target's least height, as drawn: labelHitHeight(coarse), 44 px on touch; 32 px when absent. */
+  readonly targetHeight?: number;
 }
+const planTargetHeight = (row: Pick<PlanLabelInput, 'metrics' | 'targetHeight'>) => Math.max(row.targetHeight ?? 32, row.metrics.height);
 export interface PlanLabelLeader { readonly points: readonly Point[]; readonly dot: boolean }
 export interface PlanLabelPose {
   readonly mode: 'horizontal' | 'rotated' | 'callout' | 'standing';
@@ -400,8 +403,8 @@ export interface PlanLabelPose {
 }
 /** A name clears its own surviving badge's complete target, including its
  * nine-pixel halo. Only presentation moves; the source anchor and badge do not. */
-export function countClearedLabelY(row: Pick<PlanLabelInput, 'id' | 'x' | 'y' | 'metrics'>, counts: readonly CountMarker[]): number {
-  const width = Math.max(44, row.metrics.width), halfHeight = Math.max(32, row.metrics.height) / 2;
+export function countClearedLabelY(row: Pick<PlanLabelInput, 'id' | 'x' | 'y' | 'metrics' | 'targetHeight'>, counts: readonly CountMarker[]): number {
+  const width = Math.max(44, row.metrics.width), halfHeight = planTargetHeight(row) / 2;
   let y = row.y;
   for (const marker of counts) if (marker.occurrenceId === row.id) {
     const box = countMarkerTarget(marker);
@@ -410,7 +413,8 @@ export function countClearedLabelY(row: Pick<PlanLabelInput, 'id' | 'x' | 'y' | 
   return y;
 }
 function poseAt(row: PlanLabelInput, x: number, y: number, angle: number, mode: PlanLabelPose['mode']): PlanLabelPose {
-  const width = Math.max(44, row.metrics.width), height = Math.max(32, row.metrics.height), a = angle * Math.PI / 180;
+  // The pose's box is its button's box: the touch floor is applied here, so collisions use the drawn target.
+  const width = Math.max(44, row.metrics.width), height = planTargetHeight(row), a = angle * Math.PI / 180;
   const w = Math.abs(Math.cos(a)) * width + Math.abs(Math.sin(a)) * height, h = Math.abs(Math.sin(a)) * width + Math.abs(Math.cos(a)) * height;
   return { x, y, angle, width, height, mode, box: { l: x - w / 2, r: x + w / 2, t: y - h / 2, b: y + h / 2 },
     textAnchor: 'middle', textX: 0, leader: null, direction: null };
@@ -574,7 +578,7 @@ export function placePlanRoomLabels<T extends PlanLabelInput>(rows: readonly T[]
       // The bound is on the connector, not on a long name's centre. Start
       // outside the target's own half-extent, then try fixed outward steps.
       const half = Math.min(Math.abs(ux) > 1e-8 ? Math.max(44, row.metrics.width) / (2 * Math.abs(ux)) : Infinity,
-        Math.abs(uy) > 1e-8 ? Math.max(32, row.metrics.height) / (2 * Math.abs(uy)) : Infinity);
+        Math.abs(uy) > 1e-8 ? planTargetHeight(row) / (2 * Math.abs(uy)) : Infinity);
       for (const distance of [24, 40, 64, 88, 112, 136, 160]) {
         const pose = poseAt(row, row.anchorX + ux * (half + distance), row.anchorY + uy * (half + distance), 0, 'callout');
         if (!safe(pose)) continue;
