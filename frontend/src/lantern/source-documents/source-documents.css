@@ -102,7 +102,7 @@
   display: block;
 }
 
-/* Hashes and receipts stay with the record, folded below its facts. */
+/* Source details: technical metadata, exact times and hashes, folded below the facts. */
 .lantern-host .source-doc-integrity {
   padding-left: 14px;
 }
@@ -121,6 +121,7 @@
 
 .lantern-host .source-doc-integrity code {
   font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 600px) {

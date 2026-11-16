@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useSourcePorts } from '../source-ports';
 import { Modal } from '../components/Modal';
-import { Empty, RecordedTime } from '../components/ui';
+import { Empty, InlineTime, RecordedTime } from '../components/ui';
 import { fmtDate } from '../data/time';
 import { SourcePdf } from './SourcePdf';
 import type { SourceDate, SourceDocument, SourceDocumentFrame, SourceDocumentMime, SourceDocumentReader,
@@ -20,8 +20,9 @@ const MIME: Readonly<Record<SourceDocumentMime, { readonly label: string; readon
 };
 const CHANGED = 'This document changed or your access ended, so it is no longer shown. Close it and open it again.';
 const count = (value: number) => value.toLocaleString('en-GB');
+/** A source's own date, readable; an instant's exact recorded text is under Source details. */
 const sourceDate = (date: SourceDate | null): ReactNode => !date ? 'Not recorded'
-  : date.precision === 'year' ? `${date.value} (year only)` : date.precision === 'day' ? fmtDate(date.value) : <RecordedTime value={date.value} />;
+  : date.precision === 'year' ? `${date.value} (year only)` : date.precision === 'day' ? fmtDate(date.value) : <InlineTime value={date.value} />;
 function readFailure(error: unknown): string {
   const status = typeof error === 'object' && error !== null && 'status' in error ? error.status : null;
   return status === 403 ? 'You do not have access to this document.'
@@ -208,27 +209,33 @@ function LeasedPayload({ reader, document, mode }: {
 
 function Provenance({ document }: { readonly document: SourceDocument }) {
   const { provenance: source, original, preview } = document, frame = source.frame;
+  // Exact recorded text of each instant shown readably above, kept under Source details.
+  const exact: [string, string][] = [['Retrieved, as recorded', source.retrievedAt],
+    ...(source.published?.precision === 'instant' ? [['Published, as recorded', source.published.value]] as [string, string][] : []),
+    ...(source.observed?.precision === 'instant' ? [['Observed, as recorded', source.observed.value]] as [string, string][] : [])];
   return <>
     <dl className="facts source-doc-facts">
       <div><dt>Source</dt><dd>{source.agency}</dd></div>
-      <div><dt>Recorded address</dt><dd>{source.url ?? 'Not recorded'}
-        {source.url && <span className="fact-help">Recorded text only. It is not opened from here.</span>}</dd></div>
       <div><dt>Licence</dt><dd>{LICENCE[source.license.status]}{source.license.reference ? `: ${source.license.reference}` : ''}</dd></div>
-      <div><dt>Retrieved</dt><dd><RecordedTime value={source.retrievedAt} /></dd></div>
+      <div><dt>Retrieved</dt><dd><InlineTime value={source.retrievedAt} /></dd></div>
       <div><dt>Published</dt><dd>{sourceDate(source.published)}</dd></div>
       <div><dt>Observed</dt><dd>{sourceDate(source.observed)}</dd></div>
-      <div><dt>Coordinate system</dt><dd>{frame.crs ?? 'Not recorded'}</dd></div>
-      <div><dt>Axes and unit</dt><dd>{frame.axes.length ? frame.axes.join(', ') : 'Axes not recorded'}; {frame.linearUnit ?? 'unit not recorded'}</dd></div>
-      <div><dt>Extent</dt><dd>{frame.extent ? frame.extent.join(', ') : 'Not recorded'}</dd></div>
-      <div><dt>Original</dt><dd>{count(original.bytes)} bytes, asset revision {original.revision}, {AVAILABILITY[document.availability.original].toLowerCase()}</dd></div>
-      <div><dt>Preview</dt><dd>{preview ? <>{preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
-        from this original{preview.sourceCropExtent ? `, cropped to ${preview.sourceCropExtent.join(', ')}` : ''}. {preview.description}</>
-        : 'No qualified preview'}</dd></div>
-      <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated <RecordedTime value={document.updatedAt} /></dd></div>
     </dl>
+    {/* Technical metadata, exact recorded times and integrity hashes stay with the record, folded below its facts. */}
     <details className="source-doc-integrity">
-      <summary>Integrity</summary>
+      <summary>Source details</summary>
       <dl className="facts">
+        <div><dt>Recorded address</dt><dd>{source.url ?? 'Not recorded'}
+          {source.url && <span className="fact-help">Recorded text only. It is not opened from here.</span>}</dd></div>
+        {exact.map(([label, value]) => <div key={label}><dt>{label}</dt><dd><code>{value}</code></dd></div>)}
+        <div><dt>Coordinate system</dt><dd>{frame.crs ?? 'Not recorded'}</dd></div>
+        <div><dt>Axes and unit</dt><dd>{frame.axes.length ? frame.axes.join(', ') : 'Axes not recorded'}; {frame.linearUnit ?? 'unit not recorded'}</dd></div>
+        <div><dt>Extent</dt><dd>{frame.extent ? frame.extent.join(', ') : 'Not recorded'}</dd></div>
+        <div><dt>Original</dt><dd>{count(original.bytes)} bytes, asset revision {original.revision}, {AVAILABILITY[document.availability.original].toLowerCase()}</dd></div>
+        <div><dt>Preview</dt><dd>{preview ? <>{preview.renderer} {preview.rendererVersion}, {count(preview.asset.bytes)} bytes,
+          from this original{preview.sourceCropExtent ? `, cropped to ${preview.sourceCropExtent.join(', ')}` : ''}. {preview.description}</>
+          : 'No qualified preview'}</dd></div>
+        <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated <RecordedTime value={document.updatedAt} /></dd></div>
         <div><dt>Original SHA-256</dt><dd><code>{original.sha256}</code></dd></div>
         <div><dt>Custody receipt</dt><dd><code>{source.custodyReceiptSha256}</code></dd></div>
         {preview && <>

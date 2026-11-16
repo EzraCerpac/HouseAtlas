@@ -30,7 +30,8 @@ import { useCanWrite, useSelect, useStore } from '../state/store';
 import { useSourcePorts } from '../source-ports';
 import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
-import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
+import { ClaimBadge, EntityLink, Empty, fmtLocalClock, KindTag, Note, Section, StorageTag, WritePill } from './ui';
+import { ExampleLabel } from '../example-label';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
 import { sourceLocation } from '../../app/model';
 
@@ -78,6 +79,7 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
   return (
     <article className="detail" aria-labelledby="detail-title">
       <header className="detail-head">
+        <ExampleLabel />
         <div className="detail-kicker">
           {kind === 'space' && source ? <span className="kind-tag">{source.semanticKind === 'room' ? 'Room' : 'Place'}</span> : <KindTag kind={kind} />}
           {claim}
@@ -155,28 +157,30 @@ export function attentionCount(house: HouseData): number {
 }
 
 function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; onLeave?: (() => void) | undefined }) {
-  const { state, house, dispatch } = useStore();
+  const { state, house, dispatch, actions } = useStore();
   const { overdue, review, disputed, count } = attention(house);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
   const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
   const un = unplaced(house);
   // The counts are relative to the view's date; a view from an earlier day says so beside them.
   const asOf = referenceDayLabel(house.displayNow);
+  // The header already names the home, so the sheet is titled by what it is.
   return (
     <article className="detail overview" aria-labelledby="overview-title">
       <header className="detail-head">
-        <div className="detail-kicker">
-          <span className="overview-kicker">Overview</span>
-          {onClose && (
-            <button type="button" className="icon-btn detail-close" aria-label="Close overview" onClick={onClose}>
-              <Icon name="close" size={18} />
-            </button>
-          )}
-        </div>
+        <ExampleLabel />
+        {onClose && <div className="detail-kicker">
+          <button type="button" className="icon-btn detail-close" aria-label="Close overview" onClick={onClose}>
+            <Icon name="close" size={18} />
+          </button>
+        </div>}
         <h2 id="overview-title" className="detail-title overview-title">
-          {house.name}
+          Overview
         </h2>
-        {asOf && <p className="overview-asof">As of {asOf}</p>}
+        {(asOf || actions.loadedAt !== undefined) && <p className="overview-asof">
+          {asOf && <span>Counts relative to {asOf}</span>}
+          {actions.loadedAt !== undefined && <span>Loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time></span>}
+        </p>}
         <ul className="tally overview-tally" aria-label="In the supplied view">
           <li className={count ? 'is-alert' : undefined}>
             <strong>{count}</strong> need attention
@@ -445,15 +449,15 @@ function SpaceDetail({ space }: { space: Space }) {
       {(c.items.length + c.containers.length === 0 || c.docs.length === 0 || c.tasks.length === 0) && <Section title="None listed">
         <ul className="empty-sections">
           {c.items.length + c.containers.length === 0 && <li>
-            <span className="empty-sections-name">Belongings <span className="section-count">0</span></span>
+            <span className="empty-sections-name">Belongings</span>
             <Empty>No reviewed item placements are supplied for this place.</Empty>
           </li>}
           {c.docs.length === 0 && <li>
-            <span className="empty-sections-name">Documents and photos <span className="section-count">0</span></span>
+            <span className="empty-sections-name">Documents and photos</span>
             <DocList docs={c.docs} showLinked />
           </li>}
           {c.tasks.length === 0 && <li>
-            <span className="empty-sections-name">Upkeep <span className="section-count">0</span></span>
+            <span className="empty-sections-name">Upkeep</span>
             <TaskList tasks={c.tasks} showTarget />
           </li>}
         </ul>
@@ -497,6 +501,7 @@ function ItemDetail({ item }: { item: Item }) {
   const ob = device ? latestObservation(house, device.id) : undefined;
   const sp = findSpace(house, item.spaceId);
   const ct = house.containers.find((c) => c.id === item.containerId);
+  const canLink = useCanWrite('Atlas');
   return (
     <Shell
       id={item.id}
@@ -522,7 +527,7 @@ function ItemDetail({ item }: { item: Item }) {
           <WriteButton system="HomeBox" primary onClick={() => dispatch({ type: 'dialog', dialog: { type: 'editItem', itemId: item.id } })}>
             <Icon name="edit" size={16} /> Edit
           </WriteButton>
-          <WriteButton system="Atlas" unavailable="Document linking is unavailable in this app." onClick={() => dispatch({ type: 'dialog', dialog: { type: 'link', targetId: item.id } })}>
+          <WriteButton system="Atlas" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'link', targetId: item.id } })}>
             <Icon name="link" size={16} /> Link document
           </WriteButton>
           <WriteButton system="HomeBox" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'media', targetId: item.id } })}>
@@ -546,13 +551,14 @@ function ItemDetail({ item }: { item: Item }) {
               </>
             )}
           </p>
-        ) : (<>
-          <Note tone="warn">No reviewed placement.</Note>
-          {/* HomeBox's own hierarchy, as source data: names do not establish placement. */}
-          {location && <p className="fine">HomeBox location: {location.names.length
-            ? `${[...(location.complete ? [] : ['higher location unknown']), ...location.names].join(' / ')} · not a reviewed placement`
-            : location.complete ? 'not supplied' : 'unknown'}</p>}
-        </>)}
+        ) : (
+          <Note tone="warn">No reviewed placement.
+            {/* HomeBox's own hierarchy, as source data under the warning: names do not establish placement. */}
+            {location && <>{' '}<span className="note-detail">HomeBox location: {location.names.length
+              ? [...(location.complete ? [] : ['higher location unknown']), ...location.names].join(' / ')
+              : location.complete ? 'not supplied' : 'unknown'}</span></>}
+          </Note>
+        )}
         {item.locationNote && <p className="body-text muted">{item.locationNote}</p>}
       </Section>
       {!isUnknown && <Section title="Power">
@@ -585,6 +591,7 @@ function ItemDetail({ item }: { item: Item }) {
       )}
       <Section title="Manuals, receipts and photos" count={docs.length}>
         <DocList docs={docs} />
+        {!isUnknown && !canLink.ok && <p className="fine">Document linking is unavailable in this app.</p>}
       </Section>
       <Section
         title="Upkeep"
@@ -657,7 +664,7 @@ function PanelDetail({ p }: { p: Panel }) {
     <Shell id={p.id} kind="panel" title={p.name} claim={<ClaimBadge claim={p.claim} />}>
       {p.note && <p className="lead">{p.note}</p>}
       <Section title="Documented circuits" count={circuits.length}>
-        <ul className="rows">
+        {circuits.length ? <ul className="rows">
           {circuits.map((c) => (
             <li key={c.id} className="link-row">
               <span className="swatch round" style={{ background: c.color }} aria-hidden="true" />
@@ -665,7 +672,7 @@ function PanelDetail({ p }: { p: Panel }) {
               <ClaimBadge claim={c.claim} />
             </li>
           ))}
-        </ul>
+        </ul> : <Empty>No circuits are documented on this panel.</Empty>}
         <p className="fine">Labels and report entries only. Atlas never shows live power or guesses wiring.</p>
       </Section>
       <Section title="Evidence" count={p.evidenceIds.length}>
@@ -838,7 +845,7 @@ function DeviceDetail({ d }: { d: Device }) {
         />
       </Section>
       <Section title="Observations" count={d.observations.length}>
-        <ObservationList obs={d.observations} />
+        {d.observations.length ? <ObservationList obs={d.observations} /> : <Empty>No observations supplied for this device.</Empty>}
       </Section>
       <Section title="Logical links" count={links.length}>
         {links.length ? (
