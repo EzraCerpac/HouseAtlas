@@ -25,7 +25,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, unnamedRoomCount, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -1173,9 +1173,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const selectedLevel = selected === null ? null : model.occurrencesById.get(selected)!.levelId;
   const quietLabel = (label: (typeof labels)[number]) => coarse && label.tier === 'plain'
     && model.occurrencesById.get(label.id)!.levelId === selectedLevel;
-  // Rooms in view the model leaves unnamed, for the Rooms list's note. Taken with
-  // the sheet closed, since the open sheet covers the stage and sets names aside.
-  const unnamedNow = undrawn ? 0 : live.size - drawnStageLabels(labels, hitBoxes, coarse).length;
+  // Rooms in view and in the label focus that the model leaves unnamed, for the
+  // Rooms list's note. Taken with the sheet closed, since the open sheet covers
+  // the stage and sets names aside.
+  const unnamedNow = undrawn ? 0 : unnamedRoomCount(live, id => id === selected || context.includes(id)
+    || plainLabelInFocus(model, presentation, id), drawnStageLabels(labels, hitBoxes, coarse));
   const [unnamed, setUnnamed] = useState(0);
   useLayoutEffect(() => { if (!sheetOpen) setUnnamed(unnamedNow); }, [sheetOpen, unnamedNow]);
   // A focused stage control can leave the stage: its tag rises past an edge,
