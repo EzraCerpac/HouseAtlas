@@ -477,6 +477,17 @@
   color: var(--muted);
 }
 
+/* Touch: linked-record and text buttons keep their look but take a full
+   finger's target. */
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host :is(button.entity-link, .text-btn) {
+    box-sizing: border-box;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .lantern-host button.entity-link { align-items: center; }
+}
+
 .lantern-host .rows {
   list-style: none;
   margin: 0;

@@ -1329,6 +1329,24 @@ for (const primitive of [0, 1]) {
 { const top = drawnAt(2, 2).mesh.meshKey;
   assert.equal(stackedPresentation.hidden.has(top), false, 'stacked top-floor wall drawn');
   assert.equal(stackedPresentation.ghosts.has(top), false, 'stacked top-floor wall not veiled'); }
+// Both tiers carry the same veil: while Light is shown (Full loading, or Full
+// building behind it) and once Full is shown, the stage's model veils the same
+// selectors, and every veiled key names a mesh of the set being drawn.
+{
+  const fullLoaded = await loadStandardGlb(fullRead.bytes, 'atlas', new AbortController().signal);
+  const full = bindAtlasModel(read.scene, fullLoaded);
+  const selectorOf = (drawn, key) => { const row = drawn.find(item => item.meshKey === key); return `${row.nodeIndex}/${row.meshIndex}/${row.primitiveIndex}`; };
+  const veil = (stage, drawn) => {
+    const shown = presentAtlas(stage.model, stacked, none);
+    const keys = new Set(stage.target.meshes.map(mesh => mesh.meshKey));
+    for (const key of shown.ghosts.keys()) assert.ok(keys.has(key), `veiled ${key} is drawn by the stage's target`);
+    return [...shown.ghosts].filter(([key, at]) => at === null && shown.hidden.has(key)).map(([key]) => selectorOf(drawn, key)).sort();
+  };
+  const loading = veil(stageTier(model, null, model), loaded.drawn);
+  assert.ok(loading.length >= 3, 'Light, Full loading: roof and lower walls veiled');
+  assert.deepEqual(veil(stageTier(model, full, model), loaded.drawn), loading, 'Light shown, Full building behind: same veil');
+  assert.deepEqual(veil(stageTier(model, full, full), fullLoaded.drawn), loading, 'Full shown: same veil');
+}
 assert.deepEqual([...stackedPresentation.pickable].sort(), ['syn-occ-bath', 'syn-occ-bedroom-upper', 'syn-occ-stairs-upper'],
   'a stacked building picks its top floor rooms only');
 assert.equal(partLifts(model, stackedPresentation, stackedPresentation.explodeTarget).size, 0, 'settled normal navigation never separates floors');
