@@ -1042,12 +1042,14 @@
   opacity: 0.35;
 }
 
-/* Upkeep: the row of group counts with its labels, a bar for each number. */
-.lantern-host .upkeep-empty.loading-summary {
-  margin-bottom: 12px;
+/* Upkeep: the row of empty groups with its labels, a bar for each number,
+   then the loading line and the loaded page's columns at their own spacing. */
+.lantern-host .upkeep-empty + .loading-status {
+  margin: 12px 0 0;
 }
 
-.lantern-host .loading-summary b {
+.lantern-host .loading-summary b,
+.lantern-host .loading-columns .section-count b {
   display: inline-block;
   vertical-align: -0.05em;
   width: 10px;
@@ -1117,11 +1119,6 @@
   .lantern-host .loading-section.loading-source-docs { margin-top: 12px; }
 }
 
-/* Upkeep: the loaded page's two columns, each a group of timeline rows. */
-.lantern-host .tl-columns.loading-columns {
-  margin-top: 0;
-}
-
 /* Upkeep: a timeline row's date column, due mark and two text lines. */
 .lantern-host .loading-timeline i {
   display: grid;
@@ -1189,16 +1186,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lantern-host .loading-rows,
-  .lantern-host .loading-summary b {
+  .lantern-host .loading-summary b,
+  .lantern-host .loading-columns .section-count b {
     animation: none;
   }
-}
-
-/* The saved Network relations' standing qualifier, above their tabs. */
-.lantern-host .network-sources-note {
-  margin: 0 0 14px;
-  max-width: 68ch;
-  color: var(--muted);
 }
 
 /* In a lens: the former Rooms & places and Network content at the lens's
@@ -2016,30 +2007,63 @@
   gap: 32px;
 }
 
-/* Source states: one quiet line each, level with the history heading beside it. */
+/* Sources: a headed column level with Operation history, one ruled row per
+   source: owner, collection marker, state and last update, then its identity. */
 .lantern-host .changes-sources {
   display: grid;
-  gap: 4px;
-  margin: 6px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   font-size: var(--fs-s);
   color: var(--muted);
 }
 
-.lantern-host .changes-sources strong {
+.lantern-host .changes-sources strong,
+.lantern-host .changes-source-name {
   color: var(--ink);
   font-weight: 600;
 }
 
-.lantern-host .changes-sources li {
-  display: grid;
+.lantern-host .changes-source-marker {
+  font-weight: 400;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
 }
 
-/* The source and collection identity under its state, small and wrapping anywhere. */
-.lantern-host .changes-source-id {
+.lantern-host .changes-sources li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .changes-sources li:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+/* The full source and collection identity waits behind its own disclosure. */
+.lantern-host .changes-source-id > summary {
+  width: fit-content;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.lantern-host .changes-source-id code {
+  display: block;
+  margin-top: 4px;
   font-size: var(--fs-xs);
   overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse), (max-width: 759px) {
+  .lantern-host .changes-source-id > summary {
+    box-sizing: border-box;
+    padding-block: 12px;
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Changes' section headings are h2 at the section-heading size. */

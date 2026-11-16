@@ -74,6 +74,26 @@ export function sourceStateLines(caches: readonly Cache[]): SourceStateLine[] {
   });
 }
 
+/** What tells a saved source's collection apart from another collection of
+ * the same owner at a glance, so the full identity can wait in a disclosure:
+ * null when the owner has one collection here; otherwise the collection ID,
+ * shortened to its shortest distinct tail when long, with the source instance
+ * beside it when collections share an ID. Identical identities keep it whole. */
+export function sourceMarkers(caches: readonly Cache[]): (string | null)[] {
+  return caches.map(cache => {
+    const peers = caches.filter(other => other.owner === cache.owner);
+    if (peers.length < 2) return null;
+    const both = peers.filter(other => other.collectionId === cache.collectionId).length > 1;
+    const tail = (value: string | undefined, n: number) => !value ? 'not supplied'
+      : value.length <= Math.max(n, 24) ? value : `…${value.slice(-n)}`;
+    const mark = (other: Cache, n: number) => both ? `${tail(other.sourceInstanceId, n)} / ${tail(other.collectionId, n)}` : tail(other.collectionId, n);
+    for (let n = 8; n < 64; n += 4) {
+      if (peers.every(other => other === cache || mark(other, n) !== mark(cache, n))) return mark(cache, n);
+    }
+    return mark(cache, 64);
+  });
+}
+
 /** The files list's photo line. Only a stored image is known to be a photo;
  * links and other files are of unknown kind, so with one of those present and
  * no known photo, whether a photo was supplied is unknown, not absent. */

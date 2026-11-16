@@ -65,15 +65,19 @@ function titleSaysRecord(house: HouseData, title: string, id: string): boolean {
  * stay on the document itself. An upkeep task says where it stands, reading
  * its own status before any date, and what it is for only when its title
  * does not already say so. A HomeBox place names its parents in HomeBox's own
- * location tree, innermost first, which is not a reviewed placement. Every
- * other result keeps the location the search supplied. Links and targets
- * are unchanged on the records themselves. */
-function hitSubtitle(house: HouseData, projection: LanternProjection, hit: SearchHit): { readonly text: string; readonly alert?: boolean } {
+ * location tree, innermost first, as a bare path, not an "In" placement, and its
+ * cache state unless fresh. A place says who owns it, so an Atlas place and a
+ * HomeBox place of one name stay two records. Every other result keeps the
+ * location the search supplied. Links and targets are unchanged on the
+ * records themselves. */
+function hitSubtitle(house: HouseData, projection: LanternProjection, hit: SearchHit | NativePlaceSearchHit): { readonly text: string; readonly owner?: string; readonly alert?: boolean } {
+  if ('location' in hit) return { text: hit.context, owner: hit.owner };
   if (hit.kind === 'space') {
     const entry = projection.entries.get(hit.id);
     if (entry) {
       const parents = ancestry(projection.view, entry).map(parent => parent.entity.name).filter(Boolean).reverse();
-      return { text: parents.length > 0 ? `In HomeBox: ${parents.join(', ')}` : '' };
+      return { owner: 'HomeBox place', text: [parents.length > 0 ? parents.join(', ') : null,
+        entry.cacheStatus === 'fresh' ? null : `Cache ${entry.cacheStatus.replace(/-/g, ' ')}`].filter(Boolean).join(' · ') };
     }
   }
   if (hit.kind === 'doc') {
@@ -149,7 +153,7 @@ export function SearchPalette() {
   const hits = useMemo(() => [...search(house, q), ...nativePlaceSearch(topology.index, topology.status, q)]
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 40), [house, q, topology.index, topology.status]);
   const grouped = useMemo(() => {
-    const out: { label: string; hits: SearchHit[] }[] = [];
+    const out: { label: string; hits: (SearchHit | NativePlaceSearchHit)[] }[] = [];
     for (const g of SEARCH_GROUPS) {
       const list = hits.filter((h) => g.kinds.includes(h.kind)).slice(0, 6);
       if (list.length) out.push({ label: g.label, hits: list });
@@ -245,6 +249,14 @@ export function SearchPalette() {
     }
   };
 
+  const hint = topology.status === 'ready' ? null : topology.status === 'loading'
+    ? 'Loading Atlas places. Saved records are searchable.'
+    : 'Atlas places are unavailable for search. Saved records are searchable.';
+  const noMatch = topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`;
+  // One polite region says the search state; focus stays in the field.
+  const announced = [hint, !q.trim() ? null : flat.length === 0 ? noMatch
+    : `${flat.length} ${flat.length === 1 ? 'result' : 'results'} shown.`].filter(Boolean).join(' ');
+
   let index = -1;
   return (
     <div className="palette-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
@@ -270,12 +282,11 @@ export function SearchPalette() {
           </button>
         </div>
         <div className="palette-results">
+          <p className="sr-only" role="status">{announced}</p>
           <ArchiveFilter choose={choose} />
-          {topology.status !== 'ready' && <p className="palette-hint" role="status">{topology.status === 'loading'
-            ? 'Loading Atlas places. Saved records are searchable.'
-            : 'Atlas places are unavailable for search. Saved records are searchable.'}</p>}
+          {hint && <p className="palette-hint">{hint}</p>}
           {q.trim() && flat.length === 0 && <div className="palette-empty">
-            <p>{topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}</p>
+            <p>{noMatch}</p>
             <button type="button" className="text-btn" onClick={() => { setQ(''); inputRef.current?.focus(); }}>Clear search</button>
           </div>}
           {!q.trim() && suggestions.length > 0 && <p className="palette-group-label" id="palette-try-label">Search suggestions</p>}
@@ -305,13 +316,16 @@ export function SearchPalette() {
                       data-index={i}
                       role="option"
                       aria-selected={i === active}
+                      aria-describedby={'location' in h ? `palette-hit-${i}-identity` : undefined}
                       className={`palette-hit${i === active ? ' is-active' : ''}`}
                       onMouseEnter={() => setActive(i)}
                       onClick={() => choose(h)}
                     >
                       <Icon name={KIND_ICON[h.kind]} size={17} />
                       <span className="hit-title">{h.title}</span>
-                      {sub.text && <span className={`hit-context${sub.alert ? ' is-alert' : ''}`}>{sub.text}</span>}
+                      {(sub.owner || sub.text) && <span className={`hit-context${sub.alert ? ' is-alert' : ''}`}>
+                        {sub.owner && <span className="hit-owner">{sub.owner}</span>}{sub.owner && sub.text && ' · '}{sub.text}</span>}
+                      {'location' in h && <span id={`palette-hit-${i}-identity`} hidden>{h.description}</span>}
                       {showsKind(g.label, h.kind) && <span className="hit-kind">{KIND_LABEL[h.kind]}</span>}
                     </div>
                   );

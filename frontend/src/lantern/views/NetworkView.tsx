@@ -41,7 +41,6 @@ export function NetworkSources() {
     && (entry.networkBound || entry.networkRelations.length > 0));
   return (
     <>
-      <p className="network-sources-note">Read-only.</p>
       <div className="seg seg-wide" role="tablist" aria-label="Network views">
         <button id="net-tab-logical" type="button" role="tab" aria-selected={tab === 'logical'} aria-controls="net-panel" onClick={() => setTab('logical')}>
           Observed links
