@@ -185,7 +185,9 @@ try {
   assert.match(chip([{ ...homebox, lastSuccessfulFetchAt: null }]), /last successful update unknown\. Open Overview\.".*>last update unknown</);
   const both = chip([homebox, { owner: 'network', status: 'error', displayStatus: 'error', lastSuccessfulFetchAt: null }]);
   assert.match(both, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Network: Error, last successful update unknown\. Open Overview\."/);
-  assert.match(both, /<span class="stale-chip-full">2 sources not fresh<\/span><span class="stale-chip-short">2 not fresh</);
+  // Phones give the chip its own row, so several sources keep the full count there too.
+  assert.match(both, /<span class="stale-chip-full">2 sources not fresh<\/span><\/span><\/span>/);
+  assert.doesNotMatch(both, /stale-chip-short/);
 
   // Label: the dialogs and drawing viewer that cover the top bar show the
   // example's label only under the example's provider; a configured home has none.

@@ -293,8 +293,6 @@ export function StaleSources({ onOpen }: { onOpen: () => void }) {
           <span className="stale-chip-full">
             {behind.length === 1 ? <><span className="stale-chip-source">{source(first.owner)}</span><span className="stale-chip-word"> {state}</span></> : `${behind.length} sources ${state}`}
           </span>
-          {/* Small phones: several sources keep a short count; the accessible name keeps each source. */}
-          {behind.length > 1 && <span className="stale-chip-short">{`${behind.length} ${state}`}</span>}
         </span>
         {behind.length === 1 && <span className="stale-chip-date">{first.lastSuccessfulFetchAt ? fmtShortDate(first.lastSuccessfulFetchAt, house.displayNow) : 'last update unknown'}</span>}
       </span>

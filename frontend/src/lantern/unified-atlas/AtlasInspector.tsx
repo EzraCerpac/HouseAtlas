@@ -23,12 +23,14 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
+  /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
+  readonly openPlaces?: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** The one floor Plan draws of a whole building, else null. */
   readonly shownLevel: string | null;
@@ -79,6 +81,9 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
           <p className="ua-sheet-sub">{shown !== null && <><span className="ua-sub-plan">Plan: {levelName(shown)}</span><span className="ua-sub-sep"> · </span></>}
             <span>{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</span></p>
         </div>
+        {/* The fuller list, with home places and building scope, opens from this head. */}
+        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" onClick={openPlaces}>
+          <Icon name="rooms" size={16} /><span>Places</span></button>}
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>

@@ -854,6 +854,8 @@ export interface AtlasPresentation {
   /** Faded cutaway in normal (unexploded) 3D: null fades a whole hidden part,
    * a height fades only what lies above that section. Never picked. */
   readonly ghosts: ReadonlyMap<string, number | null>;
+  /** The chosen building in 3D: its roof is never drawn solid, so no section or explosion redraws it. */
+  readonly roofVeil: string | null;
 }
 
 const sectionOf = (model: AtlasModel, levelId: string) => model.floorY.get(levelId)! + SECTION_HEIGHT;
@@ -896,7 +898,8 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
     let visible: boolean, clip: number | null = null, dim = 0;
     if (part.role === 'context') { visible = !plan; dim = focusLevelId !== null || state.buildingId !== null ? .35 : 0; }
     else if (!own) { visible = !plan && !(part.role === 'roof' && partExploded); dim = .6; clip = partExploded && highest ? sectionOf(model, highest) : null; }
-    else if (part.role === 'roof') visible = !plan && !partExploded && focusLevelId === null;
+    // A chosen building's roof stands as a veil over its stacked floors; the site keeps roofs closed.
+    else if (part.role === 'roof') visible = !plan && !partExploded && focusLevelId === null && state.buildingId === null;
     else if (plan) {
       const shown = part.levelIds.find(levelId => planned.has(levelId));
       visible = shown !== undefined;
@@ -926,24 +929,30 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
     clips.set(key, clip);
     if (dim > 0) dims.set(key, dim);
   }
-  // Rooms are picked on the focus floor, or anywhere in an exploded building;
-  // other visible geometry resolves to its floor or building instead.
+  // Rooms are picked on the focus floor, anywhere in an exploded building, or
+  // on the top floor of a chosen building whose floors stand stacked under its
+  // roof veil; other visible geometry resolves to its floor or building instead.
+  const veiled = !plan && !exploded && focusLevelId === null && state.buildingId !== null;
+  const top = veiled ? model.levelsByBuilding.get(state.buildingId!)?.at(-1) : undefined;
+  const topLevels = new Set(top ? displayLevelIds(model, top.levelId) : []);
   const pickable = new Set<string>();
   for (const key of model.selectable) {
     const occurrence = model.occurrencesById.get(key)!;
     if (exploded ? visibleLevels.has(occurrence.levelId) && (state.buildingId === null || occurrence.buildingId === state.buildingId)
-      : focusLevels.has(occurrence.levelId)) pickable.add(key);
+      : focusLevels.has(occurrence.levelId) || topLevels.has(occurrence.levelId)) pickable.add(key);
   }
   // Normal cutaway keeps every floor in its source position and fades the
   // roof and the floors above the focus instead of separating them.
   const ghosts = new Map<string, number | null>();
+  if (veiled) for (const part of model.parts) if (part.role === 'roof' && part.buildingId === state.buildingId && part.mesh.triangles > 0) ghosts.set(part.mesh.meshKey, null);
   if (!plan && !exploded && focusLevelId !== null) for (const part of model.parts) {
     if (part.buildingId !== focusBuilding || !GHOST_ROLES.has(part.role) || part.mesh.triangles === 0) continue;
     const key = part.mesh.meshKey, clip = clips.get(key) ?? null;
     if (hidden.has(key)) ghosts.set(key, null);
     else if (clip !== null && clip < part.mesh.yRange[1]) ghosts.set(key, clip);
   }
-  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, transparent, focusLevelId, focusLevels, planLevels, ghosts };
+  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, transparent, focusLevelId, focusLevels, planLevels, ghosts,
+    roofVeil: plan ? null : state.buildingId };
 }
 
 // ---------------------------------------------------------------------------
@@ -1057,8 +1066,9 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
     }
     const clip = cut === null ? wipe : wipe === null ? cut : Math.min(cut, wipe);
     let visible = !was;
-    // Room picks keep their target visibility; only their section moves.
-    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || partMoving || (exploding && part.role === 'roof')))
+    // Room picks keep their target visibility, and a veiled roof stays a veil; only their section moves.
+    const veiled = part.role === 'roof' && part.buildingId === presentation.roofVeil;
+    if (was && !veiled && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || partMoving || (exploding && part.role === 'roof')))
       visible = clip === null || part.mesh.yRange[0] < clip;
     if (!visible) hidden.add(key);
     clips.set(key, clip);

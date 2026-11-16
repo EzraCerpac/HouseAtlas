@@ -208,8 +208,9 @@ test('collapsing an exploded selection focuses its exact floor before any Plan v
   const whole = reduce(initial(), building(H), { type: 'explode', exploded: false });
   assert.equal(whole.levelId, null);
   const presentation = api.presentAtlas(model, whole, empty);
+  // The whole stacked building keeps its roof as a veil over the top floor.
   for (const part of model.parts.filter(part => part.buildingId === H && part.role === 'roof'))
-    assert.equal(presentation.hidden.has(part.mesh.meshKey), false);
+    assert.ok(presentation.hidden.has(part.mesh.meshKey) && presentation.ghosts.get(part.mesh.meshKey) === null);
 });
 
 test('count controls retain source anchors and counts with deterministic non-overlapping touch targets', () => {
@@ -530,7 +531,7 @@ test('an opaque upper slab takes its floor hit until the ordinary cutaway expose
   assert.equal(back.levelId, G); assert.equal(back.exploded, false);
 });
 
-test('authored roof membership selects a floor while visible foreign surfaces select their building', async () => {
+test('a veiled roof leaves its top floor room the pick while visible foreign surfaces select their building', async () => {
   const { model: authored } = await generatedModel(api, async scope => {
     const input = await api.buildSyntheticAtlas(scope), companion = JSON.parse(new TextDecoder().decode(input.companionBytes));
     for (const binding of companion.meshBindings) if (binding.nodeIndex === 3 && binding.role === 'roof') binding.levelIds = [U];
@@ -541,7 +542,7 @@ test('authored roof membership selects a floor while visible foreign surfaces se
   const projection = api.makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 },
     api.frameBox(authored, own, p), { width: 960, height: 640 }, 0);
   const pixel = projection.project(103.25, 5, 55);
-  assert.deepEqual(api.pickTarget(authored, p, own, 0, projection, ...pixel), { kind: 'level', levelId: U });
+  assert.deepEqual(api.pickTarget(authored, p, own, 0, projection, ...pixel), { kind: 'room', occurrenceId: 'syn-occ-bedroom-upper' });
   const foreign = api.atlasReducer(authored, own, level('syn-level-studio'));
   const foreignPresentation = api.presentAtlas(authored, foreign, empty);
   assert.deepEqual(api.pickTarget(authored, foreignPresentation, foreign, 0, projection, ...pixel), { kind: 'building', buildingId: H });

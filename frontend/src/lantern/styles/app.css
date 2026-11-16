@@ -880,10 +880,6 @@
   color: var(--warn);
 }
 
-.lantern-host .stale-chip-short {
-  display: none;
-}
-
 .lantern-host .stale-chip-date::before {
   content: '· ';
 }
@@ -2553,56 +2549,26 @@
     display: none;
   }
 
-  /* The stale chip is two lines: the source's name over its state and date
-     ("HomeBox" / "stale 3 Jan"), leaving the home's name room in the strip.
-     Long names end in an ellipsis; the accessible name keeps them whole.
-     Several sources keep the short count ("2 not fresh"). */
-  .lantern-host .stale-chip-face {
-    display: grid;
-    grid-template-columns: minmax(0, auto) auto;
-    column-gap: 3px;
-    height: auto;
-    max-width: 100%;
-    justify-content: center;
-    padding: 3px 3px;
-    border-radius: 10px;
-    font-size: 11px;
-    line-height: 1.25;
+  /* A stale source takes a slim row under the home's name: the chip on one
+     line ("HomeBox stale · 3 Jan") with Overview and Settings beside it, so
+     the name reads in full beside Search. */
+  .lantern-host.app:has(.stale-chip),
+  .lantern-host.app.has-detail:has(.stale-chip) {
+    --topbar: 92px;
+    grid-template-rows: 48px 44px minmax(0, 1fr) calc(var(--nav-row) + env(safe-area-inset-bottom));
+    grid-template-areas:
+      'top top'
+      'tools tools'
+      'main main'
+      'nav nav';
   }
 
-  .lantern-host .stale-chip-state,
-  .lantern-host .stale-chip-face:has(.stale-chip-date) .stale-chip-full {
-    display: contents;
+  .lantern-host.app:has(.stale-chip) .shell-tools {
+    padding-left: 10px;
   }
 
-  .lantern-host .stale-chip-face:not(:has(.stale-chip-date)) .stale-chip-full {
-    display: none;
-  }
-
-  .lantern-host .stale-chip-date::before {
-    content: none;
-  }
-
-  .lantern-host .stale-chip-short {
-    display: block;
-    grid-column: 1 / -1;
-  }
-
-  .lantern-host .stale-chip-source {
-    grid-column: 1 / -1;
-    justify-self: center;
-  }
-
-  .lantern-host .stale-chip-source,
-  .lantern-host .stale-chip-word {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .lantern-host .stale-chip-date {
-    color: var(--muted);
-    font-weight: 600;
+  .lantern-host .stale-chip {
+    margin-right: auto;
   }
 
   .lantern-host .source-status {
