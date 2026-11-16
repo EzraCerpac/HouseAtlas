@@ -387,6 +387,8 @@ const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
  * overlap, so each stays light enough that stacked walls never haze the
  * floor below. Presentation only. */
 const ATLAS_SITE = '#E0CFA6', ATLAS_GHOST_ALPHA = .05;
+/** Depth of a picked-out room's tinted floor plate above its pick geometry's floor, in metres. */
+const ROOM_PLATE = .02;
 /** Authored materials step back at under half the fallback dimming: context
  * grass stays green, the fence and glazing stay dark, and neighbours keep
  * their own colours, while the focused building alone is at full strength. */
@@ -640,6 +642,18 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const cuts = useMemo(() => sectionCuts(sectionEased, sectionGoal, origin[1]), [sectionEased, sectionGoal, origin]);
   const partCuts = useMemo(() => partSectionCuts(sectionEased, partGoals, origin[1]), [sectionEased, partGoals, origin]);
   const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings, { cuts: partCuts, targets: partGoals }), [model, presentation, t, cuts, sectionGoal, ceilings, partCuts, partGoals]);
+  // A picked-out room tints its floor, never its whole volume, so its walls and
+  // neighbours stay in view; the selected room adds its outline on that floor.
+  // Drawing only: picks keep `shown.clips`.
+  const roomParts = useMemo(() => model.parts.filter(part => part.role === 'room-pick'), [model]);
+  const drawnClips = useMemo(() => {
+    const clips = new Map(shown.clips);
+    for (const { mesh } of roomParts) if (!shown.hidden.has(mesh.meshKey)) {
+      const plate = mesh.yRange[0] + ROOM_PLATE, clip = clips.get(mesh.meshKey) ?? null;
+      clips.set(mesh.meshKey, clip === null ? plate : Math.min(clip, plate));
+    }
+    return clips;
+  }, [roomParts, shown]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   // The collapsed head can wrap at narrow widths or enlarged text sizes.
@@ -841,6 +855,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   }), [model, planLevelsKey, origin]);
   const planned = useMemo(() => new Set(planGroups.map(group => group.levelId)), [planGroups]);
   const planTransform = (levelId: string) => `${projection.planMatrix(model.floorY.get(levelId)! + levelLift(presentation, levelId, t))} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`;
+  const selectedOutline = useMemo(() => {
+    const occurrence = selected === null ? undefined : model.occurrencesById.get(selected), shape = selected === null ? undefined : model.shapes.get(selected);
+    return occurrence && shape ? { levelId: occurrence.levelId, path: shape.map(rings => relativePath(rings, origin)).join(' ') } : null;
+  }, [model, selected, origin]);
   const planDrawn = planGroups.some(group => group.features.length > 0);
   const planShown = planBlend > 0 && planDrawn;
   const sitePlan = plan && presentation.focusLevelId === null;
@@ -1570,7 +1588,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} interacting={camera.dragging} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={drawnClips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys} roomKeys={roomKeys}
             glazingKeys={glazingKeys} emitterKeys={emitterKeys} surroundings={surroundings}
             uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
@@ -1578,6 +1596,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
           {planes.map(row => <polygon key={row.key} className="ua-section" points={row.points} style={{ opacity: row.opacity }} />)}
+          {selectedOutline && planBlend < 1 && presentation.visibleLevels.has(selectedOutline.levelId) && <path className="ua-selected-outline" d={selectedOutline.path}
+            transform={planTransform(selectedOutline.levelId)} fillRule="evenodd" vectorEffect="non-scaling-stroke" style={{ opacity: 1 - planBlend }} />}
           {/* Keyed by floor: a new floor's plan fades in over the eased camera. */}
           {planShown && planGroups.map(group => <g key={group.levelId} className="ua-plan" style={{ opacity: planBlend }} transform={planTransform(group.levelId)}>
             {group.features.map(({ feature, path }) => feature.role === 'room'
@@ -1737,6 +1757,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
+      openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
       open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

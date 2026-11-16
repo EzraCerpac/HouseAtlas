@@ -1313,16 +1313,21 @@ for (const key of ['syn-occ-hall', 'syn-occ-bedroom-split', 'syn-occ-bedroom-upp
   assert.equal(pickOccurrence(model, exploded, 1, projection, px, py), key, `label pick ${key}`);
 }
 
-// Normal whole-building navigation selects authored surfaces before rooms.
+// Normal whole-building navigation: the chosen building's roof stands as a
+// veil (drawn faded, never picked) and only its top floor's rooms take picks;
+// the site keeps its roofs closed.
+const roofKey = drawnAt(3, 0).mesh.meshKey;
+assert.ok(!presentAtlas(model, initial, none).hidden.has(roofKey), 'roof drawn at the site');
 const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-house' });
 const stackedPresentation = presentAtlas(model, stacked, none);
-assert.ok(!stackedPresentation.hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof drawn when stacked');
-assert.equal(stackedPresentation.pickable.size, 0, 'building scope does not jump straight to room details');
+assert.ok(stackedPresentation.hidden.has(roofKey) && stackedPresentation.ghosts.get(roofKey) === null, 'roof veiled when the chosen building is stacked');
+assert.deepEqual([...stackedPresentation.pickable].sort(), ['syn-occ-bath', 'syn-occ-bedroom-upper', 'syn-occ-stairs-upper'],
+  'a stacked building picks its top floor rooms only');
 assert.equal(partLifts(model, stackedPresentation, stackedPresentation.explodeTarget).size, 0, 'settled normal navigation never separates floors');
 const stackedProjection = makeProjection(pose(90, 0), frameBox(model, stacked, stackedPresentation), VIEWPORT, 0);
 const roofPixel = stackedProjection.project(103.25, 5, 55);
 assert.deepEqual(scene.pickTarget(model, stackedPresentation, stacked, 0, stackedProjection, ...roofPixel),
-  { kind: 'building', buildingId: 'syn-building-house' }, 'this fixture roof has no authored floor, so it retains building scope');
+  { kind: 'room', occurrenceId: 'syn-occ-bedroom-upper' }, 'under the veiled roof the top floor room takes the pick');
 // Generated room behind a pane: the CPU target follows the glass pass, and a
 // highlighted pane that returns to the solid pass still occludes the room.
 {
@@ -1467,6 +1472,13 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
   }
   assert.ok(shown.hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof above the plane stays off');
   assert.deepEqual([...shown.pickable].sort(), [...target.pickable].sort());
+}
+// Ground -> stacked whole, the plane rising through the roof at 5.5 m: the
+// chosen building's roof stays a veil and is never redrawn solid.
+{
+  const target = presentAtlas(model, sweep.stacked, none), targets = sectionTargets(model, target, ceilings);
+  const shown = easePresentation(model, target, 0, [5.5, targets[1]], targets, ceilings), roof = drawnAt(3, 0).mesh.meshKey;
+  assert.ok(shown.hidden.has(roof) && shown.ghosts.get(roof) === null, 'the rising plane leaves the roof a veil');
 }
 // Retargeting mid-sweep: on its way down to Ground at 2 m, the reader picks Upper. The plane turns
 // back up from 2 m, and Upper's rooms gain controls only as the cut passes their floor.
