@@ -393,9 +393,14 @@ try {
     })()`, 15_000, 'Reopened app did not show the generated cached Atlas and its waiting outbox count');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('.navrail button')].map(button => button.textContent)`), ['Atlas', 'Upkeep', 'Library', 'Changes']);
     assert.equal(await evaluate(`document.querySelectorAll('.offline-pill').length`), 1);
+    // The Atlas states its held copy's date like the other three views, on its own line above the stage.
+    assert.equal(await evaluate(`(() => { const stamp = document.querySelector('.offline-app .offline-stamp'), stage = document.querySelector('.offline-atlas');
+      return /^Read-only held copy from .+\\.$/.test(stamp?.textContent ?? '') && stamp.querySelector('time[datetime]') !== null
+        && stamp.getBoundingClientRect().bottom <= stage.getBoundingClientRect().top + 1; })()`), true);
     assert.equal(await evaluate(`document.querySelectorAll('.saved-header, .saved-manager').length`), 0);
     // Phone-width navigation and actual lazy PDF canvas use only the held public closure.
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await screenshot('phone-offline-atlas');
     const tab = async label => {
       await evaluate(`[...document.querySelectorAll('.navrail button')].find(button => button.textContent === ${JSON.stringify(label)}).click()`);
       await poll(`document.querySelector('main h1')?.textContent === ${JSON.stringify(label)}`, 5_000, label + ' did not open');

@@ -1,5 +1,6 @@
 /** Bounded generic positive only; no listener/provider/private input. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import Ajv2020 from '../node_modules/ajv/dist/2020.js';
 import addFormats from '../node_modules/ajv-formats/dist/index.js';
 import atlas from '../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
@@ -1984,3 +1985,11 @@ for (const [fault, kind] of [['duplicate', 'circuit'], ['tombstone', 'evidence']
 }
 electricalFault = null;
 console.log('PASS electrical native list rejects duplicate, tombstoned, malformed and uncorrelated results');
+
+// Offline, an unavailable building read states the saved copy's limit and both
+// surfaces choose its text through one hook (source check; no browser).
+const section = readFileSync(new URL('../src/lantern/topology/BuildingSection.tsx', import.meta.url), 'utf8');
+const scope = readFileSync(new URL('../src/lantern/topology/BuildingScope.tsx', import.meta.url), 'utf8');
+assert.match(section, /Offline: building records are not held in this saved copy\./);
+assert.match(section, /navigator\.onLine === false/);
+for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(status|memberStatus)\]/);

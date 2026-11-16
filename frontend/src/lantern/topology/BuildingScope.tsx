@@ -6,7 +6,7 @@ import { metres, type Access, type Location, type Membership, type TopologyIndex
 import { useSelect, useStore } from '../state/store';
 import { LinkedEvidence } from '../components/LinkedEvidence';
 import { Icon } from '../components/Icon';
-import { messages } from './BuildingSection';
+import { useBuildingMessages } from './BuildingSection';
 
 function Evidence({ ids }: { ids: readonly string[] }) {
   return <div className="topology-evidence">{ids.length ? ids.map(id => <div key={id}><span>Evidence ID: {id}</span><LinkedEvidence evidenceId={id} /></div>) : <p>No evidence IDs supplied.</p>}</div>;
@@ -95,6 +95,7 @@ export function BuildingScope() {
   const topology = useTopology();
   useEffect(() => topology.activate(), [topology.activate]);
   const { index, status, buildingId, model, memberStatus, levelId } = topology;
+  const say = useBuildingMessages();
   const selection = model ? new Set([model.building.id, ...model.levels.flatMap(l => [l.location.id, ...l.members.map(m => m.id)]), ...model.direct.map(m => m.id)]) : new Set<string>();
   let priorDatum: string | null = null;
   const shown = model?.levels.filter(group => levelId === 'all' || levelId === group.location.id) ?? [];
@@ -106,7 +107,7 @@ export function BuildingScope() {
       {index?.buildings.map(b => <button key={b.id} type="button" className="chip-btn" title={b.id} aria-label={`${b.label}, Atlas identity ${b.id}`}
         aria-pressed={buildingId === b.id} onClick={() => topology.chooseBuilding(b.id)}>{b.label}</button>)}
     </div>
-    <p className="body-text" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
+    <p className="body-text" role="status">{status !== 'ready' ? say(status) : buildingId && memberStatus !== 'ready' ? say(memberStatus) : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
     {status === 'ready' && index && topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor client={topology.nativePlaces} binding={topology.nativeBinding} index={index} refresh={topology.reload} />}
     {buildingId === null && index && <Rows rows={[...index.locations.values()].map(location => ({ location }))} index={index} selected={new Set()} />}
     {buildingId && model && index && <>
