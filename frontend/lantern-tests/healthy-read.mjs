@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
 import { transformWithOxc } from 'vite';
-import { photoNote, projectView, sourceStateLines } from '../src/lantern/adapters/read.ts';
+import { photoNote, projectView, sourceMarkers, sourceStateLines } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { checkClientSchemaSubset } from './client-schema-subset.mjs';
@@ -464,6 +464,31 @@ assert.deepEqual(twoCollections, [
   { source: 'HomeBox', identity: 'syn-source / syn-collection-b', state: 'Access revoked', at: null },
 ]);
 assert.notEqual(twoCollections[0].identity, twoCollections[1].identity);
+// The visible marker keeps them apart without opening the identity disclosure:
+// short collection IDs whole, long ones by their shortest distinct tail, and the
+// source instance beside the collection when collections share an ID. A single
+// collection of an owner needs no marker.
+const twoCaches = [
+  { owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 'syn-source', collectionId: 'syn-collection-a' },
+  { owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked', sourceInstanceId: 'syn-source', collectionId: 'syn-collection-b' },
+  { owner: 'network', status: 'fresh', displayStatus: 'fresh', sourceInstanceId: 'syn-network', collectionId: 'syn-collection-a' },
+];
+assert.deepEqual(sourceMarkers(twoCaches), ['syn-collection-a', 'syn-collection-b', null]);
+const longIds = sourceMarkers([
+  { owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 's', collectionId: '00000000-0000-4000-8000-0000000e0900' },
+  { owner: 'homebox', status: 'fresh', displayStatus: 'fresh', sourceInstanceId: 's', collectionId: '00000000-0000-4000-8000-0000000f0900' },
+]);
+assert.deepEqual(longIds, ['…000e0900', '…000f0900']);
+assert.deepEqual(sourceMarkers([
+  { owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 'syn-source-1', collectionId: 'shared' },
+  { owner: 'homebox', status: 'fresh', displayStatus: 'fresh', sourceInstanceId: 'syn-source-2', collectionId: 'shared' },
+]), ['syn-source-1 / shared', 'syn-source-2 / shared']);
+// IDs that differ only before every checked tail keep their whole IDs, never one shared marker.
+const sameTails = ['a' + 'x'.repeat(64), 'b' + 'x'.repeat(64)];
+const sameTailMarkers = sourceMarkers(sameTails.map(collectionId =>
+  ({ owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 's', collectionId })));
+assert.deepEqual(sameTailMarkers, sameTails);
+assert.notEqual(sameTailMarkers[0], sameTailMarkers[1]);
 assert.deepEqual(sourceStateLines([{ owner: 'network', status: 'fresh', displayStatus: 'fresh' }]),
   [{ source: 'Network', identity: null, state: 'Fresh', at: null }]);
 const unknown = projectView({ ...view, entries: [{ ...original, kind: 'unknown', semanticKind: undefined }] });

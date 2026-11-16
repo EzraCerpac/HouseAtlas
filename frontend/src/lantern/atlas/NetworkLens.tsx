@@ -10,7 +10,9 @@ const NetworkSources = lazy(() => import('../views/NetworkView').then(module => 
  * has devices. Rendered only while the lens is open. */
 export function NetworkLens() {
   return <section className="lens-sources" aria-labelledby="network-lens-saved">
-    <h3 id="network-lens-saved" className="lens-source-title">Saved Network relations</h3>
+    {/* The standing qualifier sits on the heading's line. */}
+    <div className="lens-source-head"><h3 id="network-lens-saved" className="lens-source-title">Saved Network relations</h3>
+      <span className="lens-source-note">Read-only</span></div>
     <DeferredView label="Network"><NetworkSources /></DeferredView>
   </section>;
 }

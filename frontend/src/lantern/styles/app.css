@@ -349,6 +349,24 @@
   font-weight: 680;
 }
 
+/* A source heading with its standing qualifier on the same line. */
+.lantern-host .lens-source-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0 0 12px;
+}
+
+.lantern-host .lens-source-head .lens-source-title {
+  margin: 0;
+}
+
+.lantern-host .lens-source-note {
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
 /* Wide: the lens beside the map. */
 .lantern-host .atlas-workspace.has-lens {
   grid-template-columns: min(460px, 44%) minmax(0, 1fr);
@@ -1999,6 +2017,12 @@
   line-height: 1.35;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+/* Who owns a place leads its line, so two places of one name read apart. */
+.lantern-host .hit-owner {
+  font-weight: 600;
+  color: var(--ink-2);
 }
 
 /* Upkeep that is past due reads as such at a glance. */

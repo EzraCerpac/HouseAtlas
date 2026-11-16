@@ -16,7 +16,7 @@ export function ChangesView() {
     else if (retry === 'reading' && history.status !== 'loading') {
       setRetry('idle');
       // The history arrived and the button went: focus left on the page moves to the section heading.
-      if (history.status !== 'unavailable' && document.activeElement === document.body) heading.current?.focus();
+      if (history.status !== 'unavailable' && history.status !== 'expired' && document.activeElement === document.body) heading.current?.focus();
     }
   }, [retry, history.status]);
   const retrying = retry !== 'idle' && history.status === 'loading';
@@ -25,13 +25,14 @@ export function ChangesView() {
       {actions.nativeContent != null && <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>}</header>
     <div className="changes-grid"><section className="section"><header className="section-head"><h2 ref={heading} tabIndex={-1}>Operation history</h2></header>
       {history.status === 'loading' && !retrying && <p className="body-text" role="status">Loading operation history…</p>}
-      {/* The read failed or this home has no history to read; the client cannot tell which. The button repeats that read. */}
-      {(history.status === 'unavailable' || retrying) && <><p className="note note-info" role="status"><Icon name="info" size={15} /><span>{retrying ? 'Reading operation history…'
+      {/* Unavailable: the read failed or this home has no history to read; the client cannot tell which.
+          Expired: the session for the read ended. The button repeats that read either way. */}
+      {(history.status === 'unavailable' || history.status === 'expired' || retrying) && <><p className="note note-info" role="status"><Icon name="info" size={15} /><span>{retrying ? 'Reading operation history…'
+        : history.status === 'expired' ? 'The session for this history read has expired.'
         : 'Operation history is unavailable for this home, so past changes are unknown.'}</span></p>
         {actions.retryOperationHistory && <button type="button" className="btn changes-retry" aria-disabled={retrying}
           onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Retry history</button>}</>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
-      {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}
       {history.status === 'ready' && <>
         <p className="body-text muted">Partial coverage: retained Atlas stock events only. Unlinked, legacy and provider history are excluded.</p>
         {!events.length && <Empty>No retained Atlas stock events were returned for this home.</Empty>}
@@ -60,7 +61,7 @@ export function ChangesView() {
         {history.moreUnavailable && <p className="body-text" role="status">More events could not be loaded. The displayed pages remain partial.</p>}
       </>}
     </section>
-    {/* Each source's state and last successful update, one line each; identity and refresh stay in Overview. */}
+    {/* Each source's state and last successful update; refresh stays in Overview. */}
     <SourceStates /></div>
   </div>;
 }

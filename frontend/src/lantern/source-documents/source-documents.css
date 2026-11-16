@@ -67,7 +67,8 @@
   display: none;
 }
 
-/* The qualified preview sits on the ground colour so its own edges stay visible. */
+/* The qualified preview sits on the ground colour so its own edges stay
+   visible, its left edge on the caption's and the facts' left edge. */
 .lantern-host .source-doc-preview {
   display: grid;
   gap: 8px;
@@ -79,7 +80,7 @@
   display: block;
   max-width: 100%;
   max-height: min(62vh, 680px);
-  margin: 0 auto;
+  margin: 0;
   object-fit: contain;
   padding: 10px;
   border: 1px solid var(--hair-2);

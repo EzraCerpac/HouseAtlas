@@ -46,8 +46,20 @@ const index = buildTopologyIndex(data, { scope, entries: [] }, new Map());
 const nativeHits = nativePlaceSearch(index, 'ready', 'sIdE rOoM');
 assert.equal(nativeHits.length, 3);
 assert.equal(new Set(nativeHits.map(hit => hit.id)).size, 3);
-assert(nativeHits.every(hit => hit.title.startsWith('Side room') && hit.context.includes(hit.id)));
-assert(nativeHits.every(hit => hit.context.includes('Atlas name') && hit.context.includes('Atlas records: current')));
+// The visible line names owner, classification and freshness; the full Atlas
+// identity and the name's owner stay in the result's description.
+assert(nativeHits.every(hit => hit.title.startsWith('Side room') && hit.owner === 'Atlas place'
+  && !hit.context.includes(hit.id) && hit.description.includes(`Atlas identity ${hit.id}`)));
+assert(nativeHits.every(hit => hit.description.includes('Atlas name') && hit.context.includes('Room')
+  && hit.context.includes('Atlas records current') && hit.context.includes('Opens whole-home Places')));
+// A place's reviewed membership parent leads its line, its uncertainty beside it.
+const memberIndex = buildTopologyIndex({ ...data, relations: [{ target: { recordId: 'generated-membership' }, lifecycle: 'active',
+  payload: { kind: 'location-membership', membershipKind: 'level', from: { ref: { recordId: ids[0] } }, to: { ref: { recordId: ids[1] } },
+    reviewStatus: 'accepted', uncertainty: { status: 'inferred', explanation: null }, evidenceIds: [] } }] }, { scope, entries: [] }, new Map());
+const memberHits = nativePlaceSearch(memberIndex, 'ready', 'Side room');
+assert.equal(memberHits.find(hit => hit.id === ids[1]).context.split(' · Room')[0],
+  `In ${memberIndex.locations.get(ids[0]).label} (inferred)`);
+assert(!memberHits.find(hit => hit.id === ids[0]).context.startsWith('In '));
 assert.equal(search(house, 'Side room').length, 0);
 assert.equal(search(house, 'HomeBox room')[0].id, 'sp-generated');
 assert.equal(search(house, 'MODEL-42')[0].id, 'it-generated');
@@ -141,6 +153,9 @@ try {
   const opened = render('Side room');
   assert.equal(opened.options.length, 3);
   assert(opened.markup.includes('Atlas identity') && opened.markup.includes('Opens whole-home Places'));
+  assert(opened.options.every(option => option.props['aria-describedby'] === `${option.props.id}-identity`));
+  assert(opened.markup.includes('>Atlas place<') && !opened.markup.includes('Atlas records:'));
+  assert(opened.markup.includes('role="status"') && opened.markup.includes('3 results shown.'));
   const release = harness.effects[0]();
   assert.equal(harness.leases, 1);
   opened.options[0].props.onClick();

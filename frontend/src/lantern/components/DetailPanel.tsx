@@ -159,13 +159,16 @@ export function attentionCount(house: HouseData): number {
 }
 
 function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; onLeave?: (() => void) | undefined }) {
-  const { state, house, dispatch, actions } = useStore();
+  const { state, house, dispatch, projection, actions } = useStore();
   const { overdue, review, disputed, count } = attention(house);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
   const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
   const un = unplaced(house);
-  // The counts are relative to the view's date; a view from an earlier day says so beside them.
+  // The counts are relative to the view's date and as fresh as their sources: one line heads them.
   const asOf = referenceDayLabel(house.displayNow);
+  const sourceStates = [...new Set(projection.view.caches.map(cache =>
+    `${cache.owner === 'homebox' ? 'HomeBox' : 'Network'} ${cacheStatusLabel(cache.displayStatus).toLowerCase()}`))];
+  const baseline = [asOf && `Counts relative to ${asOf}`, ...sourceStates].filter(Boolean).join(' · ');
   // The header already names the home, so the sheet is titled by what it is.
   return (
     <article className="detail overview" aria-labelledby="overview-title">
@@ -179,10 +182,7 @@ function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; on
         <h2 id="overview-title" className="detail-title overview-title">
           Overview
         </h2>
-        {(asOf || actions.loadedAt !== undefined) && <p className="overview-asof">
-          {asOf && <span>Counts relative to {asOf}</span>}
-          {actions.loadedAt !== undefined && <span>Loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time></span>}
-        </p>}
+        {baseline && <p className="overview-asof">{baseline}</p>}
         <ul className="tally overview-tally" aria-label="In the supplied view">
           <li className={count ? 'is-alert' : undefined}>
             <strong>{count}</strong> need attention
@@ -191,6 +191,8 @@ function Overview({ onClose, onLeave }: { onClose?: (() => void) | undefined; on
             <strong>{soon.length}</strong> due in two weeks
           </li>
         </ul>
+        {/* The device's load time, worded as Settings words it, beside the other dates. */}
+        {actions.loadedAt !== undefined && <p className="overview-asof overview-loaded">Loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time></p>}
       </header>
       <div className="detail-body">
         {count > 0 && <Section title="Needs attention" count={count}>
@@ -594,8 +596,9 @@ function ItemDetail({ item }: { item: Item }) {
       )}
       <Section title="Manuals, receipts and photos" count={docs.length}>
         <DocList docs={docs} empty="No files supplied for this record." />
-        {photoNote(docs) && <p className="fine">{photoNote(docs)}</p>}
-        {!isUnknown && !canLink.ok && <p className="fine">Document linking is unavailable in this app.</p>}
+        {/* The photo line and the linking limit read as one short note under the files. */}
+        {(photoNote(docs) || (!isUnknown && !canLink.ok)) && <p className="fine">
+          {[photoNote(docs), !isUnknown && !canLink.ok ? 'Linking files is unavailable here.' : null].filter(Boolean).join(' ')}</p>}
       </Section>
       <Section
         title="Upkeep"
