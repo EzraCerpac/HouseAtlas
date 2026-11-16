@@ -69,10 +69,6 @@ function OverviewToggle({ expanded, onToggle }: { expanded: boolean; onToggle: (
 function HomePicker({ onClose }: { onClose: () => void }) {
   const { dispatch, projection } = useStore();
   const homes = projection.view.homes;
-  // A list of one offers no choice; say so instead.
-  if (homes.length === 1) return <Modal title="Home" onClose={onClose}>
-    <p className="setting-static">No other home is available.</p>
-  </Modal>;
   return (
     <Modal title="Home" onClose={onClose}>
       <fieldset className="field radio-cards home-picker">
@@ -120,7 +116,7 @@ function Toasts() {
 const classificationKinds = [PLACE_CLASSIFICATION];
 
 export function App() {
-  const { state, dispatch, house, actions } = useStore();
+  const { state, dispatch, house, actions, projection } = useStore();
   const aiAvailable = useAiHostAvailable();
   const reloadSaved = useCallback(() => { void actions.reload(); }, [actions]);
   useOutboxSynced(classificationKinds, reloadSaved);
@@ -231,13 +227,23 @@ export function App() {
           <Mark />
           <span className="brand-name">HouseAtlas</span>
         </div>
-        <button type="button" className="house-btn" onClick={() => setHomesOpen(true)} aria-haspopup="dialog" aria-label={`Home: ${house.name}. Choose home.`}>
-          <span className="house-field">
-            <span className="house-label" aria-hidden="true">Home</span>
-            <span className="house-name">{house.name}</span>
-          </span>
-          <Icon name="chevronDown" size={15} />
-        </button>
+        {/* A choice only when there is one: a single home is its plain label. */}
+        {projection.view.homes.length > 1 ? (
+          <button type="button" className="house-btn" onClick={() => setHomesOpen(true)} aria-haspopup="dialog" aria-label={`Home: ${house.name}. Choose home.`}>
+            <span className="house-field">
+              <span className="house-label" aria-hidden="true">Home</span>
+              <span className="house-name">{house.name}</span>
+            </span>
+            <Icon name="chevronDown" size={15} />
+          </button>
+        ) : (
+          <p className="house-btn is-static">
+            <span className="house-field">
+              <span className="house-label" aria-hidden="true">Home</span>
+              <span className="sr-only">Home: </span><span className="house-name">{house.name}</span>
+            </span>
+          </p>
+        )}
         <button type="button" className="search-trigger" aria-label="Search this home" onClick={() => dispatch({ type: 'search', open: true })}>
           <Icon name="search" size={18} />
           <span className="search-label">Search</span>

@@ -288,7 +288,8 @@ export function SearchPalette() {
             <p>{topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}</p>
             <button type="button" className="text-btn" onClick={() => { setQ(''); inputRef.current?.focus(); }}>Clear search</button>
           </div>}
-          {!q.trim() && suggestions.length > 0 && <div className="palette-try" role="group" aria-label="Search suggestions">
+          {!q.trim() && suggestions.length > 0 && <p className="palette-group-label" id="palette-try-label">Search suggestions</p>}
+          {!q.trim() && suggestions.length > 0 && <div className="palette-try" role="group" aria-labelledby="palette-try-label">
             {suggestions.map((t) => (
               <button key={t} type="button" className="chip-btn" onClick={() => setQ(t)}>
                 {t}

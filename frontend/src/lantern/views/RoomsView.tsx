@@ -53,6 +53,7 @@ export function RoomIndex() {
   const un = unplaced(house);
   const unknownRecords = house.items.filter((item) => item.id.startsWith('uk-'));
   const selectedId = state.selection?.id;
+  const status = (id: string) => { const e = projection.entries.get(id); return e && `HomeBox source: ${e.sourceState}; cache: ${e.cacheStatus}`; };
 
   return (
     <div className="room-index">
@@ -72,18 +73,22 @@ export function RoomIndex() {
         const rooms = house.spaces.filter((s) => s.floorId === f.id && s.kind !== 'stair');
         // Stated once on the heading when no place in the list has a reviewed shape.
         const noShapes = rooms.every((r) => r.geometry !== 'reviewed');
+        // A source state every place shares is stated once under the heading; a row shows its own only where it differs.
+        const statuses = new Set(rooms.map((r) => status(r.id)));
+        const shared = rooms.length > 1 && statuses.size === 1 ? [...statuses][0] : undefined;
         return (
           <section key={f.id} className="ledger" aria-labelledby={`ledger-${f.id}`}>
             <div className="ledger-floor" aria-hidden="true">
               {f.short}
             </div>
             <div className="ledger-body">
-              <h2 id={`ledger-${f.id}`} className="ledger-title">
+              <h3 id={`ledger-${f.id}`} className="ledger-title">
                 {f.name}
                 {noShapes ? <span className="mini-claim claim-unknown">No reviewed shapes</span>
                   : !f.hasPlan && <span className="mini-claim claim-unknown">No plan</span>}
-              </h2>
+              </h3>
               {!rooms.length && <Empty>No places supplied.</Empty>}
+              {shared && shared !== 'HomeBox source: present; cache: fresh' && <p className="ledger-shared"><span className="ledger-shared-label">All {rooms.length}</span><span className="ledger-facts"><span>{shared}</span></span></p>}
               <ul className="ledger-rows">
                 {rooms.map((r) => {
                   const c = roomContents(house, r.id);
@@ -96,7 +101,7 @@ export function RoomIndex() {
                   // Archived whatever the source state; an archived source state
                   // shows in the source flag, never as the entity's archival.
                   const archived = entry !== undefined && entry.entity.archived === true;
-                  const sourceException = entry !== undefined && (entry.sourceState !== 'present' || entry.cacheStatus !== 'fresh');
+                  const sourceException = entry !== undefined && (entry.sourceState !== 'present' || entry.cacheStatus !== 'fresh') && !shared;
                   const holds: { icon: string; count: number; one: string; many: string }[] = [
                     { icon: 'box', count: c.items.length, one: 'belonging', many: 'belongings' },
                     { icon: 'file', count: c.docs.length, one: 'document', many: 'documents' },
@@ -116,7 +121,7 @@ export function RoomIndex() {
                         </span>
                         {(archived || sourceException || (r.geometry !== 'reviewed' && !noShapes)) && <span className="ledger-flags">
                           {archived && <span className="ledger-flag">Archived</span>}
-                          {entry && sourceException && <span className="ledger-flag">Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>}
+                          {entry && sourceException && <span className="ledger-flag">{status(r.id)}</span>}
                           {r.geometry !== 'reviewed' && !noShapes && <span className="ledger-flag is-quiet">No shape</span>}
                         </span>}
                       </button>
@@ -143,86 +148,49 @@ export function RoomIndex() {
           ?
         </div>
         <div className="ledger-body">
-          <h2 id="ledger-unplaced" ref={unplacedHeading} tabIndex={-1} className="ledger-title">
+          <h3 id="ledger-unplaced" ref={unplacedHeading} tabIndex={-1} className="ledger-title">
             No reviewed placement
-          </h2>
+          </h3>
           {topology.buildingId !== null && <p className="body-text muted">Whole home, not filtered by building</p>}
           <p className="body-text muted">In saved information, these records have no reviewed position on a plan.</p>
-          <div className="unplaced-grid">
-            <div>
-              <h3>Belongings without a reviewed room</h3>
-              {un.noRoomItems.length ? (
-                <ul className="rows">
-                  {un.noRoomItems.map((i) => (
-                    <li key={i.id} className="link-row">
-                      <EntityLink id={i.id} sub={[i.locationNote ?? CLAIM_LABEL[i.locationClaim], projection.entries.get(i.id) && `Source: ${projection.entries.get(i.id)?.sourceState}; cache: ${projection.entries.get(i.id)?.cacheStatus}`].filter(Boolean).join(' · ')} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>No belongings without a reviewed room in the supplied view.</Empty>
-              )}
-            </div>
-            <div>
-              <h3>Known by room, spot not recorded</h3>
-              {un.roomOnlyItems.length ? (
-                <ul className="rows">
-                  {un.roomOnlyItems.map((i) => (
-                    <li key={i.id} className="link-row">
-                      <EntityLink id={i.id} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>Reviewed room placement is unavailable.</Empty>
-              )}
-            </div>
-            <div>
-              <h3>Valves without a position</h3>
-              {un.valves.length ? (
-                <ul className="rows">
-                  {un.valves.map((v) => (
-                    <li key={v.id} className="link-row">
-                      <EntityLink id={v.id} sub={v.note} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>Reviewed valve placement is unavailable.</Empty>
-              )}
-            </div>
-            <div>
-              <h3>Network devices without a location</h3>
-              {un.devices.length ? (
-                <ul className="rows">
-                  {un.devices.map((d) => (
-                    <li key={d.id} className="link-row">
-                      <EntityLink id={d.id} sub={d.note} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>Reviewed device placement is unavailable.</Empty>
-              )}
-            </div>
-            <div>
-              <h3>Unclassified records</h3>
-              {unknownRecords.length ? (
-                <ul className="rows">
-                  {unknownRecords.map((record) => {
-                    const entry = projection.entries.get(record.id);
-                    return (
-                      <li key={record.id} className="link-row">
-                        <EntityLink id={record.id} sub={entry ? `Source: ${entry.sourceState}; cache: ${entry.cacheStatus}` : 'Classification not supplied'} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <Empty>No unclassified records in the supplied view.</Empty>
-              )}
-            </div>
-          </div>
+          {(() => {
+            // Groups with records list them; the empty ones share one statement.
+            // A source state every listed belonging shares is stated once above them.
+            const itemStatuses = new Set(un.noRoomItems.map((i) => status(i.id)));
+            const itemsShared = un.noRoomItems.length > 1 && itemStatuses.size === 1 ? [...itemStatuses][0] : undefined;
+            const groups: { title: string; empty: string; shared?: string | undefined; rows: { id: string; sub?: string | undefined }[] }[] = [
+              { title: 'Belongings without a reviewed room', empty: 'belongings without a reviewed room', shared: itemsShared, rows: un.noRoomItems.map((i) => ({
+                // The heading states the missing placement; a row adds only a note or a claim other than unknown.
+                id: i.id, sub: [i.locationNote ?? (i.locationClaim === 'unknown' ? undefined : CLAIM_LABEL[i.locationClaim]), !itemsShared && status(i.id)].filter(Boolean).join(' · ') || undefined,
+              })) },
+              { title: 'Known by room, spot not recorded', empty: 'belongings known by room only', rows: un.roomOnlyItems.map((i) => ({ id: i.id })) },
+              { title: 'Valves without a position', empty: 'valves without a position', rows: un.valves.map((v) => ({ id: v.id, sub: v.note })) },
+              { title: 'Network devices without a location', empty: 'network devices without a location', rows: un.devices.map((d) => ({ id: d.id, sub: d.note })) },
+              { title: 'Unclassified records', empty: 'unclassified records', rows: unknownRecords.map((record) => {
+                const entry = projection.entries.get(record.id);
+                return { id: record.id, sub: entry ? `Source: ${entry.sourceState}; cache: ${entry.cacheStatus}` : 'Classification not supplied' };
+              }) },
+            ];
+            const listed = groups.filter((g) => g.rows.length), empty = groups.filter((g) => !g.rows.length).map((g) => g.empty);
+            return <>
+              {listed.length > 0 && <div className="unplaced-grid">
+                {listed.map((g) => (
+                  <div key={g.title}>
+                    <h4>{g.title}</h4>
+                    {g.shared && <p className="ledger-shared"><span className="ledger-shared-label">All {g.rows.length}</span><span className="ledger-facts"><span>{g.shared}</span></span></p>}
+                    <ul className="rows">
+                      {g.rows.map((row) => (
+                        <li key={row.id} className="link-row">
+                          <EntityLink id={row.id} sub={row.sub} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>}
+              {empty.length > 0 && <Empty>None supplied in this view: {empty.join(', ')}.</Empty>}
+            </>;
+          })()}
         </div>
       </section>
     </div>
@@ -235,7 +203,8 @@ function GeometryMetadata() {
   return <section className="ledger" aria-labelledby="geometry-metadata-heading" style={{ overflowWrap: 'anywhere' }}>
     <div className="ledger-floor ledger-icon" aria-hidden="true"><Icon name="layers" size={28} /></div>
     <div className="ledger-body">
-      <h2 id="geometry-metadata-heading" className="ledger-title">Geometry imports</h2>
+      <h3 id="geometry-metadata-heading" className="ledger-title">Geometry imports</h3>
+      {read.status === 'not-supplied' && <p role="status" className="body-text">Geometry imports were not supplied in this view.</p>}
       {read.status === 'loading' && <p role="status" className="body-text">Loading geometry imports…</p>}
       {read.status === 'unavailable' && <p role="status" className="body-text">Geometry imports could not be loaded. Reload saved information in Settings to retry.</p>}
       {read.status === 'denied' && <p role="status" className="body-text">Access to geometry imports is denied.</p>}
