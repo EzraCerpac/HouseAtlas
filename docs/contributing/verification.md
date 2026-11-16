@@ -2692,7 +2692,9 @@ tombstoned binding, an incomplete key, another source kind, two places, an
 Atlas ID equal to a HomeBox ID without a binding and another home never join;
 contents are HomeBox's direct children only, with confirmed-deleted, unresolved,
 unreviewed and archived records (archive visibility on and off) flagged after
-present ones.
+present ones, and unknown-kind records listed as unclassified. The linked place
+is flagged by its own state and hidden while it is archived and archived records
+are not included; freshness comes only from a cache that fits its collection.
 Inspect its body and imports before running this local command:
 
 ```sh

@@ -21,13 +21,17 @@ import { InlineTime } from '../components/ui';
 /** What saved HomeBox information lists for a selected room's reviewed
  * HomeBox place, or why nothing is listed. */
 export type RoomBelongingsState =
-  | { readonly status: 'loading' | 'not-readable' | 'unlinked' | 'ambiguous' | 'absent' }
+  | { readonly status: 'loading' | 'not-readable' | 'unlinked' | 'ambiguous' | 'absent' | 'archived-hidden' }
   | { readonly status: 'failed'; readonly reason: TopologyFailure }
   | { readonly status: 'linked'; readonly place: string; readonly innerPlaces: number;
+    /** The linked place's own record; `placeFlagged` when it is archived,
+     * confirmed deleted, unresolved or awaiting review. */
+    readonly placeEntry: Entry; readonly placeFlagged: boolean;
     /** Present and active records first; `flagged` ones are archived,
      * confirmed deleted, unresolved or awaiting review, and say so. */
     readonly belongings: readonly { readonly id: string; readonly name: string; readonly detail: string; readonly entry: Entry; readonly flagged: boolean }[];
-    /** The HomeBox copy's state and last successful update, as Sources shows them. */
+    /** The HomeBox copy's state and last successful update for the place's
+     * collection, as Sources shows them; null when no cache is known to be it. */
     readonly cache: { readonly status: CacheStatus; readonly at: string | null } | null };
 /** The live host's building records for a selected room. `request` starts
  * the one read when it has not run; `read` never starts one. */
@@ -261,12 +265,15 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
   const [all, setAll] = useState(false), [retrying, setRetrying] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null), list = useRef<HTMLUListElement>(null), headingId = useId();
   const state: RoomBelongingsState = !source ? { status: 'not-readable' } : placeId === null ? { status: 'unlinked' } : source.read(placeId);
-  // A retry stays mounted until its read settles; if success removes it, focus goes to the heading.
+  const canRetryNow = state.status === 'failed' && RETRY.has(state.reason);
+  // A retry stays mounted until its read settles; whenever the settled state
+  // removes it (success or a failure that offers no retry), focus left on the
+  // page body goes to the card heading.
   useEffect(() => {
     if (!retrying || state.status === 'loading') return;
     setRetrying(false);
-    if (state.status !== 'failed' && document.activeElement === document.body) heading.current?.focus();
-  }, [retrying, state.status]);
+    if (!canRetryNow && document.activeElement === document.body) heading.current?.focus();
+  }, [retrying, state.status, canRetryNow]);
   const unknown = "so this room's HomeBox place is not known.";
   const text = state.status === 'loading' ? "Loading building records for this room's HomeBox place…"
     : state.status === 'not-readable' ? `Building records ${source ? 'cannot be read here' : 'are not held in this saved copy'}, ${unknown}`
@@ -274,8 +281,9 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
     : state.status === 'unlinked' ? 'No reviewed HomeBox place link for this room.'
     : state.status === 'ambiguous' ? 'Reviewed links name more than one HomeBox place for this room, so none is listed.'
     : state.status === 'absent' ? 'The linked HomeBox place is not in saved HomeBox information.'
+    : state.status === 'archived-hidden' ? 'The linked HomeBox place is archived. Include archived records to list its belongings.'
     : state.status === 'linked' && state.belongings.length === 0 ? 'None listed in saved HomeBox information.' : null;
-  const canRetry = (state.status === 'failed' && RETRY.has(state.reason)) || (retrying && state.status === 'loading');
+  const canRetry = canRetryNow || (retrying && state.status === 'loading');
   const shown = state.status === 'linked' ? all ? state.belongings : state.belongings.slice(0, BELONGINGS_SHOWN) : [];
   const flagged = state.status === 'linked' ? state.belongings.filter(row => row.flagged).length : 0;
   return <section className="ua-contents ua-belongings" aria-labelledby={headingId}>
@@ -283,6 +291,8 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
     {state.status === 'linked' && <p className="ua-belongings-scope">Recorded directly in HomeBox place {state.place}
       {flagged > 0 && `; ${flagged === state.belongings.length ? flagged === 1 ? 'the only belonging is' : `all ${flagged} are` : `${flagged} of ${state.belongings.length} ${flagged === 1 ? 'is' : 'are'}`} archived, deleted, unresolved or awaiting review`}
       {state.innerPlaces > 0 && `; belongings in its ${plural(state.innerPlaces, 'inner place')} are not listed`}</p>}
+    {/* The linked place's own HomeBox state, as other record views show it. */}
+    {state.status === 'linked' && state.placeFlagged && <div className="ua-belonging-state"><RecordStatus entry={state.placeEntry} compact /></div>}
     {text && <p className="ua-contents-pending" role={state.status === 'loading' || state.status === 'failed' ? 'status' : undefined}>{text}</p>}
     {canRetry && <button type="button" className="text-btn ua-belongings-more" aria-disabled={state.status === 'loading' || undefined}
       onClick={() => { if (state.status === 'loading') return; setRetrying(true); source?.retry(); }}>Retry</button>}
@@ -294,8 +304,9 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
     {state.status === 'linked' && state.belongings.length > shown.length && <button type="button" className="text-btn ua-belongings-more"
       onClick={() => { setAll(true); requestAnimationFrame(() => list.current?.querySelectorAll('button')[BELONGINGS_SHOWN]?.focus()); }}>
       Show all {state.belongings.length.toLocaleString()}{flagged > 0 && `, ${flagged.toLocaleString()} flagged`}</button>}
-    {state.status === 'linked' && <p className="ua-belongings-source">Read-only from HomeBox{state.cache
-      ? <> · {state.cache.status.replace(/-/g, ' ')}, last successful update {state.cache.at ? <InlineTime value={state.cache.at} /> : 'unknown'}</> : ''}</p>}
+    {state.status === 'linked' && <p className="ua-belongings-source">Read-only from HomeBox · {state.cache
+      ? <>{state.cache.status.replace(/-/g, ' ')}, last successful update {state.cache.at ? <InlineTime value={state.cache.at} /> : 'unknown'}</>
+      : 'update state for this collection not supplied'}</p>}
   </section>;
 }
 

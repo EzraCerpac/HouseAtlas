@@ -1999,7 +1999,7 @@ for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(s
 // Atlas place IDs here are distinct from every HomeBox ID except the one case
 // that checks an equal-looking ID without a binding never joins.
 {
-  const { homeboxPlaceOf, homeboxContents } = await import('../src/lantern/topology/homebox-place.ts');
+  const { homeboxPlaceOf, homeboxContents, homeboxCacheFor, homeboxPlaceRecords } = await import('../src/lantern/topology/homebox-place.ts');
   const room = fixture.view.entries.find(e => e.entity.name === 'Direct room'), other = fixture.view.entries.find(e => e.entity.name === 'Lower room');
   const atlas = n => `00000000-0000-4000-8000-0000000b70${String(n).padStart(2, '0')}`;
   const identityOf = id => ({ target: { authority: 'atlas', recordType: 'identity', recordId: id }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } });
@@ -2064,5 +2064,44 @@ for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(s
   const inspector = readFileSync(new URL('../src/lantern/unified-atlas/AtlasInspector.tsx', import.meta.url), 'utf8');
   assert.match(inspector, /row\.flagged && <span className="ua-belonging-state"><RecordStatus entry=\{row\.entry\} compact \/>/);
   assert.match(inspector, /Show all \{state\.belongings\.length\.toLocaleString\(\)\}\{flagged > 0 && `, \$\{flagged\.toLocaleString\(\)\} flagged`\}/);
+
+  // A direct record of unknown kind is listed as unclassified, never dropped.
+  const unknownOnly = homeboxContents([['uk-crate', child('crate', 'unknown', room.entity.id)]], room);
+  assert.deepEqual(unknownOnly.belongings.map(row => [row.id, row.unclassified]), [['uk-crate', true]]);
+  assert.equal(homeboxContents([['it-lamp', child('lamp', 'item', room.entity.id)]], room).belongings[0].unclassified, false);
+
+  // The linked place's own state: flagged when deleted, unresolved, unreviewed
+  // or archived; an archived place is hidden while archived records are not included.
+  const placeAs = (sourceState, archived = false) => ({ ...room, sourceState, entity: { ...room.entity, archived } });
+  const visibleOf = (view, includeArchived) => [...projectView(view, undefined, undefined, null, includeArchived).entries].filter(([id]) => /^(it|sp|uk)-/.test(id));
+  for (const state of ['confirmed-deleted', 'unresolved', 'unreviewed']) {
+    const place = placeAs(state), view = { ...fixture.view, entries: fixture.view.entries.map(e => e === room ? place : e) };
+    const records = homeboxPlaceRecords(place, visibleOf(view, false), []);
+    assert.equal(records.hidden, false, state); assert.equal(records.flagged, true, state);
+  }
+  const archivedPlace = placeAs('archived', true), archivedView = { ...fixture.view, entries: fixture.view.entries.map(e => e === room ? archivedPlace : e) };
+  assert.deepEqual(homeboxPlaceRecords(archivedPlace, visibleOf(archivedView, false), []), { hidden: true });
+  const shownArchived = homeboxPlaceRecords(archivedPlace, visibleOf(archivedView, true), []);
+  assert.equal(shownArchived.hidden, false); assert.equal(shownArchived.flagged, true);
+  assert.equal(homeboxPlaceRecords(room, visibleOf(fixture.view, false), []).flagged, false);
+  assert.match(inspector, /placeFlagged && <div className="ua-belonging-state"><RecordStatus entry=\{state\.placeEntry\} compact \/>/);
+  assert.match(inspector, /The linked HomeBox place is archived\. Include archived records to list its belongings\./);
+
+  // Freshness only from a cache that is the place's collection, or the one cache whose unnamed identifiers fit it.
+  const cache = (sourceInstanceId, collectionId) => ({ owner: 'homebox', status: 'stale', displayStatus: 'stale', lastSuccessfulFetchAt: '2026-01-02T10:00:00Z',
+    ...(sourceInstanceId === undefined ? {} : { sourceInstanceId }), ...(collectionId === undefined ? {} : { collectionId }) });
+  const { sourceInstanceId: own, collectionId: ownCollection } = room.source;
+  assert.equal(homeboxCacheFor(room, [cache(own, 'another-collection')]), null, 'Another collection is never this place\'s freshness');
+  assert.equal(homeboxCacheFor(room, [cache('00000000-0000-4000-8000-0000000b7297', ownCollection)]), null);
+  const unnamed = cache(); assert.equal(homeboxCacheFor(room, [unnamed]), unnamed);
+  const partly = cache(own); assert.equal(homeboxCacheFor(room, [partly]), partly);
+  const exact = cache(own, ownCollection); assert.equal(homeboxCacheFor(room, [unnamed, exact, cache(own, 'another-collection')]), exact);
+  assert.equal(homeboxCacheFor(room, [cache(), cache()]), null, 'Two unnamed caches do not say which is this collection');
+  assert.equal(homeboxCacheFor(room, [{ ...exact, owner: 'network' }]), null);
+  assert.match(inspector, /'update state for this collection not supplied'/);
+
+  // When the settled retry offers no retry (success or a terminal failure), focus left on the body goes to the heading.
+  assert.match(inspector, /const canRetryNow = state\.status === 'failed' && RETRY\.has\(state\.reason\);/);
+  assert.match(inspector, /if \(!canRetryNow && document\.activeElement === document\.body\) heading\.current\?\.focus\(\);/);
 }
-console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only; deleted, unresolved, unreviewed and archived (archive visibility on and off) records flagged after present ones');
+console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only; deleted, unresolved, unreviewed and archived (archive visibility on and off) records flagged after present ones; unknown-kind records listed as unclassified; linked place state flagged or hidden while archived; freshness only from a fitting cache; retry focus');

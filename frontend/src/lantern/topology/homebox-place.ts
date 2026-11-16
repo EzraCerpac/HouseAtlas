@@ -1,4 +1,4 @@
-import type { Entry, ReadyView } from '../../app/types';
+import type { Cache, Entry, ReadyView } from '../../app/types';
 import type { SourceKey } from '../../api/generated/contracts';
 import type { TopologyIndex } from './model';
 
@@ -32,19 +32,40 @@ export function homeboxPlaceOf(index: TopologyIndex, view: ReadyView, atlasPlace
  * archived, confirmed deleted, unresolved or awaiting review. */
 export const flaggedRecord = (entry: Entry) => entry.entity.archived || entry.sourceState !== 'present';
 
-/** HomeBox's own parentage within the place's source collection: entries
+/** HomeBox's own parentage within the place's source collection: records
  * recorded directly in the place, present and active ones first, then
- * flagged ones (each in source order). Places inside it are counted, and
- * their belongings are not included. */
+ * flagged ones (each in source order). Items and records of unknown kind
+ * (`unclassified`) are both listed; places inside it are counted, and their
+ * contents are not included. */
 export function homeboxContents(entries: Iterable<readonly [string, Entry]>, place: Entry) {
-  const belongings: { readonly id: string; readonly entry: Entry; readonly flagged: boolean }[] = [];
+  const belongings: { readonly id: string; readonly entry: Entry; readonly flagged: boolean; readonly unclassified: boolean }[] = [];
   let innerPlaces = 0;
   for (const [id, entry] of entries) {
     if (entry.workspaceId !== place.workspaceId || entry.homeId !== place.homeId || entry.source.sourceInstanceId !== place.source.sourceInstanceId
       || entry.source.collectionId !== place.source.collectionId || entry.source.sourceKind !== place.source.sourceKind
       || entry.entity.parent?.id !== place.entity.id) continue;
-    if (entry.kind === 'item') belongings.push({ id, entry, flagged: flaggedRecord(entry) });
-    else if (entry.kind === 'place') innerPlaces++;
+    if (entry.kind === 'place') innerPlaces++;
+    else belongings.push({ id, entry, flagged: flaggedRecord(entry), unclassified: entry.kind !== 'item' });
   }
   return { belongings: [...belongings.filter(row => !row.flagged), ...belongings.filter(row => row.flagged)], innerPlaces };
+}
+
+/** The HomeBox copy state for the place's own collection: a cache naming that
+ * source instance and collection, or the one cache whose unnamed identifiers
+ * do not contradict them. Otherwise null: freshness for it is not known. */
+export function homeboxCacheFor(place: Entry, caches: readonly Cache[]): Cache | null {
+  const fits = caches.filter(cache => cache.owner === 'homebox'
+    && (cache.sourceInstanceId == null || cache.sourceInstanceId === place.source.sourceInstanceId)
+    && (cache.collectionId == null || cache.collectionId === place.source.collectionId));
+  return fits.find(cache => cache.sourceInstanceId === place.source.sourceInstanceId && cache.collectionId === place.source.collectionId)
+    ?? (fits.length === 1 ? fits[0]! : null);
+}
+
+/** What the card shows for a linked place, from the visible Home records
+ * (archive choice applied): `hidden` when the place itself is archived and
+ * archived records are not included. */
+export function homeboxPlaceRecords(place: Entry, visible: readonly (readonly [string, Entry])[], caches: readonly Cache[]) {
+  if ((place.entity.archived || place.sourceState === 'archived') && !visible.some(([, entry]) => entry.key === place.key
+    && entry.workspaceId === place.workspaceId && entry.homeId === place.homeId)) return { hidden: true as const };
+  return { hidden: false as const, flagged: flaggedRecord(place), ...homeboxContents(visible, place), cache: homeboxCacheFor(place, caches) };
 }

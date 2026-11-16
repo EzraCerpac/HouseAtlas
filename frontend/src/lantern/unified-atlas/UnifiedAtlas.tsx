@@ -7,7 +7,7 @@ import { Icon } from '../components/Icon';
 import { useReducedMotion, useSelect, useStore } from '../state/store';
 import { kindOf } from '../data/query';
 import type { TopologyContext } from '../topology/TopologyProvider';
-import { homeboxContents, homeboxPlaceOf } from '../topology/homebox-place';
+import { homeboxPlaceOf, homeboxPlaceRecords } from '../topology/homebox-place';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
@@ -176,7 +176,7 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
   const index = records?.index ?? null, status = records?.status, readable = records?.readable ?? false, reload = records?.reload;
   return useMemo(() => {
     if (!reload) return undefined;
-    const contents = [...projection.entries].filter(([id]) => { const kind = kindOf(id); return kind === 'item' || kind === 'space'; });
+    const contents = [...projection.entries].filter(([id]) => { const kind = kindOf(id); return kind === 'item' || kind === 'space' || kind === 'unknown'; });
     const read = (atlasPlaceId: string): RoomBelongingsState => {
       if (!readable) return { status: 'not-readable' };
       if (!wanted || status === 'loading' || status === undefined) return { status: 'loading' };
@@ -184,13 +184,12 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
       if (!index) return { status: 'loading' };
       const link = homeboxPlaceOf(index, projection.view, atlasPlaceId);
       if (link.status !== 'linked') return { status: link.status };
-      const { place } = link, { belongings, innerPlaces } = homeboxContents(contents, place);
-      const caches = projection.view.caches.filter(cache => cache.owner === 'homebox');
-      const cache = caches.find(row => row.sourceInstanceId === place.source.sourceInstanceId && row.collectionId === place.source.collectionId)
-        ?? (caches.length === 1 ? caches[0]! : null);
-      return { status: 'linked', place: place.entity.name.trim() || 'Unnamed place', innerPlaces,
-        belongings: belongings.map(({ id, entry, flagged }) => ({ id, entry, flagged, name: entry.entity.name.trim() || 'Unnamed belonging',
-          detail: [entry.entity.entityType?.name, entry.entity.quantity === null ? null : `Quantity ${entry.entity.quantity}`].filter(Boolean).join(' · ') })),
+      const { place } = link, records = homeboxPlaceRecords(place, contents, projection.view.caches);
+      if (records.hidden) return { status: 'archived-hidden' };
+      const { belongings, innerPlaces, cache } = records;
+      return { status: 'linked', place: place.entity.name.trim() || 'Unnamed place', placeEntry: place, placeFlagged: records.flagged, innerPlaces,
+        belongings: belongings.map(({ id, entry, flagged, unclassified }) => ({ id, entry, flagged, name: entry.entity.name.trim() || 'Unnamed record',
+          detail: [unclassified ? 'Unclassified record' : entry.entity.entityType?.name, entry.entity.quantity === null ? null : `Quantity ${entry.entity.quantity}`].filter(Boolean).join(' · ') })),
         cache: cache ? { status: cache.displayStatus, at: cache.lastSuccessfulFetchAt ?? null } : null };
     };
     return { request: () => setWanted(true), retry: reload, open: select, read };
