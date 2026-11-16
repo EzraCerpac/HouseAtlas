@@ -945,6 +945,9 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
   // roof and the floors above the focus instead of separating them.
   const ghosts = new Map<string, number | null>();
   if (veiled) for (const part of model.parts) if (part.role === 'roof' && part.buildingId === state.buildingId && part.mesh.triangles > 0) ghosts.set(part.mesh.meshKey, null);
+  // Walls of the floors below the top one stand as veils too, so their rooms stay readable under it.
+  if (veiled) for (const part of model.parts) if (part.role === 'structure' && part.buildingId === state.buildingId && part.mesh.triangles > 0
+    && part.levelIds.length > 0 && part.levelIds.every(levelId => !topLevels.has(levelId))) { hidden.add(part.mesh.meshKey); ghosts.set(part.mesh.meshKey, null); }
   if (!plan && !exploded && focusLevelId !== null) for (const part of model.parts) {
     if (part.buildingId !== focusBuilding || !GHOST_ROLES.has(part.role) || part.mesh.triangles === 0) continue;
     const key = part.mesh.meshKey, clip = clips.get(key) ?? null;
