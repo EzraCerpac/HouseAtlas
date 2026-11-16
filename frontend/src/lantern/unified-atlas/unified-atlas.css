@@ -1706,8 +1706,8 @@
 .lantern-host .ua-contents-name { font-weight: 650; color: var(--ink); }
 .lantern-host .ua-contents-count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .lantern-host .ua-contents-state { color: var(--warn); font-size: var(--fs-xs); font-weight: 600; overflow-wrap: anywhere; }
-/* Not loaded or loading is a state, not a fault. */
-.lantern-host .ua-contents-state.is-pending { color: var(--ink-2); }
+/* Not loaded or loading is a state, not a fault: one quiet line. */
+.lantern-host .ua-contents-pending { margin: 0; color: var(--muted); font-size: var(--fs-s); }
 
 .lantern-host .ua-contents-off {
   padding: 0 6px;
@@ -2020,6 +2020,7 @@
 
 .lantern-host .ua-empty,
 .lantern-host .ua-coverage { margin: 0; color: var(--muted); }
+.lantern-host .ua-coverage.ua-stacked-note { margin-bottom: 12px; font-size: var(--fs-s); }
 
 /* ---- States -------------------------------------------------------------- */
 

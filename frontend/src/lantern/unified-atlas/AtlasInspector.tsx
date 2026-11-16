@@ -89,7 +89,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       <div className="ua-sheet-body" id={bodyId}>
         {/* Stacked under its roof veil, a building's model names its top floor's rooms only. */}
         {state.view === '3d' && !state.exploded && state.levelId === null && state.buildingId !== null && hasExplodableLevels(model, state.buildingId)
-          && <p className="ua-coverage">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>}
+          && <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>}
         {/* Choosing from the list hands the stage back to the model. */}
         <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
@@ -188,24 +188,25 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
  * supplied list's length and the source's own state, or why there is none.
  * A layer that is off still lists what is already loaded, marked off; nothing
  * here toggles a layer, fetches or counts beyond the supplied list. Before
- * anything is loaded (no layer on yet) or while it loads, each row says so,
- * never that the room is empty. */
+ * anything is loaded (no layer on yet) or while it loads, one quiet line says
+ * so, never that the room is empty. */
 function RoomContentsSummary({ runtime, reason, roomId, layers }: {
   readonly runtime: PropertyRecords | null; readonly reason: string; readonly roomId: string; readonly layers: AtlasViewState['layers'];
 }) {
+  if (!runtime && (reason === 'not-loaded' || reason === 'loading')) return <p className="ua-contents-pending">
+    {reason === 'loading' ? 'Electrical and network records for this room are loading.' : 'Electrical and network records are not loaded while their layers are off.'}</p>;
   const linked = runtime?.rooms.get(roomId);
-  const pending = runtime ? null : reason === 'not-loaded' ? 'Not loaded' : reason === 'loading' ? 'Loading' : null;
   return <section className="ua-contents" aria-label="In this room">
     <h3 className="ua-contents-title">In this room</h3>
     <ul>{OVERLAY_KINDS.map(kind => {
       const records = runtime && linked && runtime[kind] !== 'unavailable' ? linked[kind] : null;
-      const source = pending ?? (!runtime ? 'Source unavailable' : !linked ? 'Room source link unavailable' : runtime[kind] === 'unavailable' ? 'Source unavailable'
-        : runtime[kind] === 'partial' ? 'Partial source' : null);
+      const source = !runtime ? 'Source unavailable' : !linked ? 'Room source link unavailable' : runtime[kind] === 'unavailable' ? 'Source unavailable'
+        : runtime[kind] === 'partial' ? 'Partial source' : null;
       return <li key={kind} className={`ua-contents-row${layers[kind] ? '' : ' is-off'}${source ? ' is-qualified' : ''}`}>
         <Icon name={OVERLAY_ICON[kind]} size={16} />
         <span className="ua-contents-name">{OVERLAY_LABEL[kind]}</span>
         {records && <span className="ua-contents-count">{plural(records.length, 'record')}</span>}
-        {source && <span className={`ua-contents-state${pending ? ' is-pending' : ''}`}>{source}</span>}
+        {source && <span className="ua-contents-state">{source}</span>}
         {!layers[kind] && <span className="ua-contents-off">Layer off</span>}
       </li>;
     })}</ul>
