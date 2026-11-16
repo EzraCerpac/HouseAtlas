@@ -114,7 +114,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       <div className="ua-sheet-body" id={bodyId}>
         {/* Stacked under its roof veil, a building's model names its top floor's rooms only. */}
         {state.view === '3d' && !state.exploded && state.levelId === null && state.buildingId !== null && hasExplodableLevels(model, state.buildingId)
-          ? <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model; Spread floors names them all.</p>
+          ? <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model. Spread floors shows each floor separately; every room is listed here.</p>
           // Names that would not fit (on touch, without a full target) are left off; the list holds every room.
           : unnamed > 0 && <p className="ua-coverage ua-stacked-note">{`${plural(unnamed, 'room')} ${unnamed === 1 ? 'is' : 'are'} not named on the ${state.view === 'plan' ? 'plan' : 'model'}; ${unnamed === 1 ? 'its name does' : 'their names do'} not fit.`}</p>}
         {/* Choosing from the list hands the stage back to the model. */}
