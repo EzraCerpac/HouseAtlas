@@ -64,8 +64,10 @@ function LoadingView({ label }: { readonly label: string }) {
         {label === 'Upkeep'
           // Upkeep's rows take the timeline's shape: date, mark, then title and date lines.
           ? <span className="loading-rows loading-timeline" aria-hidden="true">{[0, 1, 2].map(row => <i key={row}><b /><b /><b /></i>)}</span>
-          // Library: one compact row per section, so every section's heading shows.
-          : label === 'Library' ? <span className="loading-rows" aria-hidden="true"><i /></span>
+          // Library: one row per section in a file row's shape (title, action slot, facts), so every heading shows.
+          : label === 'Library' ? <span className="loading-rows loading-lib" aria-hidden="true"><i><b /></i></span>
+          // Changes: one row per section keeps Sources near where it settles.
+          : label === 'Changes' ? <span className="loading-rows" aria-hidden="true"><i /></span>
           : <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>}
       </section>)}
     </div>

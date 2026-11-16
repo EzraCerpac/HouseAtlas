@@ -144,7 +144,7 @@ export function SyncSettings({ outbox = getOutbox() }: { readonly outbox?: Outbo
   return <fieldset className="field">
     <legend>Sync</legend>
     <div className="seg" role="radiogroup" aria-label="Send changes">
-      {([['automatic', 'Automatically'], ['ask', 'When I ask']] as const).map(([value, label]) => (
+      {([['automatic', 'Automatic'], ['ask', 'When I ask']] as const).map(([value, label]) => (
         <button key={value} type="button" role="radio" aria-checked={mode === value} tabIndex={mode === value ? 0 : -1}
           onKeyDown={event => {
             const index = values.indexOf(value);

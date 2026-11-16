@@ -71,7 +71,7 @@ function mount() {
   const render = (node: ReactNode) => { if (root === current) current.render(node); };
   // The label also heads the dialogs and drawing viewer that cover the top bar.
   void example().then(({ view, models, topology, electricalLibrary, homeboxOriginals }) => render(<ExampleLabelContext value={view.homeLabel}>
-    <LanternHost view={view} actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
+    <LanternHost view={view} geometry={null} actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '' }}
       nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} topology={topology}
       sourceElectricalLibrary={electricalLibrary} homeboxOriginals={homeboxOriginals} /></ExampleLabelContext>),
   error => render(<p role="alert">{error instanceof Error ? error.message : 'The example house could not start.'}</p>));
