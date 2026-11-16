@@ -431,10 +431,14 @@ const LADDER_FLOOR = 112;
 const laidOut = (node: Element) => !node.matches(':modal') && getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
 
+/** Fits within this share of the best count as equal, so a frame a few pixels
+ * larger never wins over one with far more of the stage around the model. */
+const FIT_TIE = .92;
+
 /** Each panel is cleared by the edge band that costs the frame least: every
- * assignment of panels to bands is scored by the fit it leaves. Ties keep more area. */
+ * assignment of panels to bands is scored by the fit it leaves. Near ties keep more area. */
 function safeInsets(cover: readonly Box[], width: number, height: number, fit: (w: number, h: number) => number): Box {
-  let best = NO_INSET, score = -1, area = -1;
+  const options: { readonly inset: Box; readonly value: number; readonly area: number }[] = [];
   for (let pick = 0; pick < 4 ** cover.length; pick++) {
     let l = 0, t = 0, r = 0, b = 0;
     cover.forEach((o, at) => {
@@ -443,11 +447,11 @@ function safeInsets(cover: readonly Box[], width: number, height: number, fit: (
       else if (band === 2) r = Math.max(r, width - o.l + CLEAR); else b = Math.max(b, height - o.t + CLEAR);
     });
     const w = width - l - r, h = height - t - b;
-    if (w < MIN_FRAME || h < MIN_FRAME) continue;
-    const value = fit(w, h);
-    if (value > score + 1e-9 || (value > score - 1e-9 && w * h > area)) { best = { l, t, r, b }; score = value; area = w * h; }
+    if (w >= MIN_FRAME && h >= MIN_FRAME) options.push({ inset: { l, t, r, b }, value: fit(w, h), area: w * h });
   }
-  return best;
+  const top = Math.max(...options.map(option => option.value));
+  return options.filter(option => option.value >= top * FIT_TIE - 1e-9)
+    .reduce<{ inset: Box; area: number } | null>((best, option) => !best || option.area > best.area ? option : best, null)?.inset ?? NO_INSET;
 }
 
 /** The shared camera fitted to an inset region, reported in whole-stage pixels. */

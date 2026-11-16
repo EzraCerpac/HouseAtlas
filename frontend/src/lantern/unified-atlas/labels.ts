@@ -22,12 +22,13 @@ export const labelHitTarget = (row: RoomLabel): ScreenBox => row.plan?.box ?? ({
   r: row.x + labelHitWidth(row.text) / 2, t: row.y - LABEL_TAG_RISE * row.rise - 16, b: row.y - LABEL_TAG_RISE * row.rise + 16 });
 
 /** Side padding and height of a drawn 3D name: the selected tag, or a quiet chip. */
-export const stageLabelPad = (tier: RoomLabel['tier']) => tier === 'selected' ? 9 : 7;
-export const stageLabelHeight = (tier: RoomLabel['tier']) => tier === 'selected' ? 26 : 20;
-/** The drawn 3D name's box, as wide as its measured text, with a two-pixel
- * gap; without a measurement, an estimate. Reserved and drawn boxes agree. */
+export const stageLabelPad = (tier: RoomLabel['tier']) => tier === 'selected' ? 9 : 6;
+export const stageLabelHeight = (tier: RoomLabel['tier']) => tier === 'selected' ? 26 : 18;
+/** The drawn 3D name's box, as wide as its measured text, with a gap of two
+ * pixels beside it and one above and below; without a measurement, an
+ * estimate. Reserved and drawn boxes agree. */
 export function stageLabelBox(row: RoomLabel, advance: number | undefined): ScreenBox {
-  const w = (advance ?? row.text.length * 7.2) + 2 * stageLabelPad(row.tier) + 4, h = stageLabelHeight(row.tier) + 4;
+  const w = (advance ?? row.text.length * 7.2) + 2 * stageLabelPad(row.tier) + 4, h = stageLabelHeight(row.tier) + 2;
   const middle = row.y - LABEL_TAG_RISE * row.rise;
   return { l: row.x - w / 2, r: row.x + w / 2, t: middle - h / 2, b: middle + h / 2 };
 }
