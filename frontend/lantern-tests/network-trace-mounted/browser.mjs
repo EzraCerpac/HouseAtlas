@@ -48,6 +48,45 @@ try {
     for (const type of ['mousePressed', 'mouseReleased']) await command('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, ...point });
   };
   const click = text => press(`[...document.querySelectorAll('button')].find(x => x.textContent.trim() === ${JSON.stringify(text)})`);
+  const pressSettled = async expression => {
+    const point = await evaluate(`new Promise(resolve => {
+      const due = performance.now() + 5000, events = [], controller = new AbortController();
+      let previous, original, point, pressedRect, frame, timer;
+      const describe = el => el ? { tag: el.tagName, id: el.id, class: el.getAttribute('class'), text: el.textContent?.slice(0, 100) } : null;
+      const read = () => {
+        const el = (${expression}), r = el?.getBoundingClientRect();
+        const centre = r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+        const hit = centre && document.elementFromPoint(centre.x, centre.y);
+        return { rect: r?.toJSON(), pressedRect, centre, hit: describe(hit), expanded: el?.getAttribute('aria-expanded'),
+          sameNode: el === original, originalConnected: original?.isConnected, scroll: [scrollX, scrollY],
+          atPressPoint: point ? describe(document.elementFromPoint(point.x, point.y)) : null,
+          actionable: !!(r?.width && r?.height && el.contains(hit) && !el.closest('[inert], [hidden]') && !el.matches(':disabled')), events };
+      };
+      window.__settledPress = { read, stop: () => controller.abort() };
+      const finish = result => { clearTimeout(timer); cancelAnimationFrame(frame); resolve(result); };
+      timer = setTimeout(() => finish(null), 5000);
+      const sample = () => {
+        const el = (${expression}), state = read();
+        const key = JSON.stringify(state.rect);
+        if (state.actionable && el === original && previous === key) {
+          point = state.centre; pressedRect = state.rect;
+          for (const type of ['mousedown', 'mouseup', 'click']) document.addEventListener(type, event => {
+            const current = read();
+            if (events.length < 6) events.push({ type, target: describe(event.target), x: event.clientX, y: event.clientY,
+              rect: current.rect, sameNode: current.sameNode, expanded: current.expanded });
+          }, { capture: true, signal: controller.signal });
+          finish(point); return;
+        }
+        original = el; previous = state.actionable ? key : null;
+        if (performance.now() >= due) finish(null);
+        else frame = requestAnimationFrame(sample);
+      };
+      (${expression})?.scrollIntoView({ block: 'center', behavior: 'instant' });
+      frame = requestAnimationFrame(sample);
+    })`);
+    if (!point) throw Error(`Press target did not settle: ${expression}`);
+    for (const type of ['mousePressed', 'mouseReleased']) await command('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, ...point });
+  };
   const devices = `[...document.querySelectorAll('details.ung-list')].find(x=>x.querySelector(':scope > summary')?.textContent.startsWith('Devices ('))`;
   const client = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Client')`;
   const selectClient = async () => {
@@ -156,9 +195,17 @@ try {
   const networkHeader = `document.querySelector('.ua-key[aria-label="Network layer"] .ua-key-head')`;
   const networkBody = `document.getElementById((${networkHeader}).getAttribute('aria-controls'))`;
   const hostGraphOpen = `(${networkBody})?.querySelector('.ua-graph-open')`;
-  await press(networkHeader);
-  // CDP input completion does not wait for React's DOM commit.
-  await until(`(${networkHeader})?.getAttribute('aria-expanded') === 'true'`);
+  // A DOM hit-test in the same turn as mounting is not a settled input target.
+  // Require the same actionable header and rect on two consecutive animation frames.
+  try {
+    await pressSettled(networkHeader);
+    await until(`(${networkHeader})?.getAttribute('aria-expanded') === 'true'`);
+  } catch (error) {
+    const state = await evaluate(`window.__settledPress?.read()`);
+    throw Error(`${error.message}; Network header: ${JSON.stringify(state)}`, { cause: error });
+  } finally {
+    await evaluate(`window.__settledPress?.stop(); true`);
+  }
   await until(`(() => { const body = (${networkBody}), button = (${hostGraphOpen}); if (!body || body.hidden || !button || getComputedStyle(body).display === 'none' || getComputedStyle(body).visibility !== 'visible') return false; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return r.width > 0 && r.height > 0 && button.contains(hit); })()`);
   await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
