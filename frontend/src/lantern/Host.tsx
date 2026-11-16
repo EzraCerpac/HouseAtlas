@@ -86,14 +86,14 @@ export function LanternHost({ view, actions, nativeContent, geometry, quantityWe
   }, [retrying, actions.notice]);
   const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
   const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
-  const [geometryRead, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
+  const [geometryRead, setGeometry] = useState<{ view: ReadyView; session: typeof session; client: GeometryClient; read: GeometryRead } | null>(null);
   useEffect(() => {
     if (!client) return;
     const controller = new AbortController();
     void client.read(view.scope, controller.signal).then((read) => {
-      if (!controller.signal.aborted) setGeometry({ view, session, read });
+      if (!controller.signal.aborted) setGeometry({ view, session, client, read });
     }).catch(() => {
-      if (!controller.signal.aborted) setGeometry({ view, session, read: { status: 'unavailable' } });
+      if (!controller.signal.aborted) setGeometry({ view, session, client, read: { status: 'unavailable' } });
     });
     return () => controller.abort();
   }, [client, view, session]);
@@ -144,7 +144,7 @@ export function LanternHost({ view, actions, nativeContent, geometry, quantityWe
   }, [historyClient, history, view, session]);
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
   const current: GeometryMetadata = !client ? { status: 'not-supplied' }
-    : geometryRead?.view === view && geometryRead.session === session ? geometryRead.read : { status: 'loading' };
+    : geometryRead?.view === view && geometryRead.session === session && geometryRead.client === client ? geometryRead.read : { status: 'loading' };
   // A revocation recorded by an explicit refresh whose view re-read failed
   // withholds HomeBox entries of every later view of that home in the same
   // session, including one another reload delivered meanwhile.
