@@ -91,7 +91,7 @@ const REASONS: Readonly<Record<string, string>> = {
 /** `recheck` says whether this caller is offered the access recheck, which
  * is then the only way to restore a revoked source. */
 export function describeRefresh(result: RefreshResult, format: (iso: string) => string, reconciled = true, recheck = false): string {
-  const stale = reconciled ? '' : ' This view could not be updated.';
+  const stale = reconciled ? '' : ' Saved information was not reloaded.';
   const restore = recheck ? 'only a recheck of HomeBox access can restore it' : 'refreshing cannot restore it on this server yet';
   switch (result.kind) {
     case 'refreshed': return `${result.refreshedAt ? `Refreshed from HomeBox ${format(result.refreshedAt)}.` : 'Refreshed from HomeBox.'}${stale}`;

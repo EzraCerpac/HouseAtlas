@@ -45,8 +45,10 @@ export function RoomIndex() {
     heading.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
   }, [state.viewFocus]);
   const topology = useTopology();
-  const [floorFilter, setFloorFilter] = useState<string>('all');
+  const [chosenFloor, setFloorFilter] = useState<string>('all');
   const floors = [...house.floors].sort((a, b) => b.order - a.order);
+  // A chosen floor that leaves the home no longer filters: every floor shows.
+  const floorFilter = floors.some((f) => f.id === chosenFloor) ? chosenFloor : 'all';
   const shown = floorFilter === 'all' ? floors : floors.filter((f) => f.id === floorFilter);
   const un = unplaced(house);
   const unknownRecords = house.items.filter((item) => item.id.startsWith('uk-'));
@@ -145,7 +147,7 @@ export function RoomIndex() {
             No reviewed placement
           </h2>
           {topology.buildingId !== null && <p className="body-text muted">Whole home, not filtered by building</p>}
-          <p className="body-text muted">These records have no reviewed position on a plan in the saved view.</p>
+          <p className="body-text muted">In saved information, these records have no reviewed position on a plan.</p>
           <div className="unplaced-grid">
             <div>
               <h3>Belongings without a reviewed room</h3>
@@ -235,7 +237,7 @@ function GeometryMetadata() {
     <div className="ledger-body">
       <h2 id="geometry-metadata-heading" className="ledger-title">Geometry imports</h2>
       {read.status === 'loading' && <p role="status" className="body-text">Loading geometry imports…</p>}
-      {read.status === 'unavailable' && <p role="status" className="body-text">Geometry imports could not be loaded. Reload the saved view to retry.</p>}
+      {read.status === 'unavailable' && <p role="status" className="body-text">Geometry imports could not be loaded. Reload saved information in Settings to retry.</p>}
       {read.status === 'denied' && <p role="status" className="body-text">Access to geometry imports is denied.</p>}
       {read.status === 'expired' && <p role="status" className="body-text">The session for this geometry read has expired.</p>}
       {read.status === 'ready' && <>
@@ -269,7 +271,7 @@ function GeometryMetadata() {
                 <div><dt>Mapping status</dt><dd>{mapping.reviewStatus}</dd></div>
                 <div><dt>Atlas identity ID</dt><dd>{mapping.atlasId}</dd></div>
                 <div><dt>HomeBox source reference</dt><dd>{ref ? `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}` : 'Not supplied'}</dd></div>
-                <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact HomeBox place reference in this view'}</dd></div>
+                <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact match among the HomeBox places listed here'}</dd></div>
                 <div><dt>Mapping evidence IDs</dt><dd>{mapping.evidenceIds.join(', ')}</dd></div>
               </dl>{mapping.evidenceIds.map(evidenceId => <LinkedEvidence key={evidenceId} evidenceId={evidenceId} />)}</div>;
             })}

@@ -130,7 +130,7 @@ export function TaskList({ tasks, showTarget, empty, note = true }: { tasks: Tas
 export function HistoryList({ id }: { id: string }) {
   const { house } = useStore();
   const events = historyFor(house, id);
-  if (!events.length) return <Empty>History is not supplied by this saved view.</Empty>;
+  if (!events.length) return <Empty>No history supplied for this record.</Empty>;
   return (
     <ol className="history">
       {events.map((e) => (

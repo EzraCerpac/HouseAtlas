@@ -95,8 +95,8 @@ export function LibraryView() {
   const docs = house.docs.filter(test).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
   const stored = house.docs.filter((d) => d.storage === 'stored').length;
   const archivedLinks = house.docs.filter((d) => d.linkArchived === true).length;
+  // HomeBox files opens the page, under its own heading; the links reach the sections below it.
   const sections = [
-    { label: 'HomeBox files', ref: homeboxRef },
     ...(documents ? [{ label: 'Source documents', ref: documentsRef }] : []),
     ...(electricalLibrary ? [{ label: 'Electrical drawings', ref: drawingsRef }] : []),
   ];
@@ -104,14 +104,14 @@ export function LibraryView() {
     <div className="view">
       <header className="view-head library-head">
         <h1>Library</h1>
-        {sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
+        {sections.length > 0 && <nav className="library-jump" aria-label="Library sections">
           {sections.map(({ label, ref }) => <button key={label} type="button" onClick={() => jumpTo(ref)}>{label}</button>)}
         </nav>}
       </header>
       <section ref={homeboxRef} className="library-section" tabIndex={-1} aria-labelledby={homeboxHeading}>
         <div className="section-head"><h2 id={homeboxHeading}>HomeBox files</h2></div>
         <p className="library-scope">
-          HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')} to files kept elsewhere{archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
+          HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')}{archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
         </p>
         <div className="field filter-select"><label htmlFor={categoryId}>Category</label>
           <select id={categoryId} value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
@@ -126,7 +126,7 @@ export function LibraryView() {
           ))}
         </div>
         {docs.length === 0 ? (
-          <Empty>No HomeBox files of this kind in the supplied view.</Empty>
+          <Empty>No HomeBox files of this kind supplied for this home.</Empty>
         ) : (() => {
           const rows = docs.map(d => ({ d, qualifiers: docQualifiers(d, projection.entries.get(d.id)) }));
           const [first, ...rest] = rows.map(row => new Set(row.qualifiers));

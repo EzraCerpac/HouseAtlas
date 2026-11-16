@@ -77,16 +77,10 @@
   gap: 8px;
 }
 
-/* An unavailable action and its reason, kept together when the row wraps. */
-.lantern-host .write-action {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-}
-
-.lantern-host .write-action .fine {
+/* An action this app cannot take, said once in place of its button. */
+.lantern-host .write-unavailable {
   margin: 0;
+  align-self: center;
 }
 
 .lantern-host .detail-body {
@@ -226,10 +220,12 @@
   color: var(--muted);
 }
 
+/* A warning keeps its icon and a full hairline frame, apart from the amber
+   left edge that marks a selection. */
 .lantern-host .note-warn {
-  border-left-color: var(--lantern-edge);
-  background: var(--warn-soft);
-  color: #5a3500;
+  border: 1px solid var(--hair-2);
+  border-radius: 8px;
+  background: var(--card);
 }
 
 .lantern-host .note-warn .icon {
@@ -1719,15 +1715,29 @@
   color: var(--muted);
 }
 
+/* Phones: the links stay on one row that scrolls sideways. */
 @media (max-width: 759px) {
   .lantern-host .library-jump {
-    margin-top: 2px;
+    flex-wrap: nowrap;
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .lantern-host .library-jump button {
+    flex: none;
     min-height: 44px;
     min-width: 44px;
+    white-space: nowrap;
   }
+}
+
+/* Library filters select in the navy every other selected control uses. */
+.lantern-host .library-section .filter-row .chip-btn[aria-pressed='true'] {
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: #fff;
 }
 
 /* Phones: row actions and the search close button are at least 44 px tall. */
@@ -1747,10 +1757,18 @@
   display: none;
 }
 
+/* Phones: the label sits beside its select to keep the first file on screen. */
 @media (max-width: 759px) {
   .lantern-host .filter-select {
-    display: block;
-    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .lantern-host .filter-select select {
+    flex: 1;
+    min-width: 0;
   }
 
   .lantern-host .filter-select + .filter-row {

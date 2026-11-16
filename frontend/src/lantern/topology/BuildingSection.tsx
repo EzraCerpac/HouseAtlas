@@ -7,11 +7,11 @@ import { Icon } from '../components/Icon';
 // The default Atlas without a house model draws only this section; the full
 // building ledger with its native place tools loads with the Rooms & places lens.
 export const messages = {
-  loading: 'Loading building records…', unavailable: 'Building records could not be loaded. Reload the saved view to retry.',
+  loading: 'Loading building records…', unavailable: 'Building records could not be loaded. Reload saved information in Settings to retry.',
   denied: 'Access to building records is denied.', expired: 'The session for this read has expired.',
   timedOut: 'Building records could not be loaded within the read deadline.', tooLarge: "Building records exceed this list’s read limit.",
-  continuationUnavailable: 'Building records could not be continued. Reload the saved view.',
-  changed: 'Building records differ between reads. Reload the saved view.', ready: '',
+  continuationUnavailable: 'Building records could not be continued. Reload saved information in Settings.',
+  changed: 'Building records differ between reads. Reload saved information in Settings.', ready: '',
 };
 
 /** A member place on a level slab. Only current place-list records are selectable. */

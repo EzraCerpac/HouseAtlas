@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useId, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -103,20 +103,16 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
   );
 }
 
-/** A HomeBox write that is unavailable is left out: the panel's OutageHint states why once. */
-/** A HomeBox action without access is left out (the record's note says why);
- * an unavailable Atlas action stays, its reason written beside it. */
-function WriteButton({ system, children, onClick, primary }: { system: 'HomeBox' | 'Atlas'; children: ReactNode; onClick: () => void; primary?: boolean }) {
+/** A write this app can take. An unavailable HomeBox write is left out (the
+ * panel's OutageHint states why once); an unavailable Atlas write is one
+ * sentence in place of its button, never a disabled control. */
+function WriteButton({ system, children, onClick, primary, unavailable }: { system: 'HomeBox' | 'Atlas'; children: ReactNode; onClick: () => void; primary?: boolean; unavailable?: string }) {
   const can = useCanWrite(system);
-  const reason = useId();
-  if (!can.ok && system === 'HomeBox') return null;
+  if (!can.ok) return system === 'Atlas' && unavailable ? <p className="fine write-unavailable">{unavailable}</p> : null;
   return (
-    <span className="write-action">
-      <button type="button" className={`btn${primary ? ' btn-primary' : ''}`} disabled={!can.ok} aria-describedby={can.ok ? undefined : reason} onClick={onClick}>
-        {children}
-      </button>
-      {!can.ok && <span id={reason} className="fine">{can.reason}</span>}
-    </span>
+    <button type="button" className={`btn${primary ? ' btn-primary' : ''}`} onClick={onClick}>
+      {children}
+    </button>
   );
 }
 
@@ -270,7 +266,7 @@ export function Sources({ house, outage: _outage }: { house: HouseData; outage: 
     </div>)}
     <HomeboxRefresh />
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'House model selected; no reviewed shapes supplied.' : 'No reviewed shapes supplied in this view.'}</dd></div>}
+    {!reviewedShape && <div><dt>Room shapes</dt><dd>{model ? 'House model selected; no reviewed shapes supplied.' : 'No reviewed shapes supplied for this home.'}</dd></div>}
   </dl></Section>;
 }
 
@@ -358,7 +354,7 @@ function SpaceDetail({ space }: { space: Space }) {
         </>
       }
     >
-      {space.geometry === 'none' && <Note>No reviewed shape supplied in this view.</Note>}
+      {space.geometry === 'none' && <Note>No reviewed shape supplied for this place.</Note>}
       {/* Sections with records lead in their usual order; the ones with
           none fold into one block below them, each keeping its own words. */}
       {(c.items.length > 0 || c.containers.length > 0) && <Section title="Belongings" count={c.items.length}>
@@ -504,7 +500,7 @@ function ItemDetail({ item }: { item: Item }) {
       id={item.id}
       kind={isUnknown ? 'unknown' : 'item'}
       title={item.name}
-      claim={<ClaimBadge claim={item.locationClaim} prefix="Location" />}
+      claim={!sp && item.locationClaim === 'unknown' ? undefined : <ClaimBadge claim={item.locationClaim} prefix="Location" />}
       lead={
         <div className="item-lead">
           {!isUnknown && <ItemArt kind={item.illustration} label="Generic item illustration" />}
@@ -524,7 +520,7 @@ function ItemDetail({ item }: { item: Item }) {
           <WriteButton system="HomeBox" primary onClick={() => dispatch({ type: 'dialog', dialog: { type: 'editItem', itemId: item.id } })}>
             <Icon name="edit" size={16} /> Edit
           </WriteButton>
-          <WriteButton system="Atlas" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'link', targetId: item.id } })}>
+          <WriteButton system="Atlas" unavailable="Document linking is unavailable in this app." onClick={() => dispatch({ type: 'dialog', dialog: { type: 'link', targetId: item.id } })}>
             <Icon name="link" size={16} /> Link document
           </WriteButton>
           <WriteButton system="HomeBox" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'media', targetId: item.id } })}>
@@ -549,7 +545,7 @@ function ItemDetail({ item }: { item: Item }) {
             )}
           </p>
         ) : (
-          <Note tone="warn">No reviewed placement is supplied in this view.</Note>
+          <Note tone="warn">No reviewed placement is recorded for this {isUnknown ? 'record' : 'belonging'}.</Note>
         )}
         {item.locationNote && <p className="body-text muted">{item.locationNote}</p>}
       </Section>
@@ -572,7 +568,7 @@ function ItemDetail({ item }: { item: Item }) {
             <p className="fine">Documented connection, not a traced cable route.</p>
           </>
         ) : (
-          <Empty>No outlets are supplied in this view.</Empty>
+          <Empty>No outlets supplied for this belonging.</Empty>
         )}
       </Section>}
       {device && (
@@ -1022,7 +1018,7 @@ function TaskDetail({ t }: { t: Task }) {
       </Section>
       {t.status === 'done' && (
         <Section title="Evidence" count={evidence.length}>
-          <DocList docs={evidence} empty="Completion evidence is not supplied in this view." />
+          <DocList docs={evidence} empty="Completion evidence was not supplied for this task." />
         </Section>
       )}
       <Section title="Earlier for the same record">

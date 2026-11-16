@@ -284,7 +284,7 @@ const renderSearch = (savedView, included) => {
 };
 const archiveOff = renderSearch(view, false);
 assert(archiveOff.markup.includes('Include archived records'));
-assert(archiveOff.markup.includes('aria-label="Search names, models or documents"'));
+assert(archiveOff.markup.includes('aria-label="Search this home"'));
 const archiveOn = renderSearch(view, true);
 assert(archiveOn.markup.includes('Archived records (1)'));
 assert(archiveOn.markup.includes(archivedDrawer.entity.name));

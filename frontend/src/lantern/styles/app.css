@@ -1413,6 +1413,18 @@
   gap: 6px 12px;
 }
 
+/* This device's clock, framed apart from the dates sources record. */
+.lantern-host .device-time {
+  padding: 2px 8px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+}
+
+.lantern-host .device-time time {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .lantern-host .settings {
   display: grid;
   gap: 0;
@@ -1917,6 +1929,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 14px 10px;
 }
 
 /* Phones: each suggestion is a 44 px target. */
@@ -1986,21 +1999,10 @@
   color: var(--muted);
 }
 
-.lantern-host .palette-foot {
-  padding: 8px 16px;
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  border-top: 1px solid var(--hair);
-}
-
 /* Touch: results take a full finger's height; the archived records filter
    sits as one compact panel inside the results instead of a full-bleed
-   band; the keyboard guide is hidden. */
+   band. */
 @media (pointer: coarse) {
-  .lantern-host .palette-foot {
-    display: none;
-  }
-
   .lantern-host .palette-hit {
     min-height: 48px;
     padding: 9px 10px;
@@ -2034,11 +2036,6 @@
   .lantern-host .palette-results .archive-filter .row-meta {
     font-size: var(--fs-xs);
     overflow-wrap: anywhere;
-  }
-
-  .lantern-host .palette-foot {
-    padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
-    line-height: 1.35;
   }
 }
 
