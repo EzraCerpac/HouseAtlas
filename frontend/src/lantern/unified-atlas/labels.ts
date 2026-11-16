@@ -66,14 +66,22 @@ export function drawnStageLabels<T extends RoomLabel>(rows: readonly T[], target
   return coarse ? rows.filter(row => row.tier === 'selected' || (!targetsAside && targets.has(row))) : rows;
 }
 
-/** Rooms the Rooms list reports as not named on the model: rooms in view and in
+/** Rooms the Rooms list marks as not named on the model: rooms in view and in
  * the current label focus whose name is not drawn. Rooms out of focus (other
- * floors while one is chosen) are not counted. */
-export function unnamedRoomCount(live: Iterable<string>, inFocus: (id: string) => boolean, drawn: readonly Pick<RoomLabel, 'id'>[]): number {
+ * floors while one is chosen) are not marked. */
+/** The unnamed rooms the Rooms list shows, held for one view and scope. Taken
+ * while the sheet is closed (an open sheet covers the stage and sets names
+ * aside); a view or scope change while it is open clears the marks until the
+ * sheet closes, so names measured for another view are never shown. */
+export interface UnnamedSnapshot { readonly scope: string; readonly ids: string }
+export function nextUnnamedSnapshot(held: UnnamedSnapshot, scope: string, now: string, sheetOpen: boolean): UnnamedSnapshot {
+  if (!sheetOpen) return held.scope === scope && held.ids === now ? held : { scope, ids: now };
+  return held.scope === scope ? held : { scope, ids: '' };
+}
+
+export function unnamedRooms(live: Iterable<string>, inFocus: (id: string) => boolean, drawn: readonly Pick<RoomLabel, 'id'>[]): readonly string[] {
   const named = new Set(drawn.map(row => row.id));
-  let count = 0;
-  for (const id of live) if (inFocus(id) && !named.has(id)) count++;
-  return count;
+  return [...live].filter(id => inFocus(id) && !named.has(id));
 }
 
 /** SVG names remain visible independently; only safe action targets enter the tab order. */

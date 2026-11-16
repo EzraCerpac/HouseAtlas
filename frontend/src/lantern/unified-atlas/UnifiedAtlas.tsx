@@ -28,7 +28,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRoomCount, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRooms, nextUnnamedSnapshot, type UnnamedSnapshot, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -580,7 +580,10 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   if (panel && head && style && sheet) {
     const rect = panel.getBoundingClientRect();
     const whole = frame.width <= COMPACT_STAGE && panel.classList.contains('is-open') && rect.height <= frame.height * OPEN_SHEET;
-    const top = whole ? rect.top : rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+    // A phone's lens switch heads the closed sheet (over an open lens it is all the sheet shows).
+    const lenses = panel.querySelector(':scope > .ua-lens-switch');
+    const top = whole || (lenses && showing(lenses) && !panel.classList.contains('is-open')) ? rect.top
+      : rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
     peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
   }
   const graphPanel = root.querySelector('.ua-graph');
@@ -714,19 +717,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   }, [roomParts, shown]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  // The collapsed head can wrap at narrow widths or enlarged text sizes.
-  // Keep the overlay band above its actual height rather than a fixed estimate.
-  useLayoutEffect(() => {
-    const root = shell.current, head = root?.querySelector<HTMLElement>('.ua-sheet-head');
-    if (!root || !head) return;
-    const measure = () => {
-      const height = head.getBoundingClientRect().height;
-      if (height > 0) root.style.setProperty('--ua-peek', `${Math.ceil(height)}px`);
-    };
-    measure();
-    const observer = new ResizeObserver(measure); observer.observe(head);
-    return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
-  }, [selected]);
 
   // Panels over the stage, re-measured when their content or size changes, with
   // the sheet open or closed. Panels never depend on the camera, and the band
@@ -757,6 +747,22 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // one bar of view tools ending in the same menu (the lighting time, the
   // archive filter and the other sources), and the layer bar.
   const [compact, setCompact] = useState(false);
+  // The collapsed head can wrap at narrow widths or enlarged text sizes.
+  // Keep the overlay band above its actual height rather than a fixed estimate.
+  // A phone's lens switch above the head belongs to the peek.
+  useLayoutEffect(() => {
+    const root = shell.current, head = root?.querySelector<HTMLElement>('.ua-sheet-head');
+    if (!root || !head) return;
+    const lenses = root.querySelector<HTMLElement>('.ua-inspector > .ua-lens-switch');
+    const measure = () => {
+      const box = head.getBoundingClientRect(), above = lenses && lenses.getClientRects().length > 0 ? lenses.getBoundingClientRect().top : box.top;
+      const height = box.height > 0 ? box.bottom - Math.min(above, box.top) : 0;
+      if (height > 0) root.style.setProperty('--ua-peek', `${Math.ceil(height)}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(head); if (lenses) observer.observe(lenses);
+    return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
+  }, [selected, compact, Boolean(hostLens)]);
   const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | 'camera' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
@@ -1218,13 +1224,16 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const selectedLevel = selected === null ? null : model.occurrencesById.get(selected)!.levelId;
   const quietLabel = (label: (typeof labels)[number]) => coarse && label.tier === 'plain'
     && model.occurrencesById.get(label.id)!.levelId === selectedLevel;
-  // Rooms in view and in the label focus that the model leaves unnamed, for the
-  // Rooms list's note. Taken with the sheet closed, since the open sheet covers
+  // Rooms in view and in the label focus that the model leaves unnamed, marked
+  // in the Rooms list. Taken with the sheet closed, since the open sheet covers
   // the stage and sets names aside.
-  const unnamedNow = undrawn ? 0 : unnamedRoomCount(live, id => id === selected || context.includes(id)
-    || plainLabelInFocus(model, presentation, id), drawnStageLabels(labels, hitBoxes, coarse));
-  const [unnamed, setUnnamed] = useState(0);
-  useLayoutEffect(() => { if (!sheetOpen) setUnnamed(unnamedNow); }, [sheetOpen, unnamedNow]);
+  const unnamedNow = (undrawn ? [] : unnamedRooms(live, id => id === selected || context.includes(id)
+    || plainLabelInFocus(model, presentation, id), drawnStageLabels(labels, hitBoxes, coarse))).join('\n');
+  // Held for one view and scope: retaken or cleared when either changes.
+  const unnamedScope = `${state.view}\n${state.buildingId}\n${state.levelId}\n${state.exploded}`;
+  const [unnamedHeld, setUnnamed] = useState<UnnamedSnapshot>({ scope: '', ids: '' });
+  useLayoutEffect(() => { setUnnamed(held => nextUnnamedSnapshot(held, unnamedScope, unnamedNow, sheetOpen)); }, [sheetOpen, unnamedNow, unnamedScope]);
+  const unnamed = useMemo(() => new Set(unnamedHeld.scope === unnamedScope && unnamedHeld.ids ? unnamedHeld.ids.split('\n') : []), [unnamedHeld, unnamedScope]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
@@ -1303,7 +1312,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const tiles = useMemo(() => !plan || compact ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
     .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, compact, ladderBuildingId, buildings, model, planned]);
-  // Turn and zoom with their names shown, in the phone dock's Camera tray (in the menu on a short landscape stage).
+  // Turn and zoom with their names shown, in the phone dock's Camera tray with
+  // Spread floors as a switch, and in the menu where the dock has no tray (a
+  // short landscape stage) or a narrow wide bar tucks them away.
   const cameraButtons = <>
     {!plan && <>
       <button type="button" className="ua-cam-btn" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /><span>Turn left</span></button>
@@ -1311,6 +1322,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     </>}
     <button type="button" className="ua-cam-btn" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={18} /><span>Zoom in</span></button>
     <button type="button" className="ua-cam-btn" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /><span>Zoom out</span></button>
+    {canExplode && compact && <button type="button" className="ua-cam-btn ua-cam-spread" aria-pressed={state.exploded}
+      onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
+      <Icon name="explode" size={18} /><span>Spread floors</span><span className="ua-switch" aria-hidden="true" /></button>}
   </>;
   const tileBuildings = new Set(tiles.map(level => level.buildingId)).size;
   const hasKeys = active.length > 0 || measuring;
@@ -1497,11 +1511,21 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const menuBlur = (which: 'view' | 'stack' | 'layers' | 'camera') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
-  // A lens chosen from the menu returns focus to the menu button when it closes.
-  const openLens = (kind: 'places' | 'network') => {
-    setMenu(null); menuButton.current?.focus({ preventScroll: true });
-    hostLens?.set(lens?.kind === kind ? null : { kind, reading: false });
+  // On a phone the host's lens row gives way to this one, the same three
+  // lenses at the top of the sheet: in the Rooms sheet, and over an open lens.
+  const chooseLens = (kind: 'places' | 'network' | null) => {
+    setMenu(null);
+    if (kind === null) hostLens?.set(null);
+    // The lens takes the sheet's place; the Rooms sheet returns folded.
+    else if (lens?.kind !== kind) { setSheetOpen(false); hostLens?.set({ kind, reading: false }); }
   };
+  const lensSwitch = hostLens && compact ? <div className="seg ua-lens-switch" role="group" aria-label="Atlas lens">
+    <button type="button" data-lens-return="" aria-pressed={lens === null} onClick={() => chooseLens(null)}><Icon name="atlas" size={16} />Map</button>
+    <button type="button" aria-pressed={lens?.kind === 'places'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('places')}>
+      <Icon name="rooms" size={16} />Rooms &amp; places</button>
+    <button type="button" aria-pressed={lens?.kind === 'network'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('network')}>
+      <Icon name="network" size={16} />Network</button>
+  </div> : null;
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
     if (menu === 'stack' && compact) { setMenu(null); stackHead.current?.focus({ preventScroll: true }); }
@@ -1579,7 +1603,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
           shownLevel={plan && planDrawn ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
-          canExplode={canExplode && compact} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
+          compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
           head={stackHead} panelId={`${menuIds}-stack`} />
         {/* A phone's Back, under the chip that already names the floor: one level out of a room,
             its full name saying where it leads. */}
@@ -1593,7 +1617,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
         </div>}
-        {/* Wide: Spread floors beside the view; compact keeps it in the Floor Stack only. */}
+        {/* Wide: Spread floors beside the view; compact keeps it in the Camera tray. */}
         {!compact && canExplode && <div className="seg">
           <button type="button" className="ua-spread" aria-pressed={state.exploded} aria-label="Spread floors" title="Spread floors"
             onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}><Icon name="explode" size={16} /><span aria-hidden="true">Spread floors</span></button>
@@ -1603,36 +1627,30 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             <button type="button" className="ctrl-btn ua-turn" aria-label="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={17} /></button>
             <button type="button" className="ctrl-btn ua-turn" aria-label="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={17} /></button>
           </>}
-          <button type="button" className="ctrl-btn" aria-label="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={17} /></button>
-          <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
+          <button type="button" className="ctrl-btn ua-zoom" aria-label="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={17} /></button>
+          <button type="button" className="ctrl-btn ua-zoom" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn ua-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /><span aria-hidden="true">Fit</span></button>
         </div>
         {/* Compact: the snapshot stamp takes the free width. One menu holds the lighting
-            time, the archive filter and the other sources, and on a phone the Network lens too. */}
+            time, the archive filter and the other sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
             <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
         {(compact || !plan || archive || otherSources.length > 0) && <div className="ua-menu" onBlur={menuBlur('view')}>
-          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
+          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
-            {/* Named for what it holds: the lighting time and archive filter (the view), Network and the other sources. */}
+            {/* Named for what it holds: the lighting time and archive filter (the view), and the other sources. */}
             <Icon name="sliders" size={17} className="ua-menu-glyph" /><span aria-hidden="true">View &amp; sources</span>
           </button>
           <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
-            {/* The host's lens row gives way on a phone: Network opens from here, Rooms & places from the Rooms sheet's Places. */}
-            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
-              <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
-              <button type="button" className="ua-menu-row" aria-pressed={lens?.kind === 'network'}
-                aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens('network')}>
-                <Icon name="network" size={16} /><span>Network</span><Icon name="chevron" size={15} /></button>
-            </nav>}
-            {/* Shown only on a short landscape stage, whose dock has no Camera tray. */}
-            {compact && <div className="ua-menu-camera" role="group" aria-label="Camera">
+            {/* Shown only on a short landscape stage, whose dock has no Camera tray,
+                and on a wide stage too narrow for its bar's turn and zoom buttons. */}
+            <div className="ua-menu-camera" role="group" aria-label="Camera">
               <p className="ua-menu-label" aria-hidden="true">Camera</p>
               {cameraButtons}
-            </div>}
+            </div>
             {!plan && <div className="ua-menu-time">
               <p className="ua-menu-label" aria-hidden="true">Lighting time</p>
               <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />
@@ -1859,7 +1877,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
-      openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
+      lensSwitch={lensSwitch}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
       openNetwork={environment.openNetwork} />

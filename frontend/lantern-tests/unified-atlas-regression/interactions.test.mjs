@@ -332,12 +332,23 @@ test('on touch a name is drawn only with its own target; a pointer draws every p
   // A pointer keeps every placed name, with or without a target.
   assert.deepEqual(api.drawnStageLabels(placed, api.labelHitBoxes(placed, size, [], [], advance, false), false), placed);
   assert.deepEqual(api.drawnStageLabels(placed, new Map(), false, true), placed);
-  // The Rooms note counts only rooms in view and in the label focus whose name is not drawn:
+  // The Rooms list marks only rooms in view and in the label focus whose name is not drawn:
   // rooms on another floor while one is chosen are out of focus, not unnamed.
   const live = ['a', 'b', 'c', 'other-floor-1', 'other-floor-2'], focus = id => !id.startsWith('other-floor');
-  assert.equal(api.unnamedRoomCount(live, focus, drawn), 3 - drawn.filter(row => live.includes(row.id)).length);
-  assert.equal(api.unnamedRoomCount(live, focus, rows.slice(0, 3)), 0, 'every focused room named: nothing to report');
-  assert.equal(api.unnamedRoomCount(live, () => true, rows.slice(0, 3)), 2);
+  assert.deepEqual(api.unnamedRooms(live, focus, drawn), ['a', 'b', 'c'].filter(id => !drawn.some(row => row.id === id)));
+  assert.deepEqual(api.unnamedRooms(live, focus, rows.slice(0, 3)), [], 'every focused room named: nothing to mark');
+  assert.deepEqual(api.unnamedRooms(live, () => true, rows.slice(0, 3)), ['other-floor-1', 'other-floor-2']);
+  // The marks are held per view and scope. Rooms opened from spread 3D, then Plan
+  // with the sheet still open: the 3D marks are cleared, never shown as "on plan",
+  // and Plan's own marks are taken once the sheet closes.
+  const spread3d = '3d\nsyn-building-house\nnull\ntrue', plan = 'plan\nsyn-building-house\nnull\ntrue';
+  const taken = api.nextUnnamedSnapshot({ scope: '', ids: '' }, spread3d, 'a\nb', false);
+  assert.deepEqual(taken, { scope: spread3d, ids: 'a\nb' });
+  assert.equal(api.nextUnnamedSnapshot(taken, spread3d, '', true), taken, 'an open sheet keeps the closed-sheet marks for the same view');
+  const switched = api.nextUnnamedSnapshot(taken, plan, 'a\nb\nc', true);
+  assert.deepEqual(switched, { scope: plan, ids: '' }, '3D marks are not carried into Plan while the sheet is open');
+  assert.deepEqual(api.nextUnnamedSnapshot(switched, plan, 'c', false), { scope: plan, ids: 'c' });
+  assert.deepEqual(api.nextUnnamedSnapshot(taken, '3d\nsyn-building-house\nlevel-ground\nfalse', 'a', true).ids, '', 'a floor or spread change clears them too');
 });
 
 test('3D names reserve their whole measured chip, however long the floor name', () => {

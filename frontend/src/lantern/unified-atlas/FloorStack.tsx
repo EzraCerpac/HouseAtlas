@@ -37,8 +37,8 @@ function buildingMarks(model: AtlasModel, buildings: readonly { readonly buildin
  * elsewhere or Escape; on a wide stage the stack is a rail of marks and names
  * that widens to room counts on hover, focus or a click of its head.
  * Floors hang at their actual relative heights, top floor first; buildings
- * stand above them when there is more than one, and on a phone Spread floors
- * (Exploded) closes the stack in 3D; a wide stage sets it beside 3D and Plan. Arrow up and down on the head, or a swipe of the
+ * stand above them when there is more than one. Spread floors stands with the
+ * view (beside 3D and Plan, or in a phone's Camera tray). Arrow up and down on the head, or a swipe of the
  * chip, step one floor, "All floors" standing above the top floor. */
 /** At most five glyph slabs, top floor first; the window slides down to keep the drawn floor in it. */
 export function slabWindow<T extends { readonly levelId: string }>(top: readonly T[], drawnAnchor: string | null): readonly T[] {
@@ -47,7 +47,7 @@ export function slabWindow<T extends { readonly levelId: string }>(top: readonly
 }
 
 export function FloorStack({ model, levels, buildings, buildingNav, building, state, dispatch, chooseBuilding, shownLevel, selectionLevel, contextLevels,
-  canExplode, compact, open, setOpen, head, panelId }: {
+  compact, open, setOpen, head, panelId }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[];
   readonly buildings: readonly { readonly buildingId: string }[]; readonly buildingNav: boolean;
   readonly building: { readonly buildingId: string; readonly label: string } | null;
@@ -56,7 +56,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
   /** The floor Plan draws for a whole-building scope. */
   readonly shownLevel: string | null;
   readonly selectionLevel: string | null; readonly contextLevels: ReadonlySet<string>;
-  readonly canExplode: boolean; readonly compact: boolean;
+  readonly compact: boolean;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   readonly head: RefObject<HTMLButtonElement | null>; readonly panelId: string;
 }) {
@@ -170,11 +170,6 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
             <span className="ua-rung-name">{atlasLevelName(model, levelId)}</span>
           </button>)}
         </div>}
-        {canExplode && <button type="button" className="ua-rung ua-stack-row ua-stack-spread" aria-pressed={state.exploded}
-          onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
-          <span className="ua-rung-tick" aria-hidden="true"><Icon name="explode" size={17} /></span>
-          <span className="ua-rung-name">Spread floors</span>
-          <span className="ua-stack-switch" aria-hidden="true" /></button>}
       </div>
     </div>
   </div>;

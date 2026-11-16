@@ -219,7 +219,7 @@ try {
       view: pressed(`${compact ? '.ua-dock' : '.ua-tools'} [aria-label="Atlas view"] button`),
       building, floor: [...document.querySelectorAll('.ua-stack-floors button[aria-pressed="true"]')]
         .map(node => node.getAttribute('aria-label') ?? node.querySelector('.ua-rung-name').textContent.trim()),
-      exploded: document.querySelector('.ua-spread, .ua-stack-spread')?.getAttribute('aria-pressed') ?? null,
+      exploded: document.querySelector('.ua-spread, .ua-cam-spread')?.getAttribute('aria-pressed') ?? null,
       overlay: pressed('.layer-bar button'), key: text('.ua-key-head'),
       selectedRoom: text('.ua-inspector.is-room h2'), selectedFloor: text('.ua-room-floor'),
       inspector: { label: inspector.getAttribute('aria-label'), position: getComputedStyle(inspector).position, open: inspector.classList.contains('is-open') },
