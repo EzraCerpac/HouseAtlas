@@ -2271,8 +2271,14 @@
     min-width: 0;
   }
   .lantern-host .ua-inspector.is-room .ua-sheet-title > * { min-width: 0; }
-  /* A floor name longer than the whole line wraps instead of being cut. */
-  .lantern-host .ua-inspector.is-room .ua-room-floor { white-space: normal; overflow-wrap: anywhere; }
+  /* A floor name longer than the whole line wraps to at most two lines, so the head never takes the details' room. */
+  .lantern-host .ua-inspector.is-room .ua-room-floor {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   /* In Plan the drawn floor keeps its own line and the counts follow below it, so neither is cut. */
   .lantern-host .ua-sheet-sub:has(> .ua-sub-plan) { white-space: normal; line-height: 1.25; }
   .lantern-host .ua-sheet-sub > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
