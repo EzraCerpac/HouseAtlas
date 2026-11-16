@@ -1,7 +1,7 @@
 import type { Doc, Observation, Task } from '../data/types';
 import { RecordStatus } from '../../app/components';
 import { dueState, historyFor, nameOf, writesFor } from '../data/query';
-import { fmtDateTime, fmtShortDate, rel } from '../data/time';
+import { fmtDate, fmtDateTime, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
 import { Icon } from './Icon';
 import { Empty, Note, StorageTag, WritePill } from './ui';
@@ -21,8 +21,8 @@ export function DocRow({ doc, showLinked }: { doc: Doc; showLinked?: boolean | u
         <span className="row-meta">
           <StorageTag doc={doc} />
           <span>{doc.kind === 'photo'
-            ? doc.capturedAt ? `Taken ${fmtShortDate(doc.capturedAt, house.displayNow)}` : 'Capture date not supplied'
-            : doc.addedAt ? `Added ${fmtShortDate(doc.addedAt, house.displayNow)}` : 'Attachment add date not supplied'}</span>
+            ? doc.capturedAt ? `Taken ${fmtDate(doc.capturedAt)}` : 'Capture date not supplied'
+            : doc.addedAt ? `Added ${fmtDate(doc.addedAt)}` : 'Date added: not supplied'}</span>
           {showLinked && doc.linkedTo.length > 0 && <span>{doc.linkedTo.slice(0, 2).map((l) => nameOf(house, l)).join(', ')}</span>}
         </span>
       </span>
@@ -72,12 +72,12 @@ export function TaskRow({ task, showTarget, sharedCache }: { task: Task; showTar
         <span className="row-meta">
           {st === 'done' ? (
             <span>
-              Done {fmtShortDate(task.completedAt, house.displayNow)}
+              Done {fmtDate(task.completedAt)}
               {task.completedBy ? ` by ${task.completedBy}` : ''}
             </span>
           ) : (
             <span className={`due-text due-${st}`}>
-              {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtShortDate(task.due, house.displayNow)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
+              {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtDate(task.due)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
             </span>
           )}
           {entry ? <><RecordStatus entry={entry} compact />{entry.cacheStatus !== stated && <span>HomeBox record: {entry.cacheStatus.replace(/-/g, ' ')}</span>}</>

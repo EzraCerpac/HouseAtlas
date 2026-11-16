@@ -344,28 +344,31 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         <p className="native-scene-pdf-status">{pdfPageCount && resolveRecordedPdfPage(pdfPage, pdfPageCount) === null
           ? `Reference PDF · recorded page ${sheet.pdfPage} unavailable`
           : `Reference PDF · page ${pdfPageCount ? `${pdfPage} of ${pdfPageCount}` : sheet.pdfPage}`}</p>
+        {/* Page and zoom share one compact row of icon buttons; the page field keeps its name. */}
         <div className="native-scene-pdf-controls">
           <div className="native-scene-pdf-page">
-            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage - 1, pdfPageCount) === null}
-              onClick={() => goToPdfPage(pdfPage - 1)}>Previous page</button>
-            <label>Page <input type="number" min="1" max={pdfPageCount ?? undefined} step="1" value={pdfPageInput} disabled={!pdfPageCount} onChange={event => {
+            <button type="button" className="chip-btn native-scene-pdf-icon" aria-label="Previous PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage - 1, pdfPageCount) === null}
+              onClick={() => goToPdfPage(pdfPage - 1)}><Icon name="back" size={18} /></button>
+            <input aria-label="Page" type="number" min="1" max={pdfPageCount ?? undefined} step="1" value={pdfPageInput} disabled={!pdfPageCount} onChange={event => {
               const value = event.currentTarget.value, page = Number(value);
               setPdfPageInput(value);
               if (value && Number.isSafeInteger(page) && page >= 1 && page <= (pdfPageCount ?? 0)) setPdfPage(page);
             }} onBlur={() => {
               const page = Number(pdfPageInput);
               if (!pdfPageInput || !Number.isSafeInteger(page) || page < 1 || page > (pdfPageCount ?? 0)) setPdfPageInput(String(pdfPage));
-            }} /></label>
-            <button type="button" className="chip-btn" aria-label="Next PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage + 1, pdfPageCount) === null}
-              onClick={() => goToPdfPage(pdfPage + 1)}>Next page</button>
+            }} />
+            {/* The count is in the status line above; this is its compact echo. */}
+            <span className="native-scene-pdf-count" aria-hidden="true">/ {pdfPageCount ?? '…'}</span>
+            <button type="button" className="chip-btn native-scene-pdf-icon" aria-label="Next PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage + 1, pdfPageCount) === null}
+              onClick={() => goToPdfPage(pdfPage + 1)}><Icon name="chevron" size={18} /></button>
           </div>
           <div role="group" aria-label="PDF zoom" className="native-scene-pdf-zoom">
-            <button type="button" className="chip-btn" aria-label="Zoom out PDF" disabled={zoom <= 0.5}
-              onClick={() => setZoom(value => Math.max(0.5, value / 2))}>−</button>
+            <button type="button" className="chip-btn native-scene-pdf-icon" aria-label="Zoom out PDF" disabled={zoom <= 0.5}
+              onClick={() => setZoom(value => Math.max(0.5, value / 2))}><Icon name="minus" size={18} /></button>
             <span>{Math.round(zoom * 100)}%</span>
-            <button type="button" className="chip-btn" aria-label="Zoom in PDF" disabled={zoom >= 4}
-              onClick={() => setZoom(value => Math.min(4, value * 2))}>+</button>
-            <button type="button" className="chip-btn" onClick={() => setZoom(1)}>Reset zoom</button>
+            <button type="button" className="chip-btn native-scene-pdf-icon" aria-label="Zoom in PDF" disabled={zoom >= 4}
+              onClick={() => setZoom(value => Math.min(4, value * 2))}><Icon name="plus" size={18} /></button>
+            <button type="button" className="chip-btn native-scene-pdf-icon" aria-label="Reset zoom" title="Reset zoom" onClick={() => setZoom(1)}><Icon name="fit" size={18} /></button>
           </div>
         </div>
         {pdfStatus && <p role="status">{pdfStatus}</p>}

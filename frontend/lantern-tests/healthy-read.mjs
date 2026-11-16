@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
 import { transformWithOxc } from 'vite';
-import { projectView } from '../src/lantern/adapters/read.ts';
+import { photoNote, projectView, sourceStateLines } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { checkClientSchemaSubset } from './client-schema-subset.mjs';
@@ -446,6 +446,26 @@ for (const semanticKind of ['room', 'container', 'site', 'other', 'unclassified'
   assert(!variant.house.spaces[0].shape);
 }
 const original = view.entries[0];
+// A belonging's photo line: absent only when nothing or only known non-photos
+// were supplied; a file of unknown kind leaves the photo unknown.
+assert.equal(photoNote([]), 'Photo not supplied.');
+assert.equal(photoNote([{ kind: 'manual' }]), 'Photo not supplied.');
+assert.equal(photoNote([{ kind: 'unknown' }]), 'Whether any file is a photo is unknown.');
+assert.equal(photoNote([{ kind: 'manual' }, { kind: 'unknown' }]), 'Whether any file is a photo is unknown.');
+assert.equal(photoNote([{ kind: 'unknown' }, { kind: 'photo' }]), null);
+// Changes' source lines: two collections of one owner in different states stay
+// apart by their source and collection identity; a missing date stays unknown.
+const twoCollections = sourceStateLines([
+  { owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 'syn-source', collectionId: 'syn-collection-a', lastSuccessfulFetchAt: '2026-01-03T10:15:00Z' },
+  { owner: 'homebox', status: 'access-revoked', displayStatus: 'access-revoked', sourceInstanceId: 'syn-source', collectionId: 'syn-collection-b', lastSuccessfulFetchAt: null },
+]);
+assert.deepEqual(twoCollections, [
+  { source: 'HomeBox', identity: 'syn-source / syn-collection-a', state: 'Stale', at: '2026-01-03T10:15:00Z' },
+  { source: 'HomeBox', identity: 'syn-source / syn-collection-b', state: 'Access revoked', at: null },
+]);
+assert.notEqual(twoCollections[0].identity, twoCollections[1].identity);
+assert.deepEqual(sourceStateLines([{ owner: 'network', status: 'fresh', displayStatus: 'fresh' }]),
+  [{ source: 'Network', identity: null, state: 'Fresh', at: null }]);
 const unknown = projectView({ ...view, entries: [{ ...original, kind: 'unknown', semanticKind: undefined }] });
 assert.equal(unknown.house.spaces.length, 0);
 assert.equal(unknown.house.items.length, 1);

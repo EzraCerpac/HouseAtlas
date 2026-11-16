@@ -2,6 +2,8 @@ import { Component, Suspense, type ReactNode } from 'react';
 import { useCanWrite, useStore } from './state/store';
 import { useSourcePorts } from './source-ports';
 import { referenceDayLabel } from './data/time';
+import { InlineTime } from './components/ui';
+import { sourceStateLines } from './adapters/read';
 import { Icon } from './components/Icon';
 
 interface Props { readonly label: string; readonly children: ReactNode }
@@ -19,6 +21,22 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
     </section>;
     return this.props.children;
   }
+}
+
+/** Changes' source freshness: per saved source, its state and last successful
+ * update, with the source and collection identity that tells two collections
+ * of one owner apart. Drawn the same while Changes loads; refresh stays in Overview. */
+export function SourceStates() {
+  const { projection } = useStore();
+  const lines = sourceStateLines(projection.view.caches);
+  return <ul className="changes-sources" aria-label="Sources">
+    {lines.map((line, index) => <li key={index}>
+      <span>{line.source}: <strong>{line.state}</strong>, last successful update{' '}
+        {line.at ? <InlineTime value={line.at} /> : 'unknown'}</span>
+      {line.identity && <code className="changes-source-id">{line.identity}</code>}
+    </li>)}
+    {!lines.length && <li>No cache information supplied.</li>}
+  </ul>;
 }
 
 /** The cache status every task shares, if one; the Upkeep page states it once. */
@@ -50,30 +68,33 @@ function LoadingView({ label }: { readonly label: string }) {
   const { house } = useStore();
   const ports = useSourcePorts();
   const sections = label === 'Library' ? ['HomeBox files', ...(ports.documents ? ['Source documents'] : []), ...(ports.electricalLibrary ? ['Electrical drawings'] : [])]
-    : label === 'Changes' ? ['Operation history', 'Sources'] : [''];
+    : label === 'Changes' ? ['Operation history'] : [''];
   const status = <p className="fine loading-status" role="status" aria-live="polite">Loading {label} for {house.name}…</p>;
   return <section className="view" aria-label={label} aria-busy="true">
-    <header className="view-head"><h1>{label}</h1>
-      {label === 'Library' && sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
-        {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
+    <header className={label === 'Library' && sections.length > 1 ? 'view-head library-head has-jump' : 'view-head'}><h1>{label}</h1>
       {label === 'Upkeep' && <UpkeepQualifiers />}</header>
-    {/* Upkeep's row of group counts keeps its line, so the timeline does not drop when it arrives. */}
-    {label === 'Upkeep' && <ul className="upkeep-empty loading-rows loading-summary" aria-hidden="true">
-      {[72, 112, 150].map(width => <li key={width}>{'\u200b'}<b style={{ width }} /></li>)}</ul>}
+    {label === 'Library' && sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
+      {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
+    {/* Upkeep's row of group counts keeps its line and its labels; only the numbers wait. */}
+    {label === 'Upkeep' && <ul className="upkeep-empty loading-summary" aria-hidden="true">
+      {['Overdue', 'Next two weeks', 'Later', 'No schedule supplied', 'Completed'].map(title => <li key={title}>{title}<span className="section-count"><b /></span></li>)}</ul>}
     <div className={label === 'Changes' ? 'changes-grid' : undefined}>
-      {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section' : 'loading-section'}>
-        {title && <div className="section-head">{label === 'Changes' ? <h3>{title}</h3> : <h2>{title}</h2>}</div>}
+      {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section'
+        : label === 'Library' ? `loading-section loading-library${title === 'Source documents' ? ' loading-source-docs' : ''}` : 'loading-section'}>
+        {title && <div className="section-head"><h2>{title}</h2></div>}
         {index === 0 && status}
         {label === 'Upkeep'
           // Upkeep's rows take the timeline's shape (date, mark, then title and date lines) in the loaded page's two columns.
           ? <div className="tl-columns loading-columns" aria-hidden="true">{[2, 1].map(rows => <span key={rows} className="loading-rows loading-timeline">
             {Array.from({ length: rows }, (_, row) => <i key={row}><b /><b /><b /></i>)}</span>)}</div>
-          // Library: one row per section in a file row's shape (title, action slot, facts), so every heading shows.
-          : label === 'Library' ? <span className="loading-rows loading-lib" aria-hidden="true"><i><b /></i></span>
-          // Changes: one row per section keeps Sources near where it settles.
+          // Library: as the loaded sections, a summary line, then one row in a file row's shape (title, action slot, facts).
+          : label === 'Library' ? <>{index > 0 && <span className="loading-lib-note" aria-hidden="true" />}
+            <span className="loading-rows loading-lib" aria-hidden="true"><i><b /></i></span></>
+          // Changes: one row, as short as the loaded history's first state.
           : label === 'Changes' ? <span className="loading-rows" aria-hidden="true"><i /></span>
           : <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>}
       </section>)}
+      {label === 'Changes' && <SourceStates />}
     </div>
   </section>;
 }

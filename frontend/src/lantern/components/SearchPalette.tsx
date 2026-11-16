@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { SEARCH_GROUPS, dueState, getRecord, locate, nameOf, search, type SearchHit } from '../data/query';
 import type { HouseData } from '../data/types';
 import type { LanternProjection } from '../adapters/read';
-import { fmtDate, fmtShortDate } from '../data/time';
+import { fmtDate, referenceDayLabel } from '../data/time';
 import { useSelect, useStore, type AtlasLens, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { ExampleLabel } from '../example-label';
@@ -59,16 +59,6 @@ function titleSaysRecord(house: HouseData, title: string, id: string): boolean {
   return getRecord(house, id) !== undefined && titleSays(title, nameOf(house, id));
 }
 
-/** A recorded date, short when the saved view supplies its own date to read
- * the year against; otherwise, or when that reading fails, in full. Never
- * judged against this device's clock. */
-function displayDate(house: HouseData, iso: string): string {
-  const full = fmtDate(iso);
-  if (house.displayNow === undefined || full === 'Unknown' || full === 'No date') return full;
-  const short = fmtShortDate(iso, house.displayNow);
-  return short === 'Unknown' ? full : short;
-}
-
 /** The line under a result's title: what tells it apart at a glance, said
  * once. A document says what it is for, leaving out any name its title
  * already says, and that it is only an external link; its kind and storage
@@ -99,17 +89,16 @@ function hitSubtitle(house: HouseData, projection: LanternProjection, hit: Searc
     if (!task) return { text: hit.context };
     const target = nameOf(house, task.targetId);
     const recorded = task.due ? fmtDate(task.due) : null;
-    const date = task.due && recorded !== 'Unknown' ? displayDate(house, task.due) : recorded;
     let state: string, alert = false;
-    if (task.status === 'done') state = task.completedAt && fmtDate(task.completedAt) !== 'Unknown' ? `Done ${displayDate(house, task.completedAt)}` : 'Done';
-    else if (task.status !== 'scheduled') state = date ? `Status not supplied, date ${date}` : 'Status not supplied';
+    if (task.status === 'done') state = task.completedAt && fmtDate(task.completedAt) !== 'Unknown' ? `Done ${fmtDate(task.completedAt)}` : 'Done';
+    else if (task.status !== 'scheduled') state = recorded ? `Status not supplied, date ${recorded}` : 'Status not supplied';
     else if (!recorded) state = 'No date supplied';
     else if (recorded === 'Unknown') state = 'Due date unreadable';
     else {
       const due = dueState(task, house.displayNow);
-      if (due === 'overdue') { state = `Overdue, was due ${date}`; alert = true; }
-      else if (due === 'soon') state = `Due soon, ${date}`;
-      else state = `Due ${date}`;
+      if (due === 'overdue') { state = `Overdue, was due ${recorded}`; alert = true; }
+      else if (due === 'soon') state = `Due soon, ${recorded}`;
+      else state = `Due ${recorded}`;
     }
     return { text: titleSaysRecord(house, task.title, task.targetId) ? state : `${target} · ${state}`, alert };
   }
@@ -168,6 +157,7 @@ export function SearchPalette() {
     return out;
   }, [hits]);
   const flat = grouped.flatMap((g) => g.hits);
+  const reference = referenceDayLabel(house.displayNow);
   const suggestions = useMemo(() => [...new Set([
     ...house.spaces.slice(0, 2).map((item) => item.name),
     ...house.items.slice(0, 2).map((item) => item.name),
@@ -300,7 +290,10 @@ export function SearchPalette() {
             {grouped.map((g) => {
               return (
               <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
-                <p className="palette-group-label">{g.label}</p>
+                <p className="palette-group-label">{g.label}
+                  {/* Due states are relative to the saved data's day, said once per group. */}
+                  {reference !== undefined && g.hits.some((h) => h.kind === 'task') && <>{' '}<span className="palette-group-note">Dates relative to {reference}</span></>}
+                </p>
                 {g.hits.map((h) => {
                   index += 1;
                   const i = index;

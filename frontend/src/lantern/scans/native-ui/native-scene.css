@@ -25,16 +25,24 @@
 .native-scene-drawing-image { overflow: auto; max-height: 70vh; }
 .native-scene-pdf-status { margin: 0; font-size: var(--fs-s, 13.5px); color: var(--ink-2, #334); }
 .native-scene-pdf-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
-.native-scene-pdf-page, .native-scene-pdf-zoom { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.native-scene-pdf-page label { display: inline-flex; align-items: center; gap: 6px; }
-.native-scene-pdf-page input { box-sizing: border-box; width: 4.5rem; min-height: 34px; padding: 4px 8px; border: 1px solid var(--hair-2, #ccc); border-radius: var(--r-control, 8px); background: #fff; font: inherit; }
-/* Touch: the page field and the download link are 44px targets. */
-@media (pointer: coarse) { .native-scene-pdf-page input { min-height: 44px; } .native-scene-drawing-payload > a[download] { display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; } }
-.native-scene-pdf-zoom span { min-width: 3.5em; text-align: center; }
+.native-scene-pdf-page, .native-scene-pdf-zoom { display: flex; align-items: center; gap: 4px; }
+.native-scene-pdf-page input { box-sizing: border-box; width: 3.25rem; min-height: 34px; padding: 4px 6px; border: 1px solid var(--hair-2, #ccc); border-radius: var(--r-control, 8px); background: #fff; font: inherit; text-align: center; }
+.native-scene-pdf-count { padding: 0 2px; font-size: var(--fs-s, 13.5px); color: var(--ink-2, #334); white-space: nowrap; }
+/* Icon-only page and zoom buttons: square, at least 44px on phones through the shared rule. */
+.native-scene-pdf-controls .native-scene-pdf-icon { justify-content: center; min-width: 34px; padding: 0; }
+/* Touch: the page field, the page and zoom buttons and the download link are 44px targets. */
+@media (pointer: coarse) { .native-scene-pdf-page input { min-height: 44px; } .native-scene-drawing-payload > a[download] { display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; }
+  .native-scene-pdf-controls .native-scene-pdf-icon { min-width: 44px; min-height: 44px; } }
+.native-scene-pdf-zoom span { min-width: 2.75em; font-size: var(--fs-s, 13.5px); text-align: center; }
 /* The page sits centred on a tinted stage, so space the page does not fill reads as stage, not page; auto margins never clip a zoomed page. */
 .native-scene-drawing-payload > .native-scene-pdf { display: flex; box-sizing: border-box; flex: 1 1 0; width: 100%; min-width: 0; min-height: 220px; padding: 12px; overflow: auto; border: 1px solid var(--line, #ddd); background: color-mix(in srgb, var(--hair, #ddd) 40%, #fff); }
 .native-scene-pdf-canvas { display: block; flex: none; max-width: none; margin: auto; background: #fff; box-shadow: 0 1px 3px rgba(22, 50, 79, 0.18); }
-/* Phones: the page sits directly under its controls, and the stage ends with the page (scrolling past 70vh when zoomed). */
-@media (max-width: 759px) { .native-scene-pdf-canvas { margin: 0 auto auto; } .native-scene-drawing-payload > .native-scene-pdf { flex: none; max-height: 70vh; } }
+/* Phones: the page sits directly under its controls on a stage that takes the remaining height. */
+@media (max-width: 759px) { .native-scene-pdf-canvas { margin: 0 auto auto; } .native-scene-drawing-payload > .native-scene-pdf { padding: 8px; }
+  /* One row in a 358px dialog (wrapping only for long page counts): 44px targets two pixels apart. */
+  .native-scene-pdf-controls { gap: 4px; } .native-scene-pdf-page, .native-scene-pdf-zoom { gap: 2px; }
+  .native-scene-pdf-page input { width: 44px; padding: 4px 2px; } .native-scene-pdf-zoom span { min-width: 0; padding: 0 2px; }
+  /* This rule's own 44px floor, so the icon buttons never depend on the shared phone rule winning a specificity tie. */
+  .native-scene-pdf-controls .native-scene-pdf-icon { min-width: 44px; min-height: 44px; } }
 @media (max-width: 600px) { .native-fixture-summary { left: 8px; bottom: 56px; max-width: calc(100% - 16px); } .native-fixture-details { right: 8px; top: 68px; width: calc(100% - 16px); max-height: calc(100% - 126px); } }
-@media (max-width: 600px) { .native-scene-drawing { inset: 6px; padding: 8px 10px; } .native-scene-drawing > header { top: -8px; gap: 6px; } .native-scene-pdf-controls { align-items: flex-start; } }
+@media (max-width: 600px) { .native-scene-drawing { inset: 6px; padding: 8px 10px; } .native-scene-drawing > header { top: -8px; gap: 6px; } }

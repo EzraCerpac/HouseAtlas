@@ -699,37 +699,18 @@
 
 .lantern-host .item-lead {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
+  gap: 10px;
 }
 
-.lantern-host .art {
-  width: 120px;
-  height: 90px;
-  border-radius: 10px;
-  background: linear-gradient(160deg, #f6eff8, #efe6dc);
-  border: 1px solid var(--hair);
+/* Short values two to a row, label above value, at every width. */
+.lantern-host .facts.facts-pairs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
 }
 
-.lantern-host .art-lines {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.lantern-host .art-lines .a-fill {
-  fill: #fff;
-}
-
-.lantern-host .art-lines .a-fill2 {
-  fill: #e9dcf0;
-}
-
-.lantern-host .art-lines .a-thin {
-  stroke-width: 1;
+.lantern-host .facts.facts-pairs > div {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 .lantern-host .media-frame {
@@ -1061,30 +1042,58 @@
   opacity: 0.35;
 }
 
-/* Upkeep: bars in the place of the row of group counts. */
+/* Upkeep: the row of group counts with its labels, a bar for each number. */
 .lantern-host .upkeep-empty.loading-summary {
   margin-bottom: 12px;
 }
 
-.lantern-host .upkeep-empty.loading-summary li {
-  gap: 0;
-}
-
 .lantern-host .loading-summary b {
+  display: inline-block;
+  vertical-align: -0.05em;
+  width: 10px;
   height: 8px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--hair) 70%, transparent);
+  animation: loading-breathe 1.4s ease-in-out infinite alternate;
 }
 
-/* Library: a file row's title bar and a plain bar where its action sits, over its facts. */
+/* Library: spaced as the loaded sections, so headings stay put when one file
+   row arrives: a summary line at the summary's size, the list's top margin, and
+   a row as tall as a loaded file row, its title bar and a plain bar where its
+   action sits, over its facts. */
+.lantern-host .loading-library .loading-status {
+  font-size: var(--fs-s);
+}
+
+.lantern-host .loading-lib-note {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  margin: 0 0 6px;
+}
+
+.lantern-host .loading-lib-note::before {
+  content: '';
+  width: min(70%, 420px);
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hair) 70%, transparent);
+}
+
+.lantern-host .loading-lib {
+  margin-top: 8px;
+}
+
 .lantern-host .loading-lib i {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: minmax(30px, auto) auto;
+  align-content: start;
   align-items: center;
   gap: 10px 12px;
-  height: auto;
-  padding: 14px 0 18px;
+  box-sizing: border-box;
+  height: 93px;
+  padding: 14px 0 0;
 }
 
 .lantern-host .loading-lib i::before { width: min(60%, 260px); }
@@ -1100,7 +1109,12 @@
 }
 
 @media (max-width: 759px) {
-  .lantern-host .loading-lib i { grid-template-rows: minmax(44px, auto) auto; }
+  .lantern-host .loading-lib i { grid-template-rows: minmax(44px, auto) auto; height: 105px; }
+}
+
+/* As the loaded Source documents section, which follows the list's own row padding. */
+@media (max-width: 600px) {
+  .lantern-host .loading-section.loading-source-docs { margin-top: 12px; }
 }
 
 /* Upkeep: the loaded page's two columns, each a group of timeline rows. */
@@ -1174,7 +1188,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lantern-host .loading-rows {
+  .lantern-host .loading-rows,
+  .lantern-host .loading-summary b {
     animation: none;
   }
 }
@@ -1740,11 +1755,25 @@
 
 /* The Library's sections in page order, as in-page links: every section is
    shown, so none reads as selected. */
+.lantern-host .library-head.has-jump {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+/* The section shortcuts carry the heading's rule and stay at the top of the
+   sheet while it scrolls; the current section is drawn in ink. */
 .lantern-host .library-jump {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   display: flex;
   flex-wrap: wrap;
   gap: 0 20px;
-  margin-top: 8px;
+  margin: 2px 0 24px;
+  padding: 6px 0 14px;
+  border-bottom: 2px solid var(--ink);
+  background: var(--ground);
 }
 
 .lantern-host .library-jump button {
@@ -1773,15 +1802,24 @@
   color: var(--muted);
 }
 
+.lantern-host .library-jump button[aria-current='true'] {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 2px;
+}
+
 /* Phones: the links stay on one row that scrolls sideways. */
 @media (max-width: 759px) {
   .lantern-host .library-jump {
     flex-wrap: nowrap;
     gap: 0 12px;
-    margin: 0 -16px;
-    padding: 0 16px;
+    margin: 2px -16px 24px;
+    padding: 0 16px 6px;
     overflow-x: auto;
     scrollbar-width: none;
+    /* The rule keeps the page gutters while the bar spans the sheet. */
+    border-bottom: 0;
+    background: linear-gradient(var(--ink), var(--ink)) 16px 100% / calc(100% - 32px) 2px no-repeat, var(--ground);
   }
 
   .lantern-host .library-jump button {
@@ -1836,8 +1874,10 @@
 }
 
 /* A section reached from the links: focus lands on it without an outline. */
-.lantern-host .library-section {
-  scroll-margin-top: 16px;
+.lantern-host .library-section,
+.lantern-host .library-section :is(a[href], button, input, select, textarea, summary, [tabindex]) {
+  /* Clear of the sticky section shortcuts, for jumps and for focus moved by Tab. */
+  scroll-margin-top: 72px;
 }
 
 .lantern-host .library-section:focus {
@@ -1974,6 +2014,37 @@
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 32px;
+}
+
+/* Source states: one quiet line each, level with the history heading beside it. */
+.lantern-host .changes-sources {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .changes-sources strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.lantern-host .changes-sources li {
+  display: grid;
+}
+
+/* The source and collection identity under its state, small and wrapping anywhere. */
+.lantern-host .changes-source-id {
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Changes' section headings are h2 at the section-heading size. */
+.lantern-host .view .changes-grid .section-head h2 {
+  font-size: var(--fs-m);
 }
 
 .lantern-host .write-list {
@@ -2808,10 +2879,6 @@
     top: 0;
     width: 100%;
     z-index: 70;
-  }
-
-  .lantern-host .item-lead {
-    grid-template-columns: 1fr;
   }
 
   .lantern-host .facts > div {
