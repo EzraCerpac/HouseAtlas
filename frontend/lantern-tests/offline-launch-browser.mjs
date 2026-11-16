@@ -1,19 +1,25 @@
 /** Real-browser offline launch of the built public shell. Serves the existing
  * production `dist/` on an owned loopback listener, opens the Saved entry once
  * online so both service workers install, then reopens `/` with the network
- * gone. Generated build output only: no backend, session, household data,
- * provider or native state.
+ * gone. Generated build output and fake read responses only: no native backend,
+ * real session, household data or provider. live-launch uses disposable loopback
+ * TLS (requires openssl), with trust scoped to its generated certificate key.
  *
  *   --case offline-launch  listener closed (connection refused) before reopen
  *   --case hung-network    listener accepts `/` but never answers ("lie-fi")
  *   --case live-launch     live entry `/`, generated cached Atlas and a waiting
- *                          outbox entry survive closing and reopening the tab
+ *                          outbox entry survive closing and reopening the tab;
+ *                          building records come from the online retention pass
  *
  * Requires `npm --prefix frontend run build` first, Node 26.10.0 and an
  * inspected HOUSEATLAS_CHROMIUM executable. Prints launch timings. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash, X509Certificate } from 'node:crypto';
 import { createServer } from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
@@ -37,8 +43,49 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
   '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
 let mode = 'online', served = 0, stalled = 0, servedPaths = [];
 const sockets = new Set(), held = new Set();
-const server = createServer((request, response) => {
+const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-offline-launch-'));
+let tls = null, certificatePin = null;
+if (selected === 'live-launch') {
+  const key = join(scratch, 'key.pem'), cert = join(scratch, 'cert.pem');
+  const generated = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert,
+    '-days', '1', '-subj', '/CN=127.0.0.1'], { encoding: 'utf8' });
+  assert.equal(generated.status, 0, generated.stderr);
+  tls = { key: readFileSync(key), cert: readFileSync(cert) };
+  certificatePin = createHash('sha256').update(new X509Certificate(tls.cert).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
+}
+let onlineSeed = null;
+const topologyReads = [];
+const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
+addFormats(ajv);
+const atlasSchema = JSON.parse(readFileSync(new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url)));
+const agentSchema = JSON.parse(readFileSync(new URL('../../contracts/client-schemas/agent-ajv.schema.json', import.meta.url)));
+ajv.addSchema(atlasSchema); ajv.addSchema(agentSchema);
+const serve = (request, response) => {
   const path = new URL(request.url, 'http://127.0.0.1').pathname;
+  if (onlineSeed && path.startsWith('/api/')) {
+    assert.equal(request.method, 'GET', 'Generated online journey sends only GETs');
+    const json = value => response.writeHead(200, { 'content-type': 'application/json',
+      'x-atlas-snapshot-sha256': 'f'.repeat(64) }).end(JSON.stringify(value, (key, item) => key === 'metres' ? JSON.rawJSON('2.750') : item));
+    if (path === '/api/atlas/auth/session') return json({ schemaVersion: 1, actorId: onlineSeed.owner.actorId,
+      csrfToken: 'generated-unused', expiresAt: '2099-01-01T00:00:00Z' });
+    if (path === '/api/atlas/view') return json({ ...onlineSeed.view, entries: [] });
+    if (path.endsWith('/invoke')) {
+      const query = JSON.parse(new URL(request.url, 'http://127.0.0.1').searchParams.get('request'));
+      const held = JSON.parse(Buffer.from(onlineSeed.topology).toString());
+      const kind = query.target.recordType;
+      const records = query.payload.buildingId ? held.buildings.find(b => b.buildingId === query.payload.buildingId)?.members.records
+        : held.lists[kind]?.records;
+      if (records) {
+        topologyReads.push(kind);
+        const result = { schemaVersion: 3, commandId: query.commandId, requestId: query.requestId, resolvedScope: onlineSeed.view.scope,
+          status: 'read', replayed: false, data: { records, sourceStatus: 'current', nextCursor: null } };
+        const check = ajv.getSchema(agentSchema.$id + '#/$defs/result_atlas_' + kind.replaceAll('-', '_') + '_list');
+        if (!check(result)) { response.writeHead(500).end(JSON.stringify(check.errors)); return; }
+        return json(result);
+      }
+    }
+    response.writeHead(404).end(); return;
+  }
   if (mode === 'hung' && (path === '/' || path === '/index.html')) { stalled++; held.add(response); return; }
   served++; servedPaths.push(path);
   const relative = path === '/' ? 'index.html' : path === '/saved/' ? 'saved/index.html' : path.slice(1);
@@ -48,14 +95,15 @@ const server = createServer((request, response) => {
   }
   response.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
   response.end(readFileSync(file));
-});
+};
+const server = tls ? createSecureServer(tls, serve) : createServer(serve);
 server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = `${tls ? 'https' : 'http'}://127.0.0.1:${server.address().port}`;
 
 // Reuse the public generated publication and the production storage APIs. Only
-// the live-launch case seeds device data; neither a session nor a DOM result is
-// fabricated. These data modules are test setup, not additional served assets.
+// the live-launch case supplies generated online GET responses and seeds unrelated
+// device data. These data modules are test setup, not additional served assets.
 async function sourceURL(relative, replacements = {}) {
   const file = new URL(relative, import.meta.url);
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname, {
@@ -124,13 +172,13 @@ async function liveLaunchSeed() {
   const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
   const place = n => `00000000-0000-4000-8000-0000000009${n}`;
   const record = (recordType, recordId, payload) => ({ target: { authority: 'atlas', recordType, recordId }, revision: 1, lifecycle: 'active', payload });
-  const location = n => record('identity', place(n), { kind: 'location' });
+  const location = n => record('identity', place(n), { kind: 'location', evidenceIds: [] });
   const named = (n, atlasId, semanticKind, label, extra = {}) => record('location-semantics', place(n),
-    { atlasId, semanticKind, reviewStatus: 'accepted', label, evidenceIds: [], ...extra });
+    { atlasId, semanticKind, reviewStatus: 'accepted', label, evidenceIds: [place('40')], ...extra });
   const contains = (n, from, to, membershipKind) => record('relation', place(n), { kind: 'location-membership', membershipKind,
-    from: { ref: { authority: 'atlas', recordType: 'identity', recordId: place(from) } },
-    to: { ref: { authority: 'atlas', recordType: 'identity', recordId: place(to) } },
-    reviewStatus: 'accepted', uncertainty: { status: 'unknown' }, evidenceIds: [] });
+    from: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: place(from) } },
+    to: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: place(to) } },
+    reviewStatus: 'accepted', uncertainty: { status: 'unknown', explanation: null }, evidenceIds: [place('40')] });
   const locations = ['10', '11', '12', '13'].map(location);
   const topology = encodeHeldTopology({ version: 1, scope, capturedAt: '2026-01-03T10:20:00.000Z', snapshotSha256: 'f'.repeat(64),
     lists: { identity: { records: locations, sourceStatus: 'current' }, binding: { records: [], sourceStatus: 'current' },
@@ -188,8 +236,7 @@ class Pipe {
   }
 }
 
-const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-offline-launch-'));
-const browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe',
+const browser = spawn(chromium, ['--headless=new', ...(tls ? ['--ignore-certificate-errors-spki-list=' + certificatePin] : []), '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe',
   '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update',
   '--disable-sync', '--user-data-dir=' + join(scratch, 'profile'), 'about:blank'],
 { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
@@ -320,12 +367,28 @@ try {
   // 1. Online: the Saved entry, or after its load any live launch, verifies the
   // public shell and prepares the root worker. Here the live entry finds no
   // backend, which changes nothing: the shell is public build files only.
+  if (selected === 'live-launch') onlineSeed = await liveLaunchSeed();
   await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
   await poll(`(async () => {
     const root = await navigator.serviceWorker.getRegistration('/'), saved = await navigator.serviceWorker.getRegistration('/saved/');
     return root?.active?.state === 'activated' && saved?.active?.state === 'activated'
       && (await caches.keys()).some(name => name.startsWith('houseatlas-saved-public-'));
   })()`, 60_000, 'Root and Saved workers did not activate online');
+  if (selected === 'live-launch') {
+    await poll(`[...document.querySelectorAll('button')].some(b => b.textContent === 'Rooms & places')`, 15_000, 'Online lens switch missing');
+    await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Rooms & places').click()`);
+    await poll(`document.body.textContent.includes('Building records: current')`, 15_000, 'Online building records not visible');
+    await new Promise(done => setTimeout(done, 20_000));
+    assert(topologyReads.length >= 4, 'The live host reads generated building records');
+    assert.equal(await evaluate(`(async () => {
+      const request = indexedDB.open('houseatlas-live-readonly-copy-v1');
+      const db = await new Promise((yes, no) => { request.onsuccess = () => yes(request.result); request.onerror = () => no(request.error); });
+      try { return await new Promise((yes, no) => {
+        const tx = db.transaction('metadata'), rows = tx.objectStore('metadata').getAllKeys();
+        tx.oncomplete = () => yes(rows.result.some(key => key.includes('"topology"'))); tx.onabort = () => no(tx.error);
+      }); } finally { db.close(); }
+    })()`), true, 'Online-visible building records must be held after the warm');
+  }
   const installed = served;
 
   // 2. Network gone. Reopen the installed start URL.
@@ -336,8 +399,8 @@ try {
   let seeded = null;
   const reopenWrites = [];
   if (selected === 'live-launch') {
-    seeded = await liveLaunchSeed();
-    const { topology, cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
+    seeded = onlineSeed;
+    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -368,7 +431,7 @@ try {
         check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
         check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
         check(await copies.keepHomeboxDocument(home, ${JSON.stringify(homeboxPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
-        check(await copies.keepTopology(home, new Uint8Array(${JSON.stringify(topology)}), signal));
+        // Building records must come from the online host's retention pass, never fixture seeding.
       } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
@@ -594,7 +657,7 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
-    console.log('PASS live-launch: cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    console.log('PASS live-launch: online-visible building records retained after 20-second warm, cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {
