@@ -76,6 +76,13 @@ export function ancestry(view: ReadyView, p: Entry): Entry[] {
   }
   return path;
 }
+/** A record's HomeBox parent names, outermost first. `complete` is false when
+ * the walk stopped at a recorded parent that is not in saved information or
+ * that repeats a record already on the path. */
+export function sourceLocation(view: ReadyView, p: Entry): { names: string[]; complete: boolean } {
+  const path = ancestry(view, p);
+  return { names: path.map((parent) => parent.entity.name), complete: !(path[0] ?? p).entity.parent };
+}
 export const childrenOf = (
   view: ReadyView,
   p: Entry,

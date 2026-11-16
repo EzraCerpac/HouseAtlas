@@ -32,7 +32,7 @@ import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
-import { ancestry } from '../../app/model';
+import { sourceLocation } from '../../app/model';
 
 /** `onLeaveOverview` sets the overview aside without moving focus, for a link that takes focus elsewhere. */
 export function DetailPanel({ onCloseOverview, onLeaveOverview }: { onCloseOverview?: () => void; onLeaveOverview?: () => void }) {
@@ -487,7 +487,7 @@ function ItemDetail({ item }: { item: Item }) {
   const { house, dispatch, projection } = useStore();
   const isUnknown = item.id.startsWith('uk-');
   const source = projection.entries.get(item.id);
-  const homeboxPath = source && ancestry(projection.view, source).map(parent => parent.entity.name).join(' / ');
+  const location = source && sourceLocation(projection.view, source);
   const docs = docsFor(house, item.id);
   const tasks = tasksFor(house, item.id);
   const load = house.loads.find((l) => l.itemId === item.id);
@@ -549,7 +549,9 @@ function ItemDetail({ item }: { item: Item }) {
         ) : (<>
           <Note tone="warn">No reviewed placement.</Note>
           {/* HomeBox's own hierarchy, as source data: names do not establish placement. */}
-          {source && <p className="fine">HomeBox location: {homeboxPath ? <>{homeboxPath} · not a reviewed placement</> : source.entity.parent ? 'unknown' : 'not supplied'}</p>}
+          {location && <p className="fine">HomeBox location: {location.names.length
+            ? `${[...(location.complete ? [] : ['higher location unknown']), ...location.names].join(' / ')} · not a reviewed placement`
+            : location.complete ? 'not supplied' : 'unknown'}</p>}
         </>)}
         {item.locationNote && <p className="body-text muted">{item.locationNote}</p>}
       </Section>
