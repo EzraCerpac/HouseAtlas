@@ -26,7 +26,7 @@ touched. They roll back on their own when gateway verification fails; pass
    `--storage-reviewed '<reason>'`. The reason is kept with the build.
 3. Builds the backend (`cargo build --release --locked`) and the frontend
    (`npm ci`, `typecheck`, `build`, `check:backend-frontend-compat`), reusing the
-   previous build's caches.
+   one persistent Cargo target and the previous build's npm download cache.
 4. Stages the binary in a new `houseatlas-main-<sha7>-<date>-vN/` folder and the
    frontend next to the live one. The staged frontend is the new build plus every
    older top-level hashed asset, so tabs opened on an earlier build keep loading.
@@ -121,11 +121,42 @@ parked frontend is gone and it did not restore it itself), plus `events.log`,
 
 ## Pruning
 
-A deploy seeds `target/` and `npm-cache/` from the live build's inputs only, so
-older copies just fill the disk. After a verified deploy, and with
+Rust builds share `<SETUP_ROOT>/deploy-nas/cargo-target` across installs,
+under the existing deploy command lock.
+Override it with `deploy <sha> --cargo-target-dir <absolute-path>`
+or `CARGO_TARGET_DIR=<absolute-path>` in the deploy config file;
+the command option wins, and an inherited shell `CARGO_TARGET_DIR` is ignored.
+Keep the selected folder outside Git checkouts and all per-install inputs,
+and use it only with this deployment configuration so all builds share its lock.
+Missing folders are created; creation or Cargo failures stop preparation without fallback.
+Every deploy still checks out the requested main commit and runs Cargo with `--locked`;
+Cargo fingerprints decide which artifacts can be reused.
+Only after Cargo succeeds is its binary copied into the versioned install folder,
+so rollback never reads the shared target.
+
+The first install creates an empty target and compiles dependencies once;
+allow time and disk space for that cold build, including macOS first-load assessments.
+No cache migration or operator configuration change is required with the default path.
+Fresh source paths can still rebuild workspace crates,
+and changed dependencies, flags or toolchains can still trigger new assessments.
+This is cache reuse, not a guarantee against Gatekeeper stalls.
+
+The tool builds only the release profile but keeps old dependency/toolchain artifacts;
+the shared cache has no hard size cap and normal `prune` leaves it alone.
+For a clean build or to reclaim accumulated disk space,
+delete only the selected Cargo target folder while no deploy/build is running,
+then deploy normally.
+Do this when diagnosing suspected cache corruption or when a build input Cargo
+cannot track has changed; ordinary commit changes need no manual clean.
+Installed binaries remain intact, but the next build is cold again.
+
+Frontend inputs still use fresh `node_modules` and `dist` per install through `npm ci`;
+only `npm-cache/` is seeded from the live build's inputs.
+This change leaves that pattern intact.
+After a verified deploy, and with
 `deploy-nas prune`, the tool removes:
 
-- `target/` and `npm-cache/` in every `houseatlas-main-*-inputs/` folder except
+- Legacy `target/` and `npm-cache/` in every `houseatlas-main-*-inputs/` folder except
   the live build's and the build `rollback` returns to. Sources, logs, smoke
   results and the reports stay.
 - `frontend.before-*` next to the live frontend, except those of the newest 3
@@ -155,6 +186,8 @@ Host paths, hostnames and IDs stay out of Git. The tool reads
 SETUP_ROOT=~/path/to/deploy/folders
 # Optional: the folder holding cargo/ and rustup/, used as CARGO_HOME and RUSTUP_HOME
 TOOLCHAIN_ROOT=~/path/with/cargo/and/rustup
+# Optional: persistent build artifacts (default: <SETUP_ROOT>/deploy-nas/cargo-target)
+CARGO_TARGET_DIR=~/path/to/shared/cargo-target
 PLIST=~/Library/LaunchAgents/<label>.plist
 SERVICE_LABEL=<label>
 GATEWAY_URL=https://<gateway host>

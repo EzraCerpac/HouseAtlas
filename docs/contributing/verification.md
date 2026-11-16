@@ -967,7 +967,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity
 ```
 
 It also checks the NAS deploy tool against temp folders and a fake service,
-without launchd, network access or real data:
+without launchd, network access or real data.
+Seven persistent-target cases exercise fake Git/npm/Cargo preparation across commits,
+independent staged binaries, explicit config/CLI selection, missing/unusable folders,
+failed-build refusal and command-lock exclusion.
+They run no actual Cargo build and establish no installed cache reuse or macOS assessment outcome:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
@@ -1038,7 +1042,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run the eight synthetic electrical registration cases | `node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs` | every run | 8 top-level tests | Generated pure in-memory registration cases; no receipt, native authority or physical placement. |
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
-| ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 52 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
+| ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 59 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
 | ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 30 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
 | ordinary-core / ordinary-core | Check synthetic publication-input disposition claims (in memory only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_disposition.py -v` | every run | 29 unittest methods | Generated in-memory claim validation, operation-correlated chronology and independent evidence summaries; no payload operations, network, consumers or operational receipts. |
 | ordinary-core / ordinary-core | Check prospective storage adapter v2 (synthetic injected ports only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_adapter.py -v` | every run | 75 unittest methods | Generated fake clock, registry, resolver, ledger, readback and conditional-dispatch ports; no real custody, transport, installation, credentials or operational adoption. |
