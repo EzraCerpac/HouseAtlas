@@ -53,6 +53,8 @@ MODEL_FLAGS = {
 REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json", "reviewed-room-links.json")
 NO_STORE = "private, no-store"
 IMMUTABLE = "public, max-age=31536000, immutable"
+TARGET_MARKER = ".deploy-nas-cargo-target"
+TARGET_MARKER_CONTENT = "deploy-nas Cargo artifacts only\n"
 
 
 class DeployError(RuntimeError):
@@ -85,6 +87,7 @@ class Config:
     repo_url: str = REPO_URL
     stop_timeout: int = 30
     start_timeout: int = 90
+    cargo_target_dir: Path | None = None
 
     @property
     def ledger(self) -> Path:
@@ -116,6 +119,7 @@ def load_config(path: Path) -> Config:
         setup_root=p("SETUP_ROOT"), plist=p("PLIST"), label=v["SERVICE_LABEL"],
         gateway_url=v["GATEWAY_URL"].rstrip("/"), smoke_template=p("SMOKE_TEMPLATE"),
         toolchain_root=p("TOOLCHAIN_ROOT") if "TOOLCHAIN_ROOT" in v else None,
+        cargo_target_dir=p("CARGO_TARGET_DIR") if "CARGO_TARGET_DIR" in v else None,
         build_target=v.get("BUILD_TARGET", "x86_64-apple-darwin"),
         repo_url=v.get("REPO_URL", REPO_URL),
         stop_timeout=int(v.get("STOP_TIMEOUT", 30)), start_timeout=int(v.get("START_TIMEOUT", 90)),
@@ -382,7 +386,7 @@ def inputs_of(binary: Path) -> Path:
 
 # ------------------------------------------------------------------- pruning
 
-# Build caches a deploy seeds from the live build's inputs; nothing else reads an older one.
+# Legacy Rust targets and npm caches in per-install inputs; never the shared Cargo target.
 PRUNE_CACHES = ("target", "npm-cache")
 KEEP_PARKED = 3  # code records `rollback` can step back through before a parked frontend is gone
 LEFTOVER_FRONTENDS = ("frontend.next-*", "frontend.rolled-back-*", "frontend.restored-*")
@@ -844,10 +848,37 @@ class Deployer:
         self.say(f"  {len(changed)} files changed, {len(sensitive)} storage-sensitive")
 
         self.say("[3/6] Building backend and frontend")
-        for cache in ("target", "npm-cache"):
-            if (prev_inputs / cache).is_dir():
-                rt.run(["cp", "-cR", str(prev_inputs / cache), str(inp / cache)])
-        env = dict(os.environ, CARGO_TARGET_DIR=str(inp / "target"))
+        target = cfg.cargo_target_dir if cfg.cargo_target_dir is not None else cfg.ledger.parent / "cargo-target"
+        if not target.is_absolute():
+            raise DeployError("Cargo target directory must be absolute")
+        target = real(target)
+        checkout = Path(__file__).resolve().parents[2]
+        dedicated = real(cfg.ledger.parent / "cargo-target")
+        setup = real(cfg.setup_root)
+        protected = [real(live["frontend"]), real(live["binary"].parent), real(cfg.plist), real(cfg.smoke_template)]
+        protected += [real(live[k]) for k in ("data_dir", "server_config") if k in live]
+        if (target == checkout or checkout in target.parents
+                or any((p / ".git").exists() for p in (target, *target.parents))
+                or any(p.name.startswith("houseatlas-main-") for p in (target, *target.parents))
+                or (overlaps(target, setup) and target != dedicated)
+                or any(overlaps(target, p) for p in protected)
+                or any(p.parent == real(live["frontend"].parent) and p.name.startswith(
+                    ("frontend.before-", "frontend.next-", "frontend.rolled-back-", "frontend.restored-"))
+                       for p in (target, *target.parents))):
+            raise DeployError("Cargo target directory must be dedicated artifacts outside checkout, deploy state and frontend prune paths")
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            marker = target / TARGET_MARKER
+            if any(target.iterdir()) and (marker.is_symlink() or not marker.is_file()
+                                         or marker.read_text() != TARGET_MARKER_CONTENT):
+                raise DeployError("Cargo target directory must be empty or marked by deploy-nas as artifacts only")
+            marker.write_text(TARGET_MARKER_CONTENT)
+        except (OSError, UnicodeError) as error:
+            raise DeployError(f"cannot create Cargo target directory {target}: {error}") from error
+        self.say(f"  Cargo target: {target}")
+        if (prev_inputs / "npm-cache").is_dir():
+            rt.run(["cp", "-cR", str(prev_inputs / "npm-cache"), str(inp / "npm-cache")])
+        env = dict(os.environ, CARGO_TARGET_DIR=str(target))
         if cfg.toolchain_root:
             env.update(CARGO_HOME=str(cfg.toolchain_root / "cargo"), RUSTUP_HOME=str(cfg.toolchain_root / "rustup"),
                        PATH=f"{cfg.toolchain_root / 'cargo/bin'}:{env['PATH']}")
@@ -862,7 +893,7 @@ class Deployer:
         finally:
             if backend.wait():
                 raise DeployError(f"backend build failed; see {inp / 'backend-build.log'}")
-        built = inp / "target" / cfg.build_target / "release" / "houseatlas"
+        built = target / cfg.build_target / "release" / "houseatlas"
 
         self.say("[4/6] Staging the binary and the frontend union")
         (d / "candidate").mkdir(parents=True)
@@ -1211,6 +1242,7 @@ def main(argv=None) -> int:
     p.add_argument("--storage-reviewed", metavar="REASON", help="accept reviewed storage-sensitive changes")
     p.add_argument("--no-auto-rollback", action="store_true", help="leave a failed release live for inspection")
     p.add_argument("--no-prune", action="store_true", help="keep every older build cache and parked frontend")
+    p.add_argument("--cargo-target-dir", type=Path, help="persistent Cargo target outside the checkout and inputs (absolute path)")
     p = sub.add_parser("model", help="switch the served model to a release folder")
     p.add_argument("release", type=Path)
     p.add_argument("--prepare-only", action="store_true")
@@ -1233,6 +1265,8 @@ def main(argv=None) -> int:
             return 0
         with dep.lock():
             if a.cmd == "deploy":
+                if a.cargo_target_dir is not None:
+                    dep.cfg.cargo_target_dir = a.cargo_target_dir.expanduser()
                 dep.deploy(a.sha, prepare_only=a.prepare_only, storage_reviewed=a.storage_reviewed,
                            auto_rollback=not a.no_auto_rollback, prune=not a.no_prune)
             elif a.cmd == "model":

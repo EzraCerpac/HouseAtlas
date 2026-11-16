@@ -8,6 +8,7 @@ import plistlib
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import deploy_nas as dn
 
@@ -639,6 +640,169 @@ class SwapAndRollback(unittest.TestCase):
         self.assertEqual(svc.calls[-1], "bootstrap")
 
 
+class PersistentBuild(unittest.TestCase):
+    """Run preparation with fake Git/npm/Cargo/smoke; no compiler or service launch."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve()
+        self.cfg = dn.Config(setup_root=self.root / "setup", plist=self.root / "service.plist",
+                             label="synthetic", gateway_url="https://gateway.invalid",
+                             smoke_template=self.root / "smoke.json")
+        old = write(self.cfg.setup_root / "houseatlas-main-aaaaaaa-old/candidate/houseatlas", "old")
+        self.frontend = self.root / "frontend"
+        write(self.frontend / "index.html", '<script src="/assets/old.js">')
+        self.cfg.plist.write_bytes(plistlib.dumps(dn.with_binary(SERVICE, old)))
+        self.commands, self.builds = [], []
+        self.full = "b" * 40
+        self.fail = False
+        owner = self
+
+        class FakeBuild(dn.Runner):
+            def run(self, cmd, **kw):
+                owner.commands.append(cmd)
+                if cmd[:2] == ["git", "clone"]:
+                    Path(cmd[-1]).mkdir(parents=True)
+                elif "rev-parse" in cmd:
+                    return subprocess.CompletedProcess(cmd, 0, stdout=owner.full)
+                elif "checkout" in cmd:
+                    write(Path(cmd[2]) / "commit", cmd[-1])
+                elif cmd[:3] == ["npm", "run", "build"]:
+                    write(kw["cwd"] / "dist/index.html", '<script src="/assets/new.js">')
+                elif cmd[0] not in ("git", "npm", "plutil"):
+                    raise AssertionError(f"unexpected command: {cmd}")
+                return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+        self.dep = dn.Deployer(self.cfg, FakeBuild(self.cfg), out=io.StringIO())
+        self.dep.live = lambda: dict(service=dn.read_plist(self.cfg.plist), binary=old, frontend=self.frontend)
+        self.dep.smoke = lambda *a, **kw: dn.Checks()
+
+        def cargo(cmd, *, cwd, env, stdout, stderr):
+            self.assertEqual(cmd, ["cargo", "build", "--release", "--locked", "--target",
+                                   self.cfg.build_target, "-p", "houseatlas-backend"])
+            self.assertEqual((cwd / "commit").read_text(), self.full)
+            target = Path(env["CARGO_TARGET_DIR"])
+            self.assertTrue(target.is_dir())
+            self.builds.append((cwd, target))
+            if not self.fail:
+                write(target / self.cfg.build_target / "release/houseatlas", self.full)
+            stdout.close()
+            class Child:
+                def wait(child):
+                    return int(self.fail)
+            return Child()
+
+        self.popen = patch.object(dn.subprocess, "Popen", side_effect=cargo)
+        self.popen.start()
+        self.addCleanup(self.popen.stop)
+
+    def prepare(self):
+        with self.dep.lock():
+            return self.dep.deploy(self.full, prepare_only=True)
+
+    def test_reuses_one_target_and_stages_each_requested_commit_independently(self):
+        first = self.prepare()
+        target = self.builds[-1][1]
+        self.assertEqual(target, self.cfg.ledger.parent / "cargo-target")
+        marker = write(target / "release/deps/unchanged.dylib", "dependency")
+        inode = marker.stat().st_ino
+        self.full = "c" * 40
+        second = self.prepare()
+        self.assertNotEqual(self.builds[0][0], self.builds[1][0])
+        self.assertEqual(self.builds[1][1], target)
+        self.assertEqual(marker.stat().st_ino, inode)
+        self.assertFalse(any(cmd[0] == "cp" and "target" in cmd[-1] for cmd in self.commands))
+        self.assertFalse(any(self.cfg.setup_root.glob("*-inputs/target")))
+        dn.shutil.rmtree(target)  # a clean target cannot remove rollback binaries
+        self.assertEqual(Path(first["binary"]).read_text(), "b" * 40)
+        self.assertEqual(Path(second["binary"]).read_text(), "c" * 40)
+        self.assertEqual(dn.read_plist(Path(second["after_plist"]))["ProgramArguments"][0], second["binary"])
+
+    def test_explicit_target_is_created_and_inherited_environment_cannot_redirect_it(self):
+        self.cfg.cargo_target_dir = self.root / "shared target"
+        with patch.dict(os.environ, CARGO_TARGET_DIR=str(self.root / "wrong")):
+            self.prepare()
+        self.assertEqual(self.builds[-1][1], self.cfg.cargo_target_dir)
+        self.assertFalse((self.root / "wrong").exists())
+
+    def test_unusable_target_fails_without_fallback_or_staging(self):
+        self.cfg.cargo_target_dir = write(self.root / "not-a-directory", "file")
+        with self.assertRaisesRegex(dn.DeployError, "cannot create Cargo target"):
+            self.prepare()
+        self.assertEqual(self.builds, [])
+        self.assertFalse(self.cfg.ledger.exists())
+
+    def test_failed_cargo_never_stages_a_previous_binary(self):
+        self.prepare()
+        self.full, self.fail = "c" * 40, True
+        with self.assertRaisesRegex(dn.DeployError, "backend build failed"):
+            self.prepare()
+        self.assertEqual(len(dn.ledger_records(self.cfg.ledger)), 1)
+        self.assertFalse(list(self.cfg.setup_root.glob("houseatlas-main-ccccccc-*/candidate/houseatlas")))
+
+    def test_relative_checkout_and_inputs_targets_are_refused(self):
+        write(self.root / "another-checkout/.git", "synthetic worktree marker")
+        for target in (Path("relative"), Path(dn.__file__).resolve().parent / "target",
+                       self.root / "another-checkout/target",
+                       self.cfg.setup_root / "houseatlas-main-aaaaaaa-old-inputs/target"):
+            self.cfg.cargo_target_dir = target
+            with self.assertRaises(dn.DeployError):
+                self.prepare()
+        self.assertEqual(self.builds, [])
+
+    def test_existing_lock_excludes_a_second_builder(self):
+        with self.dep.lock():
+            with self.assertRaisesRegex(dn.DeployError, "holds the lock"):
+                self.prepare()
+        self.assertEqual(self.builds, [])
+
+    def test_deploy_state_targets_and_their_ancestors_or_children_are_refused(self):
+        install = self.cfg.setup_root / "houseatlas-main-aaaaaaa-old"
+        for target in (self.root, self.cfg.setup_root, install, install / "unused",
+                       self.cfg.ledger.parent, self.cfg.ledger.parent / "other",
+                       self.frontend, self.frontend / "unused", self.cfg.plist, self.cfg.smoke_template):
+            with self.subTest(target=target):
+                self.cfg.cargo_target_dir = target
+                with self.assertRaisesRegex(dn.DeployError, "dedicated artifacts"):
+                    self.prepare()
+        self.assertEqual(self.builds, [])
+        self.assertEqual((install / "candidate/houseatlas").read_text(), "old")
+
+    def test_nonempty_unmarked_target_is_preserved_and_empty_target_becomes_marked(self):
+        self.cfg.cargo_target_dir = self.root / "custom"
+        unrelated = write(self.cfg.cargo_target_dir / "keep", "unrelated")
+        with self.assertRaisesRegex(dn.DeployError, "empty or marked"):
+            self.prepare()
+        self.assertEqual(unrelated.read_text(), "unrelated")
+        self.assertFalse((self.cfg.cargo_target_dir / dn.TARGET_MARKER).exists())
+        unrelated.unlink()
+        self.prepare()
+        self.assertEqual((self.cfg.cargo_target_dir / dn.TARGET_MARKER).read_text(), dn.TARGET_MARKER_CONTENT)
+        self.prepare()  # marked, nonempty targets remain reusable
+
+    def test_frontend_prune_candidates_and_nested_targets_are_refused(self):
+        for name in ("frontend.before-cargo", "frontend.next-cargo", "frontend.rolled-back-cargo", "frontend.restored-cargo"):
+            for target in (self.frontend.parent / name, self.frontend.parent / name / "target"):
+                with self.subTest(target=target):
+                    self.cfg.cargo_target_dir = target
+                    with self.assertRaisesRegex(dn.DeployError, "frontend prune paths"):
+                        self.prepare()
+        self.assertEqual(self.builds, [])
+
+    def test_config_and_cli_target_selection(self):
+        config = write(self.root / "deploy.env", "\n".join([
+            f"SETUP_ROOT={self.cfg.setup_root}", f"PLIST={self.cfg.plist}", "SERVICE_LABEL=synthetic",
+            "GATEWAY_URL=https://gateway.invalid", f"SMOKE_TEMPLATE={self.cfg.smoke_template}",
+            f"CARGO_TARGET_DIR={self.root / 'configured'}"]))
+        self.assertEqual(dn.load_config(config).cargo_target_dir, self.root / "configured")
+        # Use the actual CLI dispatch with this fixture's fake owners.
+        with patch.object(dn, "Deployer", return_value=self.dep):
+            self.assertEqual(dn.main(["--config", str(config), "deploy", self.full, "--prepare-only",
+                                      "--cargo-target-dir", str(self.root / "override")]), 0)
+        self.assertEqual(self.builds[-1][1], self.root / "override")
+
+
 class Prune(unittest.TestCase):
     """The keep set: what the live build, `rollback` and the service still use survives a prune."""
 
@@ -688,7 +852,9 @@ class Prune(unittest.TestCase):
         return self.setup / f"{self.ids[i]}-inputs" / rest
 
     def test_keeps_live_and_rollback_caches_and_newest_parked_frontends(self):
+        shared = write(self.cfg.ledger.parent / "cargo-target/release/deps/keep", "dependency")
         report = self.dep.prune()
+        self.assertEqual(shared.read_text(), "dependency")
         for i in (-1, -2):  # live, and the build `rollback` returns to
             self.assertTrue(self.inputs(i, "target/release/houseatlas").exists())
             self.assertTrue(self.inputs(i, "npm-cache").exists())
