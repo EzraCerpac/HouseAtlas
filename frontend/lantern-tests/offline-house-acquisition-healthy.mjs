@@ -46,7 +46,7 @@ const savedEntryURL = await source('../src/offline/saved-entry.ts');
 // InlineTime itself (recorded-time rules) is covered with the lantern UI; here it is a marker element.
 const timeURL = 'data:text/javascript,' + encodeURIComponent(`import { createElement } from ${JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href)};
 export const InlineTime = ({ value }) => createElement('time', { dateTime: value }, value);`);
-const timed = value => `<time datetime="${value}">${value}</time>`;
+const timed = value => renderToStaticMarkup(createElement('time', { dateTime: value }, value));
 const copyURL = await source('../src/offline/SaveHouseCopy.tsx', {
   '../lantern/components/ui': timeURL,
   react: new URL('../node_modules/react/index.js', import.meta.url).href,

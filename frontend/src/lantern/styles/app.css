@@ -2534,11 +2534,11 @@
   .lantern-host .stale-chip-face {
     display: grid;
     grid-template-columns: minmax(0, auto) auto;
-    column-gap: 4px;
+    column-gap: 3px;
     height: auto;
     max-width: 100%;
     justify-content: center;
-    padding: 3px 8px;
+    padding: 3px 3px;
     border-radius: 10px;
     font-size: 11px;
     line-height: 1.25;

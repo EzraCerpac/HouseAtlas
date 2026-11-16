@@ -2226,11 +2226,6 @@
   }
 
   .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
-
-  /* The rooms list's count line ("Plan: Ground floor · 8 rooms on 3 floors")
-     wraps under its heading instead of ending in an ellipsis. */
-  .lantern-host .ua-inspector:not(.is-room) .ua-sheet-title > .ua-sheet-sub { grid-area: 2 / 1 / 3 / -1; overflow: visible; white-space: normal; }
-  .lantern-host .ua-inspector:not(.is-room) .ua-sheet-head > .ua-sheet-toggle { grid-area: 1 / 3; }
 }
 
 /* The rooms head is its own opener: the chevron marks it, and the button's
