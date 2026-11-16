@@ -212,6 +212,9 @@ export function SearchPalette() {
     };
   }, []);
   useEffect(() => setActive(0), [q]);
+  // Arriving results remove the no-match row; if its Clear search button held focus, typing goes on in the field.
+  const hasResults = flat.length > 0;
+  useEffect(() => { if (hasResults && document.activeElement === document.body) inputRef.current?.focus(); }, [hasResults]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active]);

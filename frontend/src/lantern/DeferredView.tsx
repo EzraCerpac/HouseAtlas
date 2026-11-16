@@ -37,7 +37,7 @@ export function UpkeepQualifiers({ loading = false }: { readonly loading?: boole
   const can = useCanWrite('HomeBox');
   const cache = useSharedTaskCache();
   const reference = referenceDayLabel(house.displayNow);
-  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `Source cache: ${cache}${loading ? '' : ' for every task'}`].filter(Boolean).join(' · ');
+  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && (loading ? `Task source cache: ${cache}` : `Source cache: ${cache} for every task`)].filter(Boolean).join(' · ');
   return <>
     {dates && <p className="fine">{dates}</p>}
     {!can.ok && house.tasks.some(task => task.status !== 'done') && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { roomContents, unplaced, dueState, CLAIM_LABEL } from '../data/query';
-import { useSelect, useStore } from '../state/store';
+import { useReducedMotion, useSelect, useStore } from '../state/store';
 import { ROOM_TINT } from '../atlas/palette';
 import { EntityLink, Empty } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -33,7 +33,7 @@ export function RoomsView() {
 export function RoomIndex() {
   const { house, state, dispatch, projection } = useStore();
   const select = useSelect();
-  const unplacedHeading = useRef<HTMLHeadingElement>(null);
+  const unplacedHeading = useRef<HTMLHeadingElement>(null), reducedMotion = useReducedMotion();
   // Sent here from the Overview's count: land on the records it counted. A
   // passive effect, so it runs after the lens has put focus on its own title.
   useEffect(() => {
@@ -42,7 +42,7 @@ export function RoomIndex() {
     dispatch({ type: 'viewFocusDone' });
     if (!heading) return;
     heading.focus({ preventScroll: true });
-    heading.scrollIntoView({ block: 'start', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    heading.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
   }, [state.viewFocus]);
   const topology = useTopology();
   const [floorFilter, setFloorFilter] = useState<string>('all');
