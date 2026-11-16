@@ -6,12 +6,14 @@ import { projectView } from '../adapters/read';
 import { useStore } from '../state/store';
 import { buildTopologyIndex, buildBuildingModel, type BuildingModel, type TopologyData, type TopologyIndex } from './model';
 
-interface TopologyContext {
+export interface TopologyContext {
   readonly activate: () => () => void;
   readonly nativePlaces: NativePlaceClient | undefined;
   readonly nativeEvidenceDocuments: NativeEvidenceDocumentClient | undefined;
   readonly nativeBinding: NativePlaceBinding | null;
   readonly reload: () => void;
+  /** A topology client is bound to this home, so an activation can start a read. */
+  readonly readable: boolean;
   readonly index: TopologyIndex | null;
   readonly status: 'loading' | 'ready' | TopologyFailure;
   readonly buildingId: string | null;
@@ -113,7 +115,7 @@ export function TopologyProvider({ client, nativePlaces, nativeEvidenceDocuments
   const model = useMemo(() => index && buildingId && read?.status === 'ready' && read.snapshotSha256 === snapshotSha256
     ? buildBuildingModel(index, buildingId, read.records) : null, [index, buildingId, read, snapshotSha256]);
   const memberStatus = read?.status === 'ready' ? model ? 'ready' : 'changed' : read?.status ?? 'loading';
-  const value: TopologyContext = { activate, nativePlaces, nativeEvidenceDocuments, nativeBinding: nativeBinding && nativeBinding.scope.workspaceId === view.scope.workspaceId && nativeBinding.scope.homeId === view.scope.homeId ? nativeBinding : null, reload, index, status, buildingId, chooseBuilding, levelId, chooseLevel: setLevelId, model, memberStatus, notice, memberSourceStatus: read?.status === 'ready' ? read.sourceStatus : null };
+  const value: TopologyContext = { activate, nativePlaces, nativeEvidenceDocuments, nativeBinding: nativeBinding && nativeBinding.scope.workspaceId === view.scope.workspaceId && nativeBinding.scope.homeId === view.scope.homeId ? nativeBinding : null, reload, readable: Boolean(client && binding && binding.scope.workspaceId === view.scope.workspaceId && binding.scope.homeId === view.scope.homeId), index, status, buildingId, chooseBuilding, levelId, chooseLevel: setLevelId, model, memberStatus, notice, memberSourceStatus: read?.status === 'ready' ? read.sourceStatus : null };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useTopology(): TopologyContext {

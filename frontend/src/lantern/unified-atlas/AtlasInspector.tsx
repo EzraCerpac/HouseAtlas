@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
@@ -13,6 +13,25 @@ import { DocumentaryRecords } from './AtlasKeys';
 import type { ElectricalGroup } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { ElectricalTraceDetail } from './ElectricalTraceDetail';
+import type { TopologyFailure } from '../../api/topology-client';
+import type { CacheStatus } from '../../app/types';
+import { InlineTime } from '../components/ui';
+
+/** What saved HomeBox information lists for a selected room's reviewed
+ * HomeBox place, or why nothing is listed. */
+export type RoomBelongingsState =
+  | { readonly status: 'loading' | 'not-readable' | 'unlinked' | 'ambiguous' | 'absent' }
+  | { readonly status: 'failed'; readonly reason: TopologyFailure }
+  | { readonly status: 'linked'; readonly place: string; readonly innerPlaces: number;
+    readonly belongings: readonly { readonly id: string; readonly name: string; readonly detail: string }[];
+    /** The HomeBox copy's state and last successful update, as Sources shows them. */
+    readonly cache: { readonly status: CacheStatus; readonly at: string | null } | null };
+/** The live host's building records for a selected room. `request` starts
+ * the one read when it has not run; `read` never starts one. */
+export interface RoomBelongingsSource {
+  readonly request: () => void; readonly retry: () => void; readonly open: (id: string) => void;
+  readonly read: (atlasPlaceId: string) => RoomBelongingsState;
+}
 
 /** Floors listed for the current scope, highest first. */
 export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
@@ -23,7 +42,7 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed = 0, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed = 0, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
@@ -31,7 +50,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openDocuments: (() => void) | undefined;
   /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
   readonly openPlaces?: (() => void) | undefined;
-  /** Opens the host's Network lens from the same head; absent elsewhere. */
+  /** The live host's building records; absent in a saved copy, which holds none. */
+  readonly belongings?: RoomBelongingsSource | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** Rooms in view that the model or plan leaves unnamed because their names do not fit. */
   readonly unnamed?: number;
@@ -141,6 +161,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
 
       {(runtime || runtimeConfigured) && <RoomContentsSummary runtime={runtime} reason={runtimeReason} roomId={room.roomId} layers={state.layers} />}
 
+      <RoomBelongings room={room} source={belongings} />
+
       {/* Open while Measurements is on; it folds away when a long list of
           spans would push the records down. */}
       {spans.length > 0 && <section aria-label="Model outline dimensions" className="ua-records ua-spans-section">
@@ -217,6 +239,57 @@ function RoomContentsSummary({ runtime, reason, roomId, layers }: {
         {!layers[kind] && <span className="ua-contents-off">Layer off</span>}
       </li>;
     })}</ul>
+  </section>;
+}
+
+const BELONGINGS_SHOWN = 5;
+const RETRY: ReadonlySet<TopologyFailure> = new Set(['unavailable', 'timedOut', 'continuationUnavailable', 'changed']);
+const FAILURE: Partial<Record<TopologyFailure, string>> = { denied: 'Access to building records is denied',
+  expired: 'The session for this read has expired', tooLarge: 'Building records exceed this list’s read limit',
+  timedOut: 'Building records could not be loaded within the read deadline' };
+/** Belongings HomeBox records directly in the room's HomeBox place, reached
+ * only through the room's reviewed Atlas place and that place's reviewed
+ * HomeBox binding. A read-only projection of HomeBox; it never places a
+ * belonging in the drawn room. */
+function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly source: RoomBelongingsSource | undefined }) {
+  const placeId = room.nativeBinding.status === 'reviewed' ? room.nativePlaceId : null;
+  const request = source?.request;
+  useEffect(() => { if (placeId !== null) request?.(); }, [placeId, request]);
+  const [all, setAll] = useState(false), [retrying, setRetrying] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null), list = useRef<HTMLUListElement>(null), headingId = useId();
+  const state: RoomBelongingsState = !source ? { status: 'not-readable' } : placeId === null ? { status: 'unlinked' } : source.read(placeId);
+  // A retry stays mounted until its read settles; if success removes it, focus goes to the heading.
+  useEffect(() => {
+    if (!retrying || state.status === 'loading') return;
+    setRetrying(false);
+    if (state.status !== 'failed' && document.activeElement === document.body) heading.current?.focus();
+  }, [retrying, state.status]);
+  const unknown = "so this room's HomeBox place is not known.";
+  const text = state.status === 'loading' ? "Loading building records for this room's HomeBox place…"
+    : state.status === 'not-readable' ? `Building records ${source ? 'cannot be read here' : 'are not held in this saved copy'}, ${unknown}`
+    : state.status === 'failed' ? `${FAILURE[state.reason] ?? 'Building records could not be loaded'}, ${unknown}`
+    : state.status === 'unlinked' ? 'No reviewed HomeBox place link for this room.'
+    : state.status === 'ambiguous' ? 'Reviewed links name more than one HomeBox place for this room, so none is listed.'
+    : state.status === 'absent' ? 'The linked HomeBox place is not in saved HomeBox information.'
+    : state.status === 'linked' && state.belongings.length === 0 ? 'None listed in saved HomeBox information.' : null;
+  const canRetry = (state.status === 'failed' && RETRY.has(state.reason)) || (retrying && state.status === 'loading');
+  const shown = state.status === 'linked' ? all ? state.belongings : state.belongings.slice(0, BELONGINGS_SHOWN) : [];
+  return <section className="ua-contents ua-belongings" aria-labelledby={headingId}>
+    <h3 className="ua-contents-title" id={headingId} ref={heading} tabIndex={-1}>Belongings</h3>
+    {state.status === 'linked' && <p className="ua-belongings-scope">Recorded directly in HomeBox place {state.place}
+      {state.innerPlaces > 0 && `; belongings in its ${plural(state.innerPlaces, 'inner place')} are not listed`}</p>}
+    {text && <p className="ua-contents-pending" role={state.status === 'loading' || state.status === 'failed' ? 'status' : undefined}>{text}</p>}
+    {canRetry && <button type="button" className="text-btn ua-belongings-more" aria-disabled={state.status === 'loading' || undefined}
+      onClick={() => { if (state.status === 'loading') return; setRetrying(true); source?.retry(); }}>Retry</button>}
+    {shown.length > 0 && <ul ref={list}>{shown.map(row => <li key={row.id}>
+      <button type="button" className="ua-belonging" onClick={() => source?.open(row.id)}>
+        <Icon name="box" size={15} /><span><span className="ua-belonging-name">{row.name}</span>
+          {row.detail && <span className="ua-belonging-detail">{row.detail}</span>}</span></button></li>)}</ul>}
+    {state.status === 'linked' && state.belongings.length > shown.length && <button type="button" className="text-btn ua-belongings-more"
+      onClick={() => { setAll(true); requestAnimationFrame(() => list.current?.querySelectorAll('button')[BELONGINGS_SHOWN]?.focus()); }}>
+      Show all {state.belongings.length.toLocaleString()}</button>}
+    {state.status === 'linked' && <p className="ua-belongings-source">Read-only from HomeBox{state.cache
+      ? <> · {state.cache.status.replace(/-/g, ' ')}, last successful update {state.cache.at ? <InlineTime value={state.cache.at} /> : 'unknown'}</> : ''}</p>}
   </section>;
 }
 

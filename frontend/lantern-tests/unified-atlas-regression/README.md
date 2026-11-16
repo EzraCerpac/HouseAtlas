@@ -20,6 +20,16 @@ client owner to produce the unavailable dialog. Both cases use trusted Tab,
 Shift-Tab and Escape input to check Close focus, containment and deliberate
 opener restoration. Neither opens a real source or PDF.
 
+`?atlas=generated&topology=counted` gives the host in-page building records
+that record each list call: Hall's Atlas place has a reviewed binding to the
+fixture's *Direct room* HomeBox place (distinct IDs), which holds one generated
+belonging; Living room's place has none. The room-belongings case checks that
+building, floor, view and layer changes, pointer movement over the stage and
+the open room list make no list call; that selecting Hall makes exactly one
+read (identity, binding, location-semantics and relation lists) and lists the
+belonging, Living room states it has no reviewed link, and Hall again reuses
+the same read; and that the belonging opens its record.
+
 ```sh
 HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
   node frontend/lantern-tests/unified-atlas-regression/browser.mjs --electrical
@@ -29,7 +39,7 @@ The fixture builds with the production Vite plugins under its own root, so the
 offline-shell plugin cannot replace its HTML entry. The runner declares a
 1600 × 1100 viewport, observes WebGL 1/2 draw calls without changing rendering,
 and reports CDP pipe errors and page text on failure. The existing healthy
-frontend runner selects this exact five-case command when the pinned browser
+frontend runner selects this exact command when the pinned browser
 is supplied. Synthetic DOM, software-renderer and generated-source
 results do not establish installed source authority, physical wiring, GPU
 hardware or device acceptance. The historical matrix below retains its original

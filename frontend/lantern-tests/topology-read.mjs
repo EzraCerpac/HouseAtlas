@@ -1993,3 +1993,58 @@ const scope = readFileSync(new URL('../src/lantern/topology/BuildingScope.tsx', 
 assert.match(section, /Offline: building records are not held in this saved copy\./);
 assert.match(section, /navigator\.onLine === false/);
 for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(status|memberStatus)\]/);
+
+// Room belongings join: an Atlas place reaches a HomeBox place only through an
+// active, accepted binding on the complete source key, within the view's scope.
+// Atlas place IDs here are distinct from every HomeBox ID except the one case
+// that checks an equal-looking ID without a binding never joins.
+{
+  const { homeboxPlaceOf, homeboxContents } = await import('../src/lantern/topology/homebox-place.ts');
+  const room = fixture.view.entries.find(e => e.entity.name === 'Direct room'), other = fixture.view.entries.find(e => e.entity.name === 'Lower room');
+  const atlas = n => `00000000-0000-4000-8000-0000000b70${String(n).padStart(2, '0')}`;
+  const identityOf = id => ({ target: { authority: 'atlas', recordType: 'identity', recordId: id }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } });
+  let next = 0;
+  const bind = (atlasId, source, extra = {}) => ({ target: { authority: 'atlas', recordType: 'binding', recordId: `00000000-0000-4000-8000-0000000b71${String(next++).padStart(2, '0')}` },
+    revision: 1, lifecycle: extra.lifecycle ?? 'active', payload: { atlasId, source, reviewStatus: extra.reviewStatus ?? 'accepted', sourceState: 'present', evidenceIds: [] } });
+  const { sourceKind: _kind, ...noKind } = room.source, { collectionId: _collection, ...noCollection } = room.source;
+  const cases = {
+    linked: [bind(atlas(1), { ...room.source })],
+    otherCollection: [bind(atlas(2), { ...room.source, collectionId: 'another-collection' })],
+    otherSource: [bind(atlas(3), { ...room.source, sourceInstanceId: '00000000-0000-4000-8000-0000000b7299' })],
+    proposed: [bind(atlas(4), { ...room.source }, { reviewStatus: 'proposed' })],
+    retired: [bind(atlas(5), { ...room.source }, { reviewStatus: 'retired' })],
+    tombstoned: [bind(atlas(6), { ...room.source }, { lifecycle: 'tombstoned' })],
+    noKind: [bind(atlas(7), noKind)],
+    noCollection: [bind(atlas(8), noCollection)],
+    otherKind: [bind(atlas(9), { ...room.source, sourceKind: 'network-device' })],
+    ambiguous: [bind(atlas(10), { ...room.source }), bind(atlas(10), { ...other.source })],
+    repeated: [bind(atlas(11), { ...room.source }), bind(atlas(11), { ...room.source })],
+    noBinding: [],
+  };
+  const ids = { linked: 1, otherCollection: 2, otherSource: 3, proposed: 4, retired: 5, tombstoned: 6, noKind: 7, noCollection: 8, otherKind: 9, ambiguous: 10, repeated: 11, noBinding: 12 };
+  // An Atlas identity that reuses the HomeBox place's own ID, with no binding.
+  const sameId = room.entity.id;
+  const joinIndex = buildTopologyIndex({ identities: [...Object.values(ids).map(n => identityOf(atlas(n))), identityOf(sameId)],
+    bindings: Object.values(cases).flat(), semantics: [], relations: [], sourceStatuses: ['current'] }, fixture.view, selectable);
+  const status = id => homeboxPlaceOf(joinIndex, fixture.view, id).status;
+  assert.equal(homeboxPlaceOf(joinIndex, fixture.view, atlas(1)).place, room);
+  assert.equal(status(atlas(11)), 'linked');
+  for (const name of ['otherCollection', 'otherSource', 'noCollection']) assert.equal(status(atlas(ids[name])), 'absent', name);
+  for (const name of ['proposed', 'retired', 'tombstoned', 'noKind', 'otherKind', 'noBinding']) assert.equal(status(atlas(ids[name])), 'unlinked', name);
+  assert.equal(status(atlas(10)), 'ambiguous');
+  assert.equal(status(sameId), 'unlinked', 'An Atlas ID equal to a HomeBox ID never joins without a binding');
+  assert.equal(status(atlas(99)), 'unlinked', 'No Atlas identity, no link');
+  // A view of another home never supplies the place.
+  assert.equal(homeboxPlaceOf(joinIndex, { ...fixture.view, scope: { ...fixture.view.scope, homeId: '00000000-0000-4000-8000-0000000b7298' } }, atlas(1)).status, 'absent');
+
+  // Contents: HomeBox's own parentage in the place's collection, direct only.
+  const child = (name, kind, parent, source = room.source) => ({ ...room, kind, key: name, source: { ...source, externalId: name },
+    entity: { ...room.entity, id: name, name, parent: { id: parent } } });
+  const entries = [['it-lamp', child('lamp', 'item', room.entity.id)], ['sp-shelf', child('shelf', 'place', room.entity.id)],
+    ['it-book', child('book', 'item', 'shelf')], ['it-elsewhere', child('elsewhere', 'item', room.entity.id, { ...room.source, collectionId: 'another-collection' })],
+    ['it-loose', child('loose', 'item', other.entity.id)]];
+  const contents = homeboxContents(entries, room);
+  assert.deepEqual(contents.belongings.map(row => row.id), ['it-lamp']);
+  assert.equal(contents.innerPlaces, 1);
+}
+console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only');

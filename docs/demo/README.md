@@ -77,6 +77,7 @@ label in their heading (`ExampleLabelContext`, provided only by the example).
 | Area | How to reach it in the example |
 | --- | --- |
 | Inventory | **Atlas** › **Rooms & places**: three belongings in *No reviewed placement*, with quantity and source hierarchy; open one for its read-only detail. **Upkeep** lists the lamp's two entries. |
+| Room belongings | **Atlas**, select *Living room*: **Belongings** lists the reading lamp from its reviewed HomeBox place link; *Hall* has a link and none listed; *Bathroom* has no reviewed link. Selecting the first such room reads the in-page building records once. |
 | Documents | **Library** › **Source documents** and **Electrical drawings**; the lamp manual from **Library** › **File details** (below). |
 | Electrical groups | Hall link below, **Electrical** layer, open *Fictional symbol 1* › **Show drawing group**: the historic group and its fictional circuits A1 and A2 (below). |
 | Network trace | **Atlas** › **Network**; select the access point, switch or streaming box (below). |
@@ -86,6 +87,10 @@ No belonging has a reviewed room placement: the HomeBox projection always
 reports placement unknown and the native records have no reviewed item-to-room
 relation, so item-to-room navigation cannot be shown without a new placement
 source. The source hierarchy above is not that placement.
+The room panel's **Belongings** list is that same HomeBox hierarchy, reached
+only through reviewed bindings between distinct Atlas and HomeBox place IDs
+(`exampleTopology` in `household.ts`); it lists what HomeBox records in the
+linked place, not where a belonging physically is.
 
 `npm --prefix frontend run build` ships it: after the app's own build, a
 second pass, `vite build --config example/vite.config.ts`, writes only
