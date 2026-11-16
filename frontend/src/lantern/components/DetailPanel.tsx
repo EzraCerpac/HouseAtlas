@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useId, useSyncExternalStore, type ReactNode } from 'react';
 import type {
   CableRun,
   Circuit,
@@ -103,13 +103,19 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
 }
 
 /** A HomeBox write that is unavailable is left out: the panel's OutageHint states why once. */
+/** A HomeBox action without access is left out (the record's note says why);
+ * an unavailable Atlas action stays, its reason written beside it. */
 function WriteButton({ system, children, onClick, primary }: { system: 'HomeBox' | 'Atlas'; children: ReactNode; onClick: () => void; primary?: boolean }) {
   const can = useCanWrite(system);
+  const reason = useId();
   if (!can.ok && system === 'HomeBox') return null;
   return (
-    <button type="button" className={`btn${primary ? ' btn-primary' : ''}`} disabled={!can.ok} title={can.reason} onClick={onClick}>
-      {children}
-    </button>
+    <span className="write-action">
+      <button type="button" className={`btn${primary ? ' btn-primary' : ''}`} disabled={!can.ok} aria-describedby={can.ok ? undefined : reason} onClick={onClick}>
+        {children}
+      </button>
+      {!can.ok && <span id={reason} className="fine">{can.reason}</span>}
+    </span>
   );
 }
 

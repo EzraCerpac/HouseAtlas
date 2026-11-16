@@ -128,7 +128,7 @@ function SourceDocumentDialog({ reader, document, onClose }: {
   const [mode, setMode] = useState<'preview' | 'original'>(previewReady ? 'preview' : 'original');
   return <Modal title={document.title} kicker="Source document" onClose={onClose} wide>
     <div className="seg source-doc-mode" role="group" aria-label="Show">
-      <button type="button" aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Qualified preview</button>
+      <button type="button" aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Preview</button>
       <button type="button" aria-pressed={mode === 'original'} onClick={() => setMode('original')}>Original</button>
     </div>
     <LeasedPayload key={mode} reader={reader} document={document} mode={mode} />
@@ -191,8 +191,8 @@ function LeasedPayload({ reader, document, mode }: {
       : status && <p className="source-doc-status" role="status">{status}</p>}
     <div ref={box} className="source-doc-payload">
       {live && live.frame.mode === 'preview' && lineage && <figure className="source-doc-preview">
-        <img src={live.url} alt={`Qualified preview of ${document.title}`} />
-        <figcaption>Qualified stripped PNG preview from {lineage.renderer} {lineage.rendererVersion}. {lineage.description}</figcaption>
+        <img src={live.url} alt={`Preview of ${document.title}`} />
+        <figcaption>Qualified stripped PNG, rendered by {lineage.renderer} {lineage.rendererVersion}. {lineage.description}</figcaption>
       </figure>}
       {live && original && <>
         {live.frame.measuredContentType === 'application/pdf'

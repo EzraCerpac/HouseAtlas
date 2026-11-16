@@ -1,5 +1,8 @@
 import { Component, Suspense, type ReactNode } from 'react';
-import { useStore } from './state/store';
+import { useCanWrite, useStore } from './state/store';
+import { useSourcePorts } from './source-ports';
+import { referenceDayLabel } from './data/time';
+import { Icon } from './components/Icon';
 
 interface Props { readonly label: string; readonly children: ReactNode }
 
@@ -18,12 +21,48 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
   }
 }
 
-/** Holds the view's heading where the loaded view puts it, so nothing jumps. */
+/** The cache status every task shares, if one; the Upkeep page states it once. */
+export function useSharedTaskCache(): string | undefined {
+  const { house, projection } = useStore();
+  const statuses = new Set(house.tasks.map(t => projection.entries.get(t.id)?.cacheStatus));
+  const [only] = statuses;
+  return statuses.size === 1 && only !== undefined ? only : undefined;
+}
+
+/** Upkeep's lines under its heading: what every date is relative to, the shared
+ * cache state, and why Mark done is unavailable. Drawn while Upkeep loads too. */
+export function UpkeepQualifiers() {
+  const { house } = useStore();
+  const can = useCanWrite('HomeBox');
+  const cache = useSharedTaskCache();
+  const reference = referenceDayLabel(house.displayNow);
+  const dates = [reference !== undefined && `Dates relative to ${reference}`, cache !== undefined && `Source cache: ${cache} for every task`].filter(Boolean).join(' · ');
+  return <>
+    {dates && <p className="fine">{dates}</p>}
+    {!can.ok && house.tasks.some(task => task.status !== 'done') && <p className="fine upkeep-owner"><Icon name="info" size={13} />Mark done is unavailable: HomeBox owns these tasks.</p>}
+  </>;
+}
+
+/** The view's own headings and section links, which need no data, with quiet
+ * placeholder rows under them, so nothing jumps when the view arrives. */
 function LoadingView({ label }: { readonly label: string }) {
   const { house } = useStore();
+  const ports = useSourcePorts();
+  const sections = label === 'Library' ? ['HomeBox files', ...(ports.documents ? ['Source documents'] : []), ...(ports.electricalLibrary ? ['Electrical drawings'] : [])]
+    : label === 'Changes' ? ['Operation history', 'Sources'] : [''];
+  const status = <p className="fine loading-status" role="status" aria-live="polite">Loading {label} for {house.name}…</p>;
   return <section className="view" aria-label={label} aria-busy="true">
     <header className="view-head"><h1>{label}</h1>
-      <p role="status" aria-live="polite">Loading {label} for {house.name}…</p></header>
+      {label === 'Library' && sections.length > 1 && <nav className="seg library-jump" aria-label="Library sections">
+        {sections.map(title => <button key={title} type="button" disabled>{title}</button>)}</nav>}
+      {label === 'Upkeep' && <UpkeepQualifiers />}</header>
+    <div className={label === 'Changes' ? 'changes-grid' : undefined}>
+      {sections.map((title, index) => <section key={title} className={label === 'Changes' ? 'section' : 'loading-section'}>
+        {title && <div className="section-head">{label === 'Changes' ? <h3>{title}</h3> : <h2>{title}</h2>}</div>}
+        {index === 0 && status}
+        <span className="loading-rows" aria-hidden="true"><i /><i /><i /></span>
+      </section>)}
+    </div>
   </section>;
 }
 

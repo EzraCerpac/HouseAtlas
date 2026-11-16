@@ -1,9 +1,10 @@
 import type { Task } from '../data/types';
 import { dueState } from '../data/query';
-import { fmtDate, referenceDayLabel } from '../data/time';
+import { fmtDate } from '../data/time';
 import { useStore } from '../state/store';
-import { TaskRow, TaskWriteNote } from '../components/rows';
-import { Note } from '../components/ui';
+import { TaskRow } from '../components/rows';
+import { UpkeepQualifiers, useSharedTaskCache } from '../DeferredView';
+import { Empty, Note } from '../components/ui';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -24,7 +25,7 @@ function DateMark({ iso, now }: { iso?: string | undefined; now?: string | undef
 
 const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-/** Empty groups are not drawn; the page names them in one line instead. */
+/** Empty groups are not drawn; the page lists them in one line instead. */
 function Group({ title, tasks, tone, dateOf, now, sharedCache }: { title: string; tasks: Task[]; tone: string; dateOf: (t: Task) => string | undefined; now?: string | undefined; sharedCache?: string | undefined }) {
   if (!tasks.length) return null;
   const id = `tl-${slug(title)}`;
@@ -49,7 +50,7 @@ function Group({ title, tasks, tone, dateOf, now, sharedCache }: { title: string
 }
 
 export function UpkeepView() {
-  const { house, state, projection } = useStore();
+  const { house, state } = useStore();
   const byDue = (a: Task, b: Task) => (a.due ?? '9999').localeCompare(b.due ?? '9999');
   const overdue = house.tasks.filter((t) => dueState(t, house.displayNow) === 'overdue').sort(byDue);
   const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon').sort(byDue);
@@ -57,25 +58,20 @@ export function UpkeepView() {
   const undated = house.tasks.filter(t => t.status === 'unknown');
   const done = house.tasks.filter((t) => t.status === 'done').sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
   // One cache status for every task is stated once; a differing row keeps its own.
-  const statuses = new Set(house.tasks.map(t => projection.entries.get(t.id)?.cacheStatus));
-  const [only] = statuses;
-  const sharedCache = statuses.size === 1 && only !== undefined ? only : undefined;
+  const sharedCache = useSharedTaskCache();
   const groups = [['Overdue', overdue], ['Next two weeks', soon], ['Later', later], ['No schedule supplied', undated], ['Completed', done]] as const;
   const empty = groups.filter(([, tasks]) => !tasks.length).map(([title]) => title);
-  const emptyText: Record<string, string> = { Overdue: 'overdue', 'Next two weeks': 'due in the next two weeks', Later: 'due later', 'No schedule supplied': 'without a schedule', Completed: 'completed' };
-  const emptyPhrases = empty.map(title => emptyText[title]!);
-  const emptyLine = empty.length === groups.length ? 'No tasks.'
-    : `Nothing ${emptyPhrases.length > 1 ? `${emptyPhrases.slice(0, -1).join(', ')}, or ${emptyPhrases.at(-1)}` : emptyPhrases[0]}.`;
-  // Cache state, reference date and the empty groups share one status line.
-  const status = [empty.length > 0 && emptyLine.slice(0, -1), referenceDayLabel(house.displayNow) !== undefined && `Dates relative to ${referenceDayLabel(house.displayNow)}`, sharedCache !== undefined && `Source cache: ${sharedCache} for every task`].filter(Boolean).join(' · ');
   return (
     <div className="view">
       <header className="view-head">
         <h1>Upkeep</h1>
+        <UpkeepQualifiers />
       </header>
       {state.settings.outage && <Note tone="warn">HomeBox is unreachable, so tasks can’t be marked done right now. You are looking at the cached copy.</Note>}
-      <TaskWriteNote tasks={house.tasks} />
-      {status && <p className="fine upkeep-status">{status}.</p>}
+      {empty.length === groups.length ? <Empty>No tasks.</Empty>
+        : empty.length > 0 && <ul className="upkeep-empty" aria-label="Empty groups">
+          {empty.map(title => <li key={title}>{title}<span className="section-count">0</span></li>)}
+        </ul>}
       <div className="tl-columns">
         <div>
           <Group title="Overdue" tasks={overdue} tone="overdue" dateOf={(t) => t.due} now={house.displayNow} sharedCache={sharedCache} />

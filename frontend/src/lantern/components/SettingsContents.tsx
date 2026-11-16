@@ -47,7 +47,7 @@ export function SettingsContents() {
             {checking ? 'Reloading saved information…' : 'Reload saved information'}
           </button>
           {actions.loadedAt !== undefined && <span className="setting-static">
-            Last loaded <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
+            View loaded <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
           </span>}
         </div>
         <p className="setting-static" role="status" aria-live="polite">

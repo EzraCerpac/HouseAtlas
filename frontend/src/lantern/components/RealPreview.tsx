@@ -3,7 +3,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { PinnedFileAction } from './PinnedFileAction';
-import { Note, RecordedTime, StorageTag } from './ui';
+import { InlineTime, Note, StorageTag } from './ui';
 
 const HomeboxOriginalAction = lazy(() => import('./HomeboxOriginalAction').then(module => ({ default: module.HomeboxOriginalAction })));
 
@@ -22,6 +22,8 @@ export function RealPreview() {
   const attachment = projection.attachments.get(id), entry = projection.entries.get(id);
   if (!doc || !attachment) return null;
   const close = () => dispatch({ type: 'dialog', dialog: null });
+  const times: [string, string | null | undefined][] = [['Attachment added', doc.addedAt], ['Source updated', entry?.sourceUpdatedAt], ['Retrieved', entry?.retrievedAt]];
+  const recorded = times.filter((row): row is [string, string] => !!row[1]);
   const href = attachment.kind === 'external-link' ? safeWebUrl(attachment.url) : safeMediaUrl(attachment.downloadHref);
   // Opening a HomeBox file here reads it once and keeps that copy on this device.
   const opener = attachment.kind === 'stored-file' && entry?.source.sourceKind === 'homebox-entity' ? actions.homeboxOriginals : undefined;
@@ -44,12 +46,14 @@ export function RealPreview() {
       <aside className="preview-aside" aria-label="Provenance"><h3>Provenance</h3><dl className="facts">
         <div><dt>Owner</dt><dd>HomeBox</dd></div>
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
-        <div><dt>Attachment added</dt><dd>{doc.addedAt ? <RecordedTime value={doc.addedAt} after={` by ${doc.addedBy}`} /> : 'Date and actor not supplied'}</dd></div>
-        <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? <RecordedTime value={entry.sourceUpdatedAt} /> : 'Unknown'}</dd></div>
-        <div><dt>Retrieved</dt><dd>{entry ? <RecordedTime value={entry.retrievedAt} /> : 'Unknown'}</dd></div>
+        <div><dt>Attachment added</dt><dd>{doc.addedAt ? <><InlineTime value={doc.addedAt} />{` by ${doc.addedBy}`}</> : 'Date and actor not supplied'}</dd></div>
+        <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? <InlineTime value={entry.sourceUpdatedAt} /> : 'Unknown'}</dd></div>
+        <div><dt>Retrieved</dt><dd>{entry ? <InlineTime value={entry.retrievedAt} /> : 'Unknown'}</dd></div>
       </dl>
-        <details className="preview-technical"><summary>{attachment.kind === 'stored-file' ? 'Attachment ID, content type and recorded bytes' : 'Attachment ID'}</summary><dl className="facts">
+        <details className="preview-technical"><summary>{attachment.kind === 'stored-file' ? 'Attachment ID, recorded times, content type and bytes' : 'Attachment ID and recorded times'}</summary><dl className="facts">
           <div><dt>Attachment</dt><dd><code>{attachment.attachmentId}</code></dd></div>
+          {/* The readable dates above, as recorded. */}
+          {recorded.map(([label, value]) => <div key={label}><dt>{label}, recorded</dt><dd><code>{value}</code></dd></div>)}
           {attachment.kind === 'stored-file' && <><div><dt>Content type</dt><dd>{attachment.contentType ?? 'Unknown'}</dd></div><div><dt>Recorded bytes</dt><dd>{attachment.byteSize ?? 'Unknown'}</dd></div></>}
         </dl></details>
         {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}

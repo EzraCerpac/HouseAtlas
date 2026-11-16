@@ -82,6 +82,18 @@
   gap: 8px;
 }
 
+/* An unavailable action and its reason, kept together when the row wraps. */
+.lantern-host .write-action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.lantern-host .write-action .fine {
+  margin: 0;
+}
+
 .lantern-host .detail-body {
   padding: 2px 22px 36px;
 }
@@ -610,6 +622,24 @@
   border-style: dashed;
 }
 
+/* An open task while Mark done is unavailable: a due-state dot, not a box to tick. */
+.lantern-host .task-mark.task-mark-status {
+  width: 8px;
+  height: 8px;
+  margin: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hair-2);
+}
+
+.lantern-host .due-overdue .task-mark-status {
+  background: var(--alert);
+}
+
+.lantern-host .due-soon .task-mark-status {
+  background: var(--l-upkeep);
+}
+
 .lantern-host .due-text.due-overdue {
   color: var(--alert);
   font-weight: 600;
@@ -980,6 +1010,70 @@
   color: var(--muted);
 }
 
+/* A view still loading: its known headings over three quiet rows that claim
+   no data and fade toward the bottom, breathing slowly until the view arrives. */
+.lantern-host .loading-section + .loading-section {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hair-2);
+}
+
+.lantern-host .loading-status {
+  margin: 0 0 12px;
+}
+
+.lantern-host .loading-rows {
+  display: block;
+  animation: loading-breathe 1.4s ease-in-out infinite alternate;
+}
+
+.lantern-host .loading-rows i {
+  display: block;
+  height: 64px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .loading-rows i::before,
+.lantern-host .loading-rows i::after {
+  content: '';
+  display: block;
+  width: min(44%, 260px);
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hair) 70%, transparent);
+}
+
+.lantern-host .loading-rows i::after {
+  width: min(26%, 160px);
+  height: 8px;
+  margin-top: 10px;
+}
+
+.lantern-host .loading-rows i:nth-child(2) {
+  opacity: 0.65;
+}
+
+.lantern-host .loading-rows i:nth-child(2)::before {
+  width: min(34%, 210px);
+}
+
+.lantern-host .loading-rows i:nth-child(3) {
+  opacity: 0.35;
+}
+
+@keyframes loading-breathe {
+  to {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern-host .loading-rows {
+    animation: none;
+  }
+}
+
 /* The saved Network relations' standing qualifier, above their tabs. */
 .lantern-host .network-sources-note {
   margin: 0 0 14px;
@@ -1206,9 +1300,35 @@
 
 /* Upkeep timeline */
 
-/* Empty groups, reference date and cache state: one line under the note. */
-.lantern-host .upkeep-status {
-  margin: 6px 0 0;
+/* Mark done's limitation: one small line under the dates it shares the heading with. */
+.lantern-host .view-head .upkeep-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* The empty groups, named once as a row of zero counts above the timeline. */
+.lantern-host .upkeep-empty {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.lantern-host .upkeep-empty li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.lantern-host .upkeep-empty .section-count {
+  font-size: inherit;
 }
 
 .lantern-host .overview-asof {
@@ -1583,11 +1703,14 @@
   margin: 8px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  /* auto-fit: a single file is not left beside an empty column; rows are
+     capped so a lone row's action stays near its title. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
   gap: 0 36px;
 }
 
 .lantern-host .lib-row {
+  max-width: 720px;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 4px 14px;

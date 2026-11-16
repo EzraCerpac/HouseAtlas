@@ -796,10 +796,10 @@ try {
   await survey.click();
   const documentDialog = production.getByRole('dialog', { name: 'Synthetic parcel survey' });
   await documentDialog.waitFor();
-  assert.equal(await documentDialog.getByRole('button', { name: 'Qualified preview', exact: true }).getAttribute('aria-pressed'), 'true');
-  await documentDialog.getByRole('img', { name: 'Qualified preview of Synthetic parcel survey' }).waitFor();
+  assert.equal(await documentDialog.getByRole('button', { name: 'Preview', exact: true }).getAttribute('aria-pressed'), 'true');
+  await documentDialog.getByRole('img', { name: 'Preview of Synthetic parcel survey' }).waitFor();
   await production.waitForFunction(() => {
-    const image = document.querySelector('img[alt="Qualified preview of Synthetic parcel survey"]');
+    const image = document.querySelector('img[alt="Preview of Synthetic parcel survey"]');
     return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0;
   });
   assert.match(await documentDialog.innerText(), /Synthetic Survey Office/);
