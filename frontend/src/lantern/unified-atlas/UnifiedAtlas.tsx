@@ -28,7 +28,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRooms, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRooms, nextUnnamedSnapshot, type UnnamedSnapshot, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -1229,9 +1229,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // the stage and sets names aside.
   const unnamedNow = (undrawn ? [] : unnamedRooms(live, id => id === selected || context.includes(id)
     || plainLabelInFocus(model, presentation, id), drawnStageLabels(labels, hitBoxes, coarse))).join('\n');
-  const [unnamedKey, setUnnamed] = useState('');
-  useLayoutEffect(() => { if (!sheetOpen) setUnnamed(unnamedNow); }, [sheetOpen, unnamedNow]);
-  const unnamed = useMemo(() => new Set(unnamedKey ? unnamedKey.split('\n') : []), [unnamedKey]);
+  // Held for one view and scope: retaken or cleared when either changes.
+  const unnamedScope = `${state.view}\n${state.buildingId}\n${state.levelId}\n${state.exploded}`;
+  const [unnamedHeld, setUnnamed] = useState<UnnamedSnapshot>({ scope: '', ids: '' });
+  useLayoutEffect(() => { setUnnamed(held => nextUnnamedSnapshot(held, unnamedScope, unnamedNow, sheetOpen)); }, [sheetOpen, unnamedNow, unnamedScope]);
+  const unnamed = useMemo(() => new Set(unnamedHeld.scope === unnamedScope && unnamedHeld.ids ? unnamedHeld.ids.split('\n') : []), [unnamedHeld, unnamedScope]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.

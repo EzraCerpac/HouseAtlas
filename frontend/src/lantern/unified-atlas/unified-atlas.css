@@ -2858,7 +2858,18 @@
   .lantern-host .ua-stack.is-chip .ua-stack-head { min-height: 44px; padding: 4px 10px 4px 9px; border-radius: 14px; }
   .lantern-host .ua-stack.is-chip .ua-stack-building { font: 650 var(--fs-s)/1.2 var(--text); color: var(--ink-2); }
   .lantern-host .ua-stack.is-chip .ua-stack-head:has(.ua-stack-floor) > .ua-stack-mark { display: none; }
-  .lantern-host .ua-stack.is-chip .ua-stack-floor { order: -1; min-width: max-content; overflow: visible; line-height: 1.15; }
+  /* The floor takes the width the chip has, then a second line, then an ellipsis;
+     the chip's accessible name keeps the whole name. */
+  .lantern-host .ua-stack.is-chip .ua-stack-floor {
+    order: -1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+  }
   .lantern-host .ua-stack.is-chip .ua-stack-building:has(~ .ua-stack-floor) { font: 600 var(--fs-xs)/1.15 var(--text); color: var(--muted); }
   .lantern-host .ua-stack-chevron { flex: none; color: var(--muted); transition: transform 0.2s ease; }
   .lantern-host .ua-stack.is-open .ua-stack-head { background: var(--ink); color: #fff; }
