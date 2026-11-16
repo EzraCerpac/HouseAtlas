@@ -126,7 +126,7 @@ export function LibraryView() {
           ))}
         </div>
         {docs.length === 0 ? (
-          <Empty>No HomeBox files of this kind for this home.</Empty>
+          <Empty>No HomeBox files of this kind supplied for this home.</Empty>
         ) : (() => {
           const rows = docs.map(d => ({ d, qualifiers: docQualifiers(d, projection.entries.get(d.id)) }));
           const [first, ...rest] = rows.map(row => new Set(row.qualifiers));

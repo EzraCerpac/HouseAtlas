@@ -137,7 +137,7 @@ function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'
         <button type="button" className="row-title" onClick={() => choose({ id: record.id,
           kind: entry.kind === 'place' ? 'space' : entry.kind === 'unknown' ? 'unknown' : 'item' })}>{record.name || 'Unnamed source record'}</button>
         <span className="row-meta">Entity archived: {entry.entity.archived ? 'yes' : 'no'} · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
-      </li>)}</ul> : <p className="empty">No archived records for this home.</p>}
+      </li>)}</ul> : <p className="empty">No archived records supplied for this home.</p>}
     </details>}
   </section>;
 }

@@ -568,7 +568,7 @@ function ItemDetail({ item }: { item: Item }) {
             <p className="fine">Documented connection, not a traced cable route.</p>
           </>
         ) : (
-          <Empty>No documented outlet for this belonging.</Empty>
+          <Empty>No outlets supplied for this belonging.</Empty>
         )}
       </Section>}
       {device && (
@@ -1018,7 +1018,7 @@ function TaskDetail({ t }: { t: Task }) {
       </Section>
       {t.status === 'done' && (
         <Section title="Evidence" count={evidence.length}>
-          <DocList docs={evidence} empty="No completion evidence linked to this task." />
+          <DocList docs={evidence} empty="Completion evidence was not supplied for this task." />
         </Section>
       )}
       <Section title="Earlier for the same record">

@@ -147,7 +147,7 @@ export function RoomIndex() {
             No reviewed placement
           </h2>
           {topology.buildingId !== null && <p className="body-text muted">Whole home, not filtered by building</p>}
-          <p className="body-text muted">These records have no reviewed position on a plan.</p>
+          <p className="body-text muted">In saved information, these records have no reviewed position on a plan.</p>
           <div className="unplaced-grid">
             <div>
               <h3>Belongings without a reviewed room</h3>
@@ -271,7 +271,7 @@ function GeometryMetadata() {
                 <div><dt>Mapping status</dt><dd>{mapping.reviewStatus}</dd></div>
                 <div><dt>Atlas identity ID</dt><dd>{mapping.atlasId}</dd></div>
                 <div><dt>HomeBox source reference</dt><dd>{ref ? `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}` : 'Not supplied'}</dd></div>
-                <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact HomeBox place reference in saved information'}</dd></div>
+                <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact match among the HomeBox places listed here'}</dd></div>
                 <div><dt>Mapping evidence IDs</dt><dd>{mapping.evidenceIds.join(', ')}</dd></div>
               </dl>{mapping.evidenceIds.map(evidenceId => <LinkedEvidence key={evidenceId} evidenceId={evidenceId} />)}</div>;
             })}
