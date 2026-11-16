@@ -2046,5 +2046,23 @@ for (const source of [section, scope]) assert.doesNotMatch(source, /messages\[(s
   const contents = homeboxContents(entries, room);
   assert.deepEqual(contents.belongings.map(row => row.id), ['it-lamp']);
   assert.equal(contents.innerPlaces, 1);
+
+  // Retained records keep their state: confirmed-deleted, unresolved, unreviewed
+  // and archived belongings are flagged and listed after present ones; archived
+  // ones appear only while archive visibility includes them.
+  const kept = (name, sourceState, archived = false) => ({ ...child(name, 'item', room.entity.id), sourceState,
+    entity: { ...room.entity, id: name, name, parent: { id: room.entity.id }, archived } });
+  const stated = { ...fixture.view, entries: [...fixture.view.entries, kept('deleted-chair', 'confirmed-deleted'), kept('unresolved-rug', 'unresolved'),
+    kept('unreviewed-vase', 'unreviewed'), kept('archived-lamp', 'archived', true), kept('present-desk', 'present')] };
+  const listed = includeArchived => {
+    const entries = [...projectView(stated, undefined, undefined, null, includeArchived).entries].filter(([id]) => id.startsWith('it-') || id.startsWith('sp-'));
+    return homeboxContents(entries, room).belongings.map(row => [row.entry.entity.name, row.flagged]);
+  };
+  assert.deepEqual(listed(false), [['present-desk', false], ['deleted-chair', true], ['unresolved-rug', true], ['unreviewed-vase', true]]);
+  assert.deepEqual(listed(true), [['present-desk', false], ['deleted-chair', true], ['unresolved-rug', true], ['unreviewed-vase', true], ['archived-lamp', true]]);
+  // The panel names each flagged row's state through the shared RecordStatus and counts flagged rows apart.
+  const inspector = readFileSync(new URL('../src/lantern/unified-atlas/AtlasInspector.tsx', import.meta.url), 'utf8');
+  assert.match(inspector, /row\.flagged && <span className="ua-belonging-state"><RecordStatus entry=\{row\.entry\} compact \/>/);
+  assert.match(inspector, /Show all \{state\.belongings\.length\.toLocaleString\(\)\}\{flagged > 0 && `, \$\{flagged\.toLocaleString\(\)\} flagged`\}/);
 }
-console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only');
+console.log('PASS room belongings join: complete reviewed source key only; other collection/source, unreviewed, retired, tombstoned, incomplete key, other kind, ambiguous, equal-looking ID and other home never join; direct contents only; deleted, unresolved, unreviewed and archived (archive visibility on and off) records flagged after present ones');

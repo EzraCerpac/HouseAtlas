@@ -2690,7 +2690,9 @@ through an active, accepted binding on the complete source key in the view's
 scope: another collection or source instance, a proposed, retired or
 tombstoned binding, an incomplete key, another source kind, two places, an
 Atlas ID equal to a HomeBox ID without a binding and another home never join;
-contents are HomeBox's direct children only.
+contents are HomeBox's direct children only, with confirmed-deleted, unresolved,
+unreviewed and archived records (archive visibility on and off) flagged after
+present ones.
 Inspect its body and imports before running this local command:
 
 ```sh

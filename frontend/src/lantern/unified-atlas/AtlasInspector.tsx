@@ -14,7 +14,8 @@ import type { ElectricalGroup } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { ElectricalTraceDetail } from './ElectricalTraceDetail';
 import type { TopologyFailure } from '../../api/topology-client';
-import type { CacheStatus } from '../../app/types';
+import type { CacheStatus, Entry } from '../../app/types';
+import { RecordStatus } from '../../app/components';
 import { InlineTime } from '../components/ui';
 
 /** What saved HomeBox information lists for a selected room's reviewed
@@ -23,7 +24,9 @@ export type RoomBelongingsState =
   | { readonly status: 'loading' | 'not-readable' | 'unlinked' | 'ambiguous' | 'absent' }
   | { readonly status: 'failed'; readonly reason: TopologyFailure }
   | { readonly status: 'linked'; readonly place: string; readonly innerPlaces: number;
-    readonly belongings: readonly { readonly id: string; readonly name: string; readonly detail: string }[];
+    /** Present and active records first; `flagged` ones are archived,
+     * confirmed deleted, unresolved or awaiting review, and say so. */
+    readonly belongings: readonly { readonly id: string; readonly name: string; readonly detail: string; readonly entry: Entry; readonly flagged: boolean }[];
     /** The HomeBox copy's state and last successful update, as Sources shows them. */
     readonly cache: { readonly status: CacheStatus; readonly at: string | null } | null };
 /** The live host's building records for a selected room. `request` starts
@@ -274,9 +277,11 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
     : state.status === 'linked' && state.belongings.length === 0 ? 'None listed in saved HomeBox information.' : null;
   const canRetry = (state.status === 'failed' && RETRY.has(state.reason)) || (retrying && state.status === 'loading');
   const shown = state.status === 'linked' ? all ? state.belongings : state.belongings.slice(0, BELONGINGS_SHOWN) : [];
+  const flagged = state.status === 'linked' ? state.belongings.filter(row => row.flagged).length : 0;
   return <section className="ua-contents ua-belongings" aria-labelledby={headingId}>
     <h3 className="ua-contents-title" id={headingId} ref={heading} tabIndex={-1}>Belongings</h3>
     {state.status === 'linked' && <p className="ua-belongings-scope">Recorded directly in HomeBox place {state.place}
+      {flagged > 0 && `; ${flagged === state.belongings.length ? flagged === 1 ? 'the only belonging is' : `all ${flagged} are` : `${flagged} of ${state.belongings.length} ${flagged === 1 ? 'is' : 'are'}`} archived, deleted, unresolved or awaiting review`}
       {state.innerPlaces > 0 && `; belongings in its ${plural(state.innerPlaces, 'inner place')} are not listed`}</p>}
     {text && <p className="ua-contents-pending" role={state.status === 'loading' || state.status === 'failed' ? 'status' : undefined}>{text}</p>}
     {canRetry && <button type="button" className="text-btn ua-belongings-more" aria-disabled={state.status === 'loading' || undefined}
@@ -284,10 +289,11 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
     {shown.length > 0 && <ul ref={list}>{shown.map(row => <li key={row.id}>
       <button type="button" className="ua-belonging" onClick={() => source?.open(row.id)}>
         <Icon name="box" size={15} /><span><span className="ua-belonging-name">{row.name}</span>
-          {row.detail && <span className="ua-belonging-detail">{row.detail}</span>}</span></button></li>)}</ul>}
+          {row.detail && <span className="ua-belonging-detail">{row.detail}</span>}
+          {row.flagged && <span className="ua-belonging-state"><RecordStatus entry={row.entry} compact /></span>}</span></button></li>)}</ul>}
     {state.status === 'linked' && state.belongings.length > shown.length && <button type="button" className="text-btn ua-belongings-more"
       onClick={() => { setAll(true); requestAnimationFrame(() => list.current?.querySelectorAll('button')[BELONGINGS_SHOWN]?.focus()); }}>
-      Show all {state.belongings.length.toLocaleString()}</button>}
+      Show all {state.belongings.length.toLocaleString()}{flagged > 0 && `, ${flagged.toLocaleString()} flagged`}</button>}
     {state.status === 'linked' && <p className="ua-belongings-source">Read-only from HomeBox{state.cache
       ? <> · {state.cache.status.replace(/-/g, ' ')}, last successful update {state.cache.at ? <InlineTime value={state.cache.at} /> : 'unknown'}</> : ''}</p>}
   </section>;

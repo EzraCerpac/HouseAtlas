@@ -189,7 +189,7 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
       const cache = caches.find(row => row.sourceInstanceId === place.source.sourceInstanceId && row.collectionId === place.source.collectionId)
         ?? (caches.length === 1 ? caches[0]! : null);
       return { status: 'linked', place: place.entity.name.trim() || 'Unnamed place', innerPlaces,
-        belongings: belongings.map(({ id, entry }) => ({ id, name: entry.entity.name.trim() || 'Unnamed belonging',
+        belongings: belongings.map(({ id, entry, flagged }) => ({ id, entry, flagged, name: entry.entity.name.trim() || 'Unnamed belonging',
           detail: [entry.entity.entityType?.name, entry.entity.quantity === null ? null : `Quantity ${entry.entity.quantity}`].filter(Boolean).join(' · ') })),
         cache: cache ? { status: cache.displayStatus, at: cache.lastSuccessfulFetchAt ?? null } : null };
     };

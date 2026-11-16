@@ -1859,6 +1859,7 @@
 .lantern-host .ua-belonging > span { display: grid; min-width: 0; }
 .lantern-host .ua-belonging-name { font-weight: 650; font-size: var(--fs-s); line-height: 1.3; overflow-wrap: anywhere; }
 .lantern-host .ua-belonging-detail { color: var(--muted); font-size: var(--fs-xs); line-height: 1.3; overflow-wrap: anywhere; }
+.lantern-host .ua-belonging-state { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .lantern-host .ua-belongings-more { justify-self: start; }
 .lantern-host .ua-belongings-more[aria-disabled="true"] { color: var(--muted); cursor: default; }
 .lantern-host .ua-belongings-source { margin: 0; color: var(--muted); font-size: var(--fs-xs); }

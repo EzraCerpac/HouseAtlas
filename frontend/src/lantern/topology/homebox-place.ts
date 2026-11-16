@@ -28,18 +28,23 @@ export function homeboxPlaceOf(index: TopologyIndex, view: ReadyView, atlasPlace
   return places.length === 1 ? { status: 'linked', place: places[0]! } : { status: places.length ? 'ambiguous' : 'absent' };
 }
 
+/** A retained record HomeBox no longer holds as present and active:
+ * archived, confirmed deleted, unresolved or awaiting review. */
+export const flaggedRecord = (entry: Entry) => entry.entity.archived || entry.sourceState !== 'present';
+
 /** HomeBox's own parentage within the place's source collection: entries
- * recorded directly in the place. Places inside it are counted, and their
- * belongings are not included. */
+ * recorded directly in the place, present and active ones first, then
+ * flagged ones (each in source order). Places inside it are counted, and
+ * their belongings are not included. */
 export function homeboxContents(entries: Iterable<readonly [string, Entry]>, place: Entry) {
-  const belongings: { readonly id: string; readonly entry: Entry }[] = [];
+  const belongings: { readonly id: string; readonly entry: Entry; readonly flagged: boolean }[] = [];
   let innerPlaces = 0;
   for (const [id, entry] of entries) {
     if (entry.workspaceId !== place.workspaceId || entry.homeId !== place.homeId || entry.source.sourceInstanceId !== place.source.sourceInstanceId
       || entry.source.collectionId !== place.source.collectionId || entry.source.sourceKind !== place.source.sourceKind
       || entry.entity.parent?.id !== place.entity.id) continue;
-    if (entry.kind === 'item') belongings.push({ id, entry });
+    if (entry.kind === 'item') belongings.push({ id, entry, flagged: flaggedRecord(entry) });
     else if (entry.kind === 'place') innerPlaces++;
   }
-  return { belongings, innerPlaces };
+  return { belongings: [...belongings.filter(row => !row.flagged), ...belongings.filter(row => row.flagged)], innerPlaces };
 }
