@@ -229,7 +229,7 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null,
           })}</ul>}
       </section>;
     })}
-    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected: {coverage.unselectableCount === 1 ? 'it is' : 'they are'} published without a complete pick shape and plan outline.</p>}
+    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected.</p>}
   </div>;
 }
 

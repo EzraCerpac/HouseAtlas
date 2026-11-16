@@ -255,6 +255,12 @@ test('label actions use their full mounted targets and reserve surviving enlarge
   assert.deepEqual(api.visibleLabelHits(rows, size, [panel], []), [rows[0]]);
   assert.equal(api.labelHitWidth('a'), 44); assert.equal(api.labelHitWidth('A'.repeat(40)), 292);
   assert.equal(api.labelHitTarget(rows[0]).b - api.labelHitTarget(rows[0]).t, 32);
+  // A measured long name near the stage edge keeps its action target: the estimate would overrun the stage.
+  { const long = label('long', 100, 'W'.repeat(40));
+    assert.deepEqual(api.visibleLabelHits([long], size, [], []), [], 'the estimated target overruns the stage');
+    assert.deepEqual(api.visibleLabelHits([long], size, [], [], () => 150), [long]);
+    const hit = api.labelHitTarget(long, 150); assert.equal(hit.r - hit.l, 162); assert.equal(api.stageHitWidth(long, 150), 162);
+    assert.equal(api.stageHitWidth(label('s', 150), 10), 44); }
 });
 
 test('3D names reserve their whole measured chip, however long the floor name', () => {
