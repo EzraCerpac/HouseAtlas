@@ -86,7 +86,8 @@ export const SYNTHETIC_ATLAS = Object.freeze({
   revision: 'fixture-7',
   origin: 'https://atlas-fixture.invalid',
 });
-const PLACE = (n: number) => `00000000-0000-4000-8000-0000000a71${n.toString(16).padStart(2, '0')}`;
+/** Generated Atlas place IDs; no HomeBox fixture uses this range. */
+export const PLACE = (n: number) => `00000000-0000-4000-8000-0000000a71${n.toString(16).padStart(2, '0')}`;
 const RECEIPT = 'c'.repeat(64);
 
 // World offsets: Site (100,0,50) > House (+2,0,+1) > Room picks (+1,0,+1); Site > Studio (+20,0,0).

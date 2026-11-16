@@ -4,7 +4,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
-import { useReducedMotion, useStore } from '../state/store';
+import { useReducedMotion, useSelect, useStore } from '../state/store';
+import { kindOf } from '../data/query';
+import type { TopologyContext } from '../topology/TopologyProvider';
+import { homeboxPlaceOf, homeboxPlaceRecords } from '../topology/homebox-place';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
@@ -43,7 +46,7 @@ import { NetworkStageConnections, networkRoomConnections } from './NetworkStageC
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
-import { Inspector, listedLevels, RoomList } from './AtlasInspector';
+import { Inspector, listedLevels, RoomList, type RoomBelongingsSource, type RoomBelongingsState } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
@@ -132,6 +135,9 @@ export interface AtlasPresentationEnvironment {
    * replaced or withdrawn with that frame. Otherwise a current frame's own
    * projection for the selected group's ledger is used (only the example house supplies one). */
   readonly electricalData?: ElectricalTraceSource;
+  /** The live host's building records for a selected room's belongings;
+   * absent in a saved copy, whose card lists none (it does not read the copy's held records). */
+  readonly roomBelongings?: RoomBelongingsSource;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
@@ -139,18 +145,55 @@ interface AtlasProps {
   readonly environment?: AtlasPresentationEnvironment;
   /** The live host's lens; an explicit environment supplies its own. */
   readonly lens?: AtlasLensHost;
+  /** The live host's building records (its topology provider). */
+  readonly buildingRecords?: Pick<TopologyContext, 'activate' | 'reload' | 'readable' | 'index' | 'status'>;
 }
 export default function UnifiedAtlas(props: AtlasProps) {
   return props.environment ? <AtlasPresentation {...props} environment={props.environment} /> : <LiveAtlasPresentation {...props} />;
 }
 function LiveAtlasPresentation(props: AtlasProps) {
-  const { dispatch, actions } = useStore(), reducedMotion = useReducedMotion();
+  const { dispatch, actions, projection } = useStore(), reducedMotion = useReducedMotion(), select = useSelect();
+  const roomBelongings = useRoomBelongings(props.buildingRecords, projection, select);
   // Open Network routes to the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
     openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
     ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}),
-    ...(props.lens ? { lens: props.lens } : {}) }} />;
+    ...(props.lens ? { lens: props.lens } : {}),
+    ...(roomBelongings ? { roomBelongings } : {}) }} />;
+}
+
+/** A selected room with a reviewed Atlas place asks for the home's building
+ * records once; the read is the provider's own and is held while this Atlas
+ * stays mounted, so later rooms reuse it. Browsing, hovering and the room
+ * list ask for nothing. Belongings come from the Home records already loaded
+ * (archive choice applied), joined only through a reviewed binding. */
+function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: ReturnType<typeof useStore>['projection'],
+  select: (id: string) => void): RoomBelongingsSource | undefined {
+  const [wanted, setWanted] = useState(false);
+  const activate = records?.activate;
+  useEffect(() => wanted && activate ? activate() : undefined, [wanted, activate]);
+  const index = records?.index ?? null, status = records?.status, readable = records?.readable ?? false, reload = records?.reload;
+  return useMemo(() => {
+    if (!reload) return undefined;
+    const contents = [...projection.entries].filter(([id]) => { const kind = kindOf(id); return kind === 'item' || kind === 'space' || kind === 'unknown'; });
+    const read = (atlasPlaceId: string): RoomBelongingsState => {
+      if (!readable) return { status: 'not-readable' };
+      if (!wanted || status === 'loading' || status === undefined) return { status: 'loading' };
+      if (status !== 'ready') return { status: 'failed', reason: status };
+      if (!index) return { status: 'loading' };
+      const link = homeboxPlaceOf(index, projection.view, atlasPlaceId);
+      if (link.status !== 'linked') return { status: link.status };
+      const { place } = link, records = homeboxPlaceRecords(place, contents, projection.view.caches);
+      if (records.hidden) return { status: 'archived-hidden' };
+      const { belongings, innerPlaces, cache } = records;
+      return { status: 'linked', place: place.entity.name.trim() || 'Unnamed place', placeEntry: place, placeFlagged: records.flagged, innerPlaces,
+        belongings: belongings.map(({ id, entry, flagged, unclassified }) => ({ id, entry, flagged, name: entry.entity.name.trim() || 'Unnamed record',
+          detail: [unclassified ? 'Unclassified record' : entry.entity.entityType?.name, entry.entity.quantity === null ? null : `Quantity ${entry.entity.quantity}`].filter(Boolean).join(' · ') })),
+        cache: cache ? { status: cache.displayStatus, at: cache.lastSuccessfulFetchAt ?? null } : null };
+    };
+    return { request: () => setWanted(true), retry: reload, open: select, read };
+  }, [index, status, readable, reload, wanted, projection, select]);
 }
 
 /** While the room map is not open, the lens panel still says why the model's
@@ -1818,7 +1861,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
-      openDocuments={environment.openDocuments}
+      openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
       openNetwork={environment.openNetwork} />
 
     {/* This model's own part of the host lens: its rooms, chosen as on the

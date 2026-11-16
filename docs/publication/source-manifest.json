@@ -1566,6 +1566,7 @@
     {"path":"frontend/src/lantern/topology/NativePlaceEditor.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/NativePlaceEvidence.tsx","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/TopologyProvider.tsx","mode":"100644","owner":"web"},
+    {"path":"frontend/src/lantern/topology/homebox-place.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/model.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/topology/search.ts","mode":"100644","owner":"web"},
     {"path":"frontend/src/lantern/unified-atlas/AtlasInspector.tsx","mode":"100644","owner":"web"},

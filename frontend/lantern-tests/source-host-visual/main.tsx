@@ -20,7 +20,8 @@ import { readSavedDocumentaryPreview, savedDocumentaryInputPath } from '../../in
 import fixture from '../core-read-visual/fixture.json';
 import { createSyntheticDocumentServer } from './synthetic-documents';
 import { createSyntheticSitePort } from './synthetic-site';
-import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../unified-atlas/synthetic-atlas';
+import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, PLACE, SYNTHETIC_ATLAS } from '../unified-atlas/synthetic-atlas';
+import type { TopologyClient, TopologyKind, TopologyRecord } from '../../src/api/topology-client';
 import type { SourceModelPort } from '../../src/lantern/source-ports';
 import type { ModelOverviewSelection } from '../../src/lantern/source-models/overview-types';
 import { StageTimings } from '../stage-timings/StageTimings';
@@ -169,12 +170,41 @@ async function sourceModels(): Promise<SourceModelPort> {
   };
 }
 
+/** `topology=counted`: generated building records in this fixture's scope.
+ * Hall's Atlas place (PLACE(10)) has a reviewed binding to the fixture's
+ * "Direct room" HomeBox place, whose IDs are distinct; Living room's place
+ * (PLACE(11)) has none. One generated belonging is recorded in Direct room.
+ * Every list call's kind is kept on the root element for the regression flow. */
+function countedTopology(): { readonly topology: TopologyClient; readonly view: ReadyView } {
+  const view = fixture.view as ReadyView, place = view.entries.find(entry => entry.entity.name === 'Direct room')!;
+  const id = '00000000-0000-4000-8000-0000000b7401';
+  const toolbox = { ...place, kind: 'item' as const, semanticKind: 'unclassified' as const, key: JSON.stringify([scope.workspaceId, scope.homeId, place.source.sourceInstanceId, place.source.collectionId, 'homebox-entity', id]),
+    source: { ...place.source, externalId: id }, entity: { ...place.entity, id, name: 'Generated toolbox', parent: { id: place.entity.id },
+      entityType: { id: '00000000-0000-4000-8000-0000000b7402', name: 'Tools', isLocation: false }, quantity: '1' } };
+  const identity = (n: number): TopologyRecord<'identity'> => ({ target: { authority: 'atlas', recordType: 'identity', recordId: PLACE(n) }, revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [] } });
+  const records: Partial<Record<TopologyKind, readonly unknown[]>> = { identity: [identity(10), identity(11)],
+    binding: [{ target: { authority: 'atlas', recordType: 'binding', recordId: '00000000-0000-4000-8000-0000000b7403' }, revision: 1, lifecycle: 'active',
+      payload: { atlasId: PLACE(10), source: { ...place.source }, reviewStatus: 'accepted', sourceState: 'present', evidenceIds: [] } } satisfies TopologyRecord<'binding'>] };
+  const lists: string[] = [], frozen = Object.freeze({ scope });
+  const topology: TopologyClient = { getBinding: () => frozen, subscribe: () => () => {},
+    async listAll<K extends TopologyKind>(_binding: unknown, kind: K, signal: AbortSignal) {
+      signal.throwIfAborted(); lists.push(kind); document.documentElement.dataset.topologyLists = JSON.stringify(lists);
+      return { status: 'ready' as const, sourceStatus: 'current' as const, snapshotSha256: 'd'.repeat(64), records: (records[kind] ?? []) as readonly TopologyRecord<K>[] };
+    },
+    async buildingMembers(_binding, _buildingId, signal) {
+      signal.throwIfAborted(); lists.push('building-members'); document.documentElement.dataset.topologyLists = JSON.stringify(lists);
+      return { status: 'ready', sourceStatus: 'current', snapshotSha256: 'd'.repeat(64), records: [] };
+    } };
+  return { topology, view: { ...view, entries: [...view.entries, toolbox] } };
+}
+const counted = params.get('topology') === 'counted' ? countedTopology() : null;
+
 const root = createRoot(document.getElementById('root')!);
 const electricalMode = new URLSearchParams(location.search).get('electrical-library');
 const electrical = electricalMode === 'generated' || electricalMode === 'unavailable'
   ? createSyntheticElectricalLibrary() : Promise.resolve(null);
 void Promise.all([sourceModels(), electrical]).then(([models, library]) => {
-  const host = <LanternHost view={library?.view ?? fixture.view as ReadyView}
+  const host = <LanternHost view={counted?.view ?? library?.view ?? fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
     session: { ...(library?.session ?? session), signOut: async () => {} } }}
   {...(library ? { topology: library.topology, sourceElectricalLibrary: {
@@ -183,6 +213,7 @@ void Promise.all([sourceModels(), electrical]).then(([models, library]) => {
       return electricalMode === 'unavailable' ? { ...reader, createDrawingClient() { throw new Error('Generated drawing source unavailable'); } } : reader;
     },
   } } : {})}
+  {...(counted ? { topology: counted.topology } : {})}
   nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />;
   root.render(drawingControl ? <OverlayFeedEnvironmentContext.Provider value={drawingControl.environment}>{host}</OverlayFeedEnvironmentContext.Provider> : host);
 },

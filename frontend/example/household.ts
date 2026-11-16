@@ -4,9 +4,12 @@
  * and nested as the companion lists them. A room on several floors sits under
  * the floor of its first selectable part. The HomeBox copy is stale and its
  * source update times unknown; the reading lamp has one stored manual
- * (./files) and two upkeep entries, the stool a quantity of 2. Every identifier is generated here. */
+ * (./files) and two upkeep entries, the stool a quantity of 2. Building
+ * records (exampleTopology) link three rooms' Atlas places to their HomeBox
+ * places through reviewed bindings. Every identifier is generated here. */
 import type { Entry, Maintenance, ReadyView } from '../src/app/types';
 import type { AtlasAction } from '../src/lantern/unified-atlas/scene';
+import type { TopologyBinding, TopologyClient, TopologyKind, TopologyRead, TopologyRecord } from '../src/api/topology-client';
 import { LAMP_MANUAL } from './files';
 
 export const EXAMPLE_LABEL = 'Synthetic example house';
@@ -25,12 +28,16 @@ export interface ExampleCompanion {
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
   readonly buildings: readonly Readonly<{ buildingId: string; label: string; nativePlaceId: string | null; levelIds: readonly string[] }>[];
   readonly levels: readonly Readonly<{ levelId: string; buildingId: string; label: string }>[];
-  readonly rooms: readonly Readonly<{ roomId: string; label: string; occurrenceIds: readonly string[] }>[];
+  readonly rooms: readonly Readonly<{ roomId: string; label: string; nativePlaceId: string | null; occurrenceIds: readonly string[] }>[];
   readonly occurrences: readonly Readonly<{ spaceOccurrenceId: string; levelId: string }>[];
   readonly coverage: Readonly<{ selectableOccurrences: readonly string[] }>;
 }
 
 export function exampleHomeView(companion: ExampleCompanion): ReadyView {
+  return homeRecords(companion).view;
+}
+
+function homeRecords(companion: ExampleCompanion): { view: ReadyView; placeIds: ReadonlyMap<string, string> } {
   const { workspaceId, homeId } = companion.scope;
   const entries: Entry[] = [], ids = new Map<string, string>();
   const place = (sourceId: string, name: string, semanticKind: Entry['semanticKind'], parent: string | null) => {
@@ -80,12 +87,46 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
       networkBound: false, networkStates: [], networkRelations: [],
     });
   }
-  return {
+  return { placeIds: ids, view: {
     status: 'ready', scope: { workspaceId, homeId }, homeLabel: EXAMPLE_LABEL, now: RETRIEVED, canEdit: false,
     homes: [{ workspaceId, homeId, label: EXAMPLE_LABEL }], entries,
     caches: [{ owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: SOURCE, collectionId: COLLECTION,
       lastSuccessfulFetchAt: RETRIEVED }],
-  };
+  } };
+}
+
+/** Example rooms whose Atlas place has a building record, and whether a
+ * reviewed binding links that place to the room's HomeBox place: Living room
+ * (linked; the reading lamp is recorded there), Hall (linked; nothing is
+ * recorded directly there) and Bathroom (no binding). Atlas place IDs come
+ * from the companion and HomeBox IDs from the Home records above; the two
+ * never share an ID, and only the binding's complete source key joins them. */
+const EXAMPLE_ROOM_LINKS = [['syn-room-living', true], ['syn-room-hall', true], ['syn-room-bath', false]] as const;
+
+/** The example's building records: the electrical example's own records with
+ * one location identity and reviewed room classification per room above, and
+ * a reviewed HomeBox binding for each linked one. In-page records only. */
+export function exampleTopology(companion: ExampleCompanion, base: TopologyClient): TopologyClient {
+  const { view, placeIds } = homeRecords(companion);
+  const extra: { [K in 'identity' | 'binding' | 'location-semantics']: TopologyRecord<K>[] } = { identity: [], binding: [], 'location-semantics': [] };
+  EXAMPLE_ROOM_LINKS.forEach(([roomId, linked], at) => {
+    const room = companion.rooms.find(row => row.roomId === roomId), atlasId = room?.nativePlaceId;
+    const place = view.entries.find(entry => entry.entity.id === placeIds.get(roomId));
+    if (!room || !atlasId || !place || view.entries.some(entry => entry.entity.id === atlasId || entry.source.externalId === atlasId)) throw new Error(`Example room link is unusable: ${roomId}`);
+    const record = (n: number) => `00000000-0000-4000-8000-0000000a72${(n * 16 + at).toString(16).padStart(2, '0')}`;
+    extra.identity.push({ target: { authority: 'atlas', recordType: 'identity', recordId: atlasId }, revision: 1, lifecycle: 'active',
+      payload: { kind: 'location', evidenceIds: [] } });
+    extra['location-semantics'].push({ target: { authority: 'atlas', recordType: 'location-semantics', recordId: record(1) }, revision: 1, lifecycle: 'active',
+      payload: { atlasId, semanticKind: 'room', label: room.label, reviewStatus: 'accepted', evidenceIds: [] } });
+    if (linked) extra.binding.push({ target: { authority: 'atlas', recordType: 'binding', recordId: record(2) }, revision: 1, lifecycle: 'active',
+      payload: { atlasId, source: { ...place.source }, reviewStatus: 'accepted', sourceState: 'present', evidenceIds: [] } });
+  });
+  return { ...base,
+    async listAll<K extends TopologyKind>(binding: TopologyBinding, kind: K, signal: AbortSignal): Promise<TopologyRead<K>> {
+      const read = await base.listAll(binding, kind, signal);
+      const more = (extra as Partial<Record<TopologyKind, readonly TopologyRecord<TopologyKind>[]>>)[kind] as readonly TopologyRecord<K>[] | undefined;
+      return read.status === 'ready' && more ? { ...read, records: [...read.records, ...more] } : read;
+    } };
 }
 
 /** The Atlas starting view named by `building`, `floor`, `room` and `view`

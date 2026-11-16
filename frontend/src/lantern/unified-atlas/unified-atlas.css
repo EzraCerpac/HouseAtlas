@@ -1832,6 +1832,43 @@
 .lantern-host .ua-contents-row.is-off > .icon,
 .lantern-host .ua-contents-row.is-off .ua-contents-name { color: var(--muted); }
 
+/* Belongings HomeBox records directly in the room's reviewed HomeBox place:
+   each opens its record; the copy's state and last update close the card. */
+.lantern-host .ua-belongings ul { gap: 0; }
+.lantern-host .ua-belongings-scope { margin: 0; color: var(--ink-2); font-size: var(--fs-s); overflow-wrap: anywhere; }
+
+.lantern-host .ua-belonging {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 12px);
+  min-height: 36px;
+  padding: 3px 6px;
+  margin-inline: -6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lantern-host .ua-belonging:hover { background: var(--ua-hover); }
+.lantern-host .ua-belonging > .icon { flex: none; color: var(--ink-2); }
+.lantern-host .ua-belonging > span { display: grid; min-width: 0; }
+.lantern-host .ua-belonging-name { font-weight: 650; font-size: var(--fs-s); line-height: 1.3; overflow-wrap: anywhere; }
+.lantern-host .ua-belonging-detail { color: var(--muted); font-size: var(--fs-xs); line-height: 1.3; overflow-wrap: anywhere; }
+.lantern-host .ua-belonging-state { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.lantern-host .ua-belongings-more { justify-self: start; }
+.lantern-host .ua-belongings-more[aria-disabled="true"] { color: var(--muted); cursor: default; }
+.lantern-host .ua-belongings-source { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+
+/* Phones and touch: each belonging, Show all and Retry take a full 44 px target. */
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host :is(.ua-belonging, .ua-belongings-more) { min-height: 44px; min-width: 44px; }
+}
+
 /* Outline spans: a disclosure, open while Measurements is on, named in the
    display face like the other sections and folding a long list away. */
 .lantern-host .ua-spans { display: grid; gap: 8px; }

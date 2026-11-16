@@ -21,7 +21,7 @@ import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/syn
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
 import { createExampleOverlays } from './synthetic-overlays';
 import { createExampleElectrical, createExampleHomeboxOriginals, createExampleSourceDocuments } from './files';
-import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart } from './household';
+import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart, exampleTopology } from './household';
 
 const EXPIRES = '2099-01-01T00:00:00Z';
 
@@ -57,7 +57,7 @@ async function example() {
   if (!house?.nativePlaceId) throw new Error('Example house building is missing');
   const electrical = await createExampleElectrical(view, { nativePlaceId: house.nativePlaceId, label: house.label });
   const homeboxOriginals = await createExampleHomeboxOriginals(view, sourceDocuments);
-  return { view, models, topology: electrical.topology, electricalLibrary: electrical.port, homeboxOriginals };
+  return { view, models, topology: exampleTopology(generated.companion, electrical.topology), electricalLibrary: electrical.port, homeboxOriginals };
 }
 
 // pagehide unmounts the tree, so its effects release the WebGL/WebGPU

@@ -577,6 +577,34 @@ try {
       await click(button('nav button', 'Remove electrical data'));
       await until(`!(${trace})`, 'fresh mount also removes its electrical data');
     });
+    await check('room belongings: plain browsing reads no building records; selecting a room reads them once', async () => {
+      await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?atlas=generated&topology=counted` });
+      await until('Boolean(document.querySelector(".ua-room-btn"))', 'counted host ready');
+      const lists = async () => JSON.parse(await evaluate('document.documentElement.dataset.topologyLists ?? "[]"'));
+      const belongings = 'document.querySelector(".ua-belongings")?.textContent ?? ""';
+      // Building, floor, view and layer changes, a pointer over the stage and the open room list.
+      await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
+      await click(stackRow('.ua-stack-floors', 'Ground floor'));
+      await click(button('[aria-label="Atlas view"] button', 'Plan'));
+      await click(button('[aria-label="Atlas view"] button', '3D'));
+      await click(button('.layer-bar button', 'Electrical')); await click(button('.layer-bar button', 'Electrical'));
+      const stage = await evaluate('(()=>{const r=document.querySelector(".ua-viewport").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()');
+      for (const dx of [-60, 0, 60]) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: stage.x + dx, y: stage.y });
+      await sheet(true); await wait(300);
+      assert.deepEqual(await lists(), [], 'Plain browsing starts no building-records read');
+      await click(roomButton('Ground floor, Synthetic house', 'Hall'));
+      await until(`(${belongings}).includes("Generated toolbox")`, 'Hall belongings through its reviewed binding');
+      assert.match(await evaluate(belongings), /Recorded directly in HomeBox place Direct room/);
+      assert.match(await evaluate(belongings), /Read-only from HomeBox/);
+      assert.deepEqual((await lists()).sort(), ['binding', 'identity', 'location-semantics', 'relation'], 'Exactly one building-records read');
+      await clear(); await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Living room'));
+      await until(`(${belongings}).includes("No reviewed HomeBox place link for this room.")`, 'Living room without a reviewed binding');
+      await clear(); await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Hall'));
+      await until(`(${belongings}).includes("Generated toolbox")`, 'Hall again from the same read');
+      assert.equal((await lists()).length, 4, 'Later rooms reuse the one read');
+      await sheet(true); await click('document.querySelector(".ua-belonging")');
+      await until('Array.from(document.querySelectorAll("h1,h2,h3")).some(h=>h.textContent.trim()==="Generated toolbox")', 'belonging opens its record');
+    });
     const openLibrary = async mode => {
       await send('Page.navigate', { url: `${origin}/lantern-tests/unified-atlas-regression/index.html?electrical-library=${mode}` });
       await until('Array.from(document.querySelectorAll("button")).some(b=>b.textContent.trim()==="Library")', 'library navigation');

@@ -2722,6 +2722,16 @@ These new controls are authored, not executed locally.
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,
 pagination, exact binding joins, recorded elevation datums and unknown access.
+Its room-belongings join cases resolve an Atlas place to a HomeBox place only
+through an active, accepted binding on the complete source key in the view's
+scope: another collection or source instance, a proposed, retired or
+tombstoned binding, an incomplete key, another source kind, two places, an
+Atlas ID equal to a HomeBox ID without a binding and another home never join;
+contents are HomeBox's direct children only, with confirmed-deleted, unresolved,
+unreviewed and archived records (archive visibility on and off) flagged after
+present ones, and unknown-kind records listed as unclassified. The linked place
+is flagged by its own state and hidden while it is archived and archived records
+are not included; freshness comes only from a cache that fits its collection.
 Inspect its body and imports before running this local command:
 
 ```sh
@@ -3497,13 +3507,18 @@ feed and documentary projector, badge highlights and unplaced/unverified facts,
 group retirement on clear room/layer/source/selection changes, reduced motion,
 and keyboard containment, Escape closure and opener restoration in the pending
 and unavailable drawing dialogs. The pending case holds the real lazy viewer
-chunk; the unavailable case uses a throwing fake drawing-client owner. All data,
+chunk; the unavailable case uses a throwing fake drawing-client owner. A further
+room-belongings case uses counted in-page building records
+(`?topology=counted`): plain map browsing makes no list call, selecting Hall
+makes exactly one building-records read (four kind lists) and lists the
+generated belonging through Hall's reviewed binding, Living room states it has
+no reviewed link, and later rooms reuse that read. All data,
 source frames and ownership events are generated. The 1600 × 1100 DOM check
 uses trusted CDP input in the pinned browser, an owned loopback listener and a
 fresh profile, with passive rendering observations and full cleanup. No real
 PDF, provider, native service, household evidence, installed authority or device
 acceptance is exercised. The existing healthy frontend runner includes this
-exact five-case command when the pinned browser is supplied. Its adjacent README
+exact command when the pinned browser is supplied. Its adjacent README
 preserves historical results separately.
 
 The separate property-network association positive is documented in

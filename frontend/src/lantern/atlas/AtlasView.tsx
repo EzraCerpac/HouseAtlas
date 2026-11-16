@@ -15,6 +15,7 @@ import { useStore, type AtlasLens } from '../state/store';
 import { Icon } from '../components/Icon';
 import { OptionalViewerBoundary } from '../components/OptionalViewerBoundary';
 import { BuildingSection } from '../topology/BuildingSection';
+import { useTopology } from '../topology/TopologyProvider';
 import { useSourcePorts } from '../source-ports';
 import { PlacesLens } from './PlacesLens';
 import { NetworkLens } from './NetworkLens';
@@ -32,7 +33,7 @@ type MapKind = 'map' | 'document';
 
 export function AtlasView() {
   const { models } = useSourcePorts();
-  const { state, dispatch } = useStore();
+  const { state, dispatch } = useStore(), topology = useTopology();
   const atlasSelection = useSyncExternalStore(models?.atlas?.subscribe ?? noSubscription,
     models?.atlas?.current ?? noSelection, noSelection);
   const [other, setOther] = useState<'site' | null>(null);
@@ -78,7 +79,7 @@ export function AtlasView() {
     <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
       <UnifiedAtlas port={models.atlas}
         otherSources={others.map(row => ({ id: row.id, label: row.label, open: () => openOther(row.id) }))}
-        lens={{ value: lens, set: setLens, target: nativeTarget, panelId }} />
+        lens={{ value: lens, set: setLens, target: nativeTarget, panelId }} buildingRecords={topology} />
     </Suspense>
   </OptionalViewerBoundary>, true, sources);
   // Without one there is no map to draw: the Atlas says so above the home's
