@@ -77,8 +77,8 @@ export function sourceStateLines(caches: readonly Cache[]): SourceStateLine[] {
 /** What tells a saved source's collection apart from another collection of
  * the same owner at a glance, so the full identity can wait in a disclosure:
  * null when the owner has one collection here; otherwise the collection ID,
- * shortened to its shortest distinct tail when long, with the source instance
- * beside it when collections share an ID. Identical identities keep it whole. */
+ * shortened to its shortest distinct tail when long and whole when no tail is
+ * distinct, with the source instance beside it when collections share an ID. */
 export function sourceMarkers(caches: readonly Cache[]): (string | null)[] {
   return caches.map(cache => {
     const peers = caches.filter(other => other.owner === cache.owner);
@@ -90,7 +90,8 @@ export function sourceMarkers(caches: readonly Cache[]): (string | null)[] {
     for (let n = 8; n < 64; n += 4) {
       if (peers.every(other => other === cache || mark(other, n) !== mark(cache, n))) return mark(cache, n);
     }
-    return mark(cache, 64);
+    // No tail tells them apart (they differ only near the start): the whole IDs do.
+    return mark(cache, Infinity);
   });
 }
 

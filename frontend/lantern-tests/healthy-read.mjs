@@ -483,6 +483,12 @@ assert.deepEqual(sourceMarkers([
   { owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 'syn-source-1', collectionId: 'shared' },
   { owner: 'homebox', status: 'fresh', displayStatus: 'fresh', sourceInstanceId: 'syn-source-2', collectionId: 'shared' },
 ]), ['syn-source-1 / shared', 'syn-source-2 / shared']);
+// IDs that differ only before every checked tail keep their whole IDs, never one shared marker.
+const sameTails = ['a' + 'x'.repeat(64), 'b' + 'x'.repeat(64)];
+const sameTailMarkers = sourceMarkers(sameTails.map(collectionId =>
+  ({ owner: 'homebox', status: 'stale', displayStatus: 'stale', sourceInstanceId: 's', collectionId })));
+assert.deepEqual(sameTailMarkers, sameTails);
+assert.notEqual(sameTailMarkers[0], sameTailMarkers[1]);
 assert.deepEqual(sourceStateLines([{ owner: 'network', status: 'fresh', displayStatus: 'fresh' }]),
   [{ source: 'Network', identity: null, state: 'Fresh', at: null }]);
 const unknown = projectView({ ...view, entries: [{ ...original, kind: 'unknown', semanticKind: undefined }] });
