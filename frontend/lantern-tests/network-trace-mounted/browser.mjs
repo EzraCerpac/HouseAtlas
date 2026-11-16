@@ -157,7 +157,8 @@ try {
   const networkBody = `document.getElementById((${networkHeader}).getAttribute('aria-controls'))`;
   const hostGraphOpen = `(${networkBody})?.querySelector('.ua-graph-open')`;
   await press(networkHeader);
-  assert.equal(await evaluate(`(${networkHeader}).getAttribute('aria-expanded')`), 'true');
+  // CDP input completion does not wait for React's DOM commit.
+  await until(`(${networkHeader})?.getAttribute('aria-expanded') === 'true'`);
   await until(`(() => { const body = (${networkBody}), button = (${hostGraphOpen}); if (!body || body.hidden || !button || getComputedStyle(body).display === 'none' || getComputedStyle(body).visibility !== 'visible') return false; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return r.width > 0 && r.height > 0 && button.contains(hit); })()`);
   await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   const hostClient = `[...(${devices}).querySelectorAll('.ung-item')].find(x=>x.querySelector('.ung-item-name')?.textContent === 'Host client')`;
