@@ -262,8 +262,10 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     } else if (mesh.occurrenceId !== null) {
       const tint = mesh.occurrenceId === p.selectedOccurrenceId ? LANTERN : p.contextOccurrenceIds.includes(mesh.occurrenceId) ? CONTEXT
         : p.tints.has(mesh.occurrenceId) ? rgb(p.tints.get(mesh.occurrenceId)!) : ROOM;
-      top = mesh.occurrenceId === p.selectedOccurrenceId ? tint : mix(tint, PAPER, dim);
-      base = top; cut = mix(top, CUT, .18);
+      const own = mesh.occurrenceId === p.selectedOccurrenceId;
+      top = own ? tint : mix(tint, PAPER, dim);
+      // The selected room's cut is its full tone: a floor cut to a thin plate is seen through its cut.
+      base = top; cut = own ? top : mix(top, CUT, .18);
       // With a pitch tone, a room's own faces fall toward a deeper shade of its tint, never a drab one.
       if (PITCH) shade = mix(SHADE, base, .45);
     } else if (SITE && p.site!.keys.has(key)) {

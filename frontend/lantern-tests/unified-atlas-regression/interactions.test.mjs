@@ -176,6 +176,33 @@ test('explosion lifts drawing and CPU picks together throughout transition witho
   model.meshes.forEach((mesh, at) => assert.deepEqual(mesh.vertices, before[at]));
 });
 
+test('the selected outline lies on its own tinted floor, lifted as its room picks are', () => {
+  const state = reduce(initial(), building(H), { type: 'explode', exploded: true });
+  const p = api.presentAtlas(model, state, empty);
+  let lifted = 0;
+  for (const t of [0, .4, 1]) {
+    const lifts = api.partLifts(model, p, t);
+    for (const id of model.selectable) {
+      const plates = model.pickParts.get(id).filter(part => part.role === 'room-pick')
+        .map(part => part.mesh.yRange[0] + (lifts.get(part.mesh.meshKey) ?? 0));
+      if (plates.length === 0) continue;
+      const y = api.occurrenceFloorHeight(model, p, id, t);
+      assert.ok(Math.abs(y - Math.min(...plates)) < 1e-6, `${id} outline ${y} != tint ${Math.min(...plates)} at t=${t}`);
+      if (t > 0 && y > model.occurrencesById.get(id).bounds.min[1] + 1e-6) lifted++;
+    }
+  }
+  assert.ok(lifted > 0, 'some outline follows its lifted floor');
+  // A room raised above its level's lowest floor, and a room whose picks span floors (never lifted).
+  const living = model.pickParts.get('syn-occ-living'), upper = model.pickParts.get('syn-occ-bedroom-upper');
+  const variant = { ...model, pickParts: new Map(model.pickParts)
+    .set('syn-occ-living', living.map(part => ({ ...part, mesh: { ...part.mesh, yRange: [.6, part.mesh.yRange[1]] } })))
+    .set('syn-occ-bedroom-upper', upper.map(part => ({ ...part, levelId: null }))) };
+  assert.equal(model.floorY.get(G), 0);
+  assert.equal(api.occurrenceFloorHeight(variant, p, 'syn-occ-living', 1), .6);
+  assert.ok(api.levelLift(p, U, 1) > 0);
+  assert.equal(api.occurrenceFloorHeight(variant, p, 'syn-occ-bedroom-upper', 1), Math.min(...upper.map(part => part.mesh.yRange[0])));
+});
+
 test('single-floor studio stays whole while house explodes, including section clips', () => {
   const p = api.presentAtlas(model, initial(), empty);
   for (const part of model.parts.filter(part => part.buildingId === S && part.role !== 'room-pick'))
