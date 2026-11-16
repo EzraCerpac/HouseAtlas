@@ -18,25 +18,63 @@
    controls are set aside and the lens row offers them again. */
 .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-stage:not(.is-inset)) .atlas-lens-bar > .atlas-source-details { display: none; }
 
-/* On a phone the lens row gives the map its height: Rooms & places and
-   Network open from the stage's menu, and an open lens closes itself. */
+/* On a phone the lens row gives the map its height: the same three lenses
+   stand at the top of the stage's sheet instead (.ua-lens-switch below). */
 @media (max-width: 720px) {
   .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar { display: none; }
 }
 
 /* ---- Beside a lens, and as its inset ------------------------------------- */
 
-/* On a phone the lens stands below a short map band: the room sheet and the
-   layer details give it their place, and return when the lens closes. The
-   dock stays at the band's foot, directly above the lens, so Plan and the
-   layers still change the band and the model is framed above the dock. */
+/* On a phone the lens stands below a short map band: the room sheet, the
+   dock and the layer details give it their place, and return when the lens
+   closes. The band is a preview framed whole; Map leaves the lens. */
 .lantern-host .ua-shell.has-lens.is-compact .ua-inspector,
-.lantern-host .ua-shell.has-lens.is-compact .ua-bottom > :not(.ua-dock) { display: none; }
-.lantern-host .ua-shell.has-lens.is-compact .ua-bottom { bottom: 8px; }
+.lantern-host .ua-shell.has-lens.is-compact .ua-bottom { display: none; }
 
 /* Beside Rooms & places the room list is the lens's own; the stage keeps
    only a selected room's panel. */
 .lantern-host .atlas-workspace.is-places .ua-shell .ua-inspector:not(.is-room) { display: none; }
+
+/* Phones: Map, Rooms & places and Network, named as on a wide window, at the
+   top of the sheet. Over an open lens the sheet keeps only this row, at the
+   band's foot directly above the lens. */
+.lantern-host .ua-lens-switch { display: none; }
+
+@media (max-width: 720px) {
+  .lantern-host .ua-inspector > .ua-lens-switch {
+    flex: none;
+    display: flex;
+    margin: 10px 10px 4px;
+  }
+
+  .lantern-host .ua-lens-switch > button {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-lens-switch .icon { flex: none; }
+
+  /* The switch heads the sheet; the head below it keeps its opener, without a grabber. */
+  .lantern-host .ua-inspector > .ua-lens-switch ~ .ua-sheet-head::before { display: none; }
+  .lantern-host .ua-inspector > .ua-lens-switch ~ .ua-sheet-head { padding-top: 4px; }
+
+  .lantern-host .ua-shell.has-lens.is-compact:not(.is-inset) .ua-inspector {
+    display: flex;
+    height: auto;
+    max-height: none;
+  }
+
+  .lantern-host .ua-shell.has-lens.is-compact .ua-inspector > :not(.ua-lens-switch) { display: none; }
+  .lantern-host .ua-shell.has-lens.is-compact .ua-inspector > .ua-lens-switch { margin-bottom: 10px; }
+}
 
 /* Read wide, the stage is a drawn inset: its controls and the room panel are
    set aside (not hidden behind it), so the model frames the inset whole. */
@@ -707,17 +745,17 @@
 
 .lantern-host .ua-rung-mark.is-context { background: var(--lantern-soft); border-style: dashed; }
 
-/* Spread floors (Exploded) closes the stack in 3D, a switch like any other. */
-.lantern-host .ua-stack-spread {
-  flex: none;
+/* Spread floors in a phone's Camera tray: the tray's last row, a switch like any other. */
+.lantern-host .ua-cam-spread {
+  grid-column: 1 / -1;
   border-top: 1px solid var(--hair);
   border-radius: 0 0 9px 9px;
 }
 
-.lantern-host .ua-stack-spread .ua-rung-tick { color: var(--ink-2); }
-.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-rung-tick { color: #fff; }
+.lantern-host .ua-cam-spread > .ua-switch { margin-left: auto; }
 
-.lantern-host .ua-stack-switch {
+.lantern-host .ua-switch {
+  flex: none;
   position: relative;
   width: 30px;
   height: 18px;
@@ -726,7 +764,7 @@
   transition: background-color 0.2s ease;
 }
 
-.lantern-host .ua-stack-switch::after {
+.lantern-host .ua-switch::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -738,8 +776,8 @@
   transition: transform 0.2s ease;
 }
 
-.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch { background: var(--ink); }
-.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch::after { transform: translateX(12px); }
+.lantern-host .ua-cam-spread[aria-pressed='true'] .ua-switch { background: var(--ink); }
+.lantern-host .ua-cam-spread[aria-pressed='true'] .ua-switch::after { transform: translateX(12px); }
 
 /* Wide stages: a rail of marks and names, as on the phone's card, that widens
    to room counts on hover, on focus, when its head pins it open, or when there
@@ -760,8 +798,6 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-
-.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-switch { display: none; }
 
 .lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung { grid-template-columns: 34px minmax(0, 1fr); }
 .lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung:not(:has(> .ua-rung-note)) > .ua-rung-tick { grid-row: auto; }
@@ -856,27 +892,36 @@
   font: 600 var(--fs-s)/1 var(--text);
 }
 
-/* The wide bar keeps one row. A side panel narrows the stage, so the bar
-   folds its words in a fixed order: View & sources to its glyph, then Fit,
-   then Spread floors. Each button keeps its full accessible name. Each step
-   is where the bar, with every group shown, would outgrow its room (the
-   stage less the rail and margins). */
+/* The wide bar keeps one row and its words. A side panel narrows the stage,
+   so the bar first tucks turn and zoom into View & sources (the camera still
+   drags, scrolls and takes keys) and its segments draw a little tighter; that
+   bar fits every wide stage (721 px and up). Only a narrower bar's room folds
+   its words, in a fixed order: View & sources to its glyph, then Fit, then
+   Spread floors. Each button keeps its full accessible name. Each step is where
+   the bar, as shown before it, would outgrow its room (the stage less the rail
+   and margins). */
 .lantern-host .ua-menu-glyph { display: none; }
 .lantern-host .ua-shell:not(.is-compact) .ua-tools { flex-wrap: nowrap; white-space: nowrap; }
 
 @container ua-stage (max-width: 881px) {
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools:has(> .ua-menu .ua-menu-panel > :not(.ua-menu-camera)) .ctrl-group > :is(.ua-turn, .ua-zoom) { display: none; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-menu-camera { display: grid; }
+  .lantern-host .ua-shell:not(.is-compact) .ua-tools .seg button { padding: 0 12px; }
+}
+
+@container ua-stage (max-width: 717px) {
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn { width: 36px; padding: 0; justify-content: center; }
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn > span { display: none; }
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-glyph { display: block; }
   @media (pointer: coarse) { .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-menu-btn { width: 44px; } }
 }
 
-@container ua-stage (max-width: 798px) {
+@container ua-stage (max-width: 634px) {
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-fit { width: 36px; padding: 0; justify-content: center; }
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-fit > span { display: none; }
 }
 
-@container ua-stage (max-width: 777px) {
+@container ua-stage (max-width: 613px) {
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-spread { min-width: 40px; padding: 0 11px; }
   .lantern-host .ua-shell:not(.is-compact) .ua-tools .ua-spread > span { display: none; }
 }
@@ -1169,14 +1214,11 @@
 .lantern-host .ua-menu-check:hover { background: var(--ua-hover); }
 .lantern-host .ua-menu-check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--chrome); }
 
-.lantern-host :is(.ua-menu-sources, .ua-menu-lenses) {
+.lantern-host .ua-menu-sources {
   display: grid;
   padding-top: 4px;
   border-top: 1px solid var(--hair);
 }
-
-/* The lists lead the menu; the camera and time follow below a rule. */
-.lantern-host .ua-menu-lenses { padding: 0 0 4px; border-top: 0; border-bottom: 1px solid var(--hair); }
 
 .lantern-host .ua-menu-label {
   margin: 0;
@@ -2166,6 +2208,16 @@
   font-weight: 650;
 }
 
+/* A room whose name does not fit on the stage now: a quiet outline, not a warning. */
+.lantern-host .ua-tag.is-quiet {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--hair-2);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.lantern-host .ua-room-tags { flex: none; display: inline-flex; gap: 4px; }
+
 .lantern-host .ua-empty,
 .lantern-host .ua-coverage { margin: 0; color: var(--muted); }
 .lantern-host .ua-coverage.ua-stacked-note { margin-bottom: 12px; font-size: var(--fs-s); }
@@ -2475,35 +2527,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* Rooms & places from the rooms head: drawn at 36px in a 44px target, above
-   the whole-head opener. */
-.lantern-host .ua-sheet-lens {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 44px;
-  min-height: 44px;
-  margin-block: -4px;
-  padding: 0 11px 0 9px;
-  border: solid transparent;
-  border-width: 4px 0;
-  border-radius: 8px / 12px;
-  background: var(--card) padding-box;
-  box-shadow: inset 0 0 0 1px var(--hair-2);
-  color: var(--ink-2);
-  font-weight: 600;
-  font-size: var(--fs-s);
-  white-space: nowrap;
-}
-
-/* Phones: Places keeps its name and drops its glyph, so the room count stays whole beside it. */
-@media (max-width: 429px) {
-  .lantern-host .ua-sheet-lens { justify-content: center; padding: 0 10px; }
-  .lantern-host .ua-sheet-lens > svg { display: none; }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
@@ -2827,17 +2850,21 @@
   /* The open card takes Back's place until it folds. */
   .lantern-host .ua-scope:has(> .ua-stack.is-open) > .ua-back { visibility: hidden; }
 
-  /* The Floor Stack as a chip: the glyph, the floor's mark and the building
-     (or the floor's name with one building); the stack unfolds below it. */
+  /* The Floor Stack as a chip: the glyph, then the floor's full name with the
+     building on a smaller line below it (All floors: the mark and the
+     building); the stack unfolds below it. Only the building line gives way. */
   .lantern-host .ua-stack.is-chip { --stack-row: 44px; position: relative; width: auto; max-width: 100%; }
   .lantern-host .ua-stack.is-chip .ua-stack-paper { border-radius: 14px; }
   .lantern-host .ua-stack.is-chip .ua-stack-head { min-height: 44px; padding: 4px 10px 4px 9px; border-radius: 14px; }
-  .lantern-host .ua-stack.is-chip .ua-stack-building + .ua-stack-floor { display: none; }
   .lantern-host .ua-stack.is-chip .ua-stack-building { font: 650 var(--fs-s)/1.2 var(--text); color: var(--ink-2); }
+  .lantern-host .ua-stack.is-chip .ua-stack-head:has(.ua-stack-floor) > .ua-stack-mark { display: none; }
+  .lantern-host .ua-stack.is-chip .ua-stack-floor { order: -1; min-width: max-content; overflow: visible; line-height: 1.15; }
+  .lantern-host .ua-stack.is-chip .ua-stack-building:has(~ .ua-stack-floor) { font: 600 var(--fs-xs)/1.15 var(--text); color: var(--muted); }
   .lantern-host .ua-stack-chevron { flex: none; color: var(--muted); transition: transform 0.2s ease; }
   .lantern-host .ua-stack.is-open .ua-stack-head { background: var(--ink); color: #fff; }
   .lantern-host .ua-stack.is-open .ua-stack-building,
-  .lantern-host .ua-stack.is-open .ua-stack-chevron { color: #fff; }
+  .lantern-host .ua-stack.is-open .ua-stack-chevron,
+  .lantern-host .ua-stack.is-chip.is-open .ua-stack-building:has(~ .ua-stack-floor) { color: #fff; }
   .lantern-host .ua-stack.is-chip.is-open .ua-stack-chevron { transform: rotate(180deg); }
   .lantern-host .ua-stack.is-open .ua-stack-glyph { fill: rgba(255, 255, 255, 0.35); }
   .lantern-host .ua-stack.is-open .ua-stack-glyph > path { stroke: #fff; }
@@ -3294,8 +3321,8 @@
   .lantern-host .ua-dock-tray,
   .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
   .lantern-host .ua-stack-chevron,
-  .lantern-host .ua-stack-switch,
-  .lantern-host .ua-stack-switch::after,
+  .lantern-host .ua-switch,
+  .lantern-host .ua-switch::after,
   .lantern-host .ua-dock-btn { transition: none; }
   .lantern-host .ua-stage::before,
   .lantern-host .ua-marker,

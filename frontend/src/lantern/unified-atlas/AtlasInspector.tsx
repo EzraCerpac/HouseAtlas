@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
@@ -49,19 +49,19 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed = 0, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, lensSwitch, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
-  /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
-  readonly openPlaces?: (() => void) | undefined;
+  /** The phone's lens switch, at the top of the sheet; absent elsewhere. */
+  readonly lensSwitch?: ReactNode;
   /** The live host's building records; absent in a saved copy, whose card lists none. */
   readonly belongings?: RoomBelongingsSource | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** Rooms in view that the model or plan leaves unnamed because their names do not fit. */
-  readonly unnamed?: number;
+  readonly unnamed?: ReadonlySet<string>;
   /** The one floor Plan draws of a whole building, else null. */
   readonly shownLevel: string | null;
   readonly electricalGroup: ElectricalGroup | null; readonly canElectricalGroup: (key: string) => boolean; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
@@ -105,6 +105,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
     const shown = shownLevel !== null && listed.length > 1 && listed.some(level => level.levelId === shownLevel) ? shownLevel : null;
     const levels = shown === null ? listed : [...listed.filter(level => level.levelId === shown), ...listed.filter(level => level.levelId !== shown)];
     return <aside className={`ua-inspector${open ? ' is-open' : ''}`} aria-label="Rooms">
+      {lensSwitch}
       <div className="ua-sheet-head">
         <div className="ua-sheet-title">
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
@@ -113,19 +114,16 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
             ? `${levelName(shown)} · ${plural(model.levelsById.get(shown)!.occurrenceIds.filter(key => model.selectable.has(key)).length, 'room')}`
             : `${plural(count, 'room')}${levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}`}</span></p>
         </div>
-        {/* The fuller list, with home places and building scope, opens from this head. */}
-        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" title="Rooms & places" onClick={openPlaces}>
-          <Icon name="rooms" size={16} /><span>Places</span></button>}
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
         {/* Stacked under its roof veil, a building's model names its top floor's rooms only. */}
         {state.view === '3d' && !state.exploded && state.levelId === null && state.buildingId !== null && hasExplodableLevels(model, state.buildingId)
-          ? <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model. Spread floors shows each floor separately; every room is listed here.</p>
-          // Names that would not fit (on touch, without a full target) are left off; the list holds every room.
-          : unnamed > 0 && <p className="ua-coverage ua-stacked-note">{`${plural(unnamed, 'room')} ${unnamed === 1 ? 'is' : 'are'} not named on the ${state.view === 'plan' ? 'plan' : 'model'}; ${unnamed === 1 ? 'its name does' : 'their names do'} not fit.`}</p>}
-        {/* Choosing from the list hands the stage back to the model. */}
-        <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId} />
+          && <p className="ua-coverage ua-stacked-note">Floors stacked: only top-floor rooms are named on the model. Spread floors shows each floor separately; every room is listed here.</p>}
+        {/* Choosing from the list hands the stage back to the model. Names that would not
+            fit (on touch, without a full target) are left off the model and marked here. */}
+        <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId}
+          unnamed={unnamed} unnamedOn={state.view === 'plan' ? 'plan' : 'model'} />
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
       </div>
     </aside>;
@@ -142,6 +140,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
         && (row.binding.spaceOccurrenceId === null || row.binding.spaceOccurrenceId === occurrence.spaceOccurrenceId)) };
   }).filter(row => !runtimeConfigured && (row.placement || row.unplaced.length > 0));
   return <aside className={`ua-inspector is-room${open ? ' is-open' : ''}`} aria-label="Selected room">
+    {lensSwitch}
     <div className="ua-sheet-head">
       <div className="ua-sheet-title">
         <h2 ref={heading} tabIndex={-1}>{room.label}</h2>
@@ -311,13 +310,16 @@ function RoomBelongings({ room, source }: { readonly room: AtlasRoom; readonly s
 }
 
 /** Floor headings drop the chosen building's name; each region keeps it. */
-export function RoomList({ model, levels, choose, buildingId, shownLevel = null, nested = false }: {
+export function RoomList({ model, levels, choose, buildingId, shownLevel = null, nested = false, unnamed, unnamedOn = 'model' }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
   readonly buildingId: string | null;
   /** Under its own section heading (the lens's Model rooms), floors head one level down. */
   readonly nested?: boolean;
   /** The floor Plan draws, listed first and marked; the floors after it are not drawn. */
   readonly shownLevel?: string | null;
+  /** Rooms whose names do not fit on the stage now, marked on their rows. */
+  readonly unnamed?: ReadonlySet<string> | undefined;
+  readonly unnamedOn?: 'model' | 'plan';
 }) {
   const coverage = model.scene.coverage, Floor = nested ? 'h4' : 'h3';
   return <div className="ua-rooms">
@@ -333,7 +335,10 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null,
             const occurrence = model.occurrencesById.get(key)!;
             return <li key={key}><button type="button" className="ua-room-btn" onClick={() => choose(key)}>
               <span>{atlasOccurrenceName(model, key)}</span>
-              {occurrence.geometryBasis.kind === 'owner-estimated-pick-proxy' && <span className="ua-tag">Preliminary</span>}
+              {(unnamed?.has(key) || occurrence.geometryBasis.kind === 'owner-estimated-pick-proxy') && <span className="ua-room-tags">
+                {unnamed?.has(key) && <span className="ua-tag is-quiet">Not named on {unnamedOn}</span>}
+                {occurrence.geometryBasis.kind === 'owner-estimated-pick-proxy' && <span className="ua-tag">Preliminary</span>}
+              </span>}
             </button></li>;
           })}</ul>}
       </section>;
