@@ -1211,9 +1211,10 @@
   margin: 6px 0 0;
 }
 
-.lantern-host .tally .tally-asof {
-  align-self: center;
+.lantern-host .overview-asof {
+  margin: 2px 0 0;
   font-size: var(--fs-xs);
+  color: var(--muted);
 }
 
 .lantern-host .tl-columns {

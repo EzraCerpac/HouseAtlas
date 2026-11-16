@@ -35,6 +35,8 @@
 .lantern-integration .save-copy-label { font-family: var(--display); font-size: var(--fs-m); font-weight: 680; overflow-wrap: anywhere; }
 .lantern-integration .save-copy-fact { color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .lantern-integration .save-copy-replace { margin-top: 6px; padding: 8px 10px; border-radius: var(--r-control); background: var(--lantern-soft); font-weight: 600; overflow-wrap: anywhere; }
+.lantern-integration .save-copy-exact { color: var(--ink-3); font-family: var(--body, inherit); font-size: var(--fs-s); font-weight: 400; }
+.lantern-integration .save-copy-exact code { font-size: inherit; overflow-wrap: anywhere; }
 .lantern-integration .save-copy-exclusions { margin-top: 6px; }
 .lantern-integration .save-copy-exclusions > p { font-weight: 650; color: var(--warn); }
 .lantern-integration .save-copy-exclusions ul { margin: 4px 0 0; padding-left: 18px; list-style: disc; }

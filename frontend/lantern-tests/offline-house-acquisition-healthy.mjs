@@ -43,7 +43,13 @@ const { validateSavedHouse, savedDigest } = await import(storage);
 const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
 const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
 const savedEntryURL = await source('../src/offline/saved-entry.ts');
+// InlineTime itself (recorded-time rules) is covered with the lantern UI; here it is a marker element.
+const timeURL = 'data:text/javascript,' + encodeURIComponent(`import { createElement } from ${JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href)};
+export const InlineTime = ({ value }) => createElement('time', { dateTime: value }, value);`);
+// Each capture time is followed by its exact recorded text, visible without hover.
+const timed = value => `${renderToStaticMarkup(createElement('time', { dateTime: value }, value))} <span class="save-copy-exact">(recorded <code>${value}</code>)</span>`;
 const copyURL = await source('../src/offline/SaveHouseCopy.tsx', {
+  '../lantern/components/ui': timeURL,
   react: new URL('../node_modules/react/index.js', import.meta.url).href,
   'react/jsx-runtime': new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href,
   './saved-entry': savedEntryURL,
@@ -171,11 +177,11 @@ const idleHTML = renderCopy({ status: 'idle' });
 assert(idleHTML.includes('>Prepare house copy</button>'));
 const { preparation: newCapture, receipt: priorCapture } = captures.get('records');
 const readyHTML = renderCopy({ status: 'ready', preparation: newCapture });
-assert(readyHTML.includes(`New capture: ${newCapture.capturedAt}`));
+assert(readyHTML.includes(`New capture: ${timed(newCapture.capturedAt)}`));
 assert(readyHTML.includes(`Coverage: ${newCapture.completeness}`));
 assert(readyHTML.includes('>Save house copy</button>'));
 const replaceHTML = renderCopy({ status: 'ready', preparation: { ...newCapture, prior: priorCapture.house } });
-assert(replaceHTML.includes(`Currently saved: captured ${priorCapture.house.capturedAt} · revision ${priorCapture.house.localRevision}. Saving will replace it.`));
+assert(replaceHTML.includes(`Currently saved: captured ${timed(priorCapture.house.capturedAt)} · revision ${priorCapture.house.localRevision}. Saving will replace it.`));
 assert(replaceHTML.includes('>Replace saved copy</button>'));
 assert(replaceHTML.indexOf('Currently saved:') < replaceHTML.indexOf('>Replace saved copy</button>'));
 assert(replaceHTML.includes('>Cancel</button>'));
@@ -193,6 +199,7 @@ const savingHTML = renderCopy({ status: 'saving', preparation: newCapture,
   progress: { phase: 'house', done: 1, total: newCapture.totalBytes } });
 assert(savingHTML.includes('>Stop saving</button>'));
 const savedHTML = renderCopy({ status: 'saved', receipt: partialCapture.receipt });
+assert(savedHTML.includes(`saved capture ${timed(partialCapture.receipt.house.capturedAt)}`));
 assert(savedHTML.includes('Not included in this copy:'));
 assert(savedHTML.includes('This receipt describes a saved capture, not the current native home.'));
 assert(savedHTML.includes('App verification does not establish offline device availability.'));

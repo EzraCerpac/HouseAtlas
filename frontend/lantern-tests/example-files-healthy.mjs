@@ -180,7 +180,7 @@ try {
   assert.equal(homebox.displayStatus, 'stale');
   const stale = chip(view.caches);
   assert.match(stale, /aria-label="HomeBox: Stale, last successful update 3 Jan 2026, 10:15 UTC\. Open Overview\."/);
-  assert.match(stale, /<span class="stale-chip-full">HomeBox stale<\/span><span class="stale-chip-short">Stale<\/span><\/span><span class="stale-chip-date">3 Jan</);
+  assert.match(stale, /<span class="stale-chip-full"><span class="stale-chip-source">HomeBox<\/span><span class="stale-chip-word"> stale<\/span><\/span><\/span><span class="stale-chip-date">3 Jan</);
   assert.equal(chip([{ ...homebox, status: 'fresh', displayStatus: 'fresh' }]), '');
   assert.match(chip([{ ...homebox, lastSuccessfulFetchAt: null }]), /last successful update unknown\. Open Overview\.".*>last update unknown</);
   const both = chip([homebox, { owner: 'network', status: 'error', displayStatus: 'error', lastSuccessfulFetchAt: null }]);
