@@ -3,6 +3,7 @@ import { useCanWrite, useStore } from './state/store';
 import { useSourcePorts } from './source-ports';
 import { referenceDayLabel } from './data/time';
 import { InlineTime } from './components/ui';
+import { sourceStateLines } from './adapters/read';
 import { Icon } from './components/Icon';
 
 interface Props { readonly label: string; readonly children: ReactNode }
@@ -22,18 +23,19 @@ class ViewBoundary extends Component<Props, { failed: boolean }> {
   }
 }
 
-/** Changes' source freshness: each source's state and last successful update
- * on one line. Drawn the same while Changes loads; identity and refresh stay in Overview. */
+/** Changes' source freshness: per saved source, its state and last successful
+ * update, with the source and collection identity that tells two collections
+ * of one owner apart. Drawn the same while Changes loads; refresh stays in Overview. */
 export function SourceStates() {
   const { projection } = useStore();
-  const caches = projection.view.caches;
+  const lines = sourceStateLines(projection.view.caches);
   return <ul className="changes-sources" aria-label="Sources">
-    {caches.map((cache, index) => {
-      const state = cache.displayStatus.replace(/-/g, ' ');
-      return <li key={index}>{cache.owner === 'homebox' ? 'HomeBox' : 'Network'}: <strong>{state.charAt(0).toUpperCase() + state.slice(1)}</strong>, last successful update{' '}
-        {cache.lastSuccessfulFetchAt ? <InlineTime value={cache.lastSuccessfulFetchAt} /> : 'unknown'}</li>;
-    })}
-    {!caches.length && <li>No cache information supplied.</li>}
+    {lines.map((line, index) => <li key={index}>
+      <span>{line.source}: <strong>{line.state}</strong>, last successful update{' '}
+        {line.at ? <InlineTime value={line.at} /> : 'unknown'}</span>
+      {line.identity && <code className="changes-source-id">{line.identity}</code>}
+    </li>)}
+    {!lines.length && <li>No cache information supplied.</li>}
   </ul>;
 }
 

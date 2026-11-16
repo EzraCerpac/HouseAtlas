@@ -2032,6 +2032,16 @@
   font-weight: 600;
 }
 
+.lantern-host .changes-sources li {
+  display: grid;
+}
+
+/* The source and collection identity under its state, small and wrapping anywhere. */
+.lantern-host .changes-source-id {
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
 /* Changes' section headings are h2 at the section-heading size. */
 .lantern-host .view .changes-grid .section-head h2 {
   font-size: var(--fs-m);

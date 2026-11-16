@@ -1,7 +1,7 @@
 import type { OperationHistoryRead } from '../../api/operation-history-client';
 import type { GeometryPayloadMappingsItem } from '../../api/generated/contracts';
 import type { GeometryPublicRecord, GeometryRead } from '../../api/geometry-client';
-import type { Attachment, Entry, ReadyView } from '../../app/types';
+import type { Attachment, Cache, Entry, ReadyView } from '../../app/types';
 import type { Doc, HouseData, Item, Space, Task } from '../data/types';
 import { visibleEntries } from '../../app/model.ts';
 
@@ -59,6 +59,19 @@ function documentKind(attachment: Attachment): Doc['kind'] {
     return 'photo';
   }
   return 'unknown';
+}
+
+/** One line per saved source: its owner, the source and collection identity
+ * that tells two collections of one owner apart, its state and its last
+ * successful update (null when not supplied). */
+export interface SourceStateLine { source: 'HomeBox' | 'Network'; identity: string | null; state: string; at: string | null }
+export function sourceStateLines(caches: readonly Cache[]): SourceStateLine[] {
+  return caches.map(cache => {
+    const state = cache.displayStatus.replace(/-/g, ' ');
+    const identity = [cache.sourceInstanceId, cache.collectionId].filter(Boolean).join(' / ');
+    return { source: cache.owner === 'homebox' ? 'HomeBox' : 'Network', identity: identity || null,
+      state: state.charAt(0).toUpperCase() + state.slice(1), at: cache.lastSuccessfulFetchAt ?? null };
+  });
 }
 
 /** The files list's photo line. Only a stored image is known to be a photo;
