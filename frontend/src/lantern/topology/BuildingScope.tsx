@@ -47,7 +47,7 @@ function rowFacts(location: Location, note?: string): string[] {
   const classifications = location.semantics.map(s => s.payload.semanticKind);
   return [location.labelOwner === 'atlas' ? 'Atlas name' : location.labelOwner === 'homebox' ? 'HomeBox name' : location.labelOwner === 'conflict' ? 'Naming withheld: multiple reviewed classifications' : 'Name not supplied',
     classifications.length ? `Reviewed: ${classifications.join(', ')}` : 'Classification not reviewed',
-    location.entry ? `HomeBox source: ${location.entry.sourceState}; cache: ${location.entry.cacheStatus}` : 'No bound HomeBox record in this view',
+    location.entry ? `HomeBox source: ${location.entry.sourceState}; cache: ${location.entry.cacheStatus}` : 'No bound HomeBox record in saved information',
     ...(location.entry && !location.selectId ? ['Not in the current place list'] : []), ...(note ? [note] : [])];
 }
 function sharedFacts(rows: readonly { location: Location; note?: string | undefined }[]): ReadonlySet<string> {

@@ -154,7 +154,7 @@ for (const failedReload of [async () => false, async () => { throw new TypeError
   await ordinary.check();
   await ordinary.press(failedReload, model.withhold);
   assert.equal(model.withheld, 1, 'An ordinary failure never withholds');
-  assert.equal(say(ordinary.getSnapshot()), 'Not refreshed: HomeBox did not answer in time. This view could not be updated.');
+  assert.equal(say(ordinary.getSnapshot()), 'Not refreshed: HomeBox did not answer in time. Saved information was not reloaded.');
 }
 
 // Another reload replaces the view while the refresh is in flight; the 401 and

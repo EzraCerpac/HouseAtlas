@@ -57,7 +57,7 @@ export function ElectricalLibrary({ port }: { readonly port: ElectricalLibraryPo
         {topology.index?.data.sourceStatuses.some(status => status !== 'current') && <p role="status">Building list source: {topology.index.data.sourceStatuses.join(', ')}.</p>}
         {!building ? <Empty>Choose a building to read its drawing references.</Empty>
           : !current ? <p role="status">Preparing drawing reader…</p>
-          : !current.reader ? <Empty>Electrical drawings are unavailable for this view.</Empty>
+          : !current.reader ? <Empty>Electrical drawings are unavailable for this home.</Empty>
           : <BuildingDrawings key={building.id} reader={current.reader} buildingId={building.id} query={query} />}
       </>}
   </section>;
@@ -116,7 +116,7 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
     return () => { controller.abort(); off?.(); if (frame) reader.release(frame); };
   }, [reader, owner, buildingId, attempt]);
   const current = state?.owner === owner && state.frame && reader.isCurrent(state.frame) ? state.frame : null;
-  const message = !owner ? 'Electrical drawings are unavailable for this view.' : state?.owner === owner ? state.message : READING;
+  const message = !owner ? 'Electrical drawings are unavailable for this home.' : state?.owner === owner ? state.message : READING;
   const reading = message === READING;
   useEffect(() => {
     if (!asked || reading) return;

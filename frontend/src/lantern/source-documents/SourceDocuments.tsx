@@ -86,7 +86,7 @@ function SourceDocumentList({ reader }: { readonly reader: SourceDocumentReader 
     }).catch(() => { if (!controller.signal.aborted) setState({ ...prior, moreFailed: true }); })
       .finally(() => { if (pending.current === controller) pending.current = null; });
   };
-  if (!owner) return <Empty>Source documents are not available for this view.</Empty>;
+  if (!owner) return <Empty>Source documents are unavailable for this home.</Empty>;
   if (!current || current.status === 'loading') return <p role="status">Reading source documents…</p>;
   if (current.status === 'failed') return <div className="source-docs-retry">
     <p role="status">Source documents could not be read.</p>

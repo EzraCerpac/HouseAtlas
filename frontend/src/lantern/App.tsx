@@ -238,7 +238,7 @@ export function App() {
           </span>
           <Icon name="chevronDown" size={15} />
         </button>
-        <button type="button" className="search-trigger" aria-label="Search rooms, belongings, manuals" onClick={() => dispatch({ type: 'search', open: true })}>
+        <button type="button" className="search-trigger" aria-label="Search this home" onClick={() => dispatch({ type: 'search', open: true })}>
           <Icon name="search" size={18} />
           <span className="search-label">Search</span>
           <kbd aria-hidden="true">/</kbd>

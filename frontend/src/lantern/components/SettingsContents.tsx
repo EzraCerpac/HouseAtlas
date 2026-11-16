@@ -46,8 +46,8 @@ export function SettingsContents() {
           <button type="button" className="btn" onClick={check} disabled={checking}>
             {checking ? 'Reloading saved information…' : 'Reload saved information'}
           </button>
-          {actions.loadedAt !== undefined && <span className="setting-static">
-            View loaded <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
+          {actions.loadedAt !== undefined && <span className="setting-static device-time">
+            View loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
           </span>}
         </div>
         <p className="setting-static" role="status" aria-live="polite">

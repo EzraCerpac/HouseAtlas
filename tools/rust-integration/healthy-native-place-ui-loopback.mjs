@@ -281,7 +281,7 @@ async function selectBuilding(id) {
 }
 async function labelVisible(id, label) {
   await until(async () => evaluate(`(${row(id)})?.querySelector('.ledger-name')?.textContent===${JSON.stringify(label)}`), 'native name through real topology');
-  assert((await evaluate(`(${row(id)}).innerText`)).includes('No bound HomeBox record in this view'));
+  assert((await evaluate(`(${row(id)}).innerText`)).includes('No bound HomeBox record in saved information'));
 }
 async function capture(label) {
   for (const [width, height] of [[1440, 900], [390, 844]]) {

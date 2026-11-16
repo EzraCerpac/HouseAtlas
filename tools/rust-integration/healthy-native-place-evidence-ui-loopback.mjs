@@ -367,7 +367,7 @@ try {
   assert.equal(semantics.payload.reviewStatus, 'accepted'); assert.deepEqual(initialIdentity.payload.evidenceIds, [initialEvidence.target.recordId]);
   const place = row(initialIdentity.target.recordId), evidenceRoot = `(${place})?.querySelector(':scope > .topology-evidence')`;
   await until(async () => evaluate(`(${place})?.querySelector('.ledger-name')?.textContent==='Main house'`), 'Real created native row');
-  assert((await evaluate(`(${place}).innerText`)).includes('No bound HomeBox record in this view'));
+  assert((await evaluate(`(${place}).innerText`)).includes('No bound HomeBox record in saved information'));
   phase = 'native-admission';
   const nativePath = `/api/atlas/editing/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/native-places/${semantics.target.recordId}`;
   await click(byText(evidenceRoot, 'Add native evidence'), 'Add native evidence');

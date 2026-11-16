@@ -741,7 +741,7 @@ try {
   await belongings.getByRole('button', { name: /^Fictional reading lamp/ }).click();
   const detail = production.getByRole('complementary', { name: 'Details' });
   await detail.getByRole('heading', { name: 'Fictional reading lamp', exact: true }).waitFor();
-  assert.match(await detail.innerText(), /No reviewed placement is supplied in this view/);
+  assert.match(await detail.innerText(), /No reviewed placement is recorded for this belonging/);
   assert.match(await detail.innerText(), /Synthetic house \/ Ground floor \/ Living room/);
   assert.match(await detail.innerText(), /stale/);
   // HomeBox edits are not offered here; the ownership note says where they happen.

@@ -22,7 +22,8 @@ function showsKind(label: string, kind: SearchHit['kind']): boolean {
   return (group?.kinds.length ?? 2) > 1 && !(kind === 'item' && label.startsWith('Belongings'));
 }
 
-/** Where a chosen place-bound result opens. On a reviewed plan it opens on the
+/** Where a chosen place-bound result opens; a belonging without a reviewed
+ * place is not place-bound. On a reviewed plan it opens on the
  * map, any lens set aside. Otherwise it opens Rooms & places beside the map,
  * as it once opened the Rooms view, unless the Atlas already shows the map or
  * Rooms & places, which stay as they are. The Network lens is not where an
@@ -136,7 +137,7 @@ function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'
         <button type="button" className="row-title" onClick={() => choose({ id: record.id,
           kind: entry.kind === 'place' ? 'space' : entry.kind === 'unknown' ? 'unknown' : 'item' })}>{record.name || 'Unnamed source record'}</button>
         <span className="row-meta">Entity archived: {entry.entity.archived ? 'yes' : 'no'} · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
-      </li>)}</ul> : <p className="empty">No archived records in this saved view.</p>}
+      </li>)}</ul> : <p className="empty">No archived records for this home.</p>}
     </details>}
   </section>;
 }
@@ -224,7 +225,10 @@ export function SearchPalette() {
     restoreFocus.current = false;
     const loc = locate(house, h.id);
     const planned = house.floors.find((f) => f.id === loc.floorId)?.hasPlan;
-    const placeBound = ['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind);
+    // A belonging or storage with no reviewed place has nothing to show in the
+    // Atlas: its record opens over the current page, which stays as it is.
+    const unplaced = (h.kind === 'item' || h.kind === 'container') && !loc.spaceId;
+    const placeBound = !unplaced && ['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind);
     select(h.id, searchRoute(placeBound, Boolean(planned && house.geometry === 'reviewed'), state.view, state.atlasLens));
     close();
   };
@@ -263,9 +267,9 @@ export function SearchPalette() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Search rooms, belongings, manuals, upkeep"
+            placeholder="Search this home"
             role="combobox"
-            aria-label="Search names, models or documents"
+            aria-label="Search this home"
             aria-expanded={flat.length > 0}
             aria-controls="palette-results"
             aria-activedescendant={flat[active] ? `palette-hit-${active}` : undefined}
@@ -284,19 +288,14 @@ export function SearchPalette() {
             <p>{topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}</p>
             <button type="button" className="text-btn" onClick={() => { setQ(''); inputRef.current?.focus(); }}>Clear search</button>
           </div>}
+          {!q.trim() && suggestions.length > 0 && <div className="palette-try" role="group" aria-label="Search suggestions">
+            {suggestions.map((t) => (
+              <button key={t} type="button" className="chip-btn" onClick={() => setQ(t)}>
+                {t}
+              </button>
+            ))}
+          </div>}
           <div id="palette-results" role="listbox" ref={listRef} aria-label="Results">
-            {!q.trim() && (
-              <div className="palette-hint">
-                <p>Search names, models or documents in this home.</p>
-                {suggestions.length > 0 && <div className="palette-try" role="group" aria-label="Search suggestions">
-                  {suggestions.map((t) => (
-                    <button key={t} type="button" className="chip-btn" onClick={() => setQ(t)}>
-                      {t}
-                    </button>
-                  ))}
-                </div>}
-              </div>
-            )}
             {grouped.map((g) => {
               return (
               <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
@@ -328,7 +327,6 @@ export function SearchPalette() {
             })}
           </div>
         </div>
-        <p className="palette-foot">Arrow keys to move, Enter to open, Esc to close.</p>
       </div>
     </div>
   );
