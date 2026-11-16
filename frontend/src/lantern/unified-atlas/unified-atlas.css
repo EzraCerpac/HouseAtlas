@@ -1767,6 +1767,11 @@
 .lantern-host .ua-belongings-all { justify-self: start; }
 .lantern-host .ua-belongings-source { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
 
+/* Phones and touch: each belonging and Show all take a full 44 px target. */
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host :is(.ua-belonging, .ua-belongings-all) { min-height: 44px; min-width: 44px; }
+}
+
 /* Outline spans: a disclosure, open while Measurements is on, named in the
    display face like the other sections and folding a long list away. */
 .lantern-host .ua-spans { display: grid; gap: 8px; }

@@ -1322,10 +1322,13 @@ const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-ho
 const stackedPresentation = presentAtlas(model, stacked, none);
 assert.ok(stackedPresentation.hidden.has(roofKey) && stackedPresentation.ghosts.get(roofKey) === null, 'roof veiled when the chosen building is stacked');
 // Walls of the floors below the top one (ground, split level) are veils too; the top floor's walls stay drawn.
-for (const [primitive, veiled] of [[0, true], [1, true], [2, false]]) {
+for (const primitive of [0, 1]) {
   const wall = drawnAt(2, primitive).mesh.meshKey;
-  assert.equal(stackedPresentation.hidden.has(wall) && stackedPresentation.ghosts.get(wall) === null, veiled, `stacked wall ${primitive} ${veiled ? 'veiled' : 'drawn'}`);
+  assert.ok(stackedPresentation.hidden.has(wall) && stackedPresentation.ghosts.get(wall) === null, `stacked lower wall ${primitive} veiled`);
 }
+{ const top = drawnAt(2, 2).mesh.meshKey;
+  assert.equal(stackedPresentation.hidden.has(top), false, 'stacked top-floor wall drawn');
+  assert.equal(stackedPresentation.ghosts.has(top), false, 'stacked top-floor wall not veiled'); }
 assert.deepEqual([...stackedPresentation.pickable].sort(), ['syn-occ-bath', 'syn-occ-bedroom-upper', 'syn-occ-stairs-upper'],
   'a stacked building picks its top floor rooms only');
 assert.equal(partLifts(model, stackedPresentation, stackedPresentation.explodeTarget).size, 0, 'settled normal navigation never separates floors');

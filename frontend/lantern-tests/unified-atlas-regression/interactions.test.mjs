@@ -296,6 +296,20 @@ test('label actions use their full mounted targets and reserve surviving enlarge
     assert.ok(a.b <= b.t && a.b - a.t === 18 && b.b - b.t === 18, 'chip-tall targets never overlap');
     const apart = [near[0], { ...near[1], y: 200 }], wide = api.labelHitBoxes(apart, size, [], [], () => 60);
     assert.ok(apart.every(row => wide.get(row).b - wide.get(row).t === 32), 'names apart keep full targets'); }
+  // One rule for both pointers: the collision box is the drawn box. Two names 26 px apart:
+  { const pair = [{ ...label('first', 200, 'Bathroom'), y: 120 }, { ...label('second', 230, 'Bedroom'), y: 146 }];
+    const overlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+    const coarse = api.labelHitBoxes(pair, size, [], [], () => 60, true);
+    assert.deepEqual([...coarse.keys()], [pair[0]], 'touch: one 44 px target; the other name is chosen from the Rooms list');
+    assert.equal(coarse.get(pair[0]).b - coarse.get(pair[0]).t, 44);
+    assert.deepEqual(api.visibleLabelHits(pair, size, [], [], () => 60, true), [pair[0]]);
+    const fine = api.labelHitBoxes(pair, size, [], [], () => 60, false), [a, b] = pair.map(row => fine.get(row));
+    assert.ok(a && b && !overlap(a, b), 'pointer: two targets that never overlap');
+    for (const boxes of [coarse, fine]) for (const box of boxes.values()) {
+      const style = api.stageHitStyle(box);
+      assert.deepEqual([style.left - style.width / 2, style.top - style.height / 2, style.width, style.height, style.minHeight],
+        [box.l, box.t, box.r - box.l, box.b - box.t, 0], 'the button is drawn at exactly its computed box');
+    } }
 });
 
 test('3D names reserve their whole measured chip, however long the floor name', () => {

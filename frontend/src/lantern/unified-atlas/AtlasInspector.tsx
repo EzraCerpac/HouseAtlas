@@ -250,7 +250,7 @@ function RoomBelongings({ room, homePlaces }: { readonly room: AtlasRoom; readon
           : <ul>{(all ? place.belongings : place.belongings.slice(0, BELONGINGS_SHOWN)).map(row => <li key={row.id}>
             <button type="button" className="ua-belonging" onClick={() => homePlaces.open(row.id)}><Icon name="box" size={15} /><span>{row.name}</span></button></li>)}</ul>}
         {count > BELONGINGS_SHOWN && !all && <button type="button" className="text-btn ua-belongings-all" onClick={() => setAll(true)}>Show all {count.toLocaleString()}</button>}
-        <p className="ua-belongings-source">HomeBox {place.cacheStatus === 'fresh' ? 'copy' : place.cacheStatus.replace('-', ' ')} · retrieved {date === 'Unknown' ? place.retrievedAt : date}</p>
+        <p className="ua-belongings-source">HomeBox {place.cacheStatus === 'fresh' ? 'copy' : place.cacheStatus.replace('-', ' ')} · {!place.retrievedAt ? 'retrieval date not supplied' : `retrieved ${date === 'Unknown' ? place.retrievedAt : date}`}</p>
       </>}
   </section>;
 }

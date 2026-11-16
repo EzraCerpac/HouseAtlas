@@ -27,8 +27,8 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, stageHitWidth, placePlanRoomLabels, placeStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
-  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
+import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
@@ -1183,7 +1183,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
 
   // Stage buttons exist only where the whole control is in view: inside the
   // stage and clear of every panel. Covered rooms stay in the room list.
-  const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance), [labels, size, cover, counts, planTextMetrics]);
+  // Touch targets are computed at the 44 px they are drawn at; the pointer can change (a docked tablet).
+  const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
+  const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance, coarse), [labels, size, cover, counts, planTextMetrics, coarse]);
   const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
@@ -1712,8 +1714,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {hits.map(label => <button key={label.id} type="button" className={`ua-label-hit${label.plan?.mode === 'rotated' || label.plan?.mode === 'callout' ? ' ua-plan-label-new' : ''}`}
           data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height,
-            transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : { left: label.x, top: label.y - TAG_RISE * label.rise, width: stageHitWidth(label, planTextMetrics.get(label.id)?.advance),
-              ...(hitBoxes.get(label)!.b - hitBoxes.get(label)!.t < 32 ? { height: hitBoxes.get(label)!.b - hitBoxes.get(label)!.t, minHeight: 0 } : {}) }}
+            transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : stageHitStyle(hitBoxes.get(label)!)}
           aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}${labelFloors.get(label.id) ? ` · ${labelFloors.get(label.id)}` : ''}${isPreliminary(model, label.id) ? ', preliminary' : ''}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
@@ -1848,3 +1849,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
 }
 
 const stop = (event: ReactPointerEvent) => event.stopPropagation();
+const COARSE = '(pointer: coarse)';
+const coarseNow = () => window.matchMedia?.(COARSE).matches === true;
+const coarseChanges = (changed: () => void) => {
+  const query = window.matchMedia?.(COARSE);
+  query?.addEventListener('change', changed);
+  return () => query?.removeEventListener('change', changed);
+};
