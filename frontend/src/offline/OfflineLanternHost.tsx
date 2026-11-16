@@ -124,7 +124,9 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
       <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={20} /></button>
     </div>
     <main id="main" className="main" tabIndex={-1}>
-      {view === 'atlas' ? atlas ? <div className="offline-atlas"><UnifiedAtlas port={atlas.port} environment={{ reducedMotion, openDocuments: () => setView('library') }} /></div>
+      {view === 'atlas' ? atlas ? <>
+          <p className="offline-stamp">Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</p>
+          <div className="offline-atlas"><UnifiedAtlas port={atlas.port} environment={{ reducedMotion, openDocuments: () => setView('library') }} /></div></>
         : <div className="view"><h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
         : <div className="view"><header className="view-head"><h1>{view === 'upkeep' ? 'Upkeep' : view === 'library' ? 'Library' : 'Changes'}</h1>
           <p>Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</p></header>

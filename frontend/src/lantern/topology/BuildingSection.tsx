@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useTopology } from './TopologyProvider';
 import { metres, type BuildingModel, type Location, type TopologyIndex, type LevelGroup } from './model';
 import { useSelect, useStore } from '../state/store';
@@ -13,6 +13,16 @@ export const messages = {
   continuationUnavailable: 'Building records could not be continued. Reload saved information in Settings.',
   changed: 'Building records differ between reads. Reload saved information in Settings.', ready: '',
 };
+
+// Offline, a failed read is not a fault to retry: saved copies hold no topology
+// (coverage: topology unavailable), so no reload repeats it until the device is online.
+const offlineMessage = 'Offline: building records are not held in this saved copy. Connect and open live to read them.';
+const watchOnline = (notify: () => void) => { addEventListener('online', notify); addEventListener('offline', notify); return () => { removeEventListener('online', notify); removeEventListener('offline', notify); }; };
+/** The text for a building-record read status; an unavailable read while the browser reports offline names the limitation. */
+export function useBuildingMessages(): (key: keyof typeof messages) => string {
+  const offline = useSyncExternalStore(watchOnline, () => navigator.onLine === false, () => false);
+  return key => key === 'unavailable' && offline ? offlineMessage : messages[key];
+}
 
 /** A member place on a level slab. Only current place-list records are selectable. */
 function Place({ location }: { location: Location }) {
@@ -88,6 +98,7 @@ export function BuildingSection() {
   const topology = useTopology();
   useEffect(() => topology.activate(), [topology.activate]);
   const { index, status, buildingId, model, memberStatus } = topology;
+  const say = useBuildingMessages();
   return <div className="atlas-section">
     <header className="atlas-section-head">
       <h1>{house.name}</h1>
@@ -108,7 +119,7 @@ export function BuildingSection() {
         {index?.buildings.map(b => <button key={b.id} type="button" className="section-building" title={b.id} aria-label={`${b.label}, Atlas identity ${b.id}`}
           aria-pressed={buildingId === b.id} onClick={() => topology.chooseBuilding(b.id)}><Icon name="building" size={18} /><span>{b.label}</span></button>)}
       </div>
-      <p className="section-status" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
+      <p className="section-status" role="status">{status !== 'ready' ? say(status) : buildingId && memberStatus !== 'ready' ? say(memberStatus) : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
       {buildingId && model && index ? <Drawing model={model} index={index} /> : buildingId === null && <Counts />}
     </div>
   </div>;

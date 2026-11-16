@@ -2869,3 +2869,28 @@
 .lantern-host .section.is-empty > :not(.section-head):not(.empty) {
   flex-basis: 100%;
 }
+
+/* Phones: one place sets the 44 px target for the shared controls, fields,
+   disclosures and row titles, so desktop rows keep their height. */
+@media (max-width: 759px) {
+  .lantern-host :is(.btn, .btn-small, .chip-btn, .icon-btn, .seg button, .row-title, .section-place) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .lantern-host :is(.field input:not([type='radio']):not([type='checkbox']):not([type='range']), .field select, .field textarea, .ask-form input) {
+    min-height: 44px;
+  }
+
+  :where(.lantern-host) :where(select, textarea, input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file'])) {
+    min-height: 44px;
+  }
+
+  /* The marker stays: a list item with the padding that makes the target. */
+  :where(.lantern-host) :where(summary) {
+    display: list-item;
+    min-height: 44px;
+    padding-block: 12px;
+    line-height: 20px;
+  }
+}

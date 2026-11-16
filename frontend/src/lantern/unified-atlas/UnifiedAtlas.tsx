@@ -550,6 +550,11 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   const tools = union('.ua-tools'), scope = union('.ua-scope');
   // Overlays stand below these rows on narrow stages, and an open sheet stops above them.
   if (tools) root.style.setProperty('--ua-tools-end', `${tools.b}px`);
+  // The floor chip stops short of the tool on its own row; the stamp row below is not beside it.
+  const toolsBand = root.querySelector('.ua-tools'), toolsTop = toolsBand?.getBoundingClientRect().top ?? 0;
+  const toolsLeft = Math.min(...[...toolsBand?.children ?? []].filter(child => showing(child) && child.getBoundingClientRect().top < toolsTop + 4).map(child => child.getBoundingClientRect().left));
+  if (toolsBand && showing(toolsBand) && Number.isFinite(toolsLeft)) root.style.setProperty('--ua-tools-w', `${Math.round(frame.right - toolsLeft)}px`);
+  else root.style.removeProperty('--ua-tools-w');
   if (scope) root.style.setProperty('--ua-scope-end', `${Math.max(scope.b, tools?.b ?? 0)}px`);
   // The stylesheet decides whether the panel is a sheet; its head keeps one height open or closed.
   const panel = root.querySelector('.ua-inspector'), head = panel?.querySelector('.ua-sheet-head');
