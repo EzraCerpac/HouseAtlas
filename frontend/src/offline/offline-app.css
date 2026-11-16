@@ -3,6 +3,11 @@
 .offline-app .offline-pill:disabled { cursor: default; opacity: .8; }
 .offline-app .offline-atlas { flex: 1; min-height: 0; }
 .offline-app .offline-atlas > .ua-shell { height: 100%; }
+/* Map or Rooms & places over the held copy; a full finger's height on touch. */
+.offline-app .offline-lens { flex: none; align-self: flex-start; margin: 8px 14px 0; }
+@media (pointer: coarse) { .offline-app .offline-lens button { min-height: 44px; } }
+/* Records in the held lens are shown, not opened. */
+.offline-app .entity-link.is-held:hover .entity-link-text > span:first-child { text-decoration: none; }
 /* The held copy's date as one slim line above the stage, so no stage control is covered. */
 .offline-app .offline-stamp { flex: none; margin: 0; padding: 6px 14px; color: var(--muted); font-size: var(--fs-xs); }
 .offline-app .offline-documents { display: grid; gap: 12px; padding-left: 20px; }

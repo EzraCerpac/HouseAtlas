@@ -102,6 +102,14 @@ const links = Object.freeze({
     '../../numeric/decimal': 'numeric/decimal.ts',
     '../../numeric/lossless-json': 'numeric/lossless-json.ts',
   },
+  'offline/held-topology.ts': {
+    '../numeric/lossless-json': 'numeric/lossless-json.ts',
+    '../numeric/decimal': 'numeric/decimal.ts',
+  },
+  'integration/offline-topology-policy.ts': {
+    '../src/lantern/topology/model': 'lantern/topology/model.ts',
+    '../src/offline/held-topology': 'offline/held-topology.ts',
+  },
   'api/pinned-file-client.ts': {
     '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
     '../../../contracts/client-schemas/agent-ajv.schema.json': agentJson,

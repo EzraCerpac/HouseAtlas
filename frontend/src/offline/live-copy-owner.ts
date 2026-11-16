@@ -184,7 +184,7 @@ export function projectOfflineDisplay(view: Pick<OfflineDisplayData, 'scope' | '
 }
 interface Control { version: 1; epoch: string; actorId: string | null; home: Scope | null }
 interface Binding { epoch: string; actorId: string; scope: Scope; serial: number; live: boolean; current: () => boolean }
-interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document' | 'electrical-catalog' | 'electrical-document' | 'homebox-document';
+interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document' | 'electrical-catalog' | 'electrical-document' | 'homebox-document' | 'topology';
   bytes: number; sha256: string; usedAt: number; pin?: StoredPin }
 export interface LiveCopyActor { readonly kind: 'online-observed-actor' }
 export interface LiveCopyHome { readonly kind: 'online-observed-home' }
@@ -205,8 +205,8 @@ function controlOK(v: Control | undefined): v is Control {
 }
 function rowOK(row: Row): boolean {
   return !!row && row.version === 1 && UUID.test(row.epoch) && scopeOK(row.scope)
-    && ['view', 'catalog', 'document', 'electrical-catalog', 'electrical-document', 'homebox-document'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
-    && row.bytes <= (row.kind === 'view' ? LIVE_COPY_LIMITS.viewBytes : row.kind === 'catalog' || row.kind === 'electrical-catalog' ? LIVE_COPY_LIMITS.catalogBytes : LIVE_COPY_LIMITS.entryBytes) && SHA.test(row.sha256) && Number.isFinite(row.usedAt)
+    && ['view', 'catalog', 'document', 'electrical-catalog', 'electrical-document', 'homebox-document', 'topology'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
+    && row.bytes <= (row.kind === 'view' || row.kind === 'topology' ? LIVE_COPY_LIMITS.viewBytes : row.kind === 'catalog' || row.kind === 'electrical-catalog' ? LIVE_COPY_LIMITS.catalogBytes : LIVE_COPY_LIMITS.entryBytes) && SHA.test(row.sha256) && Number.isFinite(row.usedAt)
     && (row.kind !== 'document' || !!row.pin && validOfflinePin(row.pin as OfflineDocumentPinV1) && row.pin.sha256 === row.sha256 && (row.pin as OfflineDocumentPinV1).bytes === row.bytes)
     && (row.kind !== 'electrical-document' || !!row.pin && validElectricalPin(row.pin as OfflineElectricalPinV1) && row.pin.sha256 === row.sha256 && electricalPinBytes(row.pin as OfflineElectricalPinV1) === row.bytes)
     && (row.kind !== 'homebox-document' || !!row.pin && validHomeboxPin(row.pin as OfflineHomeboxPinV1) && row.pin.sha256 === row.sha256 && (row.pin as OfflineHomeboxPinV1).bytes === row.bytes);
@@ -486,6 +486,28 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     },
     readElectricalCatalog,
     readElectricalDocument,
+    /** Encoded building records of one complete read for this home (the codec owns their content); one row per
+     * home, replaced by the next capture and evicted, cleared and actor-fenced like every other row. */
+    keepTopology(handle: LiveCopyHome, payload: Uint8Array, signal: AbortSignal) {
+      return run(async () => {
+        const b = home(handle); need(payload instanceof Uint8Array && payload.byteLength <= limits.viewBytes, 'limit');
+        const bytes = new Uint8Array(payload), sha = await hash(bytes); check(b, signal);
+        const evicted = await put(b, 'topology', bytes, sha, signal); check(b, signal); changed(); return { evicted };
+      });
+    },
+    /** A failed or partial read leaves no older building records presented with this copy. */
+    removeTopology(handle: LiveCopyHome, signal: AbortSignal) {
+      return run(async () => { const b = home(handle), key = keyFor(b, 'topology');
+        const removed = await backend.transaction(true, async tx => { await fence(tx, b); check(b, signal);
+          const held = (await tx.get<Row>('metadata', key)) !== undefined;
+          if (held) { await tx.remove('metadata', key); await tx.remove('bytes', key); }
+          check(b, signal); return held; });
+        if (removed) changed(); return null; });
+    },
+    /** Copies saved without building records read as missing. */
+    readTopology(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<Uint8Array>> {
+      return run(async () => { const b = copy(handle), bytes = await read(b, 'topology', signal); check(b, signal); return bytes; });
+    },
     /** Bytes must equal the measured pin; superseded rows for this association/source registration leave atomically. */
     keepHomeboxDocument(handle: LiveCopyHome, pin: OfflineHomeboxPinV1, input: ArrayBuffer, signal: AbortSignal) {
       return run(async () => {
