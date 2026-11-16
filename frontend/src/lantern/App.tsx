@@ -240,7 +240,7 @@ export function App() {
           <p className="house-btn is-static">
             <span className="house-field">
               <span className="house-label" aria-hidden="true">Home</span>
-              <span className="house-name"><span className="sr-only">Home: </span>{house.name}</span>
+              <span className="sr-only">Home: </span><span className="house-name">{house.name}</span>
             </span>
           </p>
         )}

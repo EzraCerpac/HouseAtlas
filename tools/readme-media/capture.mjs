@@ -553,7 +553,7 @@ try {
   // fresh 3D draw and the house opened through ?building=.
   const exampleReady = async (page, counter) => {
     assert.equal(await page.title(), exampleTitle);
-    await page.getByRole('banner').getByText('Home: Synthetic example house', { exact: true }).waitFor();
+    await page.getByRole('banner').locator('.house-name', { hasText: /^Synthetic example house$/ }).waitFor();
     assert.equal(await page.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
     const stage = page.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
     await stage.waitFor();
@@ -726,10 +726,11 @@ try {
   }));
   await placesLens.locator('.ledger-name').first().waitFor();
   const home = await placesLens.evaluate(node => ({ places: [...node.querySelectorAll('.ledger-name')].map(row => row.textContent.trim()),
-    flags: [...new Set([...node.querySelectorAll('.ledger-flag')].map(row => row.textContent.trim()))] }));
+    // A status shared by every place of a group is stated once under its heading; a row carries its own only where it differs.
+    flags: [...new Set([...node.querySelectorAll('.ledger-shared .ledger-facts, .ledger-flag')].map(row => row.textContent.trim()))] }));
   for (const name of ['Synthetic house', 'Synthetic studio', 'Upper floor', 'Stairs', 'Studio', 'Gallery'])
     assert(home.places.includes(name), `Home lists ${name} from the Atlas publication`);
-  assert(home.flags.includes('Source: present; cache: stale'), 'Home shows its HomeBox copy as stale');
+  assert(home.flags.includes('HomeBox source: present; cache: stale'), 'Home shows its HomeBox copy as stale');
   // The source hierarchy names a room; it is not reviewed physical placement.
   const belongings = placesLens.locator('.ledger-unplaced');
   for (const name of ['Fictional reading lamp', 'Fictional sketchbook', 'Fictional folding stool'])
