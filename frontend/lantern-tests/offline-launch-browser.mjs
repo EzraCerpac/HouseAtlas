@@ -438,7 +438,9 @@ try {
     // elevation tokens and explicit unknowns, 44 px phone targets, nothing fetched.
     await evaluate(`[...document.querySelectorAll('.navrail button')].find(button => button.textContent === 'Atlas').click()`);
     await poll(`[...document.querySelectorAll('.offline-lens button')].some(button => button.textContent === 'Rooms & places')`, 5_000, 'Atlas lens switch not shown');
-    await evaluate(`[...document.querySelectorAll('.offline-lens button')].find(button => button.textContent === 'Rooms & places').click()`);
+    // A keyboard user's pressed switch button keeps focus across the change.
+    await evaluate(`(() => { const button = [...document.querySelectorAll('.offline-lens button')].find(button => button.textContent === 'Rooms & places');
+      button.focus(); button.click(); })()`);
     await poll(`document.querySelector('main h1')?.textContent === 'Rooms & places'
       && [...document.querySelectorAll('main button')].some(button => button.getAttribute('aria-label')?.startsWith('Generated barn, Atlas identity'))`, 15_000, 'Held Rooms & places did not open');
     assert.equal(await evaluate(`(() => { const head = document.querySelector('main .view-head p'), text = document.querySelector('main').textContent;
@@ -447,6 +449,8 @@ try {
         && document.querySelector('.navrail button[aria-current="page"]')?.textContent === 'Atlas'
         && document.querySelector('.offline-lens button[aria-pressed="true"]')?.textContent === 'Rooms & places'; })()`), true,
       'Held Rooms & places must carry the held-copy stamp and its own retrieval time');
+    assert.equal(await evaluate(`document.activeElement === document.querySelector('.offline-lens button[aria-pressed="true"]')`), true,
+      'The pressed Rooms & places switch button must keep focus after the change');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.getAttribute('aria-label')?.startsWith('Generated barn, Atlas identity')).click()`);
     await poll(`document.querySelector('main').textContent.includes('Generated barn: 3 locations in reviewed membership')`, 5_000, 'Held building membership not shown');
     assert.equal(await evaluate(`(() => { const text = document.querySelector('main').textContent;

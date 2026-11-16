@@ -132,11 +132,13 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
       <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={20} /></button>
     </div>
     <main id="main" className="main" tabIndex={-1}>
-      {view === 'atlas' ? atlas ? <>{lens}
+      {/* One mounted switch for Map and Rooms & places, so the pressed button keeps focus across the change. */}
+      {(view === 'atlas' || view === 'rooms') && lens}
+      {view === 'atlas' ? atlas ? <>
           <p className="offline-stamp">{stamp}</p>
           <div className="offline-atlas"><UnifiedAtlas port={atlas.port} environment={{ reducedMotion, openDocuments: () => setView('library') }} /></div></>
-        : <div className="view">{lens}<h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
-        : view === 'rooms' ? <div className="view">{lens}<header className="view-head"><h1>Rooms &amp; places</h1><p>{stamp}</p></header>
+        : <div className="view"><h1>Atlas</h1><p role="status">{atlasLoading ? `Opening held Atlas of ${snapshot.data.homeLabel}…` : 'No matching Atlas is held on this device.'}</p></div>
+        : view === 'rooms' ? <div className="view"><header className="view-head"><h1>Rooms &amp; places</h1><p>{stamp}</p></header>
           <Suspense fallback={<p role="status">Reading held building records…</p>}>
             <HeldPlaces read={owner.read} handle={selection.handle} snapshot={snapshot} signal={signal} /></Suspense></div>
         : <div className="view"><header className="view-head"><h1>{view === 'upkeep' ? 'Upkeep' : view === 'library' ? 'Library' : 'Changes'}</h1>
