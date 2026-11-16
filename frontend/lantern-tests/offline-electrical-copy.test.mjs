@@ -1557,14 +1557,21 @@ function generatedTopology(scope, fail = null) {
       label: 'Generated building ✓', evidenceIds: [] })] };
   const ready = records => ({ status: 'ready', records: structuredClone(records), sourceStatus: 'stale', snapshotSha256: 'a'.repeat(64) });
   return { calls, client: { getBinding: () => binding, subscribe: () => () => {},
-    async listAll(given, kind) { assert.equal(given, binding); calls.push(kind);
+    async listAll(given, kind, selected) { assert.equal(given, binding); calls.push(kind);
+      // Never answers; ends only when the pass's signal or deadline aborts it.
+      if (fail === 'hang') return new Promise((_, reject) => selected.addEventListener('abort', () => reject(selected.reason), { once: true }));
       if (fail === kind) return { status: 'unavailable' };
       return fail === 'changed' && kind === 'relation' ? { ...ready([]), snapshotSha256: 'b'.repeat(64) } : ready(lists[kind]); },
     async buildingMembers(given, id) { assert.equal(given, binding); calls.push('members ' + id);
       return fail === 'members' ? { status: 'timedOut' } : ready([building]); } } };
 }
 async function topologyHarness() {
-  const backend = memory(), other = { workspaceId: scope.workspaceId, homeId: uuid(3) };
+  // Storage that refuses building-record rows with a quota error while `refuse` is set.
+  const base = memory(); let refuse = false;
+  const backend = { ...base, transaction: (write, work) => base.transaction(write, tx => work({ ...tx,
+    put: async (table, key, value) => { if (refuse && key.includes('"topology"')) throw Object.assign(new Error('Generated quota'), { name: 'QuotaExceededError' });
+      return tx.put(table, key, value); } })) };
+  const other = { workspaceId: scope.workspaceId, homeId: uuid(3) };
   const sessions = { a: { actorId: 'generated-actor-a', expiresAt: '2099-01-01T00:00:00Z' }, b: { actorId: 'generated-actor-b', expiresAt: '2099-01-01T00:00:00Z' } };
   let state = { session: sessions.a, view };
   const owner = createLiveCopyRetention({ factory: undefined, backend, state: () => state,
@@ -1572,10 +1579,11 @@ async function topologyHarness() {
   const observe = async session => { state = { ...state, session }; assert.equal((await owner.observe(session, () => state.session === session)).status, 'ok'); };
   await observe(sessions.a);
   assert.equal((await owner.capture(view, signal())).status, 'ok');
-  const keep = (fail = null, current = () => true) => { const t = generatedTopology(state.view.scope, fail);
-    return retainOfflineTopology({ owner, topology: t.client, view: state.view, current, signal: signal() }).then(result => ({ result, calls: t.calls })); };
+  const keep = (fail = null, current = () => true, { signal: selected = signal(), deadlineMs } = {}) => { const t = generatedTopology(state.view.scope, fail);
+    return retainOfflineTopology({ owner, topology: t.client, view: state.view, current, signal: selected, ...(deadlineMs ? { deadlineMs } : {}) })
+      .then(result => ({ result, calls: t.calls })); };
   const held = async () => owner.read.readTopology(await readCopy(owner), signal());
-  return { owner, backend, keep, held, observe, sessions,
+  return { owner, backend, keep, held, observe, sessions, refuse: value => { refuse = value; },
     async home(next = view) { state = { ...state, view: next }; assert.equal((await owner.capture(next, signal())).status, 'ok'); },
     otherHome: () => ({ ...view, scope: other }) };
 }
@@ -1601,13 +1609,15 @@ test('building records save with the copy, round-trip for its home and leave the
   } finally { f.owner.close(); }
 });
 
-test('a failed, changed or partial building-record read at save time is recorded as not held; the copy stays', async () => {
-  for (const fail of ['relation', 'changed', 'members']) {
+test('a failed, changed, partial, timed-out or storage-refused building-record save is recorded as not held; the copy stays', async () => {
+  for (const fail of ['relation', 'changed', 'members', 'hang', 'quota']) {
     const f = await topologyHarness();
     try {
       assert.equal((await f.keep()).result, 'held');
       const before = await f.owner.read.readLast(signal());
-      assert.equal((await f.keep(fail)).result, 'not-held', fail);
+      if (fail === 'quota') f.refuse(true);
+      assert.equal((await f.keep(fail === 'quota' ? null : fail, () => true, { deadlineMs: 20 })).result, 'not-held', fail);
+      f.refuse(false);
       assert.equal((await f.held()).status, 'missing', fail);
       const after = await f.owner.read.readLast(signal());
       assert.equal(after.status, 'ok'); assert.deepEqual(after.value.snapshot, before.value.snapshot);
@@ -1617,6 +1627,19 @@ test('a failed, changed or partial building-record read at save time is recorded
       assert.deepEqual(f.backend.tables(), tables);
     } finally { f.owner.close(); }
   }
+});
+
+test('a building-record pass cancelled in flight writes and removes nothing', async () => {
+  const f = await topologyHarness();
+  try {
+    assert.equal((await f.keep()).result, 'held');
+    const tables = structuredClone(f.backend.tables()), controller = new AbortController();
+    const pass = f.keep('hang', () => !controller.signal.aborted, { signal: controller.signal });
+    setTimeout(() => controller.abort(), 5);
+    assert.equal((await pass).result, 'stopped');
+    assert.deepEqual(f.backend.tables(), tables);
+    assert.equal((await f.held()).status, 'ok');
+  } finally { f.owner.close(); }
 });
 
 test('held building records are read only for their account and home; sign-out and clearing remove them', async () => {
@@ -1629,6 +1652,10 @@ test('held building records are read only for their account and home; sign-out a
     await f.observe(f.sessions.b);
     assert.notEqual((await f.owner.read.readLast(signal())).status, 'ok');
     assert.deepEqual([...f.backend.tables().get('metadata').keys()], [], 'another account starts with nothing held');
+    await f.observe(f.sessions.a); await f.home();
+    assert.equal((await f.keep()).result, 'held');
+    await f.observe(null);
+    assert.deepEqual([...f.backend.tables().get('metadata').keys()], [], 'sign-out removes them');
     await f.observe(f.sessions.a); await f.home();
     assert.equal((await f.keep()).result, 'held');
     assert.equal((await f.owner.storage.clear()).status, 'ok');

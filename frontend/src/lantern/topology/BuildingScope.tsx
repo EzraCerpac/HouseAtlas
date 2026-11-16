@@ -64,13 +64,13 @@ export function Rows({ rows, index, selected }: { rows: readonly { location: Loc
   </>;
 }
 function Row({ location, index, selected, note, shared }: { location: Location; index: TopologyIndex; selected: ReadonlySet<string>; note?: string | undefined; shared: ReadonlySet<string> }) {
-  const select = useSelect(), { state } = useStore();
+  const select = useSelect(), { state, actions } = useStore();
   const topology = useTopology();
   const facts = rowFacts(location, note).filter(fact => !shared.has(fact));
   const content = <><span className="ledger-name" title={location.id}>{location.label}</span>
     {facts.length > 0 && <span className="ledger-facts">{facts.map(fact => <span key={fact}>{fact}</span>)}</span>}</>;
   return <li className={`ledger-row${state.selection?.id === location.selectId && location.selectId ? ' is-selected' : ''}`}>
-    {location.selectId ? <button type="button" className="ledger-main topology-row" aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{content}</button>
+    {location.selectId && !actions.heldCopy ? <button type="button" className="ledger-main topology-row" aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{content}</button>
       : <div className="ledger-main topology-row">{content}</div>}
     {topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor key={location.id} client={topology.nativePlaces} binding={topology.nativeBinding} index={index} location={location} refresh={topology.reload} />}
     {topology.nativePlaces && topology.nativeBinding && <NativePlaceEvidence client={topology.nativePlaces.evidence} binding={topology.nativeBinding} location={location} index={index} refresh={topology.reload} />}

@@ -197,7 +197,10 @@ The held copy also keeps the building records the Rooms & places lens reads:
 the four topology lists and each reviewed building's membership list, read
 through the lens's own client under one server snapshot, with no new endpoint.
 They are a separate versioned owner row; copies without one keep the not-held
-sentence, and a failed, changed or partial read at save time removes the row.
+sentence, and a failed, changed, partial, timed-out (one 120 s deadline for the
+whole pass) or storage-refused save removes the row. The pass runs beside the
+library fill, one per account and home at a time. The held lens shows records
+without opening them and states that evidence is not held in the saved copy.
 Three existing entries carry the controls; no command, selection or deadline
 is added, so the runner inventory is unchanged.
 
@@ -205,13 +208,16 @@ is added, so the runner inventory is unchanged.
   and checks the held client returns equal records, index and building model,
   exact elevation tokens, home binding and refusal of altered or unheld rows.
 - `offline-electrical-copy.test.mjs` runs the actual policy, codec, retention
-  adapter and owner over its in-memory backend: round trip, failed/changed/
-  partial reads recorded as not held with the view kept, retired views writing
-  nothing, another home or account reading nothing, and clearing.
-- `offline-launch-browser.mjs --case live-launch` checks the mounted lens.
+  adapter and owner over its in-memory backend: round trip; failed, changed,
+  partial, timed-out and quota-refused saves recorded as not held with the view
+  kept; retired views and in-flight cancellation writing nothing; another home
+  or account reading nothing; sign-out and clearing.
+- `offline-launch-browser.mjs --case live-launch` checks the mounted lens,
+  including no record-selection or evidence-read controls and the evidence
+  not-held sentence for a generated evidence ID.
 
 Generated sizes: 25,631 bytes for the topology-read fixture (one building
-membership), 4,834 bytes for the live-launch home and 1,403 bytes for the
+membership), 4,872 bytes for the live-launch home and 1,403 bytes for the
 two-location policy home. The row uses the existing 8 MiB view bound and the
 shared budget and eviction. These are synthetic, headless checks; they are not
 real-home sizes or device evidence.

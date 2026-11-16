@@ -7,6 +7,8 @@
 .offline-app .offline-lens { flex: none; align-self: flex-start; margin: 8px 14px 0; }
 .offline-app .view > .offline-lens { margin: 0 0 12px; }
 @media (pointer: coarse) { .offline-app .offline-lens button { min-height: 44px; } }
+/* Records in the held lens are shown, not opened. */
+.offline-app .entity-link.is-held:hover .entity-link-text > span:first-child { text-decoration: none; }
 /* The held copy's date as one slim line above the stage, so no stage control is covered. */
 .offline-app .offline-stamp { flex: none; margin: 0; padding: 6px 14px; color: var(--muted); font-size: var(--fs-xs); }
 .offline-app .offline-documents { display: grid; gap: 12px; padding-left: 20px; }

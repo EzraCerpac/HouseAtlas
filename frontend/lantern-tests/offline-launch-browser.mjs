@@ -137,7 +137,7 @@ async function liveLaunchSeed() {
       'location-semantics': { records: [named('20', place('10'), 'building', 'Generated barn'),
         named('21', place('11'), 'floor', 'Generated ground level', { elevation: { status: 'known', metres: ExactDecimal.parse('2.750'), datumAtlasId: place('10') } }),
         named('22', place('12'), 'floor', 'Generated loft', { elevation: { status: 'unknown' } }),
-        named('23', place('13'), 'room', 'Generated tack room')], sourceStatus: 'current' },
+        named('23', place('13'), 'room', 'Generated tack room', { evidenceIds: [place('40')] })], sourceStatus: 'current' },
       relation: { records: [contains('30', '10', '11', 'building'), contains('31', '10', '12', 'building'), contains('32', '11', '13', 'level')], sourceStatus: 'current' } },
     buildings: [{ buildingId: place('10'), members: { records: locations, sourceStatus: 'current' } }] });
   console.log(`INFO held building records, generated live-launch home: ${topology.byteLength} bytes`);
@@ -454,6 +454,13 @@ try {
       'Held levels keep the exact recorded elevation and the explicit unknown');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('.offline-lens button, main .chip-btn')].filter(node => node.getClientRects().length)
       .map(node => node.getBoundingClientRect().height).filter(height => height < 44)`), [], 'Phone lens and building controls are 44 px');
+    // Held records are shown, not opened: no details view or evidence record exists offline.
+    assert.equal(await evaluate(`(() => { const main = document.querySelector('main'), evidence = main.querySelector('[data-evidence-id="00000000-0000-4000-8000-000000000940"]');
+      return main.querySelectorAll('button.ledger-main, button.entity-link, .linked-evidence button').length === 0
+        && main.querySelectorAll('.entity-link.is-held').length > 0
+        && evidence?.textContent === 'Evidence not held in this saved copy.'
+        && !main.textContent.includes('The session for this evidence read has expired.'); })()`), true,
+      'Held lens must not offer record selection or evidence reads it cannot complete');
     await screenshot('phone-offline-rooms-places');
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Held Rooms & places must not fetch public bytes or data from network');
     // A copy saved without building records (as before #560) keeps the not-held sentence.

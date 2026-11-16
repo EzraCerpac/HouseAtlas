@@ -22,8 +22,8 @@ export function heldReadyView(data: OfflineViewSnapshotV1['data']): ReadyView {
           byteSize: attachment.byteSize ?? null, downloadHref: null, previewHref: null }
         : { attachmentId: attachment.attachmentId, title: attachment.title, kind: 'external-link' as const, url: null, archived: attachment.archived ?? false }) })) };
 }
-// No reload, home switch, session or edit port: the held lens only reads this device's copy.
-const actions: LanternActions = { reload: async () => false, switchHome: () => {}, nativeContent: null };
+// No reload, home switch, session, edit port, record details or evidence reads: the held lens only shows this copy.
+const actions: LanternActions = { reload: async () => false, switchHome: () => {}, nativeContent: null, heldCopy: true };
 
 /** Rooms & places from the held copy, through the live lens and its wording. Building records come only from
  * this copy's own row for its account and home; a copy without one keeps the not-held sentence. */

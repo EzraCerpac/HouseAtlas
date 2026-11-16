@@ -170,6 +170,28 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
   return `${native} ${electrical.message} ${homebox.message}`;
 }
+// Building records for Rooms & places offline, beside (never before) the library fill. One pass per account and
+// home at a time: a capture during it asks for a single rerun, used only if that pass stopped before finishing.
+let buildingRecordsPass: { readonly key: string; rerun: (() => void) | null } | null = null;
+function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRetention, view: ReadyView, signal: AbortSignal): void {
+  const actorId = currentSession?.actorId;
+  if (!actorId) return;
+  const key = JSON.stringify([actorId, view.scope.workspaceId, view.scope.homeId]);
+  const start = () => {
+    if (signal.aborted || currentReadyView !== view) return;
+    const pass = { key, rerun: null as (() => void) | null };
+    buildingRecordsPass = pass;
+    void import('./offline-topology-policy')
+      .then(module => module.retainOfflineTopology({ owner, topology, view, signal, current: () => currentReadyView === view }))
+      .catch(() => 'stopped' as const).then(result => {
+        if (buildingRecordsPass !== pass) return;
+        buildingRecordsPass = null;
+        if (result === 'stopped') pass.rerun?.();
+      });
+  };
+  if (buildingRecordsPass?.key === key) buildingRecordsPass.rerun = start;
+  else start();
+}
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);
   useEffect(() => {
@@ -834,10 +856,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
               return owner.capture(view, signal).then(async result => {
                 if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
-                // Building records for Rooms & places offline, through the lens's own reads; a failed read is recorded as not held.
-                const { retainOfflineTopology } = await import('./offline-topology-policy');
-                await retainOfflineTopology({ owner, topology, view, signal, current: () => currentReadyView === view }).catch(() => undefined);
-                if (signal.aborted || currentReadyView !== view) return;
+                keepBuildingRecords(owner, view, signal);
                 await fillDeviceLibrary(owner, signal, keepLibrary);
               });
           }).catch(() => undefined);

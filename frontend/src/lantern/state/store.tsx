@@ -121,6 +121,8 @@ export interface LanternActions {
   offlineStorage?: ReactNode;
   /** The host's explicit HomeBox refresh port; the lazily loaded button only reads and presses it. */
   homeboxRefresh?: RefreshHostPort;
+  /** A held saved copy: no record details or evidence reads exist here, so records are shown, not opened. */
+  heldCopy?: true;
 }
 function initial(house: HouseData): AppState {
   return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', atlasLens: null, selection: null,

@@ -8,16 +8,19 @@ import type { LiveCopyRetention } from './live-copy-retention';
  * consistent read is recorded as not held; the rest of the saved copy is untouched. */
 export async function retainOfflineTopology(options: {
   owner: Pick<LiveCopyRetention, 'retainTopology'>; topology: TopologyClient; view: ReadyView; current(): boolean; signal: AbortSignal;
+  /** One deadline for the whole read; a pass that exceeds it is recorded as not held. */
+  readonly deadlineMs?: number;
 }): Promise<'held' | 'not-held' | 'stopped'> {
   const { owner, topology, view, signal } = options;
+  const reads = AbortSignal.any([signal, AbortSignal.timeout(options.deadlineMs ?? 120_000)]);
   const binding = topology.getBinding();
   const current = () => !signal.aborted && options.current() && topology.getBinding() === binding;
   if (!binding || !current() || binding.scope.workspaceId !== view.scope.workspaceId || binding.scope.homeId !== view.scope.homeId) return 'stopped';
   const capturedAt = new Date().toISOString();
   const encoded = async (): Promise<Uint8Array | null> => {
     const [identity, bindings, semantics, relations] = await Promise.all([
-      topology.listAll(binding, 'identity', signal), topology.listAll(binding, 'binding', signal),
-      topology.listAll(binding, 'location-semantics', signal), topology.listAll(binding, 'relation', signal),
+      topology.listAll(binding, 'identity', reads), topology.listAll(binding, 'binding', reads),
+      topology.listAll(binding, 'location-semantics', reads), topology.listAll(binding, 'relation', reads),
     ]);
     if (!current() || identity.status !== 'ready' || bindings.status !== 'ready' || semantics.status !== 'ready' || relations.status !== 'ready'
       || [bindings, semantics, relations].some(read => read.snapshotSha256 !== identity.snapshotSha256)) return null;
@@ -28,8 +31,8 @@ export async function retainOfflineTopology(options: {
     if (index.buildings.length > codec.HELD_TOPOLOGY_LIMITS.buildings) return null;
     const buildings: HeldTopologyV1['buildings'][number][] = [];
     for (const building of index.buildings) {
-      const members = await topology.buildingMembers(binding, building.id, signal);
-      if (!current() || members.status !== 'ready' || members.snapshotSha256 !== identity.snapshotSha256) return null;
+      const members = await topology.buildingMembers(binding, building.id, reads);
+      if (!current() || reads.aborted || members.status !== 'ready' || members.snapshotSha256 !== identity.snapshotSha256) return null;
       buildings.push({ buildingId: building.id, members: { records: members.records, sourceStatus: members.sourceStatus } });
     }
     const list = <T extends { records: R; sourceStatus: S }, R, S>(read: T) => ({ records: read.records, sourceStatus: read.sourceStatus });
