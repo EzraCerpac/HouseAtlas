@@ -11,10 +11,11 @@ import { SyncSettings } from '../../outbox/ui';
 import { useSourcePorts } from '../source-ports';
 import { BackupSettings } from './BackupSettings';
 import { Choice } from './Choice';
-import { fmtLocalClock } from './ui';
+import { fmtLocalClock, InlineTime } from './ui';
 
 export function SettingsContents() {
-  const { state, dispatch, actions } = useStore();
+  const { state, dispatch, actions, projection } = useStore();
+  const homebox = projection.view.caches.find(cache => cache.owner === 'homebox');
   const aiAvailable = useAiHostAvailable();
   const modelUpdates = useModelUpdates();
   const modelQuality = useModelQuality();
@@ -48,6 +49,10 @@ export function SettingsContents() {
           </button>
           {actions.loadedAt !== undefined && <span className="setting-static device-time">
             Loaded on this device: <time dateTime={new Date(actions.loadedAt).toISOString()}>{fmtLocalClock(actions.loadedAt)}</time>
+          </span>}
+          {/* The source's own clock beside this device's, as the Overview states it. */}
+          {homebox && <span className="setting-static device-time">
+            HomeBox last successful update: {homebox.lastSuccessfulFetchAt ? <InlineTime value={homebox.lastSuccessfulFetchAt} /> : 'unknown'}
           </span>}
         </div>
         <p className="setting-static" role="status" aria-live="polite">

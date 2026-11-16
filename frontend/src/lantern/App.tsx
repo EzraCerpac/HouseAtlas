@@ -288,8 +288,9 @@ export function App() {
 
       <aside id="details" className={`detail-col${sheetExpanded ? ' is-expanded' : ''}`} aria-label="Details">
         <button id="detail-sheet-handle" type="button" className="sheet-handle" aria-expanded={sheetExpanded} onClick={() => (state.selection ? dispatch({ type: 'select', sel: null }) : setSheetOpen(!sheetOpen))}>
-          <span className="sheet-grip" aria-hidden="true" />
-          <span>{state.selection ? 'Close details' : sheetOpen ? 'Hide overview' : `${house.name} overview`}</span>
+          {/* Drawn as the close button dialogs use, top right; its text stays its name. */}
+          <Icon name="close" size={18} />
+          <span className="sr-only">{state.selection ? 'Close details' : sheetOpen ? 'Hide overview' : `${house.name} overview`}</span>
         </button>
         {sheetExpanded && <div className="detail-scroll">
           <DetailPanel onCloseOverview={() => { setSheetOpen(false); document.querySelector<HTMLElement>('.source-status')?.focus(); }}

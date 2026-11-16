@@ -27,7 +27,7 @@ export function ChangesView() {
       {/* The read failed or this home has no history to read; the client cannot tell which. The button repeats that read. */}
       {(history.status === 'unavailable' || retrying) && <><p className="body-text" role="status">{retrying ? 'Reading operation history…'
         : 'Operation history is unavailable for this home. Past changes are unknown; sources are read separately.'}</p>
-        {actions.retryOperationHistory && <button type="button" className="btn" aria-disabled={retrying}
+        {actions.retryOperationHistory && <button type="button" className="btn changes-retry" aria-disabled={retrying}
           onClick={() => { if (retry !== 'idle') return; setRetry('asked'); actions.retryOperationHistory?.(); }}>Read operation history again</button>}</>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}
       {history.status === 'expired' && <p className="body-text" role="status">The session for this history read has expired.</p>}

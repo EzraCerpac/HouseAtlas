@@ -372,7 +372,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         <div ref={pdfCanvasHost} className="native-scene-pdf" role="region" tabIndex={0} aria-label={`${sheet.title}, page ${pdfPage} of ${pdfPageCount ?? 'loading'}`}>
           <canvas ref={pdfCanvas} className="native-scene-pdf-canvas" role="img" aria-label={`${sheet.title}, PDF page ${pdfPage}`} />
         </div>
-        <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
+        <a className="btn" style={{ alignSelf: 'flex-start' }} href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
           if (!currentRef.current() || !client.isCurrent(shown.frame)
             || activeDrawing.current?.generation !== shown.generation) {
             event.preventDefault(); activeDrawing.current?.withdraw();

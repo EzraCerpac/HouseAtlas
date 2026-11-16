@@ -32,6 +32,7 @@ import { Icon } from './Icon';
 import { ItemArt, MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
+import { sourceLocation } from '../../app/model';
 
 /** `onLeaveOverview` sets the overview aside without moving focus, for a link that takes focus elsewhere. */
 export function DetailPanel({ onCloseOverview, onLeaveOverview }: { onCloseOverview?: () => void; onLeaveOverview?: () => void }) {
@@ -486,6 +487,7 @@ function ItemDetail({ item }: { item: Item }) {
   const { house, dispatch, projection } = useStore();
   const isUnknown = item.id.startsWith('uk-');
   const source = projection.entries.get(item.id);
+  const location = source && sourceLocation(projection.view, source);
   const docs = docsFor(house, item.id);
   const tasks = tasksFor(house, item.id);
   const load = house.loads.find((l) => l.itemId === item.id);
@@ -544,9 +546,13 @@ function ItemDetail({ item }: { item: Item }) {
               </>
             )}
           </p>
-        ) : (
+        ) : (<>
           <Note tone="warn">No reviewed placement.</Note>
-        )}
+          {/* HomeBox's own hierarchy, as source data: names do not establish placement. */}
+          {location && <p className="fine">HomeBox location: {location.names.length
+            ? `${[...(location.complete ? [] : ['higher location unknown']), ...location.names].join(' / ')} · not a reviewed placement`
+            : location.complete ? 'not supplied' : 'unknown'}</p>}
+        </>)}
         {item.locationNote && <p className="body-text muted">{item.locationNote}</p>}
       </Section>
       {!isUnknown && <Section title="Power">
@@ -926,7 +932,7 @@ function DocDetail({ d }: { d: Doc }) {
         <Note>HomeBox file. {access?.available ? 'An access link is supplied.' : 'No access link is supplied.'}</Note>
       )}
       {d.summary && <p className="body-text">{d.summary}</p>}
-      <Section title="Provenance">
+      <Section title="Source details">
         <Facts
           rows={[
             // The document's own kind, as supplied; search results leave it here.
@@ -1015,13 +1021,13 @@ function TaskDetail({ t }: { t: Task }) {
           ]}
         />
       </Section>
-      <Section title="Instructions" count={docs.length}>
-        <DocList docs={docs} empty="No manual was supplied for this task." />
-        {targetFiles.length > 0 && <>
-          <h4 className="detail-subhead">Files for {nameOf(house, t.targetId)}</h4>
-          <DocList docs={targetFiles} />
-        </>}
+      <Section title="Task instructions" count={docs.length}>
+        <DocList docs={docs} empty="No instructions supplied for this task." />
       </Section>
+      {/* The task's record keeps its own files; they are not task instructions. */}
+      {targetFiles.length > 0 && <Section title={`Files for ${nameOf(house, t.targetId)}`} count={targetFiles.length}>
+        <DocList docs={targetFiles} />
+      </Section>}
       {t.status === 'done' && (
         <Section title="Evidence" count={evidence.length}>
           <DocList docs={evidence} empty="Completion evidence was not supplied for this task." />

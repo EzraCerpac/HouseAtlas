@@ -114,13 +114,6 @@
   gap: 8px;
 }
 
-.lantern-host .section > .detail-subhead {
-  margin: 12px 0 4px;
-  font-size: var(--fs-s);
-  font-weight: 650;
-  color: var(--ink-2);
-}
-
 .lantern-host .view .section-head h2 {
   font-size: var(--fs-xl);
 }
@@ -1060,6 +1053,21 @@
   opacity: 0.35;
 }
 
+/* Upkeep: bars in the place of the row of group counts. */
+.lantern-host .upkeep-empty.loading-summary {
+  margin-bottom: 12px;
+}
+
+.lantern-host .upkeep-empty.loading-summary li {
+  gap: 0;
+}
+
+.lantern-host .loading-summary b {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--hair) 70%, transparent);
+}
+
 /* Library: a file row's title bar and action slot over its facts. */
 .lantern-host .loading-lib i {
   display: grid;
@@ -1752,6 +1760,7 @@
 @media (max-width: 759px) {
   .lantern-host .library-jump {
     flex-wrap: nowrap;
+    gap: 0 12px;
     margin: 0 -16px;
     padding: 0 16px;
     overflow-x: auto;
@@ -1938,6 +1947,11 @@
 }
 
 /* Changes */
+
+/* The retry sits a paragraph's distance below the statement it repeats. */
+.lantern-host .changes-retry {
+  margin-top: 12px;
+}
 
 .lantern-host .changes-grid {
   display: grid;
@@ -2873,14 +2887,15 @@
   }
 }
 
-/* Narrow layouts close the overview and record details from the sheet handle. */
+/* Narrow layouts close the overview and record details from the sheet's own
+   ×, which keeps the kicker's right end clear. */
 @media (max-width: 1179px) {
   .lantern-host .detail-close {
     display: none;
   }
 
   .lantern-host .detail-kicker {
-    padding-right: 0;
+    padding-right: 48px;
   }
 }
 

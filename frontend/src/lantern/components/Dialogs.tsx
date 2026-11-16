@@ -49,7 +49,7 @@ function useClose() {
 function Blocked({ title, reason }: { title: string; reason: string }) {
   const close = useClose();
   return (
-    <Modal title={title} onClose={() => close()} footer={<button type="button" className="btn btn-primary" onClick={() => close()}>Close</button>}>
+    <Modal title={title} onClose={() => close()}>
       <Note>{reason}</Note>
     </Modal>
   );

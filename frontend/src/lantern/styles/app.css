@@ -1418,7 +1418,7 @@
   gap: 6px 12px;
 }
 
-/* This device's clock, framed apart from the dates sources record. */
+/* The clocks beside the reload control, each framed and labelled. */
 .lantern-host .device-time {
   padding: 2px 8px;
   border: 1px solid var(--hair);
@@ -1427,6 +1427,7 @@
 
 .lantern-host .device-time time {
   color: var(--ink-2);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2262,26 +2263,26 @@
     animation: record-sheet-in 0.24s ease-out;
   }
 
+  /* The sheet closes from one × at its top right, where dialogs and the
+     wide panel put theirs; it stays put while the record scrolls. */
   .lantern-host .detail-col.is-expanded .sheet-handle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 44px;
-    padding: 0 18px;
-    border: 0;
-    border-bottom: 1px solid var(--hair);
-    background: var(--card-2);
-    color: var(--ink);
-    font-weight: 650;
-    font-size: var(--fs-s);
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--r-control);
+    background: var(--sheet);
+    color: var(--ink-2);
   }
 
-  .lantern-host .sheet-grip {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--lantern-edge);
+  .lantern-host .detail-col.is-expanded .sheet-handle:hover {
+    background: color-mix(in srgb, var(--ink) 7%, var(--sheet));
   }
 }
 
@@ -2459,25 +2460,9 @@
     animation: record-sheet-rise 0.24s ease-out;
   }
 
-  .lantern-host .detail-col.is-expanded .sheet-handle {
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    min-height: 44px;
-    background: var(--card);
-    border-radius: 18px 18px 0 0;
-  }
-
   .lantern-host .sheet-handle:focus-visible {
     outline-color: var(--focus);
     outline-offset: -3px;
-  }
-
-  .lantern-host .detail-col.is-expanded .sheet-grip {
-    width: 40px;
-    height: 4px;
-    border-radius: 4px;
-    background: var(--hair-2);
   }
 
   .lantern-host .modal-backdrop {

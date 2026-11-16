@@ -8,8 +8,7 @@ const SettingsContents = lazy(() => import('./SettingsContents').then(module => 
 export function SettingsDialog() {
   const { dispatch } = useStore();
   const close = () => dispatch({ type: 'settingsOpen', open: false });
-  return <Modal title="Settings" onClose={close}
-    footer={<button type="button" className="btn btn-primary" onClick={close}>Done</button>}>
+  return <Modal title="Settings" onClose={close}>
     <Suspense fallback={<p className="setting-static" role="status">Loading settings…</p>}>
       <SettingsContents />
     </Suspense>

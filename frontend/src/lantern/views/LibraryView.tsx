@@ -91,12 +91,16 @@ export function LibraryView() {
   const [filter, setFilter] = useState<Filter>('all');
   const homeboxHeading = useId(), categoryId = useId();
   const homeboxRef = useRef<HTMLElement>(null), documentsRef = useRef<HTMLDivElement>(null), drawingsRef = useRef<HTMLDivElement>(null);
-  const test = FILTERS.find((f) => f.id === filter)!.test;
+  // A filter is offered only when two or more kinds have files; otherwise All is the only choice.
+  const kinds = FILTERS.filter(f => f.id !== 'all' && house.docs.some(f.test)).length;
+  const offered = FILTERS.filter(f => f.id === 'all' || f.id === filter || house.docs.some(f.test));
+  const test = FILTERS.find((f) => f.id === (kinds > 1 ? filter : 'all'))!.test;
   const docs = house.docs.filter(test).sort((a, b) => b.addedAt.localeCompare(a.addedAt));
   const stored = house.docs.filter((d) => d.storage === 'stored').length;
   const archivedLinks = house.docs.filter((d) => d.linkArchived === true).length;
-  // HomeBox files opens the page, under its own heading; the links reach the sections below it.
+  // HomeBox files opens the page; the links name every section, in page order.
   const sections = [
+    { label: 'HomeBox files', ref: homeboxRef },
     ...(documents ? [{ label: 'Source documents', ref: documentsRef }] : []),
     ...(electricalLibrary ? [{ label: 'Electrical drawings', ref: drawingsRef }] : []),
   ];
@@ -104,7 +108,7 @@ export function LibraryView() {
     <div className="view">
       <header className="view-head library-head">
         <h1>Library</h1>
-        {sections.length > 0 && <nav className="library-jump" aria-label="Library sections">
+        {sections.length > 1 && <nav className="library-jump" aria-label="Library sections">
           {sections.map(({ label, ref }) => <button key={label} type="button" onClick={() => jumpTo(ref)}>{label}</button>)}
         </nav>}
       </header>
@@ -113,18 +117,18 @@ export function LibraryView() {
         <p className="library-scope">
           HomeBox reports {plural(stored, 'stored file', 'stored files')} and {plural(house.docs.length - stored, 'external link', 'external links')}{archivedLinks > 0 ? `, ${archivedLinks} archived` : ''}.
         </p>
-        <div className="field filter-select"><label htmlFor={categoryId}>Category</label>
+        {kinds > 1 && <><div className="field filter-select"><label htmlFor={categoryId}>Category</label>
           <select id={categoryId} value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
-            {FILTERS.map((f) => <option key={f.id} value={f.id}>{f.label} ({house.docs.filter(f.test).length})</option>)}
+            {offered.map((f) => <option key={f.id} value={f.id}>{f.label} ({house.docs.filter(f.test).length})</option>)}
           </select></div>
         <div className="filter-row" role="group" aria-label="Filter HomeBox files">
-          {FILTERS.map((f) => (
+          {offered.map((f) => (
             <button key={f.id} type="button" className="chip-btn" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
               {f.label}
               <span className="chip-count">{house.docs.filter(f.test).length}</span>
             </button>
           ))}
-        </div>
+        </div></>}
         {docs.length === 0 ? (
           <Empty>No HomeBox files of this kind supplied for this home.</Empty>
         ) : (() => {

@@ -102,6 +102,25 @@ const quantityModule = async (path, imports = []) => {
   return 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 };
 const quantityModelModule = await quantityModule('../src/app/model.ts');
+// HomeBox location path: a stop at a recorded but unresolved parent, or at a
+// repeated parent, is reported as incomplete, never as a complete short path.
+{
+  const { sourceLocation } = await import(quantityModelModule);
+  const record = (id, parent) => ({ key: `k-${id}`, workspaceId: 'w', homeId: 'h',
+    source: { sourceInstanceId: 's', collectionId: 'c' }, entity: { id, name: `Name ${id}`, ...(parent ? { parent: { id: parent } } : {}) } });
+  const at = (entries, id) => sourceLocation({ entries }, entries.find(entry => entry.entity.id === id));
+  const full = [record('lamp', 'drawer'), record('drawer', 'room'), record('room')];
+  assert.deepEqual(at(full, 'lamp'), { names: ['Name room', 'Name drawer'], complete: true });
+  const broken = [record('lamp', 'drawer'), record('drawer', 'room')];
+  assert.deepEqual(at(broken, 'lamp'), { names: ['Name drawer'], complete: false });
+  assert.deepEqual(at([record('lamp', 'drawer')], 'lamp'), { names: [], complete: false });
+  assert.deepEqual(at([record('lamp')], 'lamp'), { names: [], complete: true });
+  const cycle = [record('lamp', 'a'), record('a', 'b'), record('b', 'a')];
+  assert.deepEqual(at(cycle, 'lamp'), { names: ['Name b', 'Name a'], complete: false });
+  // Equal-looking parent IDs from another source collection do not resolve.
+  const other = [record('lamp', 'room'), { ...record('room'), source: { sourceInstanceId: 's', collectionId: 'other' } }];
+  assert.deepEqual(at(other, 'lamp'), { names: [], complete: false });
+}
 const quantitySessionModule = await quantityModule('../src/app/session.ts');
 const quantityRotationModule = await quantityModule('../src/app/session-rotation.ts');
 const quantityDecoderModule = await quantityModule('../src/app/decode.ts', [['./model', quantityModelModule]]);

@@ -24,22 +24,15 @@ export function PreviewDialog({ docId }: { docId: string }) {
       title={doc.title}
       kicker={<StorageTag doc={doc} />}
       onClose={close}
-      footer={
-        <>
-          <p className="sim-note">Fictional demo document.</p>
-          <button type="button" className="btn btn-primary" onClick={close}>
-            Done
-          </button>
-        </>
-      }
+      footer={<p className="sim-note">Fictional demo document.</p>}
     >
       <div className="preview-layout">
         <div className="preview-stage">
           {cached && <Note tone="warn">HomeBox is unreachable. This is the cached preview from {rel(house.sources.homeboxSyncedAt)}.</Note>}
           {doc.storage === 'link' ? <LinkPanel doc={doc} /> : <DocSheet doc={doc} house={house} />}
         </div>
-        <aside className="preview-aside" aria-label="Provenance">
-          <h3>Provenance</h3>
+        <aside className="preview-aside" aria-label="Source details">
+          <h3>Source details</h3>
           <dl className="facts">
             <div>
               <dt>Kind</dt>
