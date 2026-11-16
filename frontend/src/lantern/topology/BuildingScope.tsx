@@ -99,7 +99,7 @@ export function BuildingScope() {
   let priorDatum: string | null = null;
   const shown = model?.levels.filter(group => levelId === 'all' || levelId === group.location.id) ?? [];
   return <div className="topology-scope">
-    <div className="topology-bar"><span className="topology-label">Building</span><span className="muted">Applies to this list only</span>
+    <div className="topology-bar"><span className="topology-label">List by building</span>
       {index && <span className="muted">Atlas records: {[...new Set(index.data.sourceStatuses)].join(', ')}</span>}</div>
     <div className="filter-row topology-chips" role="group" aria-label="Building">
       <button type="button" className="chip-btn" aria-pressed={buildingId === null} onClick={() => topology.chooseBuilding(null)}>Whole home</button>

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { roomContents, unplaced, dueState, CLAIM_LABEL } from '../data/query';
-import { useSelect, useStore } from '../state/store';
+import { useReducedMotion, useSelect, useStore } from '../state/store';
 import { ROOM_TINT } from '../atlas/palette';
 import { EntityLink, Empty } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -31,8 +31,19 @@ export function RoomsView() {
 }
 
 export function RoomIndex() {
-  const { house, state, projection } = useStore();
+  const { house, state, dispatch, projection } = useStore();
   const select = useSelect();
+  const unplacedHeading = useRef<HTMLHeadingElement>(null), reducedMotion = useReducedMotion();
+  // Sent here from the Overview's count: land on the records it counted. A
+  // passive effect, so it runs after the lens has put focus on its own title.
+  useEffect(() => {
+    if (state.viewFocus !== 'unplaced') return;
+    const heading = unplacedHeading.current;
+    dispatch({ type: 'viewFocusDone' });
+    if (!heading) return;
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+  }, [state.viewFocus]);
   const topology = useTopology();
   const [floorFilter, setFloorFilter] = useState<string>('all');
   const floors = [...house.floors].sort((a, b) => b.order - a.order);
@@ -44,7 +55,7 @@ export function RoomIndex() {
   return (
     <div className="room-index">
       <BuildingScope />
-      {topology.buildingId === null && <div className="filter-row" role="group" aria-label="Filter places">
+      {topology.buildingId === null && floors.length > 1 && <div className="filter-row" role="group" aria-label="Filter places">
         <button type="button" className="chip-btn" aria-pressed={floorFilter === 'all'} onClick={() => setFloorFilter('all')}>
           All places
         </button>
@@ -57,6 +68,8 @@ export function RoomIndex() {
 
       {topology.buildingId === null && shown.map((f) => {
         const rooms = house.spaces.filter((s) => s.floorId === f.id && s.kind !== 'stair');
+        // Stated once on the heading when no place in the list has a reviewed shape.
+        const noShapes = rooms.every((r) => r.geometry !== 'reviewed');
         return (
           <section key={f.id} className="ledger" aria-labelledby={`ledger-${f.id}`}>
             <div className="ledger-floor" aria-hidden="true">
@@ -65,7 +78,8 @@ export function RoomIndex() {
             <div className="ledger-body">
               <h2 id={`ledger-${f.id}`} className="ledger-title">
                 {f.name}
-                {!f.hasPlan && <span className="mini-claim claim-unknown">No plan</span>}
+                {noShapes ? <span className="mini-claim claim-unknown">No reviewed shapes</span>
+                  : !f.hasPlan && <span className="mini-claim claim-unknown">No plan</span>}
               </h2>
               {!rooms.length && <Empty>No places supplied.</Empty>}
               <ul className="ledger-rows">
@@ -98,10 +112,10 @@ export function RoomIndex() {
                             <Icon name={row.icon} size={14} />{row.count} {row.count === 1 ? row.one : row.many}</span>)}
                           {due > 0 && <span className="ledger-count tone-alert"><Icon name="upkeep" size={14} />{due} upkeep due</span>}
                         </span>
-                        {(archived || sourceException || r.geometry !== 'reviewed') && <span className="ledger-flags">
+                        {(archived || sourceException || (r.geometry !== 'reviewed' && !noShapes)) && <span className="ledger-flags">
                           {archived && <span className="ledger-flag">Archived</span>}
                           {entry && sourceException && <span className="ledger-flag">Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>}
-                          {r.geometry !== 'reviewed' && <span className="ledger-flag is-quiet">No shape</span>}
+                          {r.geometry !== 'reviewed' && !noShapes && <span className="ledger-flag is-quiet">No shape</span>}
                         </span>}
                       </button>
                       {c.containers.length > 0 && (
@@ -127,7 +141,7 @@ export function RoomIndex() {
           ?
         </div>
         <div className="ledger-body">
-          <h2 id="ledger-unplaced" className="ledger-title">
+          <h2 id="ledger-unplaced" ref={unplacedHeading} tabIndex={-1} className="ledger-title">
             No reviewed placement
           </h2>
           {topology.buildingId !== null && <p className="body-text muted">Whole home, not filtered by building</p>}
@@ -219,15 +233,14 @@ function GeometryMetadata() {
   return <section className="ledger" aria-labelledby="geometry-metadata-heading" style={{ overflowWrap: 'anywhere' }}>
     <div className="ledger-floor ledger-icon" aria-hidden="true"><Icon name="layers" size={28} /></div>
     <div className="ledger-body">
-      <h2 id="geometry-metadata-heading" className="ledger-title">Geometry metadata</h2>
-      <p className="body-text muted">Plan unavailable: this read does not supply room shapes or positions.</p>
-      {read.status === 'loading' && <p role="status" className="body-text">Loading geometry metadata…</p>}
-      {read.status === 'unavailable' && <p role="status" className="body-text">Geometry metadata could not be loaded. Reload the saved view to retry.</p>}
-      {read.status === 'denied' && <p role="status" className="body-text">Access to geometry metadata is denied.</p>}
+      <h2 id="geometry-metadata-heading" className="ledger-title">Geometry imports</h2>
+      {read.status === 'loading' && <p role="status" className="body-text">Loading geometry imports…</p>}
+      {read.status === 'unavailable' && <p role="status" className="body-text">Geometry imports could not be loaded. Reload the saved view to retry.</p>}
+      {read.status === 'denied' && <p role="status" className="body-text">Access to geometry imports is denied.</p>}
       {read.status === 'expired' && <p role="status" className="body-text">The session for this geometry read has expired.</p>}
       {read.status === 'ready' && <>
         <p className="body-text muted">Source status: {read.sourceStatus}</p>
-        {!read.records.length && <Empty>No geometry records returned by this read.</Empty>}
+        {!read.records.length && <Empty>No geometry imports returned by this read.</Empty>}
         {read.records.map((record) => {
           const p = record.payload;
           return <details key={record.target.recordId}>

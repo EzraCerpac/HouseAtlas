@@ -212,6 +212,9 @@ export function SearchPalette() {
     };
   }, []);
   useEffect(() => setActive(0), [q]);
+  // Arriving results remove the no-match row; if its Clear search button held focus, typing goes on in the field.
+  const hasResults = flat.length > 0;
+  useEffect(() => { if (hasResults && document.activeElement === document.body) inputRef.current?.focus(); }, [hasResults]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active]);
@@ -277,6 +280,10 @@ export function SearchPalette() {
           {topology.status !== 'ready' && <p className="palette-hint" role="status">{topology.status === 'loading'
             ? 'Loading Atlas places. Saved records are searchable.'
             : 'Atlas places are unavailable for search. Saved records are searchable.'}</p>}
+          {q.trim() && flat.length === 0 && <div className="palette-empty">
+            <p>{topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}</p>
+            <button type="button" className="text-btn" onClick={() => { setQ(''); inputRef.current?.focus(); }}>Clear search</button>
+          </div>}
           <div id="palette-results" role="listbox" ref={listRef} aria-label="Results">
             {!q.trim() && (
               <div className="palette-hint">
@@ -289,11 +296,6 @@ export function SearchPalette() {
                   ))}
                 </div>}
               </div>
-            )}
-            {q.trim() && flat.length === 0 && (
-              <p className="palette-empty">
-                {topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}
-              </p>
             )}
             {grouped.map((g) => {
               return (
