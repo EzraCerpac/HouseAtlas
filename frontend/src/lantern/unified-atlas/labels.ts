@@ -55,9 +55,27 @@ export function placeStageLabels<T extends RoomLabel>(rows: readonly T[], advanc
 /** SVG names remain visible independently; only safe action targets enter the tab order. */
 export function visibleLabelHits<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
   cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined): readonly T[] {
+  const boxes = labelHitBoxes(rows, size, cover, counts, advance);
+  return rows.filter(row => boxes.has(row));
+}
+/** Each mounted name's action target. A drawn 3D name whose full 32 px target
+ * would overlap a neighbour's keeps a target as tall as its drawn chip, so
+ * every name that stands clear of panels and counts keeps its action. */
+export function labelHitBoxes<T extends RoomLabel>(rows: readonly T[], size: { width: number; height: number },
+  cover: readonly ScreenBox[], counts: readonly CountMarker[], advance?: (row: T) => number | undefined): ReadonlyMap<T, ScreenBox> {
   const rank = { selected: 0, context: 1, plain: 2 };
   const ordered = [...rows].sort((a, b) => rank[a.tier] - rank[b.tier] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return nonOverlappingTargets(rows, ordered, row => labelHitTarget(row, advance?.(row)), size, cover, counts.map(countMarkerTarget));
+  const full = (row: T) => labelHitTarget(row, advance?.(row));
+  const chip = (row: T): ScreenBox => { const box = full(row); if (row.plan) return box;
+    const drawn = stageLabelBox(row, advance?.(row)); return { ...box, t: drawn.t + 1, b: drawn.b - 1 }; };
+  const reserved = counts.map(countMarkerTarget), kept = nonOverlappingTargets(rows, ordered, chip, size, cover, reserved);
+  const boxes = new Map(kept.map(row => [row, chip(row)]));
+  // Grow each kept target to its full height where that stays clear of everything else.
+  for (const row of ordered) if (boxes.has(row)) {
+    const box = full(row), others = [...boxes].filter(([other]) => other !== row).map(([, other]) => other);
+    if (box.t >= 0 && box.b <= size.height && ![...cover, ...reserved, ...others].some(other => intersects(box, other))) boxes.set(row, box);
+  }
+  return boxes;
 }
 
 const levelNames = new WeakMap<AtlasModel, ReadonlyMap<string, string>>();

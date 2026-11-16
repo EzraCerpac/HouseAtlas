@@ -5,6 +5,8 @@ import {
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
+import { kindOf } from '../data/query';
+import type { Entry } from '../../app/types';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH_DARK, CARD } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
@@ -26,7 +28,7 @@ import {
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
 import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, stageHitWidth, placePlanRoomLabels, placeStageLabels, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
-  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
+  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
@@ -43,7 +45,7 @@ import { NetworkStageConnections, networkRoomConnections } from './NetworkStageC
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
-import { Inspector, listedLevels, RoomList } from './AtlasInspector';
+import { Inspector, listedLevels, RoomList, type HomePlaces } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
@@ -132,6 +134,8 @@ export interface AtlasPresentationEnvironment {
    * replaced or withdrawn with that frame. Otherwise a current frame's own
    * projection for the selected group's ledger is used (only the example house supplies one). */
   readonly electricalData?: ElectricalTraceSource;
+  /** The loaded Home records for a selected room's reviewed home place; absent in the saved viewer. */
+  readonly homePlaces?: HomePlaces;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
@@ -144,13 +148,41 @@ export default function UnifiedAtlas(props: AtlasProps) {
   return props.environment ? <AtlasPresentation {...props} environment={props.environment} /> : <LiveAtlasPresentation {...props} />;
 }
 function LiveAtlasPresentation(props: AtlasProps) {
-  const { dispatch, actions } = useStore(), reducedMotion = useReducedMotion();
+  const { dispatch, actions, projection } = useStore(), reducedMotion = useReducedMotion();
+  // HomeBox parentage within one source collection, from the records already loaded (archive filter applied).
+  const homePlaces = useMemo<HomePlaces>(() => {
+    const source = (entry: Entry, id: string) => JSON.stringify([entry.source.sourceInstanceId, entry.source.collectionId, id]);
+    const children = new Map<string, { id: string; entry: Entry }[]>(), places: Entry[] = [];
+    for (const [id, entry] of projection.entries) {
+      const kind = kindOf(id);
+      if (kind === 'space') places.push(entry);
+      if ((kind === 'space' || kind === 'item') && entry.entity.parent) {
+        const key = source(entry, entry.entity.parent.id);
+        children.set(key, [...children.get(key) ?? [], { id, entry }]);
+      }
+    }
+    return {
+      find: nativePlaceId => {
+        const matched = places.filter(entry => entry.source.externalId === nativePlaceId);
+        if (matched.length !== 1) return null;
+        const place = matched[0]!, belongings: { id: string; name: string }[] = [], seen = new Set([place.key]), queue = [place];
+        for (let at = 0; at < queue.length; at++) for (const child of children.get(source(queue[at]!, queue[at]!.entity.id)) ?? []) {
+          if (seen.has(child.entry.key)) continue;
+          seen.add(child.entry.key);
+          if (child.entry.kind === 'place') queue.push(child.entry);
+          else belongings.push({ id: child.id, name: child.entry.entity.name });
+        }
+        return { name: place.entity.name, cacheStatus: place.cacheStatus, retrievedAt: place.retrievedAt, belongings };
+      },
+      open: id => dispatch({ type: 'select', sel: { kind: 'item', id } }),
+    };
+  }, [projection, dispatch]);
   // Open Network routes to the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
     openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
     ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}),
-    ...(props.lens ? { lens: props.lens } : {}) }} />;
+    ...(props.lens ? { lens: props.lens } : {}), homePlaces }} />;
 }
 
 /** While the room map is not open, the lens panel still says why the model's
@@ -703,7 +735,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // stack, pinned open, uses the same state.
   const [compact, setCompact] = useState(false);
   const shortLayerDetails = useShortLayerDetails(compact);
-  const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | null>(null);
+  const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | 'camera' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
   const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${readingInset}`;
   useLayoutEffect(() => {
@@ -1146,7 +1178,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
 
   // Stage buttons exist only where the whole control is in view: inside the
   // stage and clear of every panel. Covered rooms stay in the room list.
-  const hits = useMemo(() => visibleLabelHits(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance), [labels, size, cover, counts, planTextMetrics]);
+  const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance), [labels, size, cover, counts, planTextMetrics]);
+  const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
@@ -1225,6 +1258,16 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const tiles = useMemo(() => !plan || compact ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
     .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, compact, ladderBuildingId, buildings, model, planned]);
+  // Turn and zoom with their names shown, in the phone's dock tray and its menu.
+  const cameraButtons = <>
+    {!plan && <>
+      <button type="button" className="ua-cam-btn" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /><span>Turn left</span></button>
+      <button type="button" className="ua-cam-btn" onClick={() => camera.turn(45)}><Icon name="rotr" size={18} /><span>Turn right</span></button>
+    </>}
+    <button type="button" className="ua-cam-btn" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={18} /><span>Zoom in</span></button>
+    <button type="button" className="ua-cam-btn" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /><span>Zoom out</span></button>
+  </>;
+  const tileBuildings = new Set(tiles.map(level => level.buildingId)).size;
   const hasKeys = active.length > 0 || measuring;
   const keysCount = active.length + (measuring ? 1 : 0);
   // A fold whose content is gone closes, so it never reopens by itself later.
@@ -1340,7 +1383,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // tap elsewhere (a drag of the model included) or when focus leaves them;
   // Escape returns focus to the control that opened them.
   const menuButton = useRef<HTMLButtonElement>(null), stackHead = useRef<HTMLButtonElement>(null), layersButton = useRef<HTMLButtonElement>(null);
-  const opener = (which: 'view' | 'stack' | 'layers') => which === 'view' ? menuButton : which === 'stack' ? stackHead : layersButton;
+  const cameraButton = useRef<HTMLButtonElement>(null);
+  const opener = (which: 'view' | 'stack' | 'layers' | 'camera') => which === 'view' ? menuButton : which === 'stack' ? stackHead : which === 'camera' ? cameraButton : layersButton;
   const menuIds = useId();
   // Remember only focus in controls which can disappear across the breakpoint
   // or when the host archive filter is unchecked. Deliberate focus moves and
@@ -1405,7 +1449,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   }, [menu]);
   // Focus moving to another control closes it; focus lost to nothing (a control
   // that became disabled) leaves it open, and taps elsewhere close it above.
-  const menuBlur = (which: 'view' | 'stack' | 'layers') => (event: FocusEvent<HTMLElement>) => {
+  const menuBlur = (which: 'view' | 'stack' | 'layers' | 'camera') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
   // A lens chosen from the menu returns focus to the menu button when it closes.
@@ -1542,12 +1586,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             </nav>}
             <div className="ua-menu-camera" role="group" aria-label="Camera">
               <p className="ua-menu-label" aria-hidden="true">Camera</p>
-              {!plan && <>
-                <button type="button" className="ctrl-btn" aria-label="Turn left" title="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /></button>
-                <button type="button" className="ctrl-btn" aria-label="Turn right" title="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={18} /></button>
-              </>}
-              <button type="button" className="ctrl-btn" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={18} /></button>
-              <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
+              {cameraButtons}
             </div>
             {!plan && <div className="ua-menu-time">
               <p className="ua-menu-label" aria-hidden="true">Lighting time</p>
@@ -1668,7 +1707,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {hits.map(label => <button key={label.id} type="button" className={`ua-label-hit${label.plan?.mode === 'rotated' || label.plan?.mode === 'callout' ? ' ua-plan-label-new' : ''}`}
           data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height,
-            transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : { left: label.x, top: label.y - TAG_RISE * label.rise, width: stageHitWidth(label, planTextMetrics.get(label.id)?.advance) }}
+            transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : { left: label.x, top: label.y - TAG_RISE * label.rise, width: stageHitWidth(label, planTextMetrics.get(label.id)?.advance),
+              ...(hitBoxes.get(label)!.b - hitBoxes.get(label)!.t < 32 ? { height: hitBoxes.get(label)!.b - hitBoxes.get(label)!.t, minHeight: 0 } : {}) }}
           aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}${labelFloors.get(label.id) ? ` · ${labelFloors.get(label.id)}` : ''}${isPreliminary(model, label.id) ? ', preliminary' : ''}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
@@ -1711,7 +1751,9 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {(tiles.length > 0 || hasKeys) && <div className="ua-folds">
           {tiles.length > 0 && <button ref={floorsFold} type="button" className="ua-fold ua-fold-floors" aria-expanded={drawer === 'floors'} aria-controls={`${foldIds}-floors`}
             onClick={() => fold('floors')}>
-            <Icon name="layers" size={16} /><span>Other floor plans</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
+            {/* Counted across every building shown in the rail, said so when that is more than one. */}
+            <Icon name="layers" size={16} /><span className="ua-fold-name">Other floor plans{tileBuildings > 1
+              && <small className="ua-fold-scope"> in {tileBuildings.toLocaleString()} buildings</small>}</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
           {hasKeys && <button ref={layersFold} type="button" className="ua-fold ua-fold-layers" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
             aria-haspopup={shortLayerDetails ? 'dialog' : undefined}
@@ -1721,8 +1763,15 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         </div>}
         {/* Compact: one dock holds Fit view by the thumb, the view, 3D or Plan, and the
             layers, as three dots and their name that open the labelled layer chips above them. */}
-        {compact ? <div className="ua-dock" onBlur={menuBlur('layers')}>
+        {compact ? <div className="ua-dock" onBlur={menuBlur(menu === 'camera' ? 'camera' : 'layers')}>
           <button type="button" className="ua-dock-btn ua-dock-fit" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={18} /></button>
+          {/* Turn and zoom by the thumb: they open above the dock, as the layers do. */}
+          <button ref={cameraButton} type="button" className="ua-dock-btn ua-dock-camera" aria-expanded={menu === 'camera'} aria-controls={`${menuIds}-camera`}
+            aria-label={plan ? 'Zoom' : 'Turn and zoom'} title={plan ? 'Zoom' : 'Turn and zoom'} onClick={() => setMenu(value => value === 'camera' ? null : 'camera')}>
+            <Icon name="plus" size={14} /><Icon name="minus" size={14} /></button>
+          <div id={`${menuIds}-camera`} className="ua-dock-tray ua-dock-camera-tray" role="group" aria-label="Camera" hidden={menu !== 'camera'}>
+            {cameraButtons}
+          </div>
           <div className="ua-dock-view" role="group" aria-label="Atlas view">
             <button type="button" className="ua-dock-btn" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
             <button type="button" className="ua-dock-btn" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
@@ -1767,6 +1816,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
       openPlaces={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'places', reading: false }); } : undefined}
+      openNetworkLens={compact && hostLens ? () => { setMenu(null); hostLens.set({ kind: 'network', reading: false }); } : undefined}
+      homePlaces={environment.homePlaces}
       open={sheetOpen} setOpen={setSheetOpen} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

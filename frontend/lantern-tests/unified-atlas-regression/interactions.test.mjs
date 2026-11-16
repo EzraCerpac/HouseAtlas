@@ -289,6 +289,13 @@ test('label actions use their full mounted targets and reserve surviving enlarge
     assert.deepEqual(api.visibleLabelHits([long], size, [], [], () => 150), [long]);
     const hit = api.labelHitTarget(long, 150); assert.equal(hit.r - hit.l, 162); assert.equal(api.stageHitWidth(long, 150), 162);
     assert.equal(api.stageHitWidth(label('s', 150), 10), 44); }
+  // Two drawn names 23 px apart: their full 32 px targets would overlap, so both keep chip-tall targets.
+  { const near = [{ ...label('upper', 200, 'Bathroom'), y: 120 }, { ...label('lower', 230, 'Bedroom'), y: 143 }];
+    assert.deepEqual(api.visibleLabelHits(near, size, [], [], () => 60), near, 'every drawn name keeps an action');
+    const boxes = api.labelHitBoxes(near, size, [], [], () => 60), [a, b] = near.map(row => boxes.get(row));
+    assert.ok(a.b <= b.t && a.b - a.t === 18 && b.b - b.t === 18, 'chip-tall targets never overlap');
+    const apart = [near[0], { ...near[1], y: 200 }], wide = api.labelHitBoxes(apart, size, [], [], () => 60);
+    assert.ok(apart.every(row => wide.get(row).b - wide.get(row).t === 32), 'names apart keep full targets'); }
 });
 
 test('3D names reserve their whole measured chip, however long the floor name', () => {

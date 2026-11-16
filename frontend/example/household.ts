@@ -2,9 +2,11 @@
  * Home and Atlas show one fictional household. There is one place per
  * building with floors, per floor and per room with a selectable part, named
  * and nested as the companion lists them. A room on several floors sits under
- * the floor of its first selectable part. The HomeBox copy is stale and its
- * source update times unknown; the reading lamp has one stored manual
- * (./files) and two upkeep entries, the stool a quantity of 2. Every identifier is generated here. */
+ * the floor of its first selectable part, and keeps the companion's generated
+ * native place ID when it names one, so a reviewed room link resolves here.
+ * The HomeBox copy is stale and its source update times unknown; the reading
+ * lamp has one stored manual (./files) and two upkeep entries, the stool a
+ * quantity of 2. Every identifier is generated. */
 import type { Entry, Maintenance, ReadyView } from '../src/app/types';
 import type { AtlasAction } from '../src/lantern/unified-atlas/scene';
 import { LAMP_MANUAL } from './files';
@@ -25,7 +27,7 @@ export interface ExampleCompanion {
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
   readonly buildings: readonly Readonly<{ buildingId: string; label: string; nativePlaceId: string | null; levelIds: readonly string[] }>[];
   readonly levels: readonly Readonly<{ levelId: string; buildingId: string; label: string }>[];
-  readonly rooms: readonly Readonly<{ roomId: string; label: string; occurrenceIds: readonly string[] }>[];
+  readonly rooms: readonly Readonly<{ roomId: string; label: string; nativePlaceId: string | null; occurrenceIds: readonly string[] }>[];
   readonly occurrences: readonly Readonly<{ spaceOccurrenceId: string; levelId: string }>[];
   readonly coverage: Readonly<{ selectableOccurrences: readonly string[] }>;
 }
@@ -33,8 +35,8 @@ export interface ExampleCompanion {
 export function exampleHomeView(companion: ExampleCompanion): ReadyView {
   const { workspaceId, homeId } = companion.scope;
   const entries: Entry[] = [], ids = new Map<string, string>();
-  const place = (sourceId: string, name: string, semanticKind: Entry['semanticKind'], parent: string | null) => {
-    const id = `00000000-0000-4000-8000-${(0xe1000 + entries.length).toString(16).padStart(12, '0')}`;
+  const place = (sourceId: string, name: string, semanticKind: Entry['semanticKind'], parent: string | null, nativeId: string | null = null) => {
+    const id = nativeId ?? `00000000-0000-4000-8000-${(0xe1000 + entries.length).toString(16).padStart(12, '0')}`;
     ids.set(sourceId, id);
     entries.push({
       workspaceId, homeId, key: JSON.stringify([workspaceId, homeId, SOURCE, COLLECTION, 'homebox-entity', id]),
@@ -53,7 +55,7 @@ export function exampleHomeView(companion: ExampleCompanion): ReadyView {
   const selectable = new Set(companion.coverage.selectableOccurrences);
   for (const room of companion.rooms) {
     const first = room.occurrenceIds.find(id => selectable.has(id));
-    if (first !== undefined) place(room.roomId, room.label, 'room', ids.get(levelOf.get(first) ?? '') ?? null);
+    if (first !== undefined) place(room.roomId, room.label, 'room', ids.get(levelOf.get(first) ?? '') ?? null, room.nativePlaceId);
   }
   // HomeBox parentage is source hierarchy, not a reviewed Atlas placement.
   // Quantity and upkeep are the source's own values: the stool's count is

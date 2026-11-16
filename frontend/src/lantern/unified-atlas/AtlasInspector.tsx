@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
@@ -13,6 +13,17 @@ import { DocumentaryRecords } from './AtlasKeys';
 import type { ElectricalGroup } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { ElectricalTraceDetail } from './ElectricalTraceDetail';
+import { fmtDate } from '../data/time';
+
+/** A HomeBox place in the loaded Home records and the belongings HomeBox
+ * records under it (its own and its sub-places'), in source order. */
+export interface HomePlaceRecords {
+  readonly name: string; readonly cacheStatus: string; readonly retrievedAt: string;
+  readonly belongings: readonly { readonly id: string; readonly name: string }[];
+}
+/** The host's loaded Home records, looked up by a reviewed binding's native
+ * place ID; never a new read. `find` is null when the place is not among them. */
+export interface HomePlaces { readonly find: (nativePlaceId: string) => HomePlaceRecords | null; readonly open: (id: string) => void }
 
 /** Floors listed for the current scope, highest first. */
 export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
@@ -23,7 +34,7 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, openNetworkLens, homePlaces, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
@@ -31,6 +42,10 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   readonly openDocuments: (() => void) | undefined;
   /** Opens the host's Rooms & places lens from a phone sheet's head; absent elsewhere. */
   readonly openPlaces?: (() => void) | undefined;
+  /** Opens the host's Network lens from the same head; absent elsewhere. */
+  readonly openNetworkLens?: (() => void) | undefined;
+  /** The host's loaded Home records; absent where there are none (the saved viewer). */
+  readonly homePlaces?: HomePlaces | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   /** The one floor Plan draws of a whole building, else null. */
   readonly shownLevel: string | null;
@@ -82,8 +97,10 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
             <span>{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</span></p>
         </div>
         {/* The fuller list, with home places and building scope, opens from this head. */}
-        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" onClick={openPlaces}>
+        {openPlaces && <button type="button" className="ua-sheet-lens" aria-label="Open Rooms & places" title="Rooms & places" onClick={openPlaces}>
           <Icon name="rooms" size={16} /><span>Places</span></button>}
+        {openNetworkLens && <button type="button" className="ua-sheet-lens" aria-label="Open Network" title="Network" onClick={openNetworkLens}>
+          <Icon name="network" size={16} /><span>Network</span></button>}
         {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
@@ -131,6 +148,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
         {state.layers.measurements && <div><dt>Area</dt><dd><AreaValue geometryBasis={basis} area={area} />
           {area?.measured && <span className="ua-measured">Measured</span>}</dd></div>}
       </dl>
+
+      {homePlaces && <RoomBelongings room={room} homePlaces={homePlaces} />}
 
       {(runtime || runtimeConfigured) && <RoomContentsSummary runtime={runtime} reason={runtimeReason} roomId={room.roomId} layers={state.layers} />}
 
@@ -213,6 +232,29 @@ function RoomContentsSummary({ runtime, reason, roomId, layers }: {
   </section>;
 }
 
+const BELONGINGS_SHOWN = 5;
+/** Belongings HomeBox records for the room's reviewed home place, from the
+ * Home records already loaded: recorded for that place, not placed in the
+ * drawn room by this list. Without a reviewed link, or with the place absent
+ * from the loaded records, it says so and lists nothing. */
+function RoomBelongings({ room, homePlaces }: { readonly room: AtlasRoom; readonly homePlaces: HomePlaces }) {
+  const [all, setAll] = useState(false);
+  const place = room.nativeBinding.status === 'reviewed' && room.nativePlaceId !== null ? homePlaces.find(room.nativePlaceId) : undefined;
+  const count = place?.belongings.length ?? 0, date = place ? fmtDate(place.retrievedAt) : '';
+  return <section className="ua-contents ua-belongings" aria-label="Belongings">
+    <h3 className="ua-contents-title">{place ? `Belongings recorded for ${place.name} in HomeBox` : 'Belongings'}</h3>
+    {place === undefined ? <p className="ua-contents-pending">No reviewed HomeBox place link for this room, so no belongings are listed.</p>
+      : place === null ? <p className="ua-contents-pending">The linked HomeBox place is not among the HomeBox places loaded here.</p>
+      : <>
+        {count === 0 ? <p className="ua-contents-pending">No belongings supplied for this place.</p>
+          : <ul>{(all ? place.belongings : place.belongings.slice(0, BELONGINGS_SHOWN)).map(row => <li key={row.id}>
+            <button type="button" className="ua-belonging" onClick={() => homePlaces.open(row.id)}><Icon name="box" size={15} /><span>{row.name}</span></button></li>)}</ul>}
+        {count > BELONGINGS_SHOWN && !all && <button type="button" className="text-btn ua-belongings-all" onClick={() => setAll(true)}>Show all {count.toLocaleString()}</button>}
+        <p className="ua-belongings-source">HomeBox {place.cacheStatus === 'fresh' ? 'copy' : place.cacheStatus.replace('-', ' ')} · retrieved {date === 'Unknown' ? place.retrievedAt : date}</p>
+      </>}
+  </section>;
+}
+
 /** Floor headings drop the chosen building's name; each region keeps it. */
 export function RoomList({ model, levels, choose, buildingId, shownLevel = null, nested = false }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
@@ -241,7 +283,9 @@ export function RoomList({ model, levels, choose, buildingId, shownLevel = null,
           })}</ul>}
       </section>;
     })}
-    {coverage.unselectableCount > 0 && <p className="ua-coverage">{plural(coverage.unselectableCount, 'room part')} in this model cannot be selected.</p>}
+    {coverage.unselectableCount > 0 && <p className="ua-coverage">{coverage.unselectable?.every(id => model.occurrencesById.has(id))
+      ? `Not selectable in this model: ${coverage.unselectable.map(id => `${atlasOccurrenceName(model, id)} (${atlasLevelName(model, model.occurrencesById.get(id)!.levelId, model.floorBuildings.length > 1)})`).join('; ')}.`
+      : `${plural(coverage.unselectableCount, 'room part')} in this model cannot be selected.`}</p>}
   </div>;
 }
 
