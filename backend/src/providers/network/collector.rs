@@ -14,12 +14,14 @@ use std::{
 pub(crate) enum CollectorRoute {
     Health,
     Measurements,
+    Results,
 }
 impl CollectorRoute {
     pub fn path(self) -> &'static str {
         match self {
             Self::Health => "/api/health",
             Self::Measurements => "/api/measurements",
+            Self::Results => "/api/results",
         }
     }
 }
@@ -102,6 +104,11 @@ struct Fact {
     #[serde(deserialize_with = "nullable")]
     reason: Option<String>,
 }
+pub(crate) fn validate_fact(v: &Value) -> Result<()> {
+    serde_json::from_value::<Fact>(v.clone())
+        .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?
+        .validate()
+}
 impl Fact {
     fn validate(&self) -> Result<()> {
         optional_stamp(&self.measured_at)?;
@@ -132,6 +139,7 @@ impl Fact {
                             "command-unavailable",
                             "shutdown",
                             "no-history",
+                            "speed-test-in-progress",
                         ]
                         .contains(&r)
                     })
@@ -275,6 +283,25 @@ impl Snapshot {
             envelope,
             stale_after_ms: ping_interval.map_or(900_000, |v| v * 3),
         })
+    }
+    pub(crate) fn decode_live(
+        bytes: &[u8],
+        health: Option<&[u8]>,
+        at: &str,
+        max: usize,
+    ) -> Result<Self> {
+        let envelope: Envelope = decode(bytes, max)?;
+        let ids = envelope.devices.keys().map(String::as_str).collect();
+        Self::decode(bytes, health, envelope.inventory_revision, &ids, at, max)
+    }
+    pub(crate) fn healthy(&self) -> bool {
+        self.health_ok
+    }
+    pub(crate) fn revision(&self) -> u64 {
+        self.envelope.inventory_revision
+    }
+    pub(crate) fn retrieved_at(&self) -> &str {
+        &self.retrieved_at
     }
     /// Same-source ID lookup only, after the inventory's original native grants.
     pub fn apply(&self, id: &str, now: &str, facts: &mut Value) -> Result<()> {
@@ -544,6 +571,12 @@ mod tests {
             .apply("device-a", AT, &mut f)
             .unwrap();
         assert_eq!(f["status"], "unknown");
+        b["devices"]["device-a"]["latest"]["reason"] = json!("speed-test-in-progress");
+        snapshot(&b, Some(&health()))
+            .unwrap()
+            .apply("device-a", AT, &mut f)
+            .unwrap();
+        assert_eq!(f["status"], "unknown");
     }
     #[test]
     fn healthy_collector_strict_decode_and_bounds() {
@@ -619,6 +652,7 @@ mod tests {
             Box::pin(async move {
                 Ok(match route {
                     CollectorRoute::Health => health(),
+                    CollectorRoute::Results => unreachable!("Legacy refresh reads no results"),
                     CollectorRoute::Measurements => {
                         if self.bad {
                             b"{\"version\":2}".to_vec()

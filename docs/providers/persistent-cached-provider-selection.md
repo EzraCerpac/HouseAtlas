@@ -21,9 +21,15 @@ Its required top-level fields are:
 - `networkCached`: an array of registration/origin/review/limits,
   connectTimeoutMs/idleTimeoutMs/staleAfterMs/privateDirectory/entities entries.
   Optional `collectorMeasurements` defaults to false;
-  it enables passive health/measurement GETs only when the existing owner
-  explicitly refreshes inventory, never at cached-only startup or browse.
-  Origins accept HTTPS or exact literal loopback HTTP with an explicit port.
+  on persistent serve it enables process-local polling of stored collector
+  health, measurements and results, independently of browsing.
+  Collector origins must be exact literal loopback HTTP with an explicit port;
+  cached inventory sources without this setting may still use HTTPS.
+  Optional `collectorIntervalSeconds` is an integer 10–3600, default 60.
+  Optional `collectorActionPorts` contains at most sixteen distinct nonzero
+  integer ports, default `[22,80,443]`; `[]` disables port diagnostics.
+  These two options require `collectorMeasurements: true`.
+  The collector independently enforces its own port allowlist.
   See [collector read semantics](../geometry/native-scene-source.md#optional-collector-measurements).
 
 Both arrays are required and together contain at most eight entries. Registrations
@@ -47,8 +53,8 @@ behavior is unchanged, so omitting these flags preserves old startup behavior.
 Capture and preparation run on the existing persistent reopen blocking worker.
 They retain the original Core's Access and Store allocations through Host
 construction; applying to replacement owners is refused. Both direct TLS and
-trusted-gateway serving branches use this same handoff. No additional listener
-or worker is started.
+trusted-gateway serving branches use this same handoff. No additional listener is started.
+Only explicitly enabled collectors receive an observation polling task.
 
 ## Cached-only composition and authority
 
@@ -85,8 +91,10 @@ request and creates no credential lease.
 
 A selected profile is data, not a ConfigureSource/PublishCache/Read grant.
 Startup does not install Access/Store registrations, enable a source, change
-quarantine, publish a generation, fetch inventory, start a scan, schedule refresh
-or create lifecycle authority. Missing durable registration, retained generation
+quarantine, publish a generation, fetch inventory, start a scan
+or create lifecycle authority.
+The optional collector task reads stored observations only,
+without calling the durable inventory refresh owner. Missing durable registration, retained generation
 or current grants still makes execution unavailable under existing read owners.
 Source selection can describe Network command availability, but every actual
 read must capture/revalidate its original principal and partition/member grants.
@@ -177,3 +185,118 @@ no grant and sends nothing upstream; there is no timer, retry or startup
 refresh, and MCP/WebMCP do not expose the action. Without these fields the
 behaviour is exactly schema 1.
 
+
+## Ephemeral collector observations and Editor diagnostics
+
+Each enabled source gets one task in both persistent TLS and Unix-gateway serve.
+It immediately GETs `/api/health`, `/api/measurements`, then `/api/results`,
+and follows fixed monotonic interval slots without jitter or catch-up.
+A poll is awaited before another can start.
+The whole poll has a 30-second deadline,
+and each GET keeps the source's existing response and request bounds.
+Failures skip 1, 3, 7, then 15 interval slots (maximum 16 times the interval);
+a successful poll resets backoff.
+Shutdown cancels the active future and joins the owned tasks;
+startup/serve failure also drops and aborts them.
+Absent `collectorMeasurements`, no polling task or collector client is created.
+
+Only memory changes.
+There is no principal, native registration, sidecar/archive access,
+durable generation publication or request to start collector work.
+A failed measurement read retains the last decoded measurement's original dates;
+its facts age to stale under the existing collector freshness policy,
+then become unknown after 24 hours without a successful measurement retrieval.
+Results are retired before every poll,
+so failed, cancelled or malformed results reads stay unknown
+without disturbing inventory or retained measurements.
+Restart starts with unknown observations.
+
+Read-time joins require the caller's existing native grants,
+exact source instance, exact served inventory revision and exact device ID.
+Mismatch yields `inventory-revision-mismatch`, never a name/address inference.
+The reviewed scene-device manifest still controls overlay enrichment.
+`HostNetworkRuntime::refresh` retains its original behavior;
+its generation-keyed measurements remain available as a fallback.
+After polling begins, the snapshot with the newer measurement retrieval time wins
+(ties prefer the observation holder),
+including its unknowns and revision fence.
+Only a legacy snapshot for the served generation can compete.
+Both paths share the measurement decoder and HTTP transport bounds;
+the service loop never invokes `refresh` or `/api/inventory`.
+
+For a configured source, the new routes share the existing prefix
+`/api/atlas/providers/network/workspaces/{workspace}/homes/{home}/sources/{source}`
+and require `?collection=` with the exact encoded collection ID:
+
+- `GET /results` requires an authenticated home Viewer or Editor
+  and the same partition/member grants as the cached inventory read.
+  It returns `{status, retrievedAt, inventoryRevision, servedInventoryRevision,
+  measurementReason, results}`.
+  `status` is `available` or `unknown`;
+  `results` is the closed collector v1 `{version, speed:{latest,recent},
+  wifi:{latest}, actions}` document or null.
+  Speed/action histories contain at most thirty newest entries each.
+  Each source `recordedAt` stays separate from the backend `retrievedAt`.
+  Wi-Fi `unavailable` and null visibility pass through unchanged.
+  Device action entries require served membership and a matching observed revision;
+  speed and Wi-Fi facts are property-level and never enter the overlay frame.
+- `POST /actions` reuses the HomeBox refresh mutation-authentication owner:
+  current session, POST, Editor membership, same-origin checks and current CSRF.
+  `Content-Type` must be exactly `application/json`, body at most 8192 bytes.
+  It accepts only `{"kind":"ping","deviceId":"device-example"}`,
+  `{"kind":"port","deviceId":"device-example","port":443}`,
+  or `{"kind":"speed"}`.
+  Unknown devices, absent/expired observations, revision mismatch and ports outside
+  the backend allowlist are refused before collector dispatch.
+  One action runs per process, with at least one second between admissions;
+  the collector independently owns its one-at-a-time exclusion.
+  The forwarded JSON uses exact-loopback Host, no Origin and no credential.
+  Waiting is bounded at 125 seconds to include the collector's speed-cycle drain.
+
+Both routes answer `{"status":"unavailable"}` after authentication
+when no collector is configured for the selected source.
+HTTP errors retain authentication/CSRF/scope/body refusals.
+Structured action outcomes are `completed` with the validated original collector
+result and `collectorStatus:200`, `busy`, `refused`, `timeout`, or `unknown`.
+Collector busy/refused outcomes retain their status and reason;
+local refusals carry a reason without a fabricated collector status.
+`completed` describes a returned action result,
+which can itself be unmeasured, failed or unknown.
+Timeout, transport failure or malformed response never implies no diagnostic ran;
+clients must not retry automatically.
+The existing comparable HomeBox refresh route has no suitable diagnostic journal;
+no new durable journal or native mutation intent is invented here.
+Completed diagnostics remain in the collector's own action history.
+
+The UI-stage clients are `readNetworkCollectorResults`
+and `requestNetworkCollectorAction` in `frontend/integration/network-collector.ts`,
+with `decodeNetworkCollectorResults` and `decodeNetworkCollectorAction`.
+The action client takes the current session's CSRF token explicitly.
+HTTP refusal or transport failure throws;
+the UI must retire failed reads and treat a lost POST response as uncertain.
+There is no UI or installation change in this stage.
+
+## Inventory publication remains a separate install prerequisite
+
+Persistent serve exposes cached Network reads;
+there is no operational Network inventory import/refresh CLI or HTTP route.
+The existing Rust setup API is `NetworkAccess::configure`,
+under an original principal with explicit `ConfigureSource` approval.
+Publication uses `NetworkAccess::retain_original`, `NetworkAuthority::new`
+and `HostNetworkRuntime::refresh`,
+under an original authenticated principal with explicit `PublishCache` approval
+and the exact partition/entity grants.
+The `healthy-network-root-router` example demonstrates this with a disposable
+synthetic Editor and explicit lifecycle policy;
+it is a verification fixture, not an installation tool.
+Recorded documentary scene Network data is a separate reviewed original asset,
+not a publication of the provider inventory cache.
+
+The runtime's existing transport can GET the collector's `/api/inventory`
+from a reviewed exact-loopback origin and decode its envelope.
+That API can therefore publish collector inventory
+when an authorized setup caller provides the original principal/grants
+and the separately owned writable custody.
+This stage supplies neither that caller nor writable stores;
+persistent cached-provider mounting stays existing-only and read-only.
+An install still needs that explicit setup/publication step from its owner.

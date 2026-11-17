@@ -3,9 +3,10 @@
 HouseAtlas owns physical identities, reviewed cross-system bindings, optional
 geometry, circuits, valves and provenance. HomeBox owns inventory, locations,
 attachments and maintenance; its fields are read-only projections here and
-edits use verified native links. Network is a separate passive GET source
+edits use verified native links. Network passively reads stored source results
 (HTTPS, or explicitly selected exact-loopback HTTP with an explicit port).
-Browsing never sends collector demand, diagnostics, imports or upstream writes.
+Browsing never sends collector demand, diagnostics, imports or upstream writes;
+only explicit authenticated Editor actions may request collector diagnostics.
 
 Preserve arbitrary container types, explicit unknowns, original source dates,
 retrieval dates, uncertainty and corrections. Names, graph positions and tree
@@ -134,7 +135,8 @@ candidate-helper method (34 methods total); no workflow command is added.
 ## Independent Network collector
 
 `tools/network-collector/` owns fixed-schedule collection and its separate store.
-The backend remains a passive reader; browsing never requests collection.
+Backend observation reads are passive; browsing never requests collection.
+Diagnostics require explicit authenticated Editor actions.
 Ordinary-core selects exactly the forty synthetic collector cases in
 `tools/network-collector/core.test.ts` with pinned Node 26.10.0.
 They use fake command runners/children, disposable SQLite, direct handlers and controlled clocks;
@@ -156,3 +158,22 @@ The existing Network mount selection and frontend `network-live-facts-healthy.mj
 cases additionally check the optional setting and measurement frame fields.
 No listener, real collector, provider, credential, household data or installed
 acceptance is exercised; no command, runner or workflow is added.
+
+The default backend-library selection additionally discovers five generated
+`providers::network::observations::tests::healthy_*` cases
+and `http::providers::network::tests::healthy_collector_routes_auth_revision_and_outcomes`.
+They use controlled Tokio time, an injected GET/POST peer, generated originals,
+disposable native Access/Store/sidecar custody and the in-process router.
+They check observation-only scheduling, no overlap, bounded polls, backoff,
+shutdown, absent task sets, result decoding, revision/freshness fences,
+Editor/CSRF refusals and explicit collector action outcomes.
+The existing persistent mount case checks interval/port configuration bounds;
+the existing frontend `network-live-facts-healthy.mjs` selection additionally
+checks typed property-results/action decoders and fake client exchanges.
+Persistent serving may poll only explicitly enabled exact-loopback collectors;
+it reads stored observations into memory without enrollment, publication,
+archive writes, principals or collector demand.
+Explicit Editor diagnostics use the existing mutation-authentication owner;
+there is no new durable journal or publication authority.
+No real socket, collector, credential, household data, installation or G1–G5
+acceptance is exercised by these cases; no CI run step is added.

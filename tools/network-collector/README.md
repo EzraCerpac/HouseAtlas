@@ -1,7 +1,8 @@
 # Network collector, stage 1
 
 One independent Node 26.10.0 process owns collection and a fresh SQLite store.
-The HouseAtlas backend remains a passive reader.
+The HouseAtlas backend reads stored results passively;
+only explicit authenticated Editor actions request diagnostics.
 Collection runs on a fixed schedule even with no viewers;
 HTTP reads never reload files, prune, probe or start work.
 This is G0 source work only, releasing none of G1–G5.
@@ -267,8 +268,10 @@ There is no forwarded-header trust, proxy feature, CORS, SSE or inventory write 
 
 The backend can explicitly select this exact-loopback HTTP origin and enable
 `collectorMeasurements` on its trusted Network settings.
-It reads health and version-1 measurements during an existing inventory refresh;
-ordinary browsing and cached-only startup initiate no refresh or collector work.
+Persistent serving may poll health, measurements and results into memory;
+it never publishes inventory or asks the collector to probe.
+Ordinary browsing initiates no collector read or work;
+explicit authenticated backend Editor actions may request bounded diagnostics.
 Measurements join by device ID within the same source instance and inventory revision.
 The reviewed scene-device manifest still controls documentary scene enrichment.
 See [the optional backend frame extension](../../docs/geometry/native-scene-source.md#optional-collector-measurements)
@@ -306,7 +309,8 @@ performance measurement or installed acceptance is exercised.
 ## Speed, Wi-Fi and actions
 
 The HouseAtlas backend is the only intended HTTP client.
-There is still no backend integration or operational approval in this stage.
+Backend observation reads and explicit Editor diagnostics are optional;
+no operational approval or installation is supplied in this stage.
 Any local process that can connect can also request these bounded diagnostics;
 there is no token or credential.
 

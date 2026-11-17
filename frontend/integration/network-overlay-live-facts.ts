@@ -29,7 +29,8 @@ function metric(value: LosslessJson | undefined, loss = false): number | null {
 }
 function facts(value: LosslessJson): NetworkLiveFacts {
   const extended = value !== null && typeof value === 'object' && 'recentSeries' in value;
-  const r = row(value, ['status','source','addresses','observedState','lastSeenAt','sourceSnapshotAt','retrievedAt','freshness', ...(extended ? ['latencyMs','loss','recentSeries'] : [])]);
+  const reason = value !== null && typeof value === 'object' && 'measurementReason' in value;
+  const r = row(value, ['status','source','addresses','observedState','lastSeenAt','sourceSnapshotAt','retrievedAt','freshness', ...(extended ? ['latencyMs','loss','recentSeries'] : []), ...(reason ? ['measurementReason'] : [])]);
   need(new TextEncoder().encode(stringifyLosslessJson(value)).length <= 64 * 1024);
   const s = row(r.source, ['workspaceId','homeId','sourceInstanceId','collectionId','sourceKind','externalId']);
   for (const key of ['workspaceId','homeId','sourceInstanceId']) need(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text(s[key])));
@@ -55,7 +56,7 @@ function facts(value: LosslessJson): NetworkLiveFacts {
     return Object.freeze({hour,latencyMs:metric(point.latencyMs),loss:metric(point.loss,true)});
   }))} : {};
   if (extended) { const series = measurements.recentSeries!; need(series.every((p,i)=>i === 0 || Date.parse(p.hour) > Date.parse(series[i-1]!.hour))); }
-  return Object.freeze({status,source,addresses,observedState,lastSeenAt,sourceSnapshotAt,retrievedAt,freshness:fresh,...measurements});
+  return Object.freeze({status,source,addresses,observedState,lastSeenAt,sourceSnapshotAt,retrievedAt,freshness:fresh,...measurements,...(reason ? {measurementReason:r.measurementReason === null ? null : choice(r.measurementReason,['not-observed','inventory-revision-mismatch','observations-expired'] as const)} : {})});
 }
 export interface NetworkLiveFactsFrame {
   readonly schema: 'houseatlas.network-overlay-live-facts.v2';

@@ -6494,3 +6494,39 @@ These extend existing selections without changing any CI run step;
 The transport still retains its existing bounds and original source authority.
 See [collector frame semantics](../geometry/native-scene-source.md#optional-collector-measurements)
 for the optional fields, same-source join and process-local cache limits.
+
+### Ephemeral Network collector observations and diagnostics
+
+The default backend-library selection additionally discovers these five
+`providers::network::observations::tests::` cases:
+`healthy_results_strict_v1_and_bounds`,
+`healthy_observations_join_failure_and_retention`,
+`healthy_action_contract_and_correlation`,
+`healthy_periodic_slots_backoff_and_shutdown`,
+and `healthy_periodic_deadline_no_overlap_and_cancel_inflight`.
+It also discovers
+`http::providers::network::tests::healthy_collector_routes_auth_revision_and_outcomes`.
+They use generated documents, fake GET/POST peers, controlled Tokio time,
+disposable synthetic native stores and the in-process router.
+No socket, collector, provider, real credential, household data or installation runs.
+The existing persistent mount test adds interval/port bounds;
+the existing `network-live-facts-healthy.mjs` entry adds results/action decoder
+and fake client-exchange checks without adding a run step.
+`tokio/test-util` is enabled only as a backend development dependency.
+
+Focused commands use the pinned toolchain and an existing Cargo target folder:
+
+```sh
+node tools/rust-integration/format.mjs
+cargo check --offline --locked -p houseatlas-backend --lib --bins -j 2
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -j 2 -- -D warnings
+cargo test --offline --locked -p houseatlas-backend --lib providers::network::observations::tests:: -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib http::providers::network::tests:: -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib providers::network::collector::tests:: -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::provider_reads::tests:: -- --test-threads=1
+node frontend/lantern-tests/network-live-facts-healthy.mjs
+```
+
+Existing inventory publication and read grants remain unchanged.
+These synthetic checks establish neither installed polling/diagnostics
+nor inventory provisioning or G1–G5 acceptance.

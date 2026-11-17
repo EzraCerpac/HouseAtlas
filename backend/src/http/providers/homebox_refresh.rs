@@ -169,7 +169,7 @@ pub(in crate::http) async fn refresh(
 }
 
 /// POST + current CSRF + Editor membership, from the caller's own session.
-fn mutation_principal(
+pub(super) fn mutation_principal(
     host: &Host,
     headers: &CheckedHeaders,
     uri: &Uri,

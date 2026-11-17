@@ -22,6 +22,8 @@ pub struct NetworkSettings {
     sidecar_path: PathBuf,
     existing_cached_storage: bool,
     collector_measurements: bool,
+    collector_interval_seconds: u64,
+    collector_action_ports: Vec<u16>,
 }
 impl NetworkSettings {
     #[allow(clippy::too_many_arguments)]
@@ -82,6 +84,8 @@ impl NetworkSettings {
             sidecar_path: private_directory.join(sidecar_name),
             existing_cached_storage: false,
             collector_measurements: false,
+            collector_interval_seconds: 60,
+            collector_action_ports: vec![22, 80, 443],
         })
     }
     pub fn with_collector_measurements(mut self, enabled: bool) -> Self {
@@ -90,6 +94,34 @@ impl NetworkSettings {
     }
     pub fn collector_measurements(&self) -> bool {
         self.collector_measurements
+    }
+    pub fn with_collector_interval_seconds(
+        mut self,
+        seconds: u64,
+    ) -> Result<Self, n::NetworkError> {
+        if !(10..=3600).contains(&seconds) || !self.collector_measurements {
+            return Err(n::NetworkError::new(n::ErrorCode::InvalidSchema));
+        }
+        self.collector_interval_seconds = seconds;
+        Ok(self)
+    }
+    pub fn with_collector_action_ports(mut self, ports: Vec<u16>) -> Result<Self, n::NetworkError> {
+        let unique: std::collections::BTreeSet<_> = ports.iter().collect();
+        if !self.collector_measurements
+            || ports.len() > 16
+            || unique.len() != ports.len()
+            || ports.contains(&0)
+        {
+            return Err(n::NetworkError::new(n::ErrorCode::InvalidSchema));
+        }
+        self.collector_action_ports = ports;
+        Ok(self)
+    }
+    pub(crate) fn collector_action_ports(&self) -> &[u16] {
+        &self.collector_action_ports
+    }
+    pub fn collector_interval_seconds(&self) -> u64 {
+        self.collector_interval_seconds
     }
     /// Adds a reviewed trust root while retaining certificate/hostname checks.
     pub fn with_reviewed_ca_pem(mut self, pem: &[u8]) -> Result<Self, n::NetworkError> {

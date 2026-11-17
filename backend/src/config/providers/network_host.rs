@@ -13,6 +13,8 @@ pub struct NetworkBinding {
     access: Arc<native::NetworkAccess>,
     runtime: Arc<native::HostNetworkRuntime>,
     entities: Vec<a::SourceRef>,
+    pub(crate) observations: Option<Arc<n::observations::Holder>>,
+    pub(crate) collector_peer: Option<Arc<dyn n::observations::Peer>>,
 }
 impl NetworkBinding {
     pub fn from_trusted_configuration(
@@ -50,7 +52,18 @@ impl NetworkBinding {
         }
         let access =
             native::NetworkAccess::from_shared(a::SharedAccess::from_existing(core.access.clone()));
+        let (observations, collector_peer) = if settings.collector_measurements() {
+            (
+                Some(Arc::new(n::observations::Holder::default())),
+                Some(Arc::new(n::CollectorHttpPeer::new(settings.transport())?)
+                    as Arc<dyn n::observations::Peer>),
+            )
+        } else {
+            (None, None)
+        };
         Ok(Self {
+            observations,
+            collector_peer,
             access,
             runtime: Arc::new(native::HostNetworkRuntime::open(settings)?),
             entities,

@@ -243,6 +243,27 @@ impl NetworkHttpConfig {
             extra_roots: Vec::new(),
         })
     }
+    fn client(&self) -> Result<Client> {
+        let mut builder = Client::builder()
+            .use_rustls_tls()
+            .https_only(self.origin.https_only())
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .http1_only()
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
+            .no_zstd()
+            .pool_max_idle_per_host(0)
+            .connect_timeout(self.connect_timeout)
+            .read_timeout(self.idle_timeout)
+            .timeout(Duration::from_millis(self.limits.request_timeout_ms));
+        for cert in &self.extra_roots {
+            builder = builder.add_root_certificate(cert.clone());
+        }
+        let client = builder.build().map_err(transport_error)?;
+        Ok(client)
+    }
     /// Extra verified trust roots are a reviewed host setting, not a TLS bypass.
     /// The configured Rustls verifier and certificate/hostname checks remain active.
     pub fn with_reviewed_ca_pem(mut self, pem: &[u8]) -> Result<Self> {
@@ -279,24 +300,7 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         lease: Arc<A::Lease>,
         cancellation: CancellationToken,
     ) -> Result<Self> {
-        let mut builder = Client::builder()
-            .use_rustls_tls()
-            .https_only(config.origin.https_only())
-            .redirect(reqwest::redirect::Policy::none())
-            .no_proxy()
-            .http1_only()
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .pool_max_idle_per_host(0)
-            .connect_timeout(config.connect_timeout)
-            .read_timeout(config.idle_timeout)
-            .timeout(Duration::from_millis(config.limits.request_timeout_ms));
-        for cert in &config.extra_roots {
-            builder = builder.add_root_certificate(cert.clone());
-        }
-        let client = builder.build().map_err(transport_error)?;
+        let client = config.client()?;
         Ok(Self {
             client,
             config,
@@ -354,54 +358,11 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
                 SessionKind::Authorization => request.header(AUTHORIZATION, session.value),
             };
         }
-        let mut response = request.send().await.map_err(transport_error)?;
-        self.revalidate(deadline)?;
-        let status = response.status().as_u16();
-        // An inventory authorization failure remains Auth even when a provider
-        // supplies a login Location header. No redirect is followed.
-        if matches!(status, 401 | 403) {
-            return Err(NetworkError::new(ErrorCode::Auth));
-        }
-        if response.url() != &endpoint
-            || response.headers().contains_key(LOCATION)
-            || response.status().is_redirection()
-        {
-            return Err(NetworkError::new(ErrorCode::Upstream));
-        }
-        if status != 200 {
-            return Ok(self.response(status, Vec::new()));
-        }
-        let json = response
-            .headers()
-            .get(CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|v| {
-                v.split(';')
-                    .next()
-                    .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"))
-            });
-        guard(json)?;
-        guard(
-            response
-                .headers()
-                .get(CONTENT_ENCODING)
-                .is_none_or(|v| v == "identity"),
-        )?;
-        if response
-            .content_length()
-            .is_some_and(|n| n > limits.max_response_bytes as u64)
-        {
-            return Err(NetworkError::new(ErrorCode::SizeLimit));
-        }
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(transport_error)? {
-            self.revalidate(deadline)?;
-            if chunk.len() > limits.max_response_bytes.saturating_sub(body.len()) {
-                return Err(NetworkError::new(ErrorCode::SizeLimit));
-            }
-            body.extend_from_slice(&chunk);
-        }
-        self.revalidate(deadline)?;
+        let response = request.send().await.map_err(transport_error)?;
+        let (status, body) = read_response(response, &endpoint, limits, false, || {
+            self.revalidate(deadline)
+        })
+        .await?;
         Ok(self.response(status, body))
     }
     fn response(&self, status: u16, body: Vec<u8>) -> InventoryResponse {
@@ -485,5 +446,145 @@ impl<A: NetworkReadAuthority> super::collector::CollectorGetPeer for HttpInvento
             guard(response.status == 200)?;
             Ok(response.body)
         })
+    }
+}
+
+// Shared bounded response reader for original-authority inventory reads and
+// process-local exact-loopback observations/actions. No redirects or compression.
+async fn read_response(
+    mut response: reqwest::Response,
+    endpoint: &Url,
+    limits: Limits,
+    error_body: bool,
+    check: impl Fn() -> Result<()>,
+) -> Result<(u16, Vec<u8>)> {
+    check()?;
+    let status = response.status().as_u16();
+    // An inventory authorization failure remains Auth even when a provider
+    // supplies a login Location header. No redirect is followed.
+    if !error_body && matches!(status, 401 | 403) {
+        return Err(NetworkError::new(ErrorCode::Auth));
+    }
+    if response.url() != endpoint
+        || response.headers().contains_key(LOCATION)
+        || response.status().is_redirection()
+    {
+        return Err(NetworkError::new(ErrorCode::Upstream));
+    }
+    if !error_body && status != 200 {
+        return Ok((status, Vec::new()));
+    }
+    let json = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            v.split(';')
+                .next()
+                .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"))
+        });
+    guard(json)?;
+    guard(
+        response
+            .headers()
+            .get(CONTENT_ENCODING)
+            .is_none_or(|v| v == "identity"),
+    )?;
+    if response
+        .content_length()
+        .is_some_and(|n| n > limits.max_response_bytes as u64)
+    {
+        return Err(NetworkError::new(ErrorCode::SizeLimit));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(transport_error)? {
+        check()?;
+        if chunk.len() > limits.max_response_bytes.saturating_sub(body.len()) {
+            return Err(NetworkError::new(ErrorCode::SizeLimit));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    check()?;
+    Ok((status, body))
+}
+
+/// No principal or durable store: a trusted exact-loopback observations peer.
+pub(crate) struct CollectorHttpPeer {
+    client: Client,
+    action_client: Client,
+    config: NetworkHttpConfig,
+}
+impl CollectorHttpPeer {
+    pub(crate) fn new(config: NetworkHttpConfig) -> Result<Self> {
+        guard(config.origin.literal_origin.is_some())?;
+        let mut action_config = config.clone();
+        action_config.idle_timeout = super::observations::ACTION_TIMEOUT;
+        Ok(Self {
+            client: config.client()?,
+            action_client: action_config.client()?,
+            config,
+        })
+    }
+    async fn exchange(&self, path: &str, body: Option<Vec<u8>>) -> Result<(u16, Vec<u8>)> {
+        let timeout = if body.is_some() {
+            super::observations::ACTION_TIMEOUT
+        } else {
+            Duration::from_millis(self.config.limits.request_timeout_ms)
+        };
+        let limits = Limits {
+            max_response_bytes: if body.is_some() {
+                64 * 1024
+            } else {
+                self.config.limits.max_response_bytes
+            },
+            request_timeout_ms: timeout.as_millis() as u64,
+            ..self.config.limits
+        };
+        let deadline = Instant::now() + timeout;
+        let mut endpoint = self.config.origin.endpoint.clone();
+        endpoint.set_path(path);
+        let request = match body {
+            Some(body) => self
+                .action_client
+                .post(endpoint.clone())
+                .header(reqwest::header::HOST, &self.config.origin.origin()[7..])
+                .header(CONTENT_TYPE, "application/json")
+                .body(body),
+            None => self.config.origin.get_request(&self.client, path),
+        }
+        .header(ACCEPT, "application/json")
+        .header(ACCEPT_ENCODING, "identity")
+        .timeout(timeout);
+        let post = path == "/api/actions";
+        tokio::time::timeout(timeout, async {
+            let response = request.send().await.map_err(transport_error)?;
+            read_response(response, &endpoint, limits, post, || {
+                if Instant::now() >= deadline {
+                    Err(NetworkError::new(ErrorCode::Timeout))
+                } else {
+                    Ok(())
+                }
+            })
+            .await
+        })
+        .await
+        .map_err(|_| NetworkError::new(ErrorCode::Timeout))?
+    }
+}
+impl super::collector::CollectorGetPeer for CollectorHttpPeer {
+    fn get(
+        &self,
+        route: super::collector::CollectorRoute,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send + '_>> {
+        Box::pin(async move {
+            let (status, body) = self.exchange(route.path(), None).await?;
+            guard(status == 200)?;
+            Ok(body)
+        })
+    }
+}
+impl super::observations::Peer for CollectorHttpPeer {
+    fn post(&self, body: Vec<u8>) -> super::observations::ResponseFuture<'_> {
+        Box::pin(self.exchange("/api/actions", Some(body)))
     }
 }
