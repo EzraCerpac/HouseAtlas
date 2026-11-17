@@ -1,4 +1,4 @@
-# Network collector, stage 0
+# Network collector, stage 1
 
 One independent Node 26.10.0 process owns collection and a fresh SQLite store.
 The HouseAtlas backend remains a passive reader.
@@ -16,14 +16,17 @@ node tools/network-collector/main.ts --config /absolute/private/config.json
 node tools/network-collector/main.ts --config /absolute/private/config.json --once
 ```
 
-`--once` collects one cycle without opening a listener.
+`--once` collects one ping cycle and evaluates periodic work once,
+without opening a listener.
 Normal mode opens only the configured exact loopback endpoint,
 collects immediately, then follows monotonic interval slots.
 Missed slots are skipped, with no catch-up after sleep or restart.
 Only one cycle runs at a time.
 SIGTERM/SIGINT abort commands, drain the current cycle, close HTTP and SQLite.
 Commands receive TERM then KILL after 250 ms;
-each has a 2.5-second deadline and 64 KiB combined output bound.
+ping/guard/port commands have a 2.5-second deadline;
+speed runs have a 65-second deadline.
+All commands have a 64 KiB combined output bound.
 No shell or inherited command environment is used.
 The current command adapter targets macOS `route`, `arp` and `ping`;
 Linux CI uses injected fakes, not host networking tools.
@@ -66,7 +69,7 @@ Only exact `127.0.0.1` or `::1` and port 1–65535 are accepted;
 there is no hostname resolution, wildcard binding, TLS or authentication.
 Any local process able to connect can read this private topology and history.
 Config is at most 16 KiB, with closed required fields as above;
-the three schedule/retention fields are optional with the illustrated defaults.
+the schedule/retention fields are optional with the illustrated defaults.
 `intervalMs` is an integer 60000–86400000;
 `rawDays` is 1–30 and `hourlyMonths` is 3–13.
 The IPv4 subnet prefix is 1–30 and must contain the gateway.
@@ -232,7 +235,9 @@ without expanding ping rows or interpreting archived stores.
 ## HTTP limits and refusals
 
 Routes are exact paths without queries.
-GET only: other methods, including HEAD, receive 405 with `Allow: GET`.
+Existing routes remain GET only: other methods, including HEAD,
+receive 405 with `Allow: GET`.
+The new exact `/api/actions` path also accepts POST as described below.
 Unknown paths receive 404; unavailable inventory/read or an oversized response
 receives 503.
 Successful JSON responses use `Cache-Control: no-store`.
@@ -247,7 +252,7 @@ a present `Origin` must exactly equal `http://` plus that same authority.
 Missing/foreign Host or foreign Origin receives 403 with the fixed body
 `{"error":"request-refused"}`.
 Hostnames, alternate ports, opaque origins and trailing slashes are refused.
-There is no forwarded-header trust, proxy feature, CORS, SSE or write API.
+There is no forwarded-header trust, proxy feature, CORS, SSE or inventory write API.
 
 The existing backend's HTTPS-only `ReviewedNetworkOrigin` cannot consume this
 HTTP endpoint yet.
@@ -260,9 +265,8 @@ No backend authority or mounted integration is changed here.
 No AP/router client adapters or their credentials, discovery/inbox, inventory
 editing/import, remote collectors, viewer leases/demand, ingest/attestation,
 auth/sessions, SSE, UI, Bonjour or TLS listener.
-Nightly speed runs, on-demand diagnostics, Wi-Fi scans and browser throughput
-are future stages, with separate tables and explicit action contracts.
-No scheduled or on-demand version of those actions is implemented now.
+Browser throughput is absent.
+Collector actions are explicit backend requests, never browsing-triggered demand.
 Logic was adapted from the owner's earlier private tool;
 only parameterized guard, bounded command execution and ping parsing were retained.
 Remote home verification and radio-based guard overrides were omitted because
@@ -279,7 +283,126 @@ node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfi
 
 The typecheck uses the repository's existing frontend TypeScript/Node declarations;
 no new runtime or development dependency is added.
-The 22 node:test cases use fake runners/children, disposable private SQLite files,
+The 34 node:test cases use fake runners/children, disposable private SQLite files,
 controlled clocks and direct handler calls only.
 No listener, real command, live source, credential, private fixture, deployment,
 performance measurement or installed acceptance is exercised.
+
+## Speed, Wi-Fi and actions
+
+The HouseAtlas backend is the only intended HTTP client.
+There is still no backend integration or operational approval in this stage.
+Any local process that can connect can also request these bounded diagnostics;
+there is no token or credential.
+
+Optional private configuration fields are `speedTime` (local `HH:MM`, default
+`03:00`), `wifiIntervalMs` (60000–86400000, default 900000),
+and `actionPorts` (at most 16 distinct integer ports 1–65535,
+default `[22,80,443]`; `[]` disables port checks).
+Nulls and unknown fields are refused.
+There are no configurable executable paths, arguments, endpoints or hosts,
+matching stage 0's fixed command policy.
+
+A separate monotonic 60-second scheduler evaluates periodic work independently
+of the ping interval, even with no readers.
+The first evaluation at or after `speedTime` claims that local calendar date
+before invoking `/usr/bin/networkQuality -c -M 60` through the bounded runner.
+This uses the tool's default internet service and can consume substantial data.
+It is a host internet measurement, not an inventory-device throughput test.
+`dl_throughput` and `ul_throughput` are bits/second;
+`base_rtt` is idle milliseconds, never responsiveness/RPM.
+These mappings and flags follow Apple's installed `networkQuality(8)` manual.
+No real invocation was used to develop or verify this stage.
+The adapter accepts extra tool metadata but persists only the three metrics.
+Duplicate JSON keys, invalid types, negative/nonfinite or excessive values
+(throughput over 10 trillion bps or latency over 120000 ms) are refused.
+Missing metrics remain null with `unknown`/`missing-fields`;
+command failure/interruption is `failed`/`command-unavailable`,
+tool error metadata is `failed`/`tool-error`,
+and invalid JSON/metrics is `unknown`/`malformed-output`.
+Partial valid metrics are retained without inventing missing values.
+All three valid metrics produce `measured` with null reason.
+`recordedAt` is the collector's UTC completion timestamp, not a parsed tool date.
+
+There is no prior-day catch-up or retry of a claimed night after restart.
+A persistent high-water calendar date prevents repeated runs after clock rollback
+or the repeated DST hour; a skipped DST time runs at the first later evaluation.
+An action already running delays the nightly claim to the next evaluation.
+A crash after claiming can leave that night without a result;
+the claim establishes at-most-once dispatch, not successful collection.
+On-demand speed runs do not consume the nightly claim.
+SIGTERM/SIGINT abort and drain both schedulers and the active action.
+
+### Wi-Fi availability
+
+This stage intentionally implements an `unavailable` scan interface.
+No dependable unprivileged stock CLI contract has been qualified for current macOS.
+Apple retired the old `airport` scan CLI;
+[Apple DTS recommends CoreWLAN and requires Location privilege for useful results](https://developer.apple.com/forums/thread/748161).
+`wdutil` is a privileged diagnostics route, not a replacement used here.
+`system_profiler SPAirPortDataType` is a possible diagnostic snapshot,
+but its version-dependent/redacted report is not treated as a dependable scan contract.
+No helper compilation, permission prompt, credentials, sudo or copied legacy binary
+is introduced.
+This is a conservative adapter choice, not a claim that macOS cannot scan Wi-Fi.
+Every Wi-Fi interval records `{state:"unavailable", recordedAt,
+networks:null, reason:"no-dependable-unprivileged-scanner"}`.
+Network name, channel, band and signal are all unknown;
+null visibility never means zero visible networks.
+There is no fabricated network row or guessed name, band or signal.
+The latest result and 24 most recent evaluations are retained in SQLite.
+
+### Route contracts
+
+`POST /api/actions` accepts exactly one of these JSON objects:
+
+```json
+{"kind":"ping","deviceId":"device-example"}
+{"kind":"port","deviceId":"device-example","port":443}
+{"kind":"speed"}
+```
+
+Objects are closed; duplicate keys, invalid UTF-8, free-form targets and
+non-allowlisted ports are refused.
+The body is at most 8192 bytes and `Content-Type` must equal `application/json`.
+Both socket endpoints and Host must pass the existing exact-loopback fence;
+**any** Origin header is refused, including the matching origin and empty value.
+Fences run before body reading or owner access.
+Only one action (including a nightly speed run) executes at a time;
+a concurrent request receives 409 `busy`.
+Upload timeout remains 5 seconds; accepted execution gets a 75-second socket bound.
+Ping and TCP checks use the current inventory's selected IPv4 only,
+after the same live home guard used by scheduled pings.
+Unknown device IDs receive 400 without command execution.
+Missing target or failed home guard records an unknown result with a reason.
+TCP uses `/usr/bin/nc -n -z -w 2 <inventory-address> <allowed-port>`;
+only exit 0 without interruption means `open`.
+Every failed connect remains `unknown`/`command-unavailable`, never guessed closed.
+Ping results use the unchanged stage 0 fact shape.
+Actions do not add samples to routine ping history.
+
+Success is 200 `{version:1, kind, deviceId?, port?, recordedAt, result}`.
+The latest 200 completed action entries are retained, including nightly speed work.
+Rejected/busy requests do not create action entries.
+Other refusals use fixed errors: 403 `request-refused`, 415 `content-type`,
+413 `body-limit`, 400 `invalid-action` or `unknown-device`, and 503 `shutdown`.
+
+`GET /api/results` uses the existing GET Host/Origin fences and returns
+`{version:1, speed:{latest,recent}, wifi:{latest}, actions}`.
+Speed results contain `state`, `recordedAt`, `downloadBps`, `uploadBps`,
+`latencyMs` and `reason`.
+Latest values are null before any record; arrays are newest first.
+Speed history is bounded at 400 runs, actions at 200, Wi-Fi storage at 24;
+pruning happens transactionally on insertion without needing a reader.
+Results can be stale; timestamps do not assert present connectivity.
+The existing `/api/health`, `/api/inventory` and `/api/measurements` envelopes
+remain unchanged, including their published version/schemaVersion fields.
+The internal SQLite schema migrates forward from 1 to 2 transactionally,
+preserving inventory and ping tables and refusing unknown newer versions.
+It must not subsequently be opened by the stage 0 writer.
+
+The 34 synthetic cases additionally cover good/partial/malformed speed output,
+local-time nightly claims and restart/rollback, Wi-Fi unavailability/intervals,
+POST fences/body limits, busy ownership, target/port restrictions, shutdown,
+forward migration and bounded histories.
+No actual command, service, socket or scan runs in these tests.

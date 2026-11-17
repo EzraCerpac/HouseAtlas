@@ -134,9 +134,11 @@ candidate-helper method (34 methods total); no workflow command is added.
 
 `tools/network-collector/` owns fixed-schedule collection and its separate store.
 The backend remains a passive reader; browsing never requests collection.
-Ordinary-core selects exactly the twenty-two synthetic collector cases in
+Ordinary-core selects exactly the thirty-four synthetic collector cases in
 `tools/network-collector/core.test.ts` with pinned Node 26.10.0.
 They use fake command runners/children, disposable SQLite, direct handlers and controlled clocks;
 header authority refusals, command bounds/cleanup and cross-hour sample indexing are included;
+stage 1 adds strict POST actions, busy ownership, local-time nightly scheduling,
+speed parsing, explicit unavailable Wi-Fi, forward migration and bounded histories;
 no real command, listener, private inventory or G1–G5 acceptance is exercised.
 The measurements contract and explicit limits live in the tool README.
