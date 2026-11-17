@@ -21,7 +21,12 @@ without opening a listener.
 Normal mode opens only the configured exact loopback endpoint,
 collects immediately, then follows monotonic interval slots.
 Missed slots are skipped, with no catch-up after sleep or restart.
-Only one cycle runs at a time.
+Only one ping cycle runs at a time.
+Speed actions reserve probe exclusion immediately and wait for an active ping
+cycle to drain before starting the speed command.
+During that reservation, routine cycles send no probes and record every device
+as `not-measured` with reason `speed-test-in-progress`, null latency and null loss.
+Those samples retain the ordinary unknown-count rollup behavior.
 SIGTERM/SIGINT abort commands, drain the current cycle, close HTTP and SQLite.
 Commands receive TERM then KILL after 250 ms;
 ping/guard/port commands have a 2.5-second deadline;
@@ -184,7 +189,8 @@ Missing or malformed summaries, process timeout/abort or command failure are
 `not-measured`, with null latency, loss and measuredAt.
 `recordedAt` identifies the attempted observation time.
 Reasons are `not-at-home`, `no-target`, `command-unavailable`, `shutdown`,
-or `no-history` (the initial latest placeholder, also with null recordedAt).
+`speed-test-in-progress`, or `no-history`
+(the initial latest placeholder, also with null recordedAt).
 No-reply is never substituted for missing collection.
 
 The guard requires the configured default gateway and interface,
@@ -283,7 +289,7 @@ node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfi
 
 The typecheck uses the repository's existing frontend TypeScript/Node declarations;
 no new runtime or development dependency is added.
-The 34 node:test cases use fake runners/children, disposable private SQLite files,
+The 39 node:test cases use fake runners/children, disposable private SQLite files,
 controlled clocks and direct handler calls only.
 No listener, real command, live source, credential, private fixture, deployment,
 performance measurement or installed acceptance is exercised.
@@ -370,7 +376,9 @@ Both socket endpoints and Host must pass the existing exact-loopback fence;
 Fences run before body reading or owner access.
 Only one action (including a nightly speed run) executes at a time;
 a concurrent request receives 409 `busy`.
-Upload timeout remains 5 seconds; accepted execution gets a 75-second socket bound.
+Upload timeout remains 5 seconds; accepted execution gets a 125-second socket bound
+to cover an active routine cycle draining (at most about 45 seconds),
+then the bounded 65-second speed command.
 Ping and TCP checks use the current inventory's selected IPv4 only,
 after the same live home guard used by scheduled pings.
 Unknown device IDs receive 400 without command execution.
@@ -389,7 +397,8 @@ Other refusals use fixed errors: 403 `request-refused`, 415 `content-type`,
 
 `GET /api/results` uses the existing GET Host/Origin fences and returns
 `{version:1, speed:{latest,recent}, wifi:{latest}, actions}`.
-Speed results contain `state`, `recordedAt`, `downloadBps`, `uploadBps`,
+Speed results contain `state`, `recordedAt`,
+`downloadBitsPerSecond`, `uploadBitsPerSecond`,
 `latencyMs` and `reason`.
 Latest values are null before any record; arrays are newest first.
 Speed history is bounded at 400 runs, actions at 200, Wi-Fi storage at 24;
@@ -397,12 +406,16 @@ pruning happens transactionally on insertion without needing a reader.
 Results can be stale; timestamps do not assert present connectivity.
 The existing `/api/health`, `/api/inventory` and `/api/measurements` envelopes
 remain unchanged, including their published version/schemaVersion fields.
-The internal SQLite schema migrates forward from 1 to 2 transactionally,
+The internal SQLite schema migrates forward from 1 or 2 to 3 transactionally,
 preserving inventory and ping tables and refusing unknown newer versions.
+The schema-2 migration renames the stored speed metrics and their action-log copies
+to `downloadBitsPerSecond` and `uploadBitsPerSecond`, preserving their values.
 It must not subsequently be opened by the stage 0 writer.
 
-The 34 synthetic cases additionally cover good/partial/malformed speed output,
+The 39 synthetic cases additionally cover good/partial/malformed speed output,
 local-time nightly claims and restart/rollback, Wi-Fi unavailability/intervals,
 POST fences/body limits, busy ownership, target/port restrictions, shutdown,
-forward migration and bounded histories.
+forward migration and bounded histories, speed/ping exclusion in both start orders,
+controlled-timezone skipped/repeated DST hours, detached-upload response cleanup
+and persisted speed metric renaming.
 No actual command, service, socket or scan runs in these tests.

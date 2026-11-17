@@ -1,7 +1,8 @@
 import { keys, need, integer, parseJson } from './config.ts';
 import type { Config } from './config.ts';
-import { homeGuard, parsePing, unmeasured } from './collect.ts';
+import { collect, homeGuard, parsePing, unmeasured } from './collect.ts';
 import type { Runner, CommandResult, addresses } from './collect.ts';
+import type { Inventory } from './inventory.ts';
 import { targets } from './inventory.ts';
 import type { Store } from './store.ts';
 
@@ -15,22 +16,22 @@ export function parseAction(value: unknown, config: Config): Action {
   return a as Action;
 }
 export function parseSpeed(result: CommandResult, at: number) {
-  const fact = { state: 'unknown', recordedAt: new Date(at).toISOString(), downloadBps: null as number | null, uploadBps: null as number | null, latencyMs: null as number | null, reason: null as string | null };
+  const fact = { state: 'unknown', recordedAt: new Date(at).toISOString(), downloadBitsPerSecond: null as number | null, uploadBitsPerSecond: null as number | null, latencyMs: null as number | null, reason: null as string | null };
   if (result.interrupted || result.code !== 0) return { ...fact, state: 'failed', reason: 'command-unavailable' };
   try {
     const v = parseJson(result.stdout) as Record<string, unknown>;
     need(v && typeof v === 'object' && !Array.isArray(v), 'Invalid speed output');
-    for (const [key, field, max] of [['dl_throughput', 'downloadBps', 1e13], ['ul_throughput', 'uploadBps', 1e13], ['base_rtt', 'latencyMs', 120000]] as const) {
+    for (const [key, field, max] of [['dl_throughput', 'downloadBitsPerSecond', 1e13], ['ul_throughput', 'uploadBitsPerSecond', 1e13], ['base_rtt', 'latencyMs', 120000]] as const) {
       if (Object.hasOwn(v, key)) {
         const n = v[key]; need(typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max, 'Invalid speed metric');
         fact[field] = n;
       }
     }
-    fact.state = [fact.downloadBps, fact.uploadBps, fact.latencyMs].every(n => n !== null) ? 'measured' : 'unknown';
+    fact.state = [fact.downloadBitsPerSecond, fact.uploadBitsPerSecond, fact.latencyMs].every(n => n !== null) ? 'measured' : 'unknown';
     fact.reason = Object.hasOwn(v, 'error_code') || Object.hasOwn(v, 'error_domain') ? 'tool-error' : fact.state === 'unknown' ? 'missing-fields' : null;
     if (fact.reason === 'tool-error') fact.state = 'failed';
     return fact;
-  } catch { return { ...fact, downloadBps: null, uploadBps: null, latencyMs: null, state: 'unknown', reason: 'malformed-output' }; }
+  } catch { return { ...fact, downloadBitsPerSecond: null, uploadBitsPerSecond: null, latencyMs: null, state: 'unknown', reason: 'malformed-output' }; }
 }
 export function wifiUnavailable(at: number) {
   // No stable, permission-independent stock CLI scan contract is qualified.
@@ -39,16 +40,26 @@ export function wifiUnavailable(at: number) {
 }
 export class Actions {
   private active: Promise<unknown> | null = null;
+  private speedReserved = false;
+  private routine: Promise<unknown> | null = null;
   private stop = new AbortController();
   private store: Store; private config: Config; private runner: Runner; private local: typeof addresses; private now: () => number;
   constructor(store: Store, config: Config, runner: Runner, local: typeof addresses, now = Date.now) {
     this.store = store; this.config = config; this.runner = runner; this.local = local; this.now = now;
+  }
+  collectRoutine(doc: Inventory, signal: AbortSignal) {
+    if (this.speedReserved) return Promise.resolve({ guard: 'unknown' as const, facts: new Map(doc.inventory.devices.map(d => [d.id, unmeasured(this.now(), 'speed-test-in-progress')])) });
+    const cycle = collect(doc, this.config, this.runner, this.local, signal, this.now);
+    this.routine = cycle;
+    return cycle.finally(() => { this.routine = null; });
   }
   async shutdown() { this.stop.abort(); await this.active; }
   execute(action: Action, nightlyDate: string | null = null): Promise<any> {
     action = parseAction(action, this.config);
     if (this.active) return Promise.resolve({ status: 409, body: '{"error":"busy"}' });
     if (this.stop.signal.aborted) return Promise.resolve({ status: 503, body: '{"error":"shutdown"}' });
+    // Block new ping probes immediately; an already-started cycle drains first.
+    if (action.kind === 'speed') this.speedReserved = true;
     // Reserve synchronously before any asynchronous owner work.
     this.active = Promise.resolve().then(async () => {
       // Persist before dispatch: restart must not repeat a claimed night.
@@ -56,6 +67,7 @@ export class Actions {
       const signal = this.stop.signal;
       let result: unknown;
       if (action.kind === 'speed') {
+        if (this.routine) await this.routine;
         let output: CommandResult;
         try { output = await this.runner('/usr/bin/networkQuality', ['-c', '-M', '60'], 65_000, signal); }
         catch { output = { stdout: '', code: null }; }
@@ -87,7 +99,7 @@ export class Actions {
       const entry = { ...action, recordedAt: new Date(this.now()).toISOString(), result };
       this.store.recordExtra('action', entry);
       return { status: 200, body: JSON.stringify({ version: 1, ...entry }) };
-    }).finally(() => { this.active = null; });
+    }).finally(() => { this.active = null; this.speedReserved = false; });
     return this.active;
   }
 }

@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
 import type { Config } from './config.ts';
 import type { Store } from './store.ts';
@@ -53,19 +54,25 @@ export async function actionReply(config: Config, actions: Actions, req: Request
     action = parseAction(parseJson(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))), config);
   } catch { return { status: 400, body: '{"error":"invalid-action"}' }; }
   // The 5-second upload/idle bound must not cut off a bounded speed run.
-  req.socket.setTimeout?.(75_000);
+  req.socket.setTimeout?.(125_000);
   return actions.execute(action);
 }
-export function server(store: Store, listen: Config['listen'], config?: Config, actions?: Actions) {
-  const http = createServer({ maxHeaderSize: 8192, requestTimeout: 5000, headersTimeout: 5000, keepAliveTimeout: 1000 }, async (req, res) => {
+export function handler(store: Store, listen: Config['listen'], config?: Config, actions?: Actions) {
+  return async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const r = req.method === 'POST' && req.url === '/api/actions' && config && actions
         ? await actionReply(config, actions, req) : requestReply(store, listen, req);
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(r.body), ...(r.status === 405 ? { Allow: 'GET' } : {}) });
       res.end(r.body);
-      req.socket.setTimeout(5000);
-    } catch { res.writeHead(503); res.end('{"error":"read-unavailable"}'); }
-  });
+      req.socket?.setTimeout(5000);
+    } catch {
+      if (!res.headersSent && !res.destroyed) { res.writeHead(503); res.end('{"error":"read-unavailable"}'); }
+      else if (!res.writableEnded) res.destroy();
+    }
+  };
+}
+export function server(store: Store, listen: Config['listen'], config?: Config, actions?: Actions) {
+  const http = createServer({ maxHeaderSize: 8192, requestTimeout: 5000, headersTimeout: 5000, keepAliveTimeout: 1000 }, handler(store, listen, config, actions));
   http.maxConnections = 16;
   http.maxRequestsPerSocket = 16;
   http.on('connection', socket => socket.setTimeout(5000, () => socket.destroy()));

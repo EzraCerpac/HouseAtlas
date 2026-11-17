@@ -302,9 +302,9 @@ import { actionReply } from './http.ts';
 
 test('speed parser retains measured units and missing fields as unknown', async t => {
   const r = parseSpeed({ stdout: '{"dl_throughput":12000000,"ul_throughput":3000000,"base_rtt":12}', code: 0 }, at);
-  assert.equal(r.state, 'measured'); assert.equal(r.downloadBps, 12000000); assert.equal(r.latencyMs, 12);
+  assert.equal(r.state, 'measured'); assert.equal(r.downloadBitsPerSecond, 12000000); assert.equal(r.latencyMs, 12);
   const partial = parseSpeed({ stdout: '{"dl_throughput":0}', code: 0 }, at);
-  assert.equal(partial.downloadBps, 0); assert.equal(partial.uploadBps, null); assert.equal(partial.reason, 'missing-fields');
+  assert.equal(partial.downloadBitsPerSecond, 0); assert.equal(partial.uploadBitsPerSecond, null); assert.equal(partial.reason, 'missing-fields');
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(); const child = new FakeChild();
   const runner = createRunner((file, args) => {
@@ -429,7 +429,7 @@ test('forward migration retains stage zero inventory and ping history', () => {
     store.db.exec('DROP TABLE extra; DROP TABLE nightly; UPDATE schema_version SET version=1'); store.close();
     store = new Store(f.path);
     assert.equal(reply(store, 'GET', '/api/measurements', at).body, before);
-    assert.equal(store.db.prepare('SELECT version FROM schema_version').get()!.version, 2);
+    assert.equal(store.db.prepare('SELECT version FROM schema_version').get()!.version, 3);
     assert.deepEqual(store.extras().actions, []);
   } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
 });
@@ -446,4 +446,110 @@ test('port failures remain unknown and missing targets or home guard never dispa
     assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.reason, 'no-target');
     assert.equal(connects, 1);
   } finally { f.close(); }
+});
+
+test('routine pings and nightly or on-demand speed commands never overlap', async () => {
+  for (const nightlyDate of [null, '2026-01-01']) {
+    const f = fixture(); let releasePing!: () => void; let releaseSpeed!: () => void;
+    let pingActive = false; let speedActive = false; let pings = 0; let speeds = 0;
+    const runner: Runner = async (file, args, ms, signal) => {
+      if (file === '/sbin/ping') {
+        assert.equal(speedActive, false); pings++; pingActive = true;
+        await new Promise<void>(r => { releasePing = r; }); pingActive = false; return success(2);
+      }
+      if (file === '/usr/bin/networkQuality') {
+        assert.equal(pingActive, false); speeds++; speedActive = true;
+        await new Promise<void>(r => { releaseSpeed = r; }); speedActive = false;
+        return { stdout: '{"dl_throughput":1000,"ul_throughput":500,"base_rtt":2}', code: 0 };
+      }
+      return fake(file, args, ms, signal);
+    };
+    try {
+      f.store.accept(inventory()); const actions = new Actions(f.store, config(), runner, local, () => at);
+      const cycle = actions.collectRoutine(inventory(), new AbortController().signal);
+      await new Promise(r => setImmediate(r)); assert.equal(pings, 1);
+      const speed = actions.execute({ kind: 'speed' }, nightlyDate);
+      await new Promise(r => setImmediate(r)); assert.equal(speeds, 0);
+      releasePing(); await cycle;
+      await new Promise(r => setImmediate(r)); assert.equal(speeds, 1);
+      const skipped = await actions.collectRoutine(inventory(), new AbortController().signal);
+      f.store.record(at, skipped.guard, skipped.facts, config());
+      const latest = f.store.measurements(at, inventory()).devices.device.latest;
+      assert.equal(latest.state, 'not-measured'); assert.equal(latest.reason, 'speed-test-in-progress');
+      assert.equal(latest.latencyMs, null); assert.equal(latest.loss, null); assert.equal(pings, 1);
+      releaseSpeed(); await speed;
+      const resumed = actions.collectRoutine(inventory(), new AbortController().signal);
+      await new Promise(r => setImmediate(r)); assert.equal(pings, 2);
+      releasePing(); assert.equal((await resumed).facts.get('device')!.state, 'reachable');
+    } finally { f.close(); }
+  }
+});
+
+test('nightly schedule runs after the skipped DST hour in a controlled timezone', async () => {
+  const previous = process.env.TZ; process.env.TZ = 'Europe/Amsterdam';
+  const f = fixture(); let calls = 0;
+  try {
+    const c = validateConfig({ ...config(), speedTime: '02:30' });
+    const actions = new Actions(f.store, c, async () => { calls++; return { stdout: '{}', code: 0 }; }, local);
+    const tick = (stamp: string) => periodic(f.store, c, actions, Date.parse(stamp));
+    assert.equal(new Date('2026-03-29T00:59:00Z').getHours(), 1);
+    assert.equal(new Date('2026-03-29T01:00:00Z').getHours(), 3);
+    await tick('2026-03-29T00:59:00Z'); assert.equal(calls, 0);
+    await tick('2026-03-29T01:00:00Z'); assert.equal(calls, 1);
+    await tick('2026-03-29T01:30:00Z'); assert.equal(calls, 1);
+    assert.equal(f.store.lastNight(), '2026-03-29');
+  } finally { f.close(); if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+});
+
+test('nightly schedule does not rerun during the repeated DST hour', async () => {
+  const previous = process.env.TZ; process.env.TZ = 'Europe/Amsterdam';
+  const f = fixture(); let calls = 0;
+  try {
+    const c = validateConfig({ ...config(), speedTime: '02:30' });
+    const actions = new Actions(f.store, c, async () => { calls++; return { stdout: '{}', code: 0 }; }, local);
+    const tick = (stamp: string) => periodic(f.store, c, actions, Date.parse(stamp));
+    assert.equal(new Date('2026-10-25T00:30:00Z').getHours(), 2);
+    assert.equal(new Date('2026-10-25T01:30:00Z').getHours(), 2);
+    assert.notEqual(new Date('2026-10-25T00:30:00Z').getTimezoneOffset(), new Date('2026-10-25T01:30:00Z').getTimezoneOffset());
+    await tick('2026-10-25T00:29:00Z'); assert.equal(calls, 0);
+    await tick('2026-10-25T00:30:00Z'); assert.equal(calls, 1);
+    await tick('2026-10-25T01:00:00Z'); await tick('2026-10-25T01:30:00Z'); assert.equal(calls, 1);
+    assert.equal(f.store.lastNight(), '2026-10-25');
+  } finally { f.close(); if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+});
+
+import { handler } from './http.ts';
+test('oversized POST with a detached socket cannot rewrite headers or reject the handler', async () => {
+  const f = fixture();
+  try {
+    const actions = new Actions(f.store, config(), async () => { throw Error('no command'); }, local);
+    const req: any = post();
+    req[Symbol.asyncIterator] = async function*() { try { yield Buffer.alloc(8500); yield Buffer.alloc(500); } finally { req.socket = null; } };
+    const statuses: number[] = []; let body = '';
+    const res: any = { headersSent: false, destroyed: false, writableEnded: false,
+      writeHead(status: number) { assert.equal(this.headersSent, false); this.headersSent = true; statuses.push(status); },
+      end(value: string) { this.writableEnded = true; body = value; }, destroy() { this.destroyed = true; } };
+    await handler(f.store, config().listen, config(), actions)(req, res);
+    assert.deepEqual(statuses, [413]); assert.equal(body, '{"error":"body-limit"}');
+    assert.equal(res.destroyed, false); assert.equal(f.store.extras().actions.length, 0);
+    // An error after headers begin must also retire the response, not write 503.
+    const broken: any = { ...res, headersSent: false, writableEnded: false,
+      end() { throw Error('synthetic disconnected response'); } };
+    await handler(f.store, config().listen, config(), actions)(post('', { origin: '' }) as any, broken);
+    assert.deepEqual(statuses, [413, 403]); assert.equal(broken.destroyed, true);
+  } finally { f.close(); }
+});
+
+test('stage one store migration renames persisted speed and action metrics', () => {
+  const f = fixture(); let store = f.store;
+  try {
+    const old = { state: 'measured', downloadBps: 1000, uploadBps: 500, latencyMs: 2 };
+    store.recordExtra('speed', old); store.recordExtra('action', { kind: 'speed', result: old });
+    store.db.exec('UPDATE schema_version SET version=2'); store.close(); store = new Store(f.path);
+    const result = JSON.parse(reply(store, 'GET', '/api/results').body);
+    for (const speed of [result.speed.latest, result.actions[0].result]) {
+      assert.equal(speed.downloadBitsPerSecond, 1000); assert.equal(speed.uploadBitsPerSecond, 500);
+      assert.equal(Object.hasOwn(speed, 'downloadBps'), false); assert.equal(Object.hasOwn(speed, 'uploadBps'), false);
+    }
+  } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
 });

@@ -38,12 +38,24 @@ export class Store {
       // Add future forward-only migrations here, inside transactions. Never
       // reinterpret an old application's store or silently open a newer schema.
       const versions = this.db.prepare('SELECT version FROM schema_version').all();
-      need(versions.length === 1 && [1, 2].includes(Number(versions[0]!.version)), 'Unsupported collector schema version');
+      need(versions.length === 1 && [1, 2, 3].includes(Number(versions[0]!.version)), 'Unsupported collector schema version');
       if (versions[0]!.version === 1) this.db.exec(`BEGIN EXCLUSIVE;
         CREATE TABLE extra(id INTEGER PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);
         CREATE INDEX extra_kind ON extra(kind,id);
         CREATE TABLE nightly(id INTEGER PRIMARY KEY CHECK(id=1), date TEXT NOT NULL);
         UPDATE schema_version SET version=2; COMMIT;`);
+      if (Number(versions[0]!.version) < 3) this.transaction(() => {
+        for (const row of this.db.prepare("SELECT id,kind,data FROM extra WHERE kind IN ('speed','action')").all()) {
+          const data = JSON.parse(String(row.data));
+          const speed = row.kind === 'speed' ? data : data.kind === 'speed' ? data.result : null;
+          if (!speed) continue;
+          for (const [old, name] of [['downloadBps', 'downloadBitsPerSecond'], ['uploadBps', 'uploadBitsPerSecond']] as const) {
+            if (Object.hasOwn(speed, old)) { speed[name] = speed[old]; delete speed[old]; }
+          }
+          this.db.prepare('UPDATE extra SET data=? WHERE id=?').run(JSON.stringify(data), Number(row.id));
+        }
+        this.db.exec('UPDATE schema_version SET version=3');
+      });
     } catch (e) { this.db.close(); throw e; }
   }
   transaction(fn: () => void) {

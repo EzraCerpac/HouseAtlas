@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { loadConfig, readPrivate, Refusal, parseJson } from './config.ts';
 import { validateInventory, MAX_INVENTORY_BYTES } from './inventory.ts';
 import { Store } from './store.ts';
-import { collect, run, addresses } from './collect.ts';
+import { run, addresses } from './collect.ts';
 import { Actions, periodic } from './actions.ts';
 import { Scheduler } from './scheduler.ts';
 import { server } from './http.ts';
@@ -31,7 +31,7 @@ async function main() {
       // Reject a bad replacement as a whole, retain the previous accepted copy.
       try { loadInventory(); } catch { console.error('Inventory replacement refused; retaining accepted inventory'); }
       const at = Date.now();
-      const result = await collect(store.inventory()!, config, run, addresses, signal);
+      const result = await actions.collectRoutine(store.inventory()!, signal);
       store.record(at, result.guard, result.facts, config);
     });
     process.on('SIGTERM', stop); process.on('SIGINT', stop);
