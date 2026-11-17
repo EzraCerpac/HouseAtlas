@@ -206,9 +206,13 @@ test('literal loopback authority accepts absent or matching Origin including IPv
   } finally { f.close(); }
 });
 
+class FakePipe extends EventEmitter {
+  destroyed = false;
+  destroy() { this.destroyed = true; return this; }
+}
 class FakeChild extends EventEmitter {
-  stdout = new EventEmitter();
-  stderr = new EventEmitter();
+  stdout = new FakePipe();
+  stderr = new FakePipe();
   kills: NodeJS.Signals[] = [];
   kill(signal: NodeJS.Signals) { this.kills.push(signal); return true; }
 }
@@ -294,4 +298,307 @@ test('cross-hour cycle indexes facts by observation time for hourly and 24-hour 
     assert.deepEqual(f.store.measurements(observedAt + 86_400_000, inventory()).devices.device.series24h, [fact]);
     assert.deepEqual(f.store.measurements(observedAt + 86_400_001, inventory()).devices.device.series24h, []);
   } finally { f.close(); }
+});
+
+// Stage 1 remains synthetic: no socket, command or live radio access.
+import { Actions, parseAction, parseSpeed, periodic, wifiUnavailable } from './actions.ts';
+import { actionReply } from './http.ts';
+
+test('speed parser retains measured units and missing fields as unknown', async t => {
+  const r = parseSpeed({ stdout: '{"dl_throughput":12000000,"ul_throughput":3000000,"base_rtt":12}', code: 0 }, at);
+  assert.equal(r.state, 'measured'); assert.equal(r.downloadBitsPerSecond, 12000000); assert.equal(r.latencyMs, 12);
+  const partial = parseSpeed({ stdout: '{"dl_throughput":0}', code: 0 }, at);
+  assert.equal(partial.downloadBitsPerSecond, 0); assert.equal(partial.uploadBitsPerSecond, null); assert.equal(partial.reason, 'missing-fields');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(); const child = new FakeChild();
+  const runner = createRunner((file, args) => {
+    assert.equal(file, '/usr/bin/networkQuality'); assert.deepEqual(args, ['-c', '-M', '60']); return child;
+  });
+  try {
+    const actions = new Actions(f.store, config(), runner, local, () => at);
+    const pending = actions.execute({ kind: 'speed' }); await Promise.resolve();
+    t.mock.timers.tick(64999); assert.deepEqual(child.kills, []);
+    t.mock.timers.tick(1); assert.deepEqual(child.kills, ['SIGTERM']);
+    t.mock.timers.tick(250); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
+    child.emit('close', null);
+    assert.equal((await pending).status, 200);
+    assert.equal(f.store.extras().speed.latest.state, 'failed'); assertClean(child);
+  } finally { f.close(); }
+});
+test('speed parser refuses malformed ambiguous and invalid metrics and reports failures', () => {
+  for (const stdout of ['{', 'null', '[]', '{"base_rtt":-1}', '{"dl_throughput":"12"}', '{"base_rtt":1,"base_rtt":2}', '{"base_rtt":1e999}']) assert.equal(parseSpeed({ stdout, code: 0 }, at).reason, 'malformed-output');
+  assert.equal(parseSpeed({ stdout: '{}', code: 1 }, at).state, 'failed');
+  assert.equal(parseSpeed({ stdout: '{}', code: 0, interrupted: true }, at).state, 'failed');
+  assert.equal(parseSpeed({ stdout: '{"error_code":1,"base_rtt":2}', code: 0 }, at).reason, 'tool-error');
+});
+test('action config and closed bodies refuse hosts unknown kinds ports and invalid times', () => {
+  for (const patch of [{ speedTime: '24:00' }, { speedTime: null }, { wifiIntervalMs: 1 }, { actionPorts: [22, 22] }, { actionPorts: [0] }, { actionPorts: Array(17).fill(22) }]) assert.throws(() => validateConfig({ ...config(), ...patch }));
+  for (const a of [{ kind: 'speed', host: '192.0.2.10' }, { kind: 'port', deviceId: 'device', port: 1234 }, { kind: 'ping', deviceId: 'device', port: 22 }, { kind: 'scan' }, { kind: 'ping' }]) assert.throws(() => parseAction(a, config()));
+  assert.deepEqual(parseAction({ kind: 'port', deviceId: 'device', port: 443 }, config()), { kind: 'port', deviceId: 'device', port: 443 });
+});
+function post(body = '{"kind":"speed"}', headers: any = {}) {
+  return { method: 'POST', url: '/api/actions', headers: { host: '127.0.0.1:42001', 'content-type': 'application/json', ...headers }, socket: { localAddress: '127.0.0.1', remoteAddress: '127.0.0.1' }, async *[Symbol.asyncIterator]() { yield Buffer.from(body); } };
+}
+test('POST fences before body or store access and bounds strict JSON', async () => {
+  const f = fixture(); let calls = 0;
+  const actions = new Actions(f.store, config(), async () => { calls++; return { stdout: '{}', code: 0 }; }, local);
+  try {
+    for (const headers of [{ host: 'localhost:42001' }, { origin: 'http://127.0.0.1:42001' }, { origin: '' }]) {
+      const req = post('', headers); req[Symbol.asyncIterator] = async function*() { throw Error('must not read'); };
+      assert.equal((await actionReply(config(), actions, req)).status, 403);
+    }
+    assert.equal((await actionReply(config(), actions, post('', { 'content-type': 'text/plain' }))).status, 415);
+    assert.equal((await actionReply(config(), actions, post(' '.repeat(8193)))).status, 413);
+    for (const body of ['{}', '{"kind":"speed","kind":"ping"}', '{"kind":"ping","deviceId":"device","host":"192.0.2.1"}']) assert.equal((await actionReply(config(), actions, post(body))).status, 400);
+    assert.equal(calls, 0);
+  } finally { f.close(); }
+});
+test('one action at a time shares nightly ownership and records speed results', async () => {
+  const f = fixture(); let release!: (r: any) => void; let calls = 0;
+  const runner: Runner = async (file, args, timeout) => { calls++; assert.equal(file, '/usr/bin/networkQuality'); assert.deepEqual(args, ['-c', '-M', '60']); assert.equal(timeout, 65000); return new Promise(r => { release = r; }); };
+  const actions = new Actions(f.store, config(), runner, local, () => at);
+  try {
+    const first = actionReply(config(), actions, post());
+    // Allow the async body iterator to finish before the competing POST.
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await actionReply(config(), actions, post())).status, 409);
+    await periodic(f.store, config(), actions, new Date(2026, 0, 1, 3, 0).getTime());
+    assert.equal(f.store.lastNight(), null);
+    release({ stdout: '{"base_rtt":1}', code: 0 }); assert.equal((await first).status, 200);
+    assert.equal(calls, 1); assert.equal(f.store.extras().actions.length, 1); assert.equal(f.store.extras().speed.latest.latencyMs, 1);
+  } finally { f.close(); }
+});
+test('nightly civil clock claim skips early missed and repeated dates across reopen', async () => {
+  const f = fixture(); let store = f.store; let calls = 0;
+  const runner: Runner = async () => { calls++; return { stdout: '{}', code: 0 }; };
+  try {
+    let actions = new Actions(store, config(), runner, local);
+    const tick = (day: number, hour: number, minute: number) => periodic(store, config(), actions, new Date(2026, 0, day, hour, minute).getTime());
+    await tick(1, 2, 59); assert.equal(calls, 0);
+    await tick(1, 3, 0); await tick(1, 3, 1); assert.equal(calls, 1);
+    store.close(); store = new Store(f.path); actions = new Actions(store, config(), runner, local);
+    await tick(1, 4, 0); await tick(1, 2, 0); assert.equal(calls, 1);
+    await tick(3, 4, 0); assert.equal(calls, 2); // no catch-up for day 2
+    await tick(2, 4, 0); assert.equal(calls, 2); // wall-clock rollback
+  } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
+});
+test('Wi-Fi unavailable is explicit and periodically retained without a runner', async () => {
+  const f = fixture(); const actions = new Actions(f.store, config(), async () => { throw Error('no command'); }, local);
+  try {
+    const time = new Date(2026, 0, 1, 1, 0).getTime();
+    await periodic(f.store, config(), actions, time); await periodic(f.store, config(), actions, time + 1);
+    assert.equal(f.store.recentExtra('wifi', 24).length, 1);
+    await periodic(f.store, config(), actions, time + config().wifiIntervalMs);
+    assert.equal(f.store.recentExtra('wifi', 24).length, 2);
+    assert.equal(wifiUnavailable(at).networks, null); assert.equal(f.store.extras().wifi.latest.state, 'unavailable');
+  } finally { f.close(); }
+});
+test('extra histories are bounded and read route preserves stage zero envelope', () => {
+  const f = fixture();
+  try {
+    f.store.accept(inventory());
+    for (let i = 0; i < 405; i++) for (const kind of ['speed', 'wifi', 'action'] as const) f.store.recordExtra(kind, { recordedAt: new Date(at + i).toISOString(), n: i });
+    assert.equal(f.store.recentExtra('speed', 1000).length, 400); assert.equal(f.store.recentExtra('wifi', 1000).length, 24); assert.equal(f.store.recentExtra('action', 1000).length, 200);
+    assert.equal(JSON.parse(reply(f.store, 'GET', '/api/results').body).version, 1);
+    assert.equal(JSON.parse(reply(f.store, 'GET', '/api/measurements').body).version, 1);
+    assert.equal(f.store.extras().speed.latest.n, 404);
+  } finally { f.close(); }
+});
+test('diagnostics only use inventory targets after current home guard', async () => {
+  const f = fixture(); const commands: any[] = [];
+  const actions = new Actions(f.store, config(), async (file, args, ms, signal) => { commands.push([file, args]); return file === '/usr/bin/nc' ? { stdout: '', code: 0 } : fake(file, args, ms, signal); }, local, () => at);
+  try {
+    f.store.accept(inventory());
+    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'missing' })).status, 400); assert.equal(commands.length, 0);
+    const ping = JSON.parse((await actions.execute({ kind: 'ping', deviceId: 'device' })).body); assert.equal(ping.result.state, 'reachable');
+    const port = JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 443 })).body); assert.equal(port.result.state, 'open');
+    assert.deepEqual(commands.at(-1), ['/usr/bin/nc', ['-n', '-z', '-w', '2', '192.0.2.10', '443']]);
+    assert.equal(f.store.extras().actions.length, 2);
+  } finally { f.close(); }
+});
+test('action shutdown aborts fake child work and prevents later dispatch', async () => {
+  const f = fixture(); let signal!: AbortSignal;
+  const actions = new Actions(f.store, config(), async (_f, _a, _m, s) => { signal = s; return new Promise(resolve => s.addEventListener('abort', () => resolve({ stdout: '', code: null, interrupted: true }), { once: true })); }, local);
+  try {
+    const pending = actions.execute({ kind: 'speed' }); await Promise.resolve(); await actions.shutdown();
+    assert.equal(signal.aborted, true); assert.equal((await pending).status, 200); assert.equal(f.store.extras().speed.latest.state, 'failed');
+    assert.equal((await actions.execute({ kind: 'speed' })).status, 503);
+  } finally { f.close(); }
+});
+test('forward migration retains stage zero inventory and ping history', () => {
+  const f = fixture(); let store = f.store;
+  try {
+    store.accept(inventory()); store.record(at, 'home', new Map([['device', parsePing(success(2), at)]]), config());
+    const before = reply(store, 'GET', '/api/measurements', at).body;
+    store.db.exec('DROP TABLE extra; DROP TABLE nightly; UPDATE schema_version SET version=1'); store.close();
+    store = new Store(f.path);
+    assert.equal(reply(store, 'GET', '/api/measurements', at).body, before);
+    assert.equal(store.db.prepare('SELECT version FROM schema_version').get()!.version, 3);
+    assert.deepEqual(store.extras().actions, []);
+  } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
+});
+test('port failures remain unknown and missing targets or home guard never dispatch', async () => {
+  const f = fixture(); let connects = 0;
+  try {
+    f.store.accept(inventory());
+    const runner: Runner = async (file, args, ms, signal) => { if (file === '/usr/bin/nc') { connects++; return { stdout: '', code: 1 }; } return fake(file, args, ms, signal); };
+    const actions = new Actions(f.store, config(), runner, local);
+    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.state, 'unknown');
+    const away = new Actions(f.store, config(), runner, () => []);
+    assert.equal(JSON.parse((await away.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.reason, 'not-at-home');
+    const doc = inventory(); doc.revision = 2; doc.inventory.interfaces[0].addresses = []; f.store.accept(doc);
+    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.reason, 'no-target');
+    assert.equal(connects, 1);
+  } finally { f.close(); }
+});
+
+test('routine pings and nightly or on-demand speed commands never overlap', async () => {
+  for (const nightlyDate of [null, '2026-01-01']) {
+    const f = fixture(); let releasePing!: () => void; let releaseSpeed!: () => void;
+    let pingActive = false; let speedActive = false; let pings = 0; let speeds = 0;
+    const runner: Runner = async (file, args, ms, signal) => {
+      if (file === '/sbin/ping') {
+        assert.equal(speedActive, false); pings++; pingActive = true;
+        await new Promise<void>(r => { releasePing = r; }); pingActive = false; return success(2);
+      }
+      if (file === '/usr/bin/networkQuality') {
+        assert.equal(pingActive, false); speeds++; speedActive = true;
+        await new Promise<void>(r => { releaseSpeed = r; }); speedActive = false;
+        return { stdout: '{"dl_throughput":1000,"ul_throughput":500,"base_rtt":2}', code: 0 };
+      }
+      return fake(file, args, ms, signal);
+    };
+    try {
+      f.store.accept(inventory()); const actions = new Actions(f.store, config(), runner, local, () => at);
+      const cycle = actions.collectRoutine(inventory(), new AbortController().signal);
+      await new Promise(r => setImmediate(r)); assert.equal(pings, 1);
+      const speed = actions.execute({ kind: 'speed' }, nightlyDate);
+      await new Promise(r => setImmediate(r)); assert.equal(speeds, 0);
+      releasePing(); await cycle;
+      await new Promise(r => setImmediate(r)); assert.equal(speeds, 1);
+      const skipped = await actions.collectRoutine(inventory(), new AbortController().signal);
+      f.store.record(at, skipped.guard, skipped.facts, config());
+      const latest = f.store.measurements(at, inventory()).devices.device.latest;
+      assert.equal(latest.state, 'not-measured'); assert.equal(latest.reason, 'speed-test-in-progress');
+      assert.equal(latest.latencyMs, null); assert.equal(latest.loss, null); assert.equal(pings, 1);
+      releaseSpeed(); await speed;
+      const resumed = actions.collectRoutine(inventory(), new AbortController().signal);
+      await new Promise(r => setImmediate(r)); assert.equal(pings, 2);
+      releasePing(); assert.equal((await resumed).facts.get('device')!.state, 'reachable');
+    } finally { f.close(); }
+  }
+});
+
+test('nightly schedule runs after the skipped DST hour in a controlled timezone', async () => {
+  const previous = process.env.TZ; process.env.TZ = 'Europe/Amsterdam';
+  const f = fixture(); let calls = 0;
+  try {
+    const c = validateConfig({ ...config(), speedTime: '02:30' });
+    const actions = new Actions(f.store, c, async () => { calls++; return { stdout: '{}', code: 0 }; }, local);
+    const tick = (stamp: string) => periodic(f.store, c, actions, Date.parse(stamp));
+    assert.equal(new Date('2026-03-29T00:59:00Z').getHours(), 1);
+    assert.equal(new Date('2026-03-29T01:00:00Z').getHours(), 3);
+    await tick('2026-03-29T00:59:00Z'); assert.equal(calls, 0);
+    await tick('2026-03-29T01:00:00Z'); assert.equal(calls, 1);
+    await tick('2026-03-29T01:30:00Z'); assert.equal(calls, 1);
+    assert.equal(f.store.lastNight(), '2026-03-29');
+  } finally { f.close(); if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+});
+
+test('nightly schedule does not rerun during the repeated DST hour', async () => {
+  const previous = process.env.TZ; process.env.TZ = 'Europe/Amsterdam';
+  const f = fixture(); let calls = 0;
+  try {
+    const c = validateConfig({ ...config(), speedTime: '02:30' });
+    const actions = new Actions(f.store, c, async () => { calls++; return { stdout: '{}', code: 0 }; }, local);
+    const tick = (stamp: string) => periodic(f.store, c, actions, Date.parse(stamp));
+    assert.equal(new Date('2026-10-25T00:30:00Z').getHours(), 2);
+    assert.equal(new Date('2026-10-25T01:30:00Z').getHours(), 2);
+    assert.notEqual(new Date('2026-10-25T00:30:00Z').getTimezoneOffset(), new Date('2026-10-25T01:30:00Z').getTimezoneOffset());
+    await tick('2026-10-25T00:29:00Z'); assert.equal(calls, 0);
+    await tick('2026-10-25T00:30:00Z'); assert.equal(calls, 1);
+    await tick('2026-10-25T01:00:00Z'); await tick('2026-10-25T01:30:00Z'); assert.equal(calls, 1);
+    assert.equal(f.store.lastNight(), '2026-10-25');
+  } finally { f.close(); if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; }
+});
+
+import { handler } from './http.ts';
+test('oversized POST with a detached socket cannot rewrite headers or reject the handler', async () => {
+  const f = fixture();
+  try {
+    const actions = new Actions(f.store, config(), async () => { throw Error('no command'); }, local);
+    const req: any = post();
+    req[Symbol.asyncIterator] = async function*() { try { yield Buffer.alloc(8500); yield Buffer.alloc(500); } finally { req.socket = null; } };
+    const statuses: number[] = []; let body = '';
+    const res: any = { headersSent: false, destroyed: false, writableEnded: false,
+      writeHead(status: number) { assert.equal(this.headersSent, false); this.headersSent = true; statuses.push(status); },
+      end(value: string) { this.writableEnded = true; body = value; }, destroy() { this.destroyed = true; } };
+    await handler(f.store, config().listen, config(), actions)(req, res);
+    assert.deepEqual(statuses, [413]); assert.equal(body, '{"error":"body-limit"}');
+    assert.equal(res.destroyed, false); assert.equal(f.store.extras().actions.length, 0);
+    // An error after headers begin must also retire the response, not write 503.
+    const broken: any = { ...res, headersSent: false, writableEnded: false,
+      end() { throw Error('synthetic disconnected response'); } };
+    await handler(f.store, config().listen, config(), actions)(post('', { origin: '' }) as any, broken);
+    assert.deepEqual(statuses, [413, 403]); assert.equal(broken.destroyed, true);
+  } finally { f.close(); }
+});
+
+test('stage one store migration renames persisted speed and action metrics', () => {
+  const f = fixture(); let store = f.store;
+  try {
+    const old = { state: 'measured', downloadBps: 1000, uploadBps: 500, latencyMs: 2 };
+    store.recordExtra('speed', old); store.recordExtra('action', { kind: 'speed', result: old });
+    store.db.exec('UPDATE schema_version SET version=2'); store.close(); store = new Store(f.path);
+    const result = JSON.parse(reply(store, 'GET', '/api/results').body);
+    for (const speed of [result.speed.latest, result.actions[0].result]) {
+      assert.equal(speed.downloadBitsPerSecond, 1000); assert.equal(speed.uploadBitsPerSecond, 500);
+      assert.equal(Object.hasOwn(speed, 'downloadBps'), false); assert.equal(Object.hasOwn(speed, 'uploadBps'), false);
+    }
+  } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
+});
+
+test('missing child close settles after bounded teardown and releases pings and actions', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(); const child = new FakeChild(); let speedCalls = 0; let pings = 0;
+  const stalled = createRunner(() => child);
+  const runner: Runner = (file, args, timeout, signal) => {
+    if (file === '/usr/bin/networkQuality' && speedCalls++ === 0) return stalled(file, args, timeout, signal);
+    if (file === '/sbin/ping') pings++;
+    return file === '/usr/bin/networkQuality' ? Promise.resolve({ stdout: '{}', code: 0 }) : fake(file, args, timeout, signal);
+  };
+  try {
+    f.store.accept(inventory());
+    const actions = new Actions(f.store, config(), runner, local, () => at);
+    const speed = actions.execute({ kind: 'speed' }); let settled = false;
+    void speed.then(() => { settled = true; }); await Promise.resolve();
+    assert.equal((await actions.collectRoutine(inventory(), new AbortController().signal)).facts.get('device')!.reason, 'speed-test-in-progress');
+    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'device' })).status, 409);
+    t.mock.timers.tick(65000); assert.deepEqual(child.kills, ['SIGTERM']);
+    t.mock.timers.tick(250); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
+    t.mock.timers.tick(249); await Promise.resolve(); assert.equal(settled, false);
+    t.mock.timers.tick(1); assert.equal((await speed).status, 200);
+    assert.equal(f.store.extras().speed.latest.state, 'failed');
+    assert.equal(f.store.extras().speed.latest.reason, 'command-unavailable');
+    assert.equal(child.stdout.destroyed, true); assert.equal(child.stderr.destroyed, true); assertClean(child);
+    // Late events cannot overwrite the unknown result or revive old ownership.
+    child.stdout.emit('data', Buffer.from('{"base_rtt":1}')); child.emit('close', 0);
+    const cycle = await actions.collectRoutine(inventory(), new AbortController().signal);
+    assert.equal(cycle.facts.get('device')!.state, 'reachable');
+    const ping = await actions.execute({ kind: 'ping', deviceId: 'device' });
+    assert.equal(ping.status, 200); assert.equal(JSON.parse(ping.body).result.state, 'reachable');
+    assert.equal(pings, 2); assert.equal((await actions.execute({ kind: 'speed' })).status, 200);
+    await actions.shutdown(); t.mock.timers.tick(100000);
+    assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']); assertClean(child);
+  } finally { f.close(); }
+  // The same bound applies to output overflow and abort, not only deadlines.
+  for (const mode of ['output', 'abort']) {
+    const child = new FakeChild(); const stop = new AbortController();
+    const pending = createRunner(() => child)('/example/ping', [], 2500, stop.signal);
+    if (mode === 'output') child.stderr.emit('data', Buffer.alloc(65537)); else stop.abort();
+    t.mock.timers.tick(250); t.mock.timers.tick(250);
+    const result = await pending; assert.equal(result.code, null); assert.equal(result.interrupted, true);
+    assert.equal(parsePing(result, at).state, 'not-measured');
+    assert.equal(child.stdout.destroyed, true); assert.equal(child.stderr.destroyed, true); assertClean(child);
+  }
 });

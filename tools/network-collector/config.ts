@@ -41,6 +41,7 @@ export function readPrivate(path: string, maxBytes: number): string {
 export type Config = {
   listen: { address: string; port: number };
   home: { gateway: string; routerMac: string; interface: string; subnet: string };
+  speedTime: string; wifiIntervalMs: number; actionPorts: number[];
   intervalMs: number; rawDays: number; hourlyMonths: number; storePath: string; inventoryPath: string;
 };
 export const ipv4 = (s: unknown): s is string => typeof s === 'string' && isIP(s) === 4;
@@ -52,7 +53,7 @@ export function inSubnet(ip: string, cidr: string) {
   return (number(ip) & mask) === (number(base) & mask);
 }
 export function validateConfig(input: unknown): Config {
-  const c = keys(input, ['listen', 'home', 'storePath', 'inventoryPath'], ['intervalMs', 'rawDays', 'hourlyMonths']);
+  const c = keys(input, ['listen', 'home', 'storePath', 'inventoryPath'], ['intervalMs', 'rawDays', 'hourlyMonths', 'speedTime', 'wifiIntervalMs', 'actionPorts']);
   const l = keys(c.listen, ['address', 'port']);
   need(loopback(l.address), 'Listen address must be exactly 127.0.0.1 or ::1');
   need(integer(l.port, 1, 65535), 'Listen port must be 1..65535');
@@ -62,9 +63,13 @@ export function validateConfig(input: unknown): Config {
   need(typeof h.interface === 'string' && /^[a-zA-Z][a-zA-Z0-9]{0,31}$/.test(h.interface), 'Invalid local interface');
   for (const k of ['storePath', 'inventoryPath']) need(typeof c[k] === 'string' && isAbsolute(c[k]) && resolve(c[k]) === c[k], 'Paths must be absolute and normalized');
   need(c.storePath !== c.inventoryPath, 'Store and inventory paths must differ');
-  const result = { ...c, intervalMs: c.intervalMs ?? 60_000, rawDays: c.rawDays ?? 30, hourlyMonths: c.hourlyMonths ?? 13 } as Config;
+  for (const k of ['speedTime', 'wifiIntervalMs', 'actionPorts']) need(!Object.hasOwn(c, k) || c[k] !== null, 'Invalid action configuration');
+  const result = { ...c, speedTime: c.speedTime ?? '03:00', wifiIntervalMs: c.wifiIntervalMs ?? 900_000, actionPorts: c.actionPorts ?? [22, 80, 443], intervalMs: c.intervalMs ?? 60_000, rawDays: c.rawDays ?? 30, hourlyMonths: c.hourlyMonths ?? 13 } as Config;
   need(integer(result.intervalMs, 60_000, 86_400_000), 'intervalMs must be 60000..86400000');
   need(integer(result.rawDays, 1, 30) && integer(result.hourlyMonths, 3, 13), 'Retention must be rawDays 1..30, hourlyMonths 3..13');
+  need(typeof result.speedTime === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(result.speedTime), 'Invalid nightly time');
+  need(integer(result.wifiIntervalMs, 60_000, 86_400_000), 'Invalid Wi-Fi interval');
+  need(Array.isArray(result.actionPorts) && result.actionPorts.length <= 16 && result.actionPorts.every(p => integer(p, 1, 65535)) && new Set(result.actionPorts).size === result.actionPorts.length, 'Invalid action ports');
   return result;
 }
 export const loadConfig = (path: string) => validateConfig(parseJson(readPrivate(path, 16_384)));

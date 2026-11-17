@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import { loadConfig, readPrivate, Refusal, parseJson } from './config.ts';
 import { validateInventory, MAX_INVENTORY_BYTES } from './inventory.ts';
 import { Store } from './store.ts';
-import { collect, run, addresses } from './collect.ts';
+import { run, addresses } from './collect.ts';
+import { Actions, periodic } from './actions.ts';
 import { Scheduler } from './scheduler.ts';
 import { server } from './http.ts';
 
@@ -14,12 +15,14 @@ async function main() {
   process.umask(0o077);
   const store = new Store(config.storePath);
   const loadInventory = () => store.accept(validateInventory(parseJson(readPrivate(config.inventoryPath, MAX_INVENTORY_BYTES))));
+  const actions = new Actions(store, config, run, addresses);
   let scheduler: Scheduler | undefined;
+  let extrasScheduler: Scheduler | undefined;
   let http: ReturnType<typeof server> | undefined;
   let closing: Promise<void> | undefined;
   const shutdown = () => closing ??= (async () => {
     const closed = http ? new Promise<void>(resolve => { http!.close(() => resolve()); http!.closeAllConnections(); }) : Promise.resolve();
-    await scheduler?.shutdown(); await closed;
+    await Promise.all([scheduler?.shutdown(), extrasScheduler?.shutdown(), actions.shutdown()]); await closed;
   })();
   const stop = () => { void shutdown(); };
   try {
@@ -28,15 +31,16 @@ async function main() {
       // Reject a bad replacement as a whole, retain the previous accepted copy.
       try { loadInventory(); } catch { console.error('Inventory replacement refused; retaining accepted inventory'); }
       const at = Date.now();
-      const result = await collect(store.inventory()!, config, run, addresses, signal);
+      const result = await actions.collectRoutine(store.inventory()!, signal);
       store.record(at, result.guard, result.facts, config);
     });
     process.on('SIGTERM', stop); process.on('SIGINT', stop);
-    if (values.once) await scheduler.tick();
+    extrasScheduler = new Scheduler(async signal => { if (!signal.aborted) await periodic(store, config, actions); });
+    if (values.once) await Promise.all([scheduler.tick(), extrasScheduler.tick()]);
     else {
-      http = server(store, config.listen);
+      http = server(store, config.listen, config, actions);
       await new Promise<void>((resolve, reject) => { http!.once('error', reject); http!.listen(config.listen.port, config.listen.address, resolve); });
-      await scheduler.run(config.intervalMs);
+      await Promise.all([scheduler.run(config.intervalMs), extrasScheduler.run(60_000)]);
     }
   } finally {
     try { await shutdown(); } finally { store.close(); }

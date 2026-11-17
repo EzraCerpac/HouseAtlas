@@ -38,7 +38,24 @@ export class Store {
       // Add future forward-only migrations here, inside transactions. Never
       // reinterpret an old application's store or silently open a newer schema.
       const versions = this.db.prepare('SELECT version FROM schema_version').all();
-      need(versions.length === 1 && versions[0]!.version === 1, 'Unsupported collector schema version');
+      need(versions.length === 1 && [1, 2, 3].includes(Number(versions[0]!.version)), 'Unsupported collector schema version');
+      if (versions[0]!.version === 1) this.db.exec(`BEGIN EXCLUSIVE;
+        CREATE TABLE extra(id INTEGER PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);
+        CREATE INDEX extra_kind ON extra(kind,id);
+        CREATE TABLE nightly(id INTEGER PRIMARY KEY CHECK(id=1), date TEXT NOT NULL);
+        UPDATE schema_version SET version=2; COMMIT;`);
+      if (Number(versions[0]!.version) < 3) this.transaction(() => {
+        for (const row of this.db.prepare("SELECT id,kind,data FROM extra WHERE kind IN ('speed','action')").all()) {
+          const data = JSON.parse(String(row.data));
+          const speed = row.kind === 'speed' ? data : data.kind === 'speed' ? data.result : null;
+          if (!speed) continue;
+          for (const [old, name] of [['downloadBps', 'downloadBitsPerSecond'], ['uploadBps', 'uploadBitsPerSecond']] as const) {
+            if (Object.hasOwn(speed, old)) { speed[name] = speed[old]; delete speed[old]; }
+          }
+          this.db.prepare('UPDATE extra SET data=? WHERE id=?').run(JSON.stringify(data), Number(row.id));
+        }
+        this.db.exec('UPDATE schema_version SET version=3');
+      });
     } catch (e) { this.db.close(); throw e; }
   }
   transaction(fn: () => void) {
@@ -106,6 +123,22 @@ export class Store {
       };
     }
     return { version: 1, inventoryRevision: doc.revision, generatedAt: new Date(now).toISOString(), collector: this.status(), devices };
+  }
+  recordExtra(kind: 'speed' | 'wifi' | 'action', data: unknown) {
+    const limit = kind === 'speed' ? 400 : kind === 'wifi' ? 24 : 200;
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO extra(kind,data) VALUES(?,?)').run(kind, JSON.stringify(data));
+      this.db.prepare('DELETE FROM extra WHERE kind=? AND id NOT IN (SELECT id FROM extra WHERE kind=? ORDER BY id DESC LIMIT ?)').run(kind, kind, limit);
+    });
+  }
+  recentExtra(kind: string, limit: number): any[] {
+    return this.db.prepare('SELECT data FROM extra WHERE kind=? ORDER BY id DESC LIMIT ?').all(kind, limit).map(r => JSON.parse(String(r.data)));
+  }
+  lastNight(): string | null { return this.db.prepare('SELECT date FROM nightly WHERE id=1').get()?.date as string ?? null; }
+  claimNight(date: string) { this.db.prepare('INSERT INTO nightly VALUES(1,?) ON CONFLICT(id) DO UPDATE SET date=excluded.date').run(date); }
+  extras() {
+    const speed = this.recentExtra('speed', 400);
+    return { version: 1, speed: { latest: speed[0] ?? null, recent: speed }, wifi: { latest: this.recentExtra('wifi', 1)[0] ?? null }, actions: this.recentExtra('action', 200) };
   }
   close() { this.db.close(); }
 }
