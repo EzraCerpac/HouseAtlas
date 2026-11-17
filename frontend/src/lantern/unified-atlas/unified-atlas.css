@@ -2585,6 +2585,12 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
+  /* A device or link name is shown nowhere else in its card, so it wraps instead of being cut. */
+  .lantern-host .ua-inspector.is-network .ua-sheet-title > h2 {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   /* In Plan the drawn floor keeps its own line and the counts follow below it, so neither is cut. */
   .lantern-host .ua-sheet-sub > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
