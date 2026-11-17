@@ -222,7 +222,6 @@ pub(super) fn read<'h>(
         read.enrich_collector(&link.source.external_id, &mut live)?;
         addresses += live["addresses"].as_array().map_or(0, Vec::len);
         need(addresses <= 16_384)?;
-        let mut live = live;
         live["source"] = json!({"workspaceId":link.source.scope.workspace_id,"homeId":link.source.scope.home_id,
             "sourceInstanceId":link.source.scope.source_instance_id,"collectionId":link.source.scope.collection_id,
             "sourceKind":"network-device","externalId":link.source.external_id});

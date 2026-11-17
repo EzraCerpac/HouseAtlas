@@ -179,7 +179,9 @@ impl Hour {
             self.loss.is_none()
         } else {
             self.loss.is_some_and(|v| {
-                v.is_finite() && (v - self.no_reply as f64 / measured as f64).abs() < 1e-12
+                v.is_finite()
+                    && (0.0..=1.0).contains(&v)
+                    && (v - self.no_reply as f64 / measured as f64).abs() < 1e-12
             })
         })?;
         guard(if self.reachable == 0 {
@@ -255,8 +257,8 @@ impl Snapshot {
         guard(every == *ids)?;
         // Retain only the bounded UI series, not the raw/90-day response history.
         for d in envelope.devices.values_mut() {
-            d.series24h.clear();
-            d.hourly90d.clear();
+            d.series24h = Vec::new();
+            d.hourly90d = Vec::new();
             let skip = d.hourly7d.len().saturating_sub(48);
             d.hourly7d.drain(..skip);
         }
@@ -546,6 +548,19 @@ mod tests {
     #[test]
     fn healthy_collector_strict_decode_and_bounds() {
         // Collector floating-point summation can put a mean just outside min/max.
+        for loss in [-1e-13, 1.0 + 1e-13] {
+            let mut b = body();
+            let h = &mut b["devices"]["device-a"]["hourly7d"][0];
+            if loss > 1.0 {
+                h["reachable"] = json!(0);
+                h["noReply"] = json!(1);
+                for key in ["minMs", "meanMs", "maxMs"] {
+                    h[key] = Value::Null;
+                }
+            }
+            h["loss"] = json!(loss);
+            assert!(snapshot(&b, Some(&health())).is_err());
+        }
         let mut rounded = body();
         rounded["devices"]["device-a"]["hourly7d"][0]["meanMs"] = json!(2.5 - f64::EPSILON * 2.);
         assert!(snapshot(&rounded, Some(&health())).is_ok());
