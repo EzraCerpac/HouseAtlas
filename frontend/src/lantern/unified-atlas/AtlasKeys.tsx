@@ -70,7 +70,7 @@ export interface NetworkKey {
   readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void };
 }
 
-export function OverlayKey({ layer, availability, records, stored, buildings, openDocuments, publishedOnly, network }: {
+export function OverlayKey({ layer, availability, records, stored, buildings, openDocuments, publishedOnly, network, sourceRecords }: {
   readonly layer: OverlayLayerIndex; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   /** Set while some building shows the copy last loaded on this device. */
@@ -79,6 +79,8 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
   readonly buildings: readonly BuildingCoverage[];
   /** The Network layer drawn as devices and links, when the source supplies its network. */
   readonly network?: NetworkKey | null;
+  /** Without a network graph to open, the Network source records open from the key itself. */
+  readonly sourceRecords?: (() => void) | undefined;
 }) {
   const reasons = unplacedByReason(layer);
   const unplaced = records?.unplaced[layer.kind] ?? [];
@@ -136,6 +138,8 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
           <span className="ua-logical-swatch" aria-hidden="true" /><span>Graph</span><Icon name="network" size={16} />
         </button>
       </>}
+      {sourceRecords && <button type="button" className="text-btn ua-net-sources" onClick={sourceRecords}>
+        <Icon name="record" size={16} />Network source records</button>}
       {!network && (layer.unplacedRecords > 0 || layer.unplaced.length > 0) && <details>
         <summary>{others.length > 0 ? `${plural(others.length, 'record')} not placed` : layer.unplacedRecords > 0 ? `${plural(layer.unplacedRecords, 'record')} not placed` : 'Unplaced source bindings'}</summary>
         {others.length > 0 ? <DocumentaryRecords records={others} openDocuments={openDocuments} />

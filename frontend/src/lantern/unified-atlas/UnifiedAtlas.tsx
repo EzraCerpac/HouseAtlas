@@ -816,7 +816,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     return () => { observer.disconnect(); if (pending !== null) cancelAnimationFrame(pending); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chrome]);
-  const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
+  // Choosing a room, the selected one included, leaves any network card for the room's own.
+  const select = (occurrenceId: string | null) => { leaveNetworkCard.current(); dispatch({ type: 'select', occurrenceId }); };
   // A tap resolves against what is drawn now, mid-transition included, and the
   // reducer re-targets every eased value; an empty tap moves out one level.
   const minimumZoom = useRef(.6);
@@ -1523,7 +1524,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     else graphHeading.current?.focus({ preventScroll: true });
     if (compact) setSheetOpen(false);
   };
-  const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, choose: setNetFocus, showInGraph,
+  const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, graphs, choose: setNetFocus, showInGraph,
     roomName: id => ({ room: atlasOccurrenceName(model, id), floor: atlasScopedLevelName(model, model.occurrencesById.get(id)!.levelId, state.buildingId) }) }) : null;
   // Network source records (the live relations read among them) open in the host's Network lens.
   const sourceRecords = environment.openNetwork;
@@ -1916,7 +1917,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
             network={layer.kind === 'network' && graphs.length > 0 ? { devices: networkConnections.coverage.devices.total, unplaced: unplacedDevices,
               open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
-              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null} />)}
+              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null}
+            sourceRecords={layer.kind === 'network' && graphs.length === 0 && sourceRecords ? () => { if (shortLayerDetails) setDrawer(null); sourceRecords(); } : undefined} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">
@@ -1989,7 +1991,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       </section>}
     </div>
 
-    <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
+    <Inspector model={model} state={state} dispatch={action => { if (action.type === 'select') leaveNetworkCard.current(); dispatch(action); }} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
       electricalGroup={electricalGroup} canElectricalGroup={key => groups.some(group => group.members.some(member => member.record.key === key))} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupSelection(null)}
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
@@ -2009,7 +2011,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {/* On a phone the lens stands where the room sheet does: choosing
             a room hands the stage and its sheet back. */}
         <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId} nested
-          choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
+          choose={key => { select(key); if (compact) hostLens.set(null); }} />
       </section>
     </div>, hostLens.target)}
   </section>;

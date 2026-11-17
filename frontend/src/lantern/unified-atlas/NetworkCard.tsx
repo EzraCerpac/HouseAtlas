@@ -5,6 +5,7 @@ import type { NetworkLiveFacts, NetworkObservationValue, NetworkOverlaySource } 
 import type { NetworkConnection, NetworkConnectionEnd, NetworkConnectionNode, NetworkConnections } from './network-connections';
 import { NETWORK_UNPLACED_LABEL, networkLinkStyle, networkUnplacedReason, type NetworkLinkStyle } from './network-map';
 import { plural } from './atlas-text';
+import type { DocumentaryNetworkGraph } from './runtime-overlays';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
  * one room's devices (its +n chip). Choosing never moves the camera. */
@@ -64,8 +65,10 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
 /** The card for the current choice, or null when it no longer resolves (its
  * source changed or went away). Only fields the source supplies are shown;
  * live facts appear only for a device the server joined them to. */
-export function networkCardContent({ focus, connections, roomName, choose, showInGraph }: {
+export function networkCardContent({ focus, connections, graphs, roomName, choose, showInGraph }: {
   readonly focus: NetworkFocus; readonly connections: NetworkConnections;
+  /** The source graphs, for each device's own source and dates, links or none. */
+  readonly graphs: readonly DocumentaryNetworkGraph[];
   /** A room part's name and its floor's name. */
   readonly roomName: (occurrenceId: string) => { readonly room: string; readonly floor: string };
   readonly choose: (next: NetworkFocus) => void;
@@ -98,7 +101,7 @@ export function networkCardContent({ focus, connections, roomName, choose, showI
     if (!node?.device) return null;
     const device = node.device;
     const links = connections.connections.filter(row => linkTouches(row, node.key));
-    const source = connections.connections.find(row => row.graphKey === node.graphKey);
+    const source = graphs.find(graph => graph.key === node.graphKey);
     return { key: `device:${node.key}`, title: device.label, sub: [device.kind || 'Kind not supplied', device.sourceRoot ? 'Network root' : null].filter(Boolean).join(' · '),
       label: 'Selected network device',
       body: <>
@@ -120,7 +123,7 @@ export function networkCardContent({ focus, connections, roomName, choose, showI
           })}</ul>
         </section>}
         {device.liveFacts && <LiveFacts facts={device.liveFacts} />}
-        {source && <SourceFacts source={source.source} qualification={source.qualification} />}
+        {source && <SourceFacts source={source.data.source} qualification={source.qualification} />}
         <button type="button" className="text-btn ua-net-graph-link" onClick={() => showInGraph(node.graphKey, { kind: 'device', id: device.id })}>
           <Icon name="network" size={16} />Show in graph</button>
       </> };
