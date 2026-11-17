@@ -25,8 +25,9 @@ const text = (v: LosslessJson | undefined): string | null => typeof v === 'strin
 const exact = (v: LosslessJson | undefined): string | null => isExactDecimal(v) ? v.token : text(v);
 const printed = (v: LosslessJson | undefined) => v === undefined ? null : canonicalPack(v);
 
-/** What a copy saved without the map network says about its network. */
-export const SAVED_RELATIONS_ONLY = 'Saved network relations only; this copy holds no devices, room placement or Network source facts';
+/** The graph of a copy's saved relations, shown when it holds no stored map network. It speaks
+ * for these relations only: a retained historical closure can still place devices. */
+export const SAVED_RELATIONS_ONLY = 'Saved network relations; these relations hold no devices, room placement or Network source facts';
 /** Supported generic retained facts only. No title, parent, topology edge or
  * room identity alone establishes electrical classification or placement.
  * The network is the map network this device held when the copy was saved
@@ -106,7 +107,7 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   if (unsupported) reasons.push(`${unsupported} retained record facets have no supported Atlas overlay projection`);
   reasons.push(...historical.reasons);
   if (!historical.facts.length) reasons.push('No verified historical record-to-room placement closure; generic records remain unplaced');
-  if (!held) reasons.push('network: saved without the map network; devices, room placement and Network source facts are not in this copy');
+  if (!held) reasons.push('network: saved without a stored map network; its saved relations hold no devices, room placement or Network source facts');
   const electricalState = qualify('atlas'), networkState = qualify('network');
   const data: NetworkOverlayData = { viewKey: `saved/${house.localRevision}/${house.snapshotId}`,
     source: { label: 'Saved network relations', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded', acceptedAt: null,
@@ -155,6 +156,15 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   }
   // The map network this device held at saving, per building, with the date it was stored.
   const networkBuildings = new Set<string>();
+  // Its placement of a device wins: a historical room placement of the same device stays only as an
+  // observation (unplaced until the merge below joins it to the held record), never a second room.
+  const heldDevices = new Set([...(held?.values() ?? [])].flatMap(row => (row.records.networkGraphs ?? []).flatMap(graph => [...(graph.deviceRecordKeys?.values() ?? [])])));
+  for (const [id, room] of property.rooms) {
+    const moved = room.network.filter(record => heldDevices.has(record.key));
+    if (!moved.length) continue;
+    (property.rooms as Map<string, typeof room>).set(id, { ...room, network: room.network.filter(record => !heldDevices.has(record.key)) });
+    property.unplaced = { ...property.unplaced, network: [...property.unplaced.network, ...moved] };
+  }
   for (const [buildingId, { storedAt, records: kept }] of held ?? []) {
     const combinedRooms = property.rooms as Map<string, import('../lantern/unified-atlas/runtime-overlays').RuntimeRoomRecords>;
     for (const [id, room] of kept.rooms) {
@@ -165,10 +175,12 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     // Same source graph as a historical one: the held copy, with its placement and source facts, wins.
     property.networkGraphs = [...new Map([...(property.networkGraphs ?? []), ...(kept.networkGraphs ?? [])
       .map(graph => ({ ...graph, storedAt, qualification: SAVED_NETWORK_QUALIFICATION }))].map(graph => [graph.key, graph])).values()];
-    coverageSources.network.push(kept.network);
+    // Partial source coverage stays partial, as for a historical source.
+    const keptNetwork = kept.network === 'available' && (kept.networkGraphs ?? []).some(graph => graph.data.source.coverage !== 'complete') ? 'partial' : kept.network;
+    coverageSources.network.push(keptNetwork);
     const label = scene.buildings.find(building => building.buildingId === buildingId)?.label ?? buildingId;
     property.buildings = property.buildings.map(row => row.buildingId !== buildingId ? row : { ...row,
-      network: qualifiedBuildings.has(buildingId) && row.network !== kept.network ? 'partial' : kept.network,
+      network: qualifiedBuildings.has(buildingId) && row.network !== keptNetwork ? 'partial' : keptNetwork,
       ...(qualifiedBuildings.has(buildingId) ? {} : { reason: 'saved map network; no captured building source' }) });
     networkBuildings.add(buildingId);
     property.sourceFacts = [...property.sourceFacts, { label: `${label}: map network stored on this device`, value: storedAt }];

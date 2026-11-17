@@ -1999,7 +1999,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
       network={networkCard && { ...networkCard, close: () => setNetFocus(null) }}
-      networkDevices={graphs.length > 0 ? { inRoom: roomId => (roomDevices.get(roomId) ?? []).map(row => ({ key: row.key, label: row.device.label, kind: row.device.kind })),
+      networkDevices={graphs.length > 0 ? { inRoom: roomId => (roomDevices.get(roomId) ?? []).map(row => ({ key: row.key, label: row.device.label, kind: row.device.kind,
+        recordKey: graphs.find(graph => graph.key === row.graphKey)?.deviceRecordKeys?.get(row.device.id) ?? null })),
         open: key => setNetFocus({ kind: 'device', key }) } : undefined} />
 
     {/* This model's own part of the host's places lens: its rooms, chosen as

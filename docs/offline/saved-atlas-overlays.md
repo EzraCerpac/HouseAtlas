@@ -29,10 +29,13 @@ beside the house record. Saving reads them locally and fetches nothing. Opened
 offline, that copy's network is the map network as stored: devices, links,
 placement from the reviewed room mapping, Network source facts and their
 original dates, with the date the device stored them and the saved-copy
-qualifier. The saved `network.relations` are then not projected. A copy saved
-before this, or without such records, shows its saved relations unplaced with
-no devices and says that it holds no devices, room placement or Network source
-facts. Bytes for another model read as absent.
+qualifier. The saved `network.relations` are then not projected, and a
+historical room placement of a device the stored network covers is kept only
+as an observation of that device. A copy saved before this, or without such
+records, shows its saved `network.relations` unplaced and says that those
+relations hold no devices, room placement or Network source facts; a retained
+historical closure (below) can still place devices. Bytes for another model,
+or stored records without a network, read as absent.
 
 The seam is `PropertyRecords -> savedDocumentary.records ->
 useDocumentaryOverlays -> documentaryOverlayIndex ->` existing counts, details,

@@ -277,7 +277,9 @@ try {
   const roomNetwork = `document.querySelector('.ua-inspector [aria-label="Network in this room"]')`;
   await until(`document.querySelector('.ua-inspector h2')?.textContent === 'Hall' && !!${roomNetwork}?.querySelector('.ua-net-list')`);
   assert.deepEqual(await evaluate(`[...${roomNetwork}.querySelectorAll('.ua-net-list .ua-belonging-name')].map(x => x.textContent)`), ['Host client']);
-  assert.equal(await evaluate(`${roomNetwork}.querySelectorAll('.ua-doc').length`), 0, 'no record listing for the room\'s devices');
+  // Every record of the room is matched to a drawn device, so none is listed beside the rows; the device's own record stays one step away.
+  assert.equal(await evaluate(`${roomNetwork}.querySelectorAll(':scope > .ua-docs').length`), 0, 'no record listing for the room\'s devices');
+  assert.equal(await evaluate(`${roomNetwork}.querySelector(':scope > details.ua-net-records > summary')?.textContent`), 'Device source records (1)');
   await press(`${roomNetwork}.querySelector('.ua-net-list button')`);
   await until(`${card} === 'Host client'`);
   await press(`document.querySelector('.ua-inspector [aria-label="Close network card"]')`);

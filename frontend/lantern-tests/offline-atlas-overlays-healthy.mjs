@@ -94,7 +94,7 @@ for (const mode of ['complete', 'partial']) {
   assert(reads >= 4); assert(result.reasons.some(reason => reason.includes('record-to-room')));
   // Saved without the map network: its relations stay unplaced and the copy says what it lacks.
   assert.equal(result.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
-  assert(result.reasons.some(reason => reason.includes('saved without the map network')));
+  assert(result.reasons.some(reason => reason.includes('saved without a stored map network')));
   if (mode === 'partial') assert(result.reasons.some(reason => reason.includes('source-withheld')));
   console.log(`PASS ${mode}: four unplaced electrical records, one logical relation, exact dates/revisions/uncertainty, retained metadata; snapshot ${result.snapshotId}`);
 }
@@ -135,7 +135,33 @@ for (const variant of ['historical', 'tuples']) {
     assert.equal(historical.facts[0].mode, 'saved-documentary-snapshot');
     assert(!('sessionIdentity' in historical.facts[0].pins));
     assert(!('expiresAt' in historical.facts[0].pins));
-    console.log(`PASS genuine retained historical closure: one room has 1 network + 2 electrical facts; generic and other source records remain unplaced; snapshot ${house.snapshotId}`);
+    // The relations graph speaks for its relations only; the historical closure still places a device.
+    assert.equal(result.records.networkGraphs.find(graph => !graph.deviceRecordKeys).qualification, SAVED_RELATIONS_ONLY);
+    assert(result.records.networkGraphs.some(graph => graph.deviceRecordKeys && graph.data.devices.length > 0));
+    // A stored map network placing the same device in another room wins: the historical room keeps no
+    // placement of it, and that placement stays as an observation of the device.
+    const [historicalRoomId] = [...result.records.rooms].find(([, row]) => row.network.length);
+    const historicalRecord = result.records.rooms.get(historicalRoomId).network[0];
+    const historicalGraph = result.records.networkGraphs.find(graph => graph.deviceRecordKeys && [...graph.deviceRecordKeys.values()].includes(historicalRecord.key));
+    const scene = pack.scene, selectable = new Set(scene.coverage.selectable ?? scene.occurrences.map(row => row.spaceOccurrenceId));
+    const otherRoom = scene.rooms.find(row => row.roomId !== historicalRoomId && row.occurrenceIds.some(id => selectable.has(id)));
+    const deviceId = [...historicalGraph.deviceRecordKeys].find(([, key]) => key === historicalRecord.key)[0];
+    const moved = { ...historicalRecord, observations: undefined, sourceFacts: [{ label: 'Source original SHA256', value: historicalGraph.sourceOriginalSha256 },
+      { label: 'Room association in this observation', value: otherRoom.roomId }] };
+    delete moved.observations;
+    const stored = encodeStoredOverlays(scene, new Map([[otherRoom.buildingId, { storedAt: '2026-11-01T10:07:00Z', records: {
+      rooms: new Map([[otherRoom.roomId, { network: [moved], electrical: [] }]]), network: 'available', electrical: 'unavailable', sourceFacts: [],
+      unplaced: { network: [], electrical: [] }, networkGraphs: [{ ...historicalGraph, qualification: 'Recorded logical network; no physical routes' }] } }]]));
+    const heldHouse = { ...house, overlays: stored.slice().buffer };
+    const heldLocal = { list: async () => [heldHouse], asset: local.asset };
+    const both = projectSavedAtlasOverlays(await readSavedPackSections(heldLocal, heldHouse, signal), scene, historical);
+    assert.equal((both.records.rooms.get(historicalRoomId)?.network ?? []).some(row => row.key === historicalRecord.key), false, 'no second room for the device');
+    const heldRecord = both.records.rooms.get(otherRoom.roomId).network.find(row => row.key === historicalRecord.key);
+    assert(heldRecord, 'the stored placement stands');
+    assert([heldRecord, ...(heldRecord.observations ?? [])].some(row => row.sourceFacts.some(fact => fact.label === 'Room association in this observation' && fact.value === historicalRoomId)),
+      'the historical placement stays as an observation');
+    assert.deepEqual(admittedNetworkDevices(both.records).filter(row => row.deviceId === deviceId).map(row => row.roomId), [otherRoom.roomId]);
+    console.log(`PASS genuine retained historical closure: one room has 1 network + 2 electrical facts; generic and other source records remain unplaced; a stored map network placing the same device elsewhere wins and keeps the historical placement as an observation; snapshot ${house.snapshotId}`);
   } else {
     assert.equal(result.records.unplaced.network.length, 2);
     const graph = result.records.networkGraphs[0].data;
@@ -211,7 +237,7 @@ for (const variant of ['historical', 'tuples']) {
   const coverage = saved.records.buildings.find(row => row.buildingId === room.buildingId);
   assert.equal(coverage.network, 'available'); assert.equal(coverage.reason, 'saved map network; no captured building source');
   assert(saved.records.sourceFacts.some(fact => fact.label.endsWith('map network stored on this device') && fact.value === storedAt));
-  assert(!saved.reasons.some(reason => reason.includes('saved without the map network')));
+  assert(!saved.reasons.some(reason => reason.includes('saved without a stored map network')));
   const savedCard = deviceCard(saved.records);
   for (const text of ['Network source facts', 'Stored on this device', SAVED_NETWORK_QUALIFICATION]) assert(savedCard.includes(text), `saved copy device card shows ${text}`);
   assert(savedCard.includes(storedAt) && savedCard.includes('2026-11-01T10:06:00Z'));
@@ -220,7 +246,12 @@ for (const variant of ['historical', 'tuples']) {
   const other = await open(encodeStoredOverlays(otherScene, new Map([[room.buildingId, { storedAt, records }]])).slice().buffer);
   assert.equal(other.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
   assert.equal(other.records.networkGraphs[0].data.devices.length, 0); assert.equal(other.records.rooms.size, 0);
-  assert(other.reasons.some(reason => reason.includes('saved without the map network')));
+  assert(other.reasons.some(reason => reason.includes('saved without a stored map network')));
+  // Stored with partial source coverage, the building's network stays partial.
+  const partialRecords = { ...records, networkGraphs: records.networkGraphs.map(row => ({ ...row, data: { ...row.data, source: { ...row.data.source, coverage: 'partial' } } })) };
+  const partial = await open(encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records: partialRecords }]])).slice().buffer);
+  assert.equal(partial.records.buildings.find(row => row.buildingId === room.buildingId).network, 'partial');
+  assert.equal(partial.records.network, 'partial');
   // A stored frame without a network (electrical only) holds no map network: the saved relations stay, unplaced and qualified.
   const electricalOnly = { rooms: new Map([[room.roomId, { network: [], electrical: [] }]]), network: 'unavailable', electrical: 'available',
     sourceFacts: [], unplaced: { network: [], electrical: [] }, networkGraphs: [] };
@@ -228,7 +259,7 @@ for (const variant of ['historical', 'tuples']) {
   assert.equal(noNetwork.records.networkGraphs.length, 1); assert.equal(noNetwork.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
   assert.equal(noNetwork.records.networkGraphs[0].data.links.length, 1, 'the saved relation stays in the graph');
   assert(noNetwork.records.unplaced.network.some(row => row.category === 'Recorded connection'), 'the saved relation stays unplaced');
-  assert(noNetwork.reasons.some(reason => reason.includes('saved without the map network')));
+  assert(noNetwork.reasons.some(reason => reason.includes('saved without a stored map network')));
   console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts and their dates, the copy date and qualifier; another model or a stored frame without a network reads as a limited copy with its saved relations');
 }
 {
