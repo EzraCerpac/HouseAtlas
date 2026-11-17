@@ -198,7 +198,11 @@ for (const variant of ['historical', 'tuples']) {
     unplaced: { network: [], electrical: [] }, networkGraphs: [{ key: graphKey, data, qualification: 'Recorded logical network; no physical routes',
       deviceRecordKeys: new Map([['ap', recordKey('ap')], ['phone', recordKey('phone')]]), sourceOriginalSha256: sha }] };
   const storedAt = '2026-11-01T10:07:00Z';
-  const bytes = encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records }]]));
+  // Stored for every building with floors; the others hold an answered network with nothing placed.
+  const answered = { rooms: new Map(), network: 'available', electrical: 'unavailable', sourceFacts: [], unplaced: { network: [], electrical: [] }, networkGraphs: [] };
+  const everyBuilding = new Map(scene.buildings.filter(row => row.levelIds.length > 0).map(row => [row.buildingId, { storedAt, records: answered }]));
+  assert(everyBuilding.size > 1, 'generated scene has several buildings with floors');
+  const bytes = encodeStoredOverlays(scene, new Map([...everyBuilding, [room.buildingId, { storedAt, records }]]));
   const placedDevices = held => admittedNetworkDevices(held).map(row => [row.deviceId, row.roomId]);
   const deviceCard = held => {
     const anchors = admittedNetworkDevices(held).map(row => ({ ...row, occurrenceId: room.occurrenceIds.find(id => selectable.has(id)), point: [0, 0] }));
@@ -241,6 +245,15 @@ for (const variant of ['historical', 'tuples']) {
   const savedCard = deviceCard(saved.records);
   for (const text of ['Network source facts', 'Stored on this device', SAVED_NETWORK_QUALIFICATION]) assert(savedCard.includes(text), `saved copy device card shows ${text}`);
   assert(savedCard.includes(storedAt) && savedCard.includes('2026-11-01T10:06:00Z'));
+  // Stored for one building only: saved relations name no building, so they stay beside the stored network.
+  const oneBuilding = await open(encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records }]])).slice().buffer);
+  assert.deepEqual(oneBuilding.records.networkGraphs.map(row => row.qualification).sort(), [SAVED_NETWORK_QUALIFICATION, SAVED_RELATIONS_ONLY].sort());
+  assert.equal(oneBuilding.records.networkGraphs.find(row => row.qualification === SAVED_RELATIONS_ONLY).data.links.length, 1, 'the saved relation stays in its graph');
+  assert(oneBuilding.records.unplaced.network.some(row => row.category === 'Recorded connection'), 'the saved relation stays unplaced');
+  assert.deepEqual(placedDevices(oneBuilding.records), [['ap', room.roomId]]);
+  assert(oneBuilding.reasons.some(reason => reason.includes('does not cover every building; the saved relations are kept')));
+  assert(!oneBuilding.reasons.some(reason => reason.includes('saved without a stored map network')));
+  assert.equal(oneBuilding.records.network, 'partial');
   // Bytes stored for another model are not this copy's network: the copy reads as limited.
   const otherScene = { ...scene, publication: { ...scene.publication, publicationId: '00000000-0000-4000-8000-0000000000ff' } };
   const other = await open(encodeStoredOverlays(otherScene, new Map([[room.buildingId, { storedAt, records }]])).slice().buffer);

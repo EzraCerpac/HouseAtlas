@@ -54,7 +54,12 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   // Decoded for this scene and its selectable rooms only; bytes for another model read as absent.
   // A stored frame without a network (electrical only) holds no map network, so the saved relations still stand in.
   const decoded = house.overlays ? decodeStoredOverlays(new Uint8Array(house.overlays), scene, selectable) : null;
-  const held = decoded && [...decoded.values()].some(row => row.records.network !== 'unavailable' || (row.records.networkGraphs ?? []).length > 0) ? decoded : null;
+  const hasNetwork = (row: { readonly records: PropertyRecords | import('../lantern/unified-atlas/runtime-overlays').RuntimeRecords }) =>
+    row.records.network !== 'unavailable' || (row.records.networkGraphs ?? []).length > 0;
+  const held = decoded && [...decoded.values()].some(hasNetwork) ? decoded : null;
+  // Saved relations name no building, so they give way only when the stored map network covers every building with floors.
+  const replacesRelations = held !== null && scene.buildings.filter(building => building.levelIds.length > 0)
+    .every(building => { const row = held.get(building.buildingId); return row !== undefined && hasNetwork(row); });
   const records = rows(roots.atlas?.records).map(object).filter((row): row is JsonRow => row !== null && scoped(row));
   const electrical: DocumentaryRecord[] = [], network: DocumentaryRecord[] = [];
   const electricalRelation = (row: JsonRow) => {
@@ -80,7 +85,7 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
         { label: 'Provenance', value: printed(payload.provenance) }, { label: 'Uncertainty', value: printed(payload.uncertainty ?? provenance?.uncertainty) }, { label: 'Original record', value: printed(row) }] });
   }
   const endpoints = new Map<string, NetworkOverlayEndpoint>(), links: NetworkOverlayLink[] = [];
-  for (const value of held ? [] : rows(roots.network?.relations)) {
+  for (const value of replacesRelations ? [] : rows(roots.network?.relations)) {
     const row = object(value); if (!row || !scoped(row)) { unsupported++; continue; }
     const id = text(row.externalId), source = text(row.sourceInstanceId), collection = text(row.collectionId), revision = exact(row.sourceRevision);
     const from = object(row.from), to = object(row.to);
@@ -108,13 +113,14 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   reasons.push(...historical.reasons);
   if (!historical.facts.length) reasons.push('No verified historical record-to-room placement closure; generic records remain unplaced');
   if (!held) reasons.push('network: saved without a stored map network; its saved relations hold no devices, room placement or Network source facts');
+  else if (!replacesRelations) reasons.push('network: the stored map network does not cover every building; the saved relations are kept beside it');
   const electricalState = qualify('atlas'), networkState = qualify('network');
   const data: NetworkOverlayData = { viewKey: `saved/${house.localRevision}/${house.snapshotId}`,
     source: { label: 'Saved network relations', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded', acceptedAt: null,
       coverage: networkState === 'available' ? 'complete' : networkState === 'partial' ? 'partial' : 'unknown', notes: 'Logical topology only; captured source facts remain per relation' },
     devices: [], endpoints: [...endpoints.values()], links };
   // The map network replaces the saved relations, so their section no longer qualifies it.
-  const coverageSources = { electrical: [electricalState], network: held ? [] as SourceAvailability[] : [networkState] };
+  const coverageSources = { electrical: [electricalState], network: replacesRelations ? [] as SourceAvailability[] : [networkState] };
   const qualifiedBuildings = new Set<string>();
   let sourceOutsideModel = false;
   const property: { -readonly [K in keyof PropertyRecords]: PropertyRecords[K] } = { rooms: new Map(), electrical: electricalState, network: networkState,
@@ -165,7 +171,9 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     (property.rooms as Map<string, typeof room>).set(id, { ...room, network: room.network.filter(record => !heldDevices.has(record.key)) });
     property.unplaced = { ...property.unplaced, network: [...property.unplaced.network, ...moved] };
   }
-  for (const [buildingId, { storedAt, records: kept }] of held ?? []) {
+  for (const [buildingId, row] of held ?? []) {
+    if (!hasNetwork(row)) continue;
+    const { storedAt, records: kept } = row;
     const combinedRooms = property.rooms as Map<string, import('../lantern/unified-atlas/runtime-overlays').RuntimeRoomRecords>;
     for (const [id, room] of kept.rooms) {
       const previous = combinedRooms.get(id);

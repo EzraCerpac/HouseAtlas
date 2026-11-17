@@ -29,7 +29,9 @@ beside the house record. Saving reads them locally and fetches nothing. Opened
 offline, that copy's network is the map network as stored: devices, links,
 placement from the reviewed room mapping, Network source facts and their
 original dates, with the date the device stored them and the saved-copy
-qualifier. The saved `network.relations` are then not projected, and a
+qualifier. Saved `network.relations` name no building, so they are not
+projected only when the stored network covers every building with floors;
+otherwise they stay beside it, unplaced. A
 historical room placement of a device the stored network covers is kept only
 as an observation of that device. A copy saved before this, or without such
 records, shows its saved `network.relations` unplaced and says that those
