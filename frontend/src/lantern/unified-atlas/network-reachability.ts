@@ -43,7 +43,8 @@ export const NOT_MEASURED_MISMATCH = 'Not measured: the device list changed and 
 export function reachability(facts: NetworkLiveFacts): Reachability | null {
   const latest = (facts.observedState ?? []).filter(item => measuredState(item) !== null)
     .sort((a, b) => Date.parse(b.factAt) - Date.parse(a.factAt))[0];
-  if (latest === undefined && facts.recentSeries === undefined && facts.latencyMs === undefined && facts.loss === undefined) return null;
+  // A withholding reason alone still makes the row: it is the only place that says why nothing was measured.
+  if (latest === undefined && facts.recentSeries === undefined && facts.latencyMs === undefined && facts.loss === undefined && facts.measurementReason == null) return null;
   const freshness = latest === undefined ? 'recent' : latest.freshness !== 'recent' ? latest.freshness : facts.freshness;
   const qualifier = freshness === 'recent' ? null : QUALIFIER[freshness];
   return {

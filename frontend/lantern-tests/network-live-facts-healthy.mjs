@@ -124,6 +124,10 @@ try {
   console.log('PASS Network live-facts v2: joined, unjoined/legacy, stale, absent, ambiguity, digest/scope and bounds; reachability wording, nulls, freshness and series gaps');
   // Withheld for a changed device list: the row says why, never a bare "Not measured".
   assert.equal(reachability(decode(withheld).devices[0].liveFacts).state,NOT_MEASURED_MISMATCH);
+  // The reason without any measurement field (a shape the decoder admits) keeps the row and its reason.
+  { const {recentSeries,latencyMs,loss,...bare}=decode(withheld).devices[0].liveFacts,only=reachability({...bare,observedState:null});
+    assert.equal(only.state,NOT_MEASURED_MISMATCH);assert.deepEqual([only.metrics,only.series,only.measuredAt],[[],[],null]);
+    assert.equal(reachability({...bare,observedState:null,measurementReason:null}),null,'no reason and no measurement: no row'); }
   assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh');
 
   // Network tests on the device card and internet speed in the Network key: a fake collector port only.
