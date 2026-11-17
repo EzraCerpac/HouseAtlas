@@ -116,7 +116,7 @@ function remember(key: string, state: AtlasViewState) {
 export interface OtherSource { readonly id: string; readonly label: string; readonly open: () => void }
 
 /** A lens over the Atlas, held by the host workspace. */
-export interface AtlasLensState { readonly kind: 'places' | 'network'; readonly reading: boolean }
+export interface AtlasLensState { readonly kind: 'places'; readonly reading: boolean }
 /** The host's lens: its state and setter, the element in the lens panel this
  * Atlas renders its own model rooms into, and the panel's id.
  * Read wide, the Atlas stands as an inset: drawn, out of the tab order, its
@@ -130,7 +130,6 @@ export interface AtlasLensHost {
 
 export interface AtlasPresentationEnvironment {
   readonly reducedMotion: boolean;
-  readonly openNetwork?: () => void;
   readonly openDocuments?: () => void;
   readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
   /** Absent in the saved viewer. */
@@ -158,9 +157,7 @@ export default function UnifiedAtlas(props: AtlasProps) {
 function LiveAtlasPresentation(props: AtlasProps) {
   const { dispatch, actions, projection } = useStore(), reducedMotion = useReducedMotion(), select = useSelect();
   const roomBelongings = useRoomBelongings(props.buildingRecords, projection, select);
-  // Network source records open the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
-    openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
     ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}),
     ...(props.lens ? { lens: props.lens } : {}),
@@ -205,14 +202,13 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
   return lens?.value?.kind === 'places' && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
-/** Until the stage mounts with its own openers (Place records in the Rooms
- * list, Network source records in the graph panel), the host's lenses open here. */
+/** Until the stage mounts with its own opener (Place records in the Rooms
+ * list), the host's places lens opens here. */
 function LensOpeners({ lens }: { readonly lens: AtlasLensHost | undefined }) {
   if (!lens) return null;
-  const open = (kind: 'places' | 'network') => { if (lens.value?.kind !== kind) lens.set({ kind, reading: false }); };
   return <div className="ua-lens-openers">
-    <button type="button" className="chip-btn" data-lens-return="" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
-    <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network source records</button>
+    <button type="button" className="chip-btn" data-lens-return="" onClick={() => { if (lens.value?.kind !== 'places') lens.set({ kind: 'places', reading: false }); }}>
+      <Icon name="rooms" size={15} />Place records</button>
   </div>;
 }
 function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
@@ -1050,6 +1046,12 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       .map(row => ({ ...row, folded: true, width: Math.max(countMarkerWidth(row.count), networkGlyphSlot(coarse)) }));
     return folded.length > 0 ? visibleCountMarkers([...kept, ...folded], size, cover, selected, context) : kept;
   }, [markers, size, cover, selected, context, coarse]);
+  // Parts of one room on several floors in view share its name; their counts then name the floor too.
+  const sharedNames = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const row of counts) seen.set(`${row.kind}\n${row.roomLabel}`, (seen.get(`${row.kind}\n${row.roomLabel}`) ?? 0) + 1);
+    return new Set([...seen].filter(([, shown]) => shown > 1).map(([name]) => name));
+  }, [counts]);
   const countGroups = useMemo(() => {
     const groups = new Map<string, StageMarker[]>();
     for (const marker of counts) { const own = groups.get(marker.occurrenceId) ?? []; own.push(marker); groups.set(marker.occurrenceId, own); }
@@ -1527,8 +1529,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   };
   const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, graphs, choose: setNetFocus, showInGraph,
     roomName: id => ({ room: atlasOccurrenceName(model, id), floor: atlasScopedLevelName(model, model.occurrencesById.get(id)!.levelId, state.buildingId) }) }) : null;
-  // Network source records (the live relations read among them) open in the host's Network lens.
-  const sourceRecords = environment.openNetwork;
   // Unplaced devices for the Network key, by why they have no room.
   const unplacedDevices = useMemo(() => networkConnections.nodes.filter(node => node.device && node.anchors.length === 0)
     .map(node => ({ key: node.key, label: node.label, kind: node.device!.kind, reason: networkUnplacedReason(node.device!) })), [networkConnections]);
@@ -1894,7 +1894,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           onPointerDown={stop} onPointerUp={stop} onClick={() => setNetFocus({ kind: 'room', occurrenceId: row.occurrenceId })}><Icon name="network" size={12} /><span>{row.count}</span></button>
         : <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(row.kind) } as CSSProperties}
-          aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
+          aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context || sharedNames.has(`${row.kind}\n${row.roomLabel}`) ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}><Icon name={OVERLAY_ICON[row.kind]} size={12} /><span>{row.count}</span></button>)}
         {floorBadges.map(row => <button key={row.key} type="button" className="ua-net-floor" data-stage-key={`floor:${row.key}`}
           style={{ left: row.x, top: row.y }} aria-label={`Show ${row.name}: linked to ${row.names.join(', ')}`}
@@ -1918,8 +1918,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
             network={layer.kind === 'network' && graphs.length > 0 ? { devices: networkConnections.coverage.devices.total, unplaced: unplacedDevices,
               open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
-              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null}
-            sourceRecords={layer.kind === 'network' && graphs.length === 0 && sourceRecords ? () => { if (shortLayerDetails) setDrawer(null); sourceRecords(); } : undefined} />)}
+              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">
@@ -1986,8 +1985,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         <div className="ua-graph-body">
           {graphs.map(graph => <NetworkGraph key={graphStart?.graphKey === graph.key ? `${graph.key}:${graphStart.serial}` : graph.key} graph={graph} onTrace={onNetworkTrace}
             initial={graphStart?.graphKey === graph.key ? graphStart.choice : null} />)}
-          {sourceRecords && <button type="button" className="text-btn ua-net-sources" onClick={() => { closeGraph(); sourceRecords(); }}>
-            <Icon name="record" size={16} />Network source records</button>}
         </div>
       </section>}
     </div>
@@ -2001,7 +1998,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       openPlaces={openPlaces}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
-      network={networkCard && { ...networkCard, close: () => setNetFocus(null) }} />
+      network={networkCard && { ...networkCard, close: () => setNetFocus(null) }}
+      networkDevices={graphs.length > 0 ? { inRoom: roomId => (roomDevices.get(roomId) ?? []).map(row => ({ key: row.key, label: row.device.label, kind: row.device.kind,
+        recordKey: graphs.find(graph => graph.key === row.graphKey)?.deviceRecordKeys?.get(row.device.id) ?? null })),
+        open: key => setNetFocus({ kind: 'device', key }) } : undefined} />
 
     {/* This model's own part of the host's places lens: its rooms, chosen as
         on the stage. Rendered into the lens panel; state, reads and selection

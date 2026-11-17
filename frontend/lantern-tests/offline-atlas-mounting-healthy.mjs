@@ -6,7 +6,7 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const renderer = read('../src/lantern/unified-atlas/UnifiedAtlas.tsx');
 assert(renderer.includes('savedAtlasInitialState(model)'));
 assert(renderer.includes("port.kind === 'saved' && selection.kind === 'saved'"));
-assert(renderer.includes('environment.openNetwork')); assert(renderer.includes('environment.openDocuments'));
+assert(!renderer.includes('openNetwork')); assert(renderer.includes('environment.openDocuments'));
 const host = read('../src/offline/SavedAtlasHost.tsx');
 assert(host.includes('<UnifiedAtlas port={allocation} environment='));
 assert(host.includes('controller.abort(); owned?.dispose()'));

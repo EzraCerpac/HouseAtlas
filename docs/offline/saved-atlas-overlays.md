@@ -23,6 +23,23 @@ alone do not place records. Historical closure requires the additional retained
 association/originals described below. Physical wiring, coordinates and
 alignment remain unknown.
 
+A copy saved while this device held the live Atlas's stored overlay records
+for the same model (publication, revision and semantics) keeps those bytes
+beside the house record. Saving reads them locally and fetches nothing. Opened
+offline, that copy's network is the map network as stored: devices, links,
+placement from the reviewed room mapping, Network source facts and their
+original dates, with the date the device stored them and the saved-copy
+qualifier. Saved `network.relations` name no building, so they are not
+projected only when the stored network covers every building with floors;
+otherwise they stay beside it, unplaced. A
+historical room placement of a stored device is kept only as an observation of
+that device when a stored room places it or the stored network covers that
+room's building; in a building it does not cover, the placement stays. A copy saved before this, or without such
+records, shows its saved `network.relations` unplaced and says that those
+relations hold no devices, room placement or Network source facts; a retained
+historical closure (below) can still place devices. Bytes for another model,
+or stored records without a network, read as absent.
+
 The seam is `PropertyRecords -> savedDocumentary.records ->
 useDocumentaryOverlays -> documentaryOverlayIndex ->` existing counts, details,
 coverage and NetworkGraph. Saved mode exits before native overlay acquisition.

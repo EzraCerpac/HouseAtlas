@@ -33,7 +33,12 @@ export interface DocumentaryNetworkGraph {
   /** Exact parser-owned entity identity; names and raw IDs never join sources. */
   readonly deviceRecordKeys?: ReadonlyMap<string, string>;
   readonly sourceOriginalSha256?: string;
+  /** When this device stored the graph, for a stored or saved copy; absent for a current frame. */
+  readonly storedAt?: string;
 }
+/** The qualifier of a network shown from the copy this device stored, and from a saved house copy. */
+export const STORED_NETWORK_QUALIFICATION = 'Stored copy on this device; no physical routes or current authorization';
+export const SAVED_NETWORK_QUALIFICATION = 'Saved logical network; no physical routes or current authorization';
 /** One building's documentary source state, kept per building so partial
  * coverage is never presented as the whole property. */
 export interface BuildingCoverage {
@@ -74,8 +79,9 @@ export function mergeDocumentaryRecords(records: readonly DocumentaryRecord[]): 
 }
 
 /** Property-wide union. Entity identity excludes building/focus; all differing
- * content and placement observations remain inspectable beneath that entity. */
-export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly buildingId: string; readonly reason: string; readonly records: RuntimeRecords | null }[]): PropertyRecords {
+ * content and placement observations remain inspectable beneath that entity.
+ * A building shown from its stored copy marks its network graph with that copy's date. */
+export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly buildingId: string; readonly reason: string; readonly records: RuntimeRecords | null; readonly storedAt?: string | null }[]): PropertyRecords {
   const rooms = new Map<string, RuntimeRoomRecords>();
   for (const row of rows) if (row.records) for (const [roomId, records] of row.records.rooms) {
     const previous = rooms.get(roomId);
@@ -96,7 +102,8 @@ export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly
     reason: row.records ? row.reason === 'stored-copy' ? row.reason : 'available' : row.reason, network: row.records?.network ?? 'unavailable', electrical: row.records?.electrical ?? 'unavailable' }));
   const several = rows.length > 1;
   return { rooms, unplaced, buildings,
-    networkGraphs: [...new Map(rows.flatMap(row => (row.records?.networkGraphs ?? []).map(graph => [graph.key, graph] as const))).values()],
+    networkGraphs: [...new Map(rows.flatMap(row => (row.records?.networkGraphs ?? []).map(graph => [graph.key,
+      row.storedAt ? { ...graph, storedAt: row.storedAt, qualification: STORED_NETWORK_QUALIFICATION } : graph] as const))).values()],
     network: combine(buildings.map(row => row.network)), electrical: combine(buildings.map(row => row.electrical)),
     sourceFacts: rows.flatMap(row => (row.records?.sourceFacts ?? []).map(fact => several
       ? { label: `${model.buildingsById.get(row.buildingId)!.label}: ${fact.label}`, value: fact.value } : fact)) };
@@ -306,7 +313,7 @@ export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFac
       deviceRecordKeys: new Map(networkData.devices.map(device => [device.id, recordKey('device', device.id)])),
       sourceOriginalSha256: source.sceneOriginalSha256,
       data: networkData, qualification: facts.mode === 'saved-documentary-snapshot'
-        ? 'Saved logical network; no physical routes or current authorization' : 'Recorded logical network; no physical routes' }] : [],
+        ? SAVED_NETWORK_QUALIFICATION : 'Recorded logical network; no physical routes' }] : [],
     sourceFacts: [...facts.observationFacts,
       { label: 'Room review receipt', value: facts.pins.acceptedRoomReceiptId },
       { label: 'Room review SHA256', value: facts.pins.acceptedRoomReceiptSha256 },

@@ -1232,7 +1232,6 @@
 .lantern-host .atlas-lens-body .topology-scope { margin-top: 0; }
 
 .lantern-host .view .section > p + p,
-.lantern-host .view .section > p + .relation-list,
 .lantern-host .view .section > .note + p {
   margin-top: 8px;
 }
@@ -1535,130 +1534,6 @@
   color: var(--muted);
 }
 
-/* Network */
-
-.lantern-host .topology {
-  display: grid;
-  gap: 12px;
-}
-
-.lantern-host .topo-svg {
-  width: 100%;
-  height: auto;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(30, 38, 56, 0.12) 1px, transparent 1.5px) 0 0 / 22px 22px,
-    var(--card);
-  border-radius: var(--r-panel);
-  border: 1px solid var(--hair);
-}
-
-.lantern-host .topo-link.conf-low {
-  opacity: 0.45;
-}
-
-.lantern-host .topo-link-label {
-  font-size: 10px;
-  fill: var(--muted);
-  paint-order: stroke;
-  stroke: var(--card);
-  stroke-width: 4px;
-}
-
-.lantern-host .topo-node {
-  cursor: pointer;
-}
-
-.lantern-host .topo-node:focus {
-  outline: none;
-}
-
-.lantern-host .topo-node:focus-visible circle {
-  stroke: var(--focus);
-  stroke-width: 4;
-}
-
-.lantern-host .topo-node.is-selected circle {
-  filter: drop-shadow(0 0 6px rgba(255, 200, 70, 0.9));
-}
-
-.lantern-host .topo-name {
-  font-family: var(--display);
-  font-weight: 650;
-  font-size: 13px;
-  fill: var(--ink);
-}
-
-.lantern-host .topo-sub {
-  font-size: 11px;
-  fill: var(--muted);
-}
-
-.lantern-host .topo-key {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 22px;
-  font-size: var(--fs-s);
-  color: var(--muted);
-}
-
-.lantern-host .topo-key li {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lantern-host .cable-list {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-}
-
-.lantern-host .cable {
-  padding: 16px 18px;
-  border-radius: var(--r-panel);
-  background: var(--card);
-  border: 1px solid var(--hair);
-  display: grid;
-  gap: 10px;
-}
-
-.lantern-host .cable-ends {
-  display: grid;
-  grid-template-columns: auto minmax(60px, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.lantern-host .cable-line {
-  position: relative;
-  height: 2px;
-  background: var(--l-network);
-}
-
-.lantern-host .cable-line span {
-  position: absolute;
-  left: 50%;
-  top: -11px;
-  transform: translateX(-50%);
-  padding: 0 8px;
-  background: var(--card);
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.lantern-host .cable-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
 .lantern-host .table-wrap {
   overflow-x: auto;
 }
@@ -1686,76 +1561,6 @@
 
 .lantern-host .data-table tbody th {
   font-weight: 500;
-}
-
-/* Saved relations: kind and direction, then labelled facts. */
-
-.lantern-host .relation-list {
-  list-style: none;
-  margin: 14px 0 22px;
-  padding: 0;
-  display: grid;
-  gap: 10px;
-}
-
-.lantern-host .relation {
-  padding: 14px 16px 12px;
-  border: 1px solid var(--hair);
-  border-left: 3px solid var(--l-network);
-  border-radius: 0 var(--r-panel) var(--r-panel) 0;
-  background: var(--card);
-}
-
-.lantern-host .relation-head {
-  display: grid;
-  gap: 2px;
-  margin-bottom: 10px;
-}
-
-.lantern-host .relation-kind {
-  font-size: var(--fs-xs);
-  font-weight: 650;
-  color: var(--muted);
-}
-
-.lantern-host .relation-ends {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-  font-family: var(--display);
-  font-size: var(--fs-l);
-  font-weight: 650;
-  overflow-wrap: anywhere;
-}
-
-.lantern-host .relation-arrow {
-  color: var(--l-network);
-}
-
-.lantern-host .relation-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px 18px;
-  margin: 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--hair);
-}
-
-.lantern-host .relation-facts dt {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
-
-.lantern-host .relation-facts dd {
-  margin: 1px 0 0;
-  font-size: var(--fs-s);
-  font-weight: 550;
-  overflow-wrap: anywhere;
-}
-
-.lantern-host .relation-notes {
-  grid-column: 1 / -1;
 }
 
 /* Library */
@@ -2907,14 +2712,6 @@
     height: 22px;
   }
 
-  .lantern-host .relation {
-    padding: 12px 12px 10px;
-  }
-
-  .lantern-host .relation-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .lantern-host .ask {
     top: 0;
     width: 100%;
@@ -2967,22 +2764,6 @@
     grid-column: 2;
     grid-row: 1;
     margin-top: 0;
-  }
-
-  .lantern-host .cable-ends {
-    grid-template-columns: 1fr;
-  }
-
-  .lantern-host .cable-line {
-    height: 24px;
-    width: 2px;
-    margin-left: 10px;
-  }
-
-  .lantern-host .cable-line span {
-    left: 12px;
-    top: 4px;
-    transform: none;
   }
 
   .lantern-host .view {

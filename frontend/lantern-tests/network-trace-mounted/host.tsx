@@ -37,7 +37,7 @@ function Host({ atlas }: { readonly atlas: UnifiedAtlasPort }) {
   const [portal, setPortal] = useState(false), [lens, setLens] = useState<AtlasLensState | null>(null), [target, setTarget] = useState<HTMLElement | null>(null);
   return <div className="lantern-host" style={{ height: '900px', width: '1400px' }}>
     <button onClick={() => { setPortal(value => !value); setLens(null); }}>Switch host mode</button>
-    <button onClick={() => setLens(value => value ? null : { kind: 'network', reading: false })}>Toggle fixture lens</button>
+    <button onClick={() => setLens(value => value ? null : { kind: 'places', reading: false })}>Toggle fixture lens</button>
     <div ref={setTarget} id="generated-lens" />
     <UnifiedAtlas port={atlas} environment={{ reducedMotion: true, ...(portal ? { lens: { value: lens, set: setLens, target, panelId: 'generated-lens' } } : {}) }} />
   </div>;

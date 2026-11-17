@@ -1,7 +1,8 @@
 import { jsonRow, needPack, packPrefix, packText, readPackManifest, type PackManifest } from './manifest';
 import { parseLosslessJson, JSON_LIMITS } from '../numeric/lossless-json';
 import { admitSavedAtlasCompanion, readSavedAtlasModel, readSavedAtlasRoomLinks } from './model-v2';
-import { savedDigest, savedHouseKey, SAVED_RANGE_BYTES, type SavedHouse, type SavedHouseStore, type SavedResource } from './store';
+import { savedDigest, savedHouseKey, SAVED_HOUSE_LIMITS, SAVED_RANGE_BYTES, type SavedHouse, type SavedHouseStore, type SavedResource } from './store';
+import { decodeStoredOverlays } from '../lantern/unified-atlas/stored-overlays';
 import type { SavedShellStatus } from './shell';
 import type { AcquisitionPreparation, AcquisitionReceipt, OfflineProgress } from './acquisition-types';
 
@@ -30,6 +31,8 @@ async function receive(response: Response, cap: number, signal: AbortSignal, gua
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
+/** The model a saved copy holds, as the device's stored overlay records name it. */
+export interface StoredOverlayPins { readonly publicationId: string; readonly revision: string; readonly semanticsSha256: string }
 /** Explicit-action owner. Private GET transport and public shell verification
  * remain separate channels. No global fetch, persistence request or prefetch. */
 export function createHouseAcquisition(options: {
@@ -38,6 +41,9 @@ export function createHouseAcquisition(options: {
   readonly onProgress: (progress: OfflineProgress) => void;
   readonly transport: typeof fetch; readonly verifyShell: () => Promise<SavedShellStatus>;
   readonly onCleanupPending?: () => void;
+  /** The map's overlay records this device already holds for the copy's model
+   * (devices, links, placement and their dates); a local read, never a fetch. */
+  readonly storedOverlays?: (pins: StoredOverlayPins) => Promise<Uint8Array | null>;
 }) {
   // Check before any local write; older store donors cannot safely cancel stages.
   const store = options.store;
@@ -134,15 +140,23 @@ export function createHouseAcquisition(options: {
           }
           await store.put(stage, resource, bytes); guard();
         }
+        let overlays: ArrayBuffer | undefined;
         if (model?.unified) {
           const companion = held.get(model.unified.companion.sha256); needPack(companion);
           const scene = admitSavedAtlasCompanion(companion, manifest, model);
           if (model.unified.roomLinks) {
             const mapping = held.get(model.unified.roomLinks.sha256); needPack(mapping); readSavedAtlasRoomLinks(mapping, scene);
           }
+          // Kept only when they are for this exact model; without them the copy says what it lacks.
+          if (options.storedOverlays) try {
+            const bytes = await options.storedOverlays({ publicationId: model.publicationId, revision: model.unified.selectionRevision,
+              semanticsSha256: model.unified.semanticsSha256 }); guard();
+            const selectable = new Set(scene.coverage.selectable ?? scene.occurrences.map(row => row.spaceOccurrenceId));
+            if (bytes && bytes.byteLength <= SAVED_HOUSE_LIMITS.overlayBytes && decodeStoredOverlays(bytes, scene, selectable)) overlays = bytes.slice().buffer;
+          } catch { guard(); }
         }
         guard();
-        const house = await store.activate(stage, { signal, current: options.current });
+        const house = await store.activate(stage, { signal, current: options.current, ...(overlays ? { overlays } : {}) });
         // Actual activation success wins over late cancellation or owner retirement.
         committed = true; return { house, completeness: manifest.completeness, exclusions: manifest.exclusions };
       } finally {

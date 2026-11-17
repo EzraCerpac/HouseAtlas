@@ -479,6 +479,8 @@
 .lantern-host .ua-net-list .ua-belonging > .ua-net-swatch { flex: none; }
 .lantern-host .ua-net-list .ua-belonging > .ua-net-dot { width: 12px; height: 12px; border-width: 1.5px; box-shadow: none; }
 .lantern-host .ua-net-unplaced > summary { cursor: pointer; font-weight: 650; }
+.lantern-host .ua-net-records { margin-top: 8px; }
+.lantern-host .ua-net-records > summary { cursor: pointer; font-size: var(--fs-s); font-weight: 650; padding: 4px 0; }
 .lantern-host .ua-net-unplaced h4 { margin: 8px 0 2px; font: 650 var(--fs-xs)/1.3 var(--text); color: var(--muted); }
 
 .lantern-host .ua-net-ends { display: flex; flex-wrap: wrap; gap: 4px 12px; }
@@ -486,8 +488,7 @@
 .lantern-host .ua-net-observed { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .lantern-host .ua-net-observed > li { display: grid; }
 .lantern-host .ua-net-observed > li.is-old { color: var(--ink-2); }
-.lantern-host .ua-net-graph-link,
-.lantern-host .ua-net-sources { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
+.lantern-host .ua-net-graph-link { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
 
 .lantern-host .ua-label-hit {
   position: absolute;
@@ -3393,7 +3394,8 @@
   .lantern-host :is(.ua-net-device, .ua-net-more) { width: 44px; height: 44px; }
   .lantern-host .ua-net-more::before { inset: 11px 6px; }
   .lantern-host .ua-net-floor { min-width: 44px; min-height: 44px; }
-  .lantern-host :is(.ua-net-graph-link, .ua-net-sources, .ua-net-end) { min-height: 44px; }
+  .lantern-host :is(.ua-net-graph-link, .ua-net-end) { min-height: 44px; }
+  .lantern-host .ua-net-records > summary { display: flex; align-items: center; min-height: 44px; }
 }
 
 @container ua-stage (max-width: 720px) {

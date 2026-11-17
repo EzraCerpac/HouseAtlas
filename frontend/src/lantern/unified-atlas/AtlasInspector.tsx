@@ -13,7 +13,7 @@ import { DocumentaryRecords } from './AtlasKeys';
 import type { ElectricalGroup } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { ElectricalTraceDetail } from './ElectricalTraceDetail';
-import type { NetworkCardContent } from './NetworkCard';
+import { NetworkDeviceRows, type NetworkCardContent } from './NetworkCard';
 import type { TopologyFailure } from '../../api/topology-client';
 import type { CacheStatus, Entry } from '../../app/types';
 import { RecordStatus } from '../../app/components';
@@ -50,11 +50,16 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, network = null, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, network = null, networkDevices, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[];
   /** A device, link or room's devices chosen on the Network layer, shown in place of the room card. */
   readonly network?: (NetworkCardContent & { readonly close: () => void }) | null;
+  /** The devices the reviewed room mapping places in a room, while the Network layer draws them; one opens its device card. */
+  readonly networkDevices?: { readonly inRoom: (roomId: string) => readonly { readonly key: string; readonly label: string; readonly kind: string;
+    /** The device's own documentary record in the room's records, when the source names one. */
+    readonly recordKey: string | null }[];
+    readonly open: (key: string) => void } | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
@@ -218,12 +223,30 @@ export function Inspector({ model, state, dispatch, context, network = null, ope
       </section>}
       {runtime && kinds.map(kind => {
         const records = runtime.rooms.has(room.roomId) && runtime[kind] !== 'unavailable' ? runtime.rooms.get(room.roomId)![kind] : null;
+        // Drawn as devices, the Network layer lists the room's devices; their own
+        // records, with every source observation, stay one step away, and any
+        // record no drawn device matches stays listed as before.
+        const devices = kind === 'network' && networkDevices && records ? networkDevices.inRoom(room.roomId) : null;
+        const own = new Set(devices?.flatMap(device => device.recordKey === null ? [] : [device.recordKey]) ?? []);
+        const deviceRecords = devices ? records!.filter(record => own.has(record.key)) : [];
+        const otherRecords = devices ? records!.filter(record => !own.has(record.key)) : records;
         return <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
           <h3 className="ua-records-head"><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}
-            {records && records.length > 0 && <span className="ua-records-count">{plural(records.length, 'record')}</span>}</h3>
+            {devices && devices.length > 0 ? <span className="ua-records-count">{[plural(devices.length, 'device'),
+              otherRecords!.length > 0 ? plural(otherRecords!.length, 'other record') : null].filter(Boolean).join(', ')}</span>
+              : records && records.length > 0 && <span className="ua-records-count">{plural(records.length, 'record')}</span>}</h3>
           {runtime[kind] === 'partial' && <p className="ua-records-state">{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
           {!runtime.rooms.has(room.roomId) ? <p className="ua-records-state">Room source link unavailable.</p>
             : runtime[kind] === 'unavailable' ? <p className="ua-records-state">Source unavailable.</p>
+            : devices && (devices.length > 0 || records!.length === 0) ? <>
+              {devices.length > 0 ? <NetworkDeviceRows devices={devices} choose={networkDevices!.open} />
+                : <p>No network devices placed in this room in the available source.</p>}
+              {otherRecords!.length > 0 && <DocumentaryRecords records={otherRecords!} openDocuments={openDocuments} />}
+              {deviceRecords.length > 0 && <details className="ua-net-records">
+                <summary>Device source records ({deviceRecords.length.toLocaleString()})</summary>
+                <DocumentaryRecords records={deviceRecords} openDocuments={openDocuments} />
+              </details>}
+            </>
             : <DocumentaryRecords records={records!} openDocuments={openDocuments} onElectricalGroup={kind === 'electrical' ? onElectricalGroup : undefined} canElectricalGroup={canElectricalGroup} />}
         </section>;
       })}

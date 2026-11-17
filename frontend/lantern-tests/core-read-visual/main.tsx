@@ -4,7 +4,6 @@ import { LanternHost } from '../../src/lantern/Host';
 import type { AtlasSessionInfo } from '../../src/app/session';
 import type { ReadyView } from '../../src/app/types';
 import { createTopologyClient, type TopologyKind } from '../../src/api/topology-client';
-import { createNetworkRelationsClient } from '../../src/api/network-relations-client';
 import { createStockSchemas } from '../../integration/stock-schemas';
 import fixture from './fixture.json';
 
@@ -65,45 +64,10 @@ const topology = createTopologyClient({
   },
 });
 
-// The existing successful numeric fixture's relation and original supplied dates.
-// Its wire number is replaced as text before Response parsing; never a JS Number.
-const networkPage = {
-  contractVersion: '1.0.0',
-  items: [{
-    schemaVersion: 1, ...scope,
-    sourceInstanceId: '00000000-0000-4000-8000-000000000803',
-    collectionId: 'synthetic-network', externalId: 'synthetic-link', kind: 'network-connection',
-    from: { kind: 'device', id: 'synthetic-a', description: null },
-    to: { kind: 'device', id: 'synthetic-b', description: null },
-    medium: 'ethernet', sourceRevision: 0,
-    sourceSnapshotAt: null, retrievedAt: '2026-10-08T12:00:00Z', vantage: null,
-    sourceConfidence: 'reported', evidenceBasis: 'source-report', temporalStatus: 'current-claim',
-    factAt: null, notes: '',
-  }],
-  nextCursor: null,
-  sourceStatuses: [],
-};
-const networkBody = JSON.stringify(networkPage).replace('"sourceRevision":0', '"sourceRevision":9007199254740993');
-const networkPath = `/api/atlas/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/network/relations`;
-const networkRelations = createNetworkRelationsClient({
-  getSessionBinding, subscribeSessionBinding,
-  fetch: async (url, init) => {
-    init?.signal?.throwIfAborted();
-    const target = new URL(String(url), 'https://atlas.invalid');
-    if (target.origin !== 'https://atlas.invalid' || target.pathname !== networkPath
-      || target.search !== '?limit=25' || init?.method !== 'GET')
-      throw new TypeError('Unexpected synthetic Network request');
-    return new Response(networkBody, { status: 200, headers: { 'Content-Type': 'application/json' } });
-  },
-});
-// This demonstrates an exact canonical retained token. The native provider's
-// existing safe_revision admission cap is separate and has not been widened.
-
 const root = createRoot(document.getElementById('root')!);
 root.render(<LanternHost view={fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
     session: { ...session, signOut: async () => {} } }}
-  nativeContent={null} topology={topology} networkRelations={networkRelations} />);
-// Network is loaded only through its existing visible user action. Default view,
-// navigation, building selection and room selection are the unchanged Lantern UI.
+  nativeContent={null} topology={topology} />);
+// Default view, navigation, building selection and room selection are the unchanged Lantern UI.
 window.addEventListener('pagehide', () => root.unmount(), { once: true });

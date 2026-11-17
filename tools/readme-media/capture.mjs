@@ -14,7 +14,7 @@ const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
 const unifiedNames = ['unified-3d', 'unified-collapsed', 'unified-plan', 'unified-phone', 'unified-phone-crowded', 'unified-phone-hall', 'unified-stacked'];
-const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['building', 'room', 'network', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
+const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['building', 'room', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
 async function sourceTreeSnapshot() {
   const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
   const rows = [];
@@ -73,21 +73,16 @@ try {
   await page.locator('.topology-chips').getByRole('button', { name: /^Alpha, Atlas identity/ }).click();
   await page.getByText('Alpha: 9 locations in reviewed membership', { exact: true }).waitFor();
   assert.match(await page.locator('body').innerText(), /Elevation recorded as unknown/);
-  const names = ['building', 'room', 'network'];
+  const names = ['building', 'room'];
   await page.screenshot({ path: resolve(output, 'synthetic-building.png'), animations: 'disabled' });
   await page.getByRole('button', { name: /^Lower room, Atlas identity/ }).click();
   await page.getByRole('heading', { name: 'Lower room', exact: true }).waitFor();
   await page.screenshot({ path: resolve(output, 'synthetic-room.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Close details', exact: true }).click();
-  await page.getByRole('button', { name: 'Network source records', exact: true }).click();
-  await page.getByRole('button', { name: 'Load Network relations', exact: true }).click();
-  await page.getByText('synthetic-link', { exact: true }).waitFor();
-  assert.match(await page.locator('body').innerText(), /9007199254740993/);
-  await page.screenshot({ path: resolve(output, 'synthetic-network.png'), animations: 'disabled' });
   const images = await Promise.all(names.map(async name => (await readFile(resolve(output, `synthetic-${name}.png`))).toString('base64')));
-  const collageContext = await browser.newContext({ viewport: { width: 1800, height: 520 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC', colorScheme: 'light' });
+  const collageContext = await browser.newContext({ viewport: { width: 1210, height: 520 }, deviceScaleFactor: 1, locale: 'en-US', timezoneId: 'UTC', colorScheme: 'light' });
   const collage = await collageContext.newPage();
-  await collage.setContent(`<html><head><style>body{margin:0;background:#eee9df;color:#1c2638;font:20px Arial,sans-serif}header{height:65px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}main{display:flex;gap:16px;padding:0 24px}figure{margin:0;width:573px}figcaption{font-size:18px;height:32px}img{width:573px;height:398px;object-fit:contain;border:1px solid #cfc5b6}</style></head><body><header><strong>HouseAtlas · SYNTHETIC demo</strong><span>Actual React UI · generated fixtures · fake reads</span></header><main>${images.map((image, i) => `<figure><figcaption>${['Reviewed building & levels', 'Room & source facts', 'Saved Network relation'][i]}</figcaption><img src="data:image/png;base64,${image}"></figure>`).join('')}</main></body></html>`);
+  await collage.setContent(`<html><head><style>body{margin:0;background:#eee9df;color:#1c2638;font:20px Arial,sans-serif}header{height:65px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}main{display:flex;gap:16px;padding:0 24px}figure{margin:0;width:573px}figcaption{font-size:18px;height:32px}img{width:573px;height:398px;object-fit:contain;border:1px solid #cfc5b6}</style></head><body><header><strong>HouseAtlas · SYNTHETIC demo</strong><span>Actual React UI · generated fixtures · fake reads</span></header><main>${images.map((image, i) => `<figure><figcaption>${['Reviewed building & levels', 'Room & source facts'][i]}</figcaption><img src="data:image/png;base64,${image}"></figure>`).join('')}</main></body></html>`);
   await collage.screenshot({ path: resolve(output, 'synthetic-collage.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   // Unified Atlas: the generated fictional publication through the production
@@ -421,7 +416,7 @@ try {
   const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim().length > 0;
   assert.deepEqual(await sourceTreeSnapshot(), sourceTree, 'Tracked capture source must remain unchanged throughout capture');
-  const sourcePaths = ['frontend/lantern-tests/core-read-visual/main.tsx', 'frontend/lantern-tests/core-read-visual/fixture.json', 'tools/readme-media/capture.mjs', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/Host.tsx', 'frontend/src/api/topology-client.ts', 'frontend/src/api/network-relations-client.ts'];
+  const sourcePaths = ['frontend/lantern-tests/core-read-visual/main.tsx', 'frontend/lantern-tests/core-read-visual/fixture.json', 'tools/readme-media/capture.mjs', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/Host.tsx', 'frontend/src/api/topology-client.ts'];
   const hashes = {};
   for (const file of [...sourcePaths, ...names.map(name => `docs/demo/synthetic-${name}.png`), 'docs/demo/synthetic-collage.png']) {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
@@ -865,8 +860,8 @@ try {
     artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png', 'example-network-trace.png'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
-  console.log('PASS synthetic React media: building, room, Network, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1210, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');
+  console.log('PASS synthetic React media: building, room, collage, generated unified Atlas 3D/plan/phone, example house type check, npm run build, screenshot, tour video, Back navigation, storage sentinels, named starting states and derived Home records; no provider/native acceptance');
 } catch (error) {
   if (errors.length) console.error('Captured page errors or external requests:', errors);
   throw error;

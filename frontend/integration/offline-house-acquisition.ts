@@ -1,6 +1,6 @@
 import type { ReadyView, Scope } from '../src/app/types';
 import type { AcquisitionState, HouseAcquisitionPort } from '../src/offline/acquisition-types';
-import type { createHouseAcquisition } from '../src/offline/acquire-house';
+import type { createHouseAcquisition, StoredOverlayPins } from '../src/offline/acquire-house';
 import type { createSavedHouseStore } from '../src/offline/store';
 import type { verifySavedShell } from '../src/offline/shell';
 
@@ -17,6 +17,8 @@ type Operation = { readonly controller: AbortController; readonly owner: Owner;
 export function createOfflineHouseAcquisition(options: {
   readonly state: () => State; readonly origin: string;
   readonly load?: () => Promise<Modules>; readonly transport?: typeof fetch;
+  /** The live Atlas's stored overlay records for this home's model, if this device holds them. */
+  readonly storedOverlays?: (scope: Scope, pins: StoredOverlayPins) => Promise<Uint8Array | null>;
 }) {
   const origin = new URL(options.origin).origin;
   const listeners = new Set<() => void>();
@@ -85,6 +87,8 @@ export function createOfflineHouseAcquisition(options: {
           onProgress(progress) { if (current()) publish({ status: value.status === 'preparing' ? 'preparing' : 'saving', progress,
             ...(value.preparation ? { preparation: value.preparation } : {}) }); },
           onCleanupPending() { target.cleanupPending = true; },
+          ...(options.storedOverlays ? { storedOverlays: (pins: StoredOverlayPins) => current()
+            ? options.storedOverlays!(owner.scope, pins) : Promise.resolve(null) } : {}),
         });
         const preparation = await target.core.prepare();
         if (!current()) throw new Error('The live home changed');

@@ -22,7 +22,6 @@ import { classificationRequest, kindLabel } from "../src/app/editing";
 import { getOutbox, type OutboxEntry } from "../src/outbox";
 import { PLACE_CLASSIFICATION, PLACE_NAME } from "../src/outbox/kinds";
 import { createTopologyClient } from "../src/api/topology-client";
-import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
 import type { AtlasCacheActor, UnifiedAtlasCache } from "./unified-atlas-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
@@ -409,16 +408,6 @@ const account = createAccountObservationClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
-// Saved Network relations use the same actual session allocation and completed
-// view scope; each page is an explicit GET that the host authorizes anew.
-const networkRelations = createNetworkRelationsClient({
-  getSessionBinding: () => currentSession && currentQuantityScope
-    ? { session: currentSession, scope: currentQuantityScope } : null,
-  subscribeSessionBinding: changed => {
-    quantityEvents.addEventListener("changed", changed);
-    return () => quantityEvents.removeEventListener("changed", changed);
-  },
-});
 // The admission applies only while the client's own public identity is unchanged.
 const quantityAdmissionPort: QuantityAdmissionPort = {
   getSnapshot: () => currentQuantityAdmission && quantity.getBindingIdentity() === currentQuantityAdmission.bindingIdentity
@@ -553,6 +542,13 @@ const sourceDocuments = createSourceDocumentsService({
 const houseAcquisition = createOfflineHouseAcquisition({
   state: () => ({ session: currentSession, scope: currentQuantityScope, view: currentReadyView }),
   origin: window.location.origin,
+  // A saved copy keeps the map network this device already stored for the same model; nothing is fetched.
+  async storedOverlays(scope, pins) {
+    const selection = currentOverview();
+    if (!selection || selection.scope.workspaceId !== scope.workspaceId || selection.scope.homeId !== scope.homeId) return null;
+    const cache = await atlasCache(selection);
+    return cache && currentOverview() === selection ? cache.overlays(pins.publicationId, pins.revision, pins.semanticsSha256) : null;
+  },
 });
 // The selected house model publication. Saved reads require the current
 // authenticated service facet and pins.
@@ -862,6 +858,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} homeboxOriginals={homeboxOriginals} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} homeboxOriginals={homeboxOriginals} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
