@@ -984,7 +984,6 @@
     {"path":"docs/demo/capture.json","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-building.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-collage.png","mode":"100644","owner":"web"},
-    {"path":"docs/demo/synthetic-network.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-room.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-unified-3d.png","mode":"100644","owner":"web"},
     {"path":"docs/geodata/full-document-server-selection.md","mode":"100644","owner":"core-integration"},
