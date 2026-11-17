@@ -7,6 +7,8 @@ edits use verified native links. Network passively reads stored source results
 (HTTPS, or explicitly selected exact-loopback HTTP with an explicit port).
 Browsing never sends collector demand, diagnostics, imports or upstream writes;
 the backend requests collector diagnostics only for explicit authenticated Editor actions.
+Named-Editor refresh may publish one inventory generation;
+browsing and observation polling never publish inventory.
 
 Preserve arbitrary container types, explicit unknowns, original source dates,
 retrieval dates, uncertainty and corrections. Names, graph positions and tree
@@ -181,10 +183,86 @@ pre-selection inventory replacement and retained targets across guard awaits.
 The existing persistent mount case checks interval/port configuration bounds;
 the existing frontend `network-live-facts-healthy.mjs` selection additionally
 checks typed property-results/action decoders and fake client exchanges.
-Persistent serving may poll only explicitly enabled exact-loopback collectors;
+Persistent observation polling selects only explicitly enabled exact-loopback collectors;
 it reads stored observations into memory without enrollment, publication,
 archive writes, principals or collector demand.
 Explicit Editor diagnostics use the existing mutation-authentication owner;
 there is no new durable journal or publication authority.
 No real socket, collector, credential, household data, installation or G1–G5
 acceptance is exercised by these cases; no CI run step is added.
+
+## Named-Editor Network inventory refresh
+
+The default backend-library lane additionally discovers fourteen cases under
+`http::providers::network::tests::refresh::`:
+`refresh_auth_absence_and_named_editor`,
+`first_refresh_registers_publishes_and_unchanged_renews_capture`,
+`review_required_then_reviewed_profile_refresh_attaches_observations`,
+`preflight_failure_recovers_on_same_store`,
+`concurrent_refresh_returns_running_without_second_get`,
+`failure_after_archive_reservation_keeps_previous_generation_readable`,
+`post_reservation_contention_retains_custody_and_auth_failure_metadata`,
+`interrupted_pre_stage_future_recovers_on_same_store`,
+`two_partitions_refresh_independently_with_retained_disclosure`,
+`deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery`,
+`stale_deferred_failure_retires_without_replaying_metadata`,
+`durable_quarantine_recovery_preserves_reviewed_inventory_baseline`,
+`failed_revalidation_reports_durable_quarantine_after_reopen`,
+and `uncaptured_quarantine_after_reopen_is_unavailable_without_a_definite_hold`.
+The existing persistent profile selection also discovers
+`network_refresh_profile_opens_writable_custody_only_for_named_editors`.
+They use a test-only fake inventory HTTP leaf, generated Viewer/Editors,
+disposable SQLite Access/Store/sidecar/archive and the in-process router.
+They check opt-in writable custody without startup registration,
+read-only absence, authentication/role/named approval/CSRF refusals,
+first native registration/publication, unchanged capture renewal,
+single-flight refusal, collector-down failure after archive reservation,
+previous-generation reads without quarantine, same-Store failed-attempt recovery,
+Core/sidecar contention and auth quarantine independent of deferred cleanup.
+Revision mismatch returns `needs-review` without relaxing the pinned review;
+normal mismatch exits during Editor preflight before durable archive admission.
+Owner setup with the current review and Store/Host reopen permits publication
+and observation attachment without another reopen.
+The same lane discovers six `storage::store::cache_custody::pre_stage_tests::`
+cases for consuming original-handle disposition, foreign-Store/native refusal,
+bound/SQL/native reference protection, exact pin-only retirement,
+Store read holds across candidate disposal and explicit RAM-only reopen limits.
+The deferred-auth cases cover original grant expiry/revocation and stale failure CAS,
+separately authorized fresh publication, unchanged reviewed inventory,
+withheld Snapshot/pack/retained disclosure and unaffected partitions.
+The default lane also discovers the generated archive-token cancellation case
+`providers::network::archive::pre_stage_tests::pre_stage_archive_cancellation_requires_original_token_and_keeps_burned_id`.
+It checks original issuer/registration/generation, checked cancellation retry
+and permanent ID reuse refusal in disposable native archives.
+Store hold controls cover all three Snapshot/pack readers, ReadCache and
+retained pins, previous internal publication baselines, same-Store disposal,
+RAM-only reopen and durable quarantine reopen, stale hold-version release,
+and a hold activated during read authorization before release.
+The default library selection also discovers
+`providers::network::http::refusal_tests::inventory_refusal_preserves_observation_before_caller_recheck`
+and `providers::network::failure_contract::verified_body_wrong_scope_is_a_source_refusal`.
+They use constructed HTTP responses and generated inventory without a listener.
+The transport refusal module also adds
+`observed_inventory_refusal_survives_outer_cancellation_into_adapter`
+and `inventory_completion_preserves_observed_denial_only_after_deadline`.
+They deterministically cancel inside a fake GET and supply an expired completion
+deadline, preserving only observed 401/403 denials with no response bytes or
+origin witness; pre-cancelled, positive and status-less outcomes remain timed out.
+The adapter receives Auth/source-refusal/AccessRevoked without a positive proposal.
+
+The deferred-auth case also reads the mounted relation list and offline pack
+with A held and B readable, checking every qualified B relation,
+withheld A data and the existing authentication/release path.
+The durable-reopen case checks Network and Storage failure responses against
+both a quarantined and a fresh baseline, with no new RAM hold,
+then verifies the successful fresh publication receipt.
+The uncaptured-baseline case then refuses initial Store preparation under Core
+contention, before any GET, both with a definite RAM hold and after durable reopen.
+The shared HTTP response path preserves the definite hold but reports HTTP 503
+when the baseline is unknown; a mounted registration failure also returns 503.
+Cache facts, archive custody and collector call counts remain unchanged.
+The existing root-router TLS fixture keeps its one-GET contract and deadlines.
+The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
+typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
+No run step, real service, credential, private profile, household data,
+installation or G1–G5 acceptance is added.

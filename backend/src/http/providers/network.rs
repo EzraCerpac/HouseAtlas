@@ -14,7 +14,7 @@ use axum::{
 use s::Runtime;
 use std::sync::Arc;
 
-fn unavailable() -> super::super::HttpFailure {
+pub(super) fn unavailable() -> super::super::HttpFailure {
     failure(StatusCode::SERVICE_UNAVAILABLE)
 }
 fn native_error(error: n::NetworkPublicationError<s::Error>) -> super::super::HttpFailure {
@@ -229,7 +229,7 @@ fn read_cached_principal<'h>(
     })
 }
 
-fn collection(uri: &Uri) -> Result<String, super::super::HttpFailure> {
+pub(super) fn collection(uri: &Uri) -> Result<String, super::super::HttpFailure> {
     let value = super::super::query::one_utf8(uri, "collection", 3 * 4096 * 4 + 11, 4096 * 4)?;
     if value.is_empty() || value.chars().count() > 4096 {
         return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
@@ -266,14 +266,25 @@ pub(in crate::http) async fn results(
         };
         let collection = collection(&uri)?;
         // Authenticate even when no collector is configured.
-        crate::http::authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |_| {
+        crate::http::authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
             if configured(&host, &scope, &source, &collection).is_none() {
                 return Ok(json_response(serde_json::json!({"status":"unavailable"})));
             }
             let read = read_cached(&host, &headers, &uri, &method, &scope, &source, &collection)?;
             let observations = read.observations.as_ref().ok_or_else(unavailable)?;
             let mut value = observations.results();
+            value["mayRefresh"] = serde_json::json!(super::network_refresh::may_refresh(
+                read.binding,
+                p.principal.principal()
+            ));
             value["inventoryRevision"] = serde_json::json!(observations.revision());
+            let reviewed = read.binding.runtime().settings().review().revision;
+            value["reviewedInventoryRevision"] = serde_json::json!(reviewed);
+            value["needsReview"] = serde_json::json!(
+                observations
+                    .revision()
+                    .is_some_and(|revision| revision != reviewed)
+            );
             value["servedInventoryRevision"] = serde_json::json!(read.facet.source_revision);
             value["measurementReason"] =
                 serde_json::json!(observations.reason(read.facet.source_revision, &read.now));

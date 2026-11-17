@@ -13,7 +13,7 @@ use super::{
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, path::Path};
+use std::{collections::BTreeSet, path::Path, sync::Arc};
 
 const SCHEMA: &str = "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;
             CREATE TABLE IF NOT EXISTS network_archive_meta(version INTEGER PRIMARY KEY CHECK(version=1));
@@ -70,6 +70,8 @@ struct SegmentHeader {
 /// Store-issued capacity and generation reservation. No public constructor or
 /// Clone: callers can only obtain it from the open canonical archive.
 pub struct NetworkArchiveReservation {
+    issuer: Arc<()>,
+    registration: SourceRegistration,
     partition_key: String,
     generation_id: String,
     reserved_bytes: usize,
@@ -190,6 +192,7 @@ pub(crate) struct NetworkArchiveCapacitySnapshot {
 }
 
 pub struct NetworkImmutableArchive {
+    instance: Arc<()>,
     db: Connection,
     segments: SegmentOwner,
     owner: DatabaseOwner,
@@ -268,6 +271,7 @@ impl NetworkImmutableArchive {
         owner.check()?;
         segments.check()?;
         let archive = Self {
+            instance: Arc::new(()),
             db,
             segments,
             owner,
@@ -323,6 +327,8 @@ impl NetworkImmutableArchive {
         .map_err(|_| err())?;
         tx.commit().map_err(|_| err())?;
         Ok(NetworkArchiveReservation {
+            issuer: self.instance.clone(),
+            registration: registration.clone(),
             partition_key,
             generation_id: generation_id.into(),
             reserved_bytes,
@@ -333,13 +339,39 @@ impl NetworkImmutableArchive {
     /// definite no-generation outcome. The permanent generation-ID row remains.
     /// No segment/catalog deletion or retained-generation release exists.
     pub fn cancel_before_stage(&mut self, reservation: NetworkArchiveReservation) -> Result<()> {
+        self.cancel_before_stage_borrowed(&reservation)
+    }
+    pub(crate) fn cancel_before_stage_borrowed(
+        &mut self,
+        reservation: &NetworkArchiveReservation,
+    ) -> Result<()> {
         self.check_owner()?;
+        ensure(Arc::ptr_eq(&self.instance, &reservation.issuer))?;
+        let references = self.protected_references()?;
+        let reference = references
+            .iter()
+            .find(|r| {
+                r.partition_key == reservation.partition_key
+                    && r.generation_id == reservation.generation_id
+            })
+            .ok_or_else(invalid)?;
+        ensure(matches!(
+            reference.state,
+            NetworkArchiveReferenceState::CapacityReserved
+                | NetworkArchiveReferenceState::PermanentlyReserved
+        ))?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|_| err())?;
         let stored: Option<i64> = tx.query_row("SELECT reserved_bytes FROM network_archive_reservations WHERE partition_key=?1 AND generation_id=?2", params![reservation.partition_key, reservation.generation_id], |r| r.get(0)).optional().map_err(|_| err())?;
-        ensure(stored == Some(reservation.reserved_bytes as i64))?;
+        // Retrying the SAME token after an uncertain cancellation COMMIT is
+        // safe: complete census proves only its burned identifier remains.
+        ensure(
+            stored == Some(reservation.reserved_bytes as i64)
+                || (stored.is_none()
+                    && reference.state == NetworkArchiveReferenceState::PermanentlyReserved),
+        )?;
         tx.execute(
             "DELETE FROM network_archive_reservations WHERE partition_key=?1 AND generation_id=?2",
             params![reservation.partition_key, reservation.generation_id],
@@ -347,6 +379,20 @@ impl NetworkImmutableArchive {
         .map_err(|_| err())?;
         tx.commit().map_err(|_| err())?;
         Ok(())
+    }
+
+    pub(crate) fn cancel_proven_pre_stage(
+        &mut self,
+        registration: &SourceRegistration,
+        generation_id: &str,
+        reservation: &NetworkArchiveReservation,
+    ) -> Result<()> {
+        ensure(
+            &reservation.registration == registration
+                && reservation.generation_id == generation_id
+                && reservation.partition_key == super::partition_key(&registration.scope)?,
+        )?;
+        self.cancel_before_stage_borrowed(reservation)
     }
 
     /// Persist the genuine producer capture into a new sealed segment. The raw
@@ -366,7 +412,9 @@ impl NetworkImmutableArchive {
         let generation = state.generation.as_ref().ok_or_else(invalid)?;
         let expected_partition = super::partition_key(&capture.registration().scope)?;
         ensure(
-            reservation.partition_key == expected_partition
+            Arc::ptr_eq(&self.instance, &reservation.issuer)
+                && &reservation.registration == capture.registration()
+                && reservation.partition_key == expected_partition
                 && reservation.generation_id == capture.generation_id()
                 && projected.partition_key() == reservation.partition_key
                 && projected.generation_id() == reservation.generation_id
@@ -854,4 +902,63 @@ fn verify_segment(
     let (header, body) = decode_segment(&read_bounded_segment(owner, name)?)?;
     ensure(&header == expected && body == expected_body && digest(&body) == expected.body_sha256)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod pre_stage_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    #[test]
+    fn pre_stage_archive_cancellation_requires_original_token_and_keeps_burned_id()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let temporary = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()?;
+        let root = std::fs::canonicalize(temporary.path())?;
+        let mut archive = NetworkImmutableArchive::open(&root.join("archive.sqlite"))?;
+        let mut other = NetworkImmutableArchive::open(&root.join("other.sqlite"))?;
+        let registration: SourceRegistration = serde_json::from_value(
+            serde_json::json!({"workspaceId":"00000000-0000-4000-8000-000000000001","homeId":"00000000-0000-4000-8000-000000000002","sourceInstanceId":"00000000-0000-4000-8000-000000000012","collectionId":"inventory","owner":"network","partitionMode":"exclusive-home","allowedExternalIds":[]}),
+        )?;
+        let review = serde_json::from_str(include_str!(
+            "../../../../adapters/network/fixtures/link-review.json"
+        ))?;
+        let id = "00000000-0000-4000-8000-000000000100";
+        let token = archive.reserve(&registration, &review, id, Limits::default())?;
+        let _other_token = other.reserve(&registration, &review, id, Limits::default())?;
+        assert!(
+            other
+                .cancel_proven_pre_stage(&registration, id, &token)
+                .is_err()
+        );
+        let mut changed = registration.clone();
+        changed.allowed_external_ids.push("invented-device".into());
+        assert!(
+            archive
+                .cancel_proven_pre_stage(&changed, id, &token)
+                .is_err()
+        );
+        assert!(
+            archive
+                .cancel_proven_pre_stage(
+                    &registration,
+                    "00000000-0000-4000-8000-000000000101",
+                    &token
+                )
+                .is_err()
+        );
+        archive.cancel_proven_pre_stage(&registration, id, &token)?;
+        // The original token can reconcile an uncertain cancellation COMMIT.
+        archive.cancel_proven_pre_stage(&registration, id, &token)?;
+        assert!(
+            archive
+                .reserve(&registration, &review, id, Limits::default())
+                .is_err()
+        );
+        let snapshot = archive.capacity_snapshot()?;
+        assert_eq!(snapshot.active_reservation_count, 0);
+        assert_eq!(snapshot.permanent_id_count, 1);
+        assert_eq!(other.capacity_snapshot()?.active_reservation_count, 1);
+        Ok(())
+    }
 }

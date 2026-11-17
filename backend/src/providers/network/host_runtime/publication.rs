@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 pub struct PreparedPublication {
     lease: Arc<OriginalNetworkLease>,
     prepared: n::PreparedNetworkCache<s::CachePublicationFence>,
+    read_hold: s::CacheReadHold,
 }
 impl PreparedPublication {
     pub(super) fn prepare(
@@ -38,7 +39,21 @@ impl PreparedPublication {
         {
             return Err(conflict());
         }
-        Ok(Self { lease, prepared })
+        let read_hold = store.cache_read_hold(&prepared.fence)?;
+        Ok(Self {
+            lease,
+            prepared,
+            read_hold,
+        })
+    }
+    pub(super) fn read_hold(&self) -> s::CacheReadHold {
+        self.read_hold.clone()
+    }
+    pub(super) fn observe(&self, outcome: &n::RefreshOutcome) {
+        if matches!(outcome, n::RefreshOutcome::Failed(failure) if failure.source_refusal && matches!(failure.error.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope))
+        {
+            self.read_hold.activate();
+        }
     }
     pub fn baseline(&self) -> &n::NetworkCacheBaseline {
         &self.prepared.baseline
@@ -53,13 +68,41 @@ impl PreparedPublication {
         &self,
         store: &mut Store,
         references: &mut n::NetworkCacheReferences<'_>,
-    ) -> s::Result<n::NetworkArchiveReservation> {
+        admission: &mut Option<n::NetworkArchiveReservation>,
+    ) -> s::Result<()> {
         let mut residency = store.guard_cache_residency(references)?;
-        let admission =
-            residency.admit_before_transport(&self.prepared.fence, s::CACHE_ROW_BYTES)?;
+        *admission =
+            Some(residency.admit_before_transport(&self.prepared.fence, s::CACHE_ROW_BYTES)?);
         let (_references, committed) = residency.release();
         committed?;
-        Ok(admission)
+        Ok(())
+    }
+    pub(super) fn abandon(
+        self,
+        store: &mut Store,
+        admission: Option<n::NetworkArchiveReservation>,
+        references: &mut n::NetworkCacheReferences<'_>,
+    ) -> std::result::Result<(), Box<(s::Error, Self, Option<n::NetworkArchiveReservation>)>> {
+        let Self {
+            lease,
+            prepared,
+            read_hold,
+        } = self;
+        let n::PreparedNetworkCache { fence, baseline } = prepared;
+        store
+            .abandon_pre_stage_cache_candidate(fence, admission, references)
+            .map_err(|rejected| {
+                let (error, fence, admission) = rejected.into_parts();
+                Box::new((
+                    error,
+                    Self {
+                        lease,
+                        prepared: n::PreparedNetworkCache { fence, baseline },
+                        read_hold,
+                    },
+                    admission,
+                ))
+            })
     }
     pub(super) fn publish(
         self,
@@ -67,12 +110,15 @@ impl PreparedPublication {
         staged: n::StagedNetworkPublication<n::NetworkStagingReceipt<n::DurableNetworkReceipt>>,
         references: &mut n::NetworkCacheReferences<'_>,
     ) -> s::Result<s::CacheStatus> {
-        if self.prepared.baseline.cache.as_ref().is_some_and(|cache| {
-            cache.status == n::CacheStatus::AccessRevoked
-                || cache.error.as_ref().is_some_and(|e| {
-                    matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
-                })
-        }) {
+        if !self.lease.is_revalidation()
+            && (self.read_hold.is_held()
+                || self.prepared.baseline.cache.as_ref().is_some_and(|cache| {
+                    cache.status == n::CacheStatus::AccessRevoked
+                        || cache.error.as_ref().is_some_and(|e| {
+                            matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+                        })
+                }))
+        {
             return Err(conflict());
         }
         let source: n::SourceRegistration =
@@ -86,18 +132,29 @@ impl PreparedPublication {
         }
         let lease = self.lease;
         held_consuming(&lease, |authorization| {
-            n::NativeNetworkPublisher::new(store)
-                .with_authorization(authorization)
-                .publish_staged_generation_with_custody(
+            let publisher = n::NativeNetworkPublisher::new(store);
+            let mut publisher = publisher.with_authorization(authorization);
+            if lease.is_revalidation() {
+                publisher.publish_revalidated_staged_generation(
+                    self.prepared.fence,
+                    staged,
+                    lease.as_ref(),
+                    references,
+                    self.read_hold,
+                )
+            } else {
+                publisher.publish_staged_generation_with_custody(
                     self.prepared.fence,
                     staged,
                     lease.as_ref(),
                     references,
                 )
+            }
         })
     }
+
     pub(super) fn failure(
-        self,
+        &self,
         store: &mut Store,
         failure: &n::RefreshFailure,
     ) -> s::Result<s::CacheStatus> {
@@ -110,12 +167,12 @@ impl PreparedPublication {
         // The provider captured this exact string BEFORE its inventory GET;
         // the actual native publisher carries it to Storage's captured-time
         // transaction without replacement or reformatting by the commit clock.
-        let lease = self.lease;
-        held_consuming(&lease, |authorization| {
+        let lease = &self.lease;
+        held_consuming(lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
-                .record_prepared_cache_failure_at(
-                    self.prepared.fence,
+                .record_prepared_cache_failure_at_borrowed(
+                    &self.prepared.fence,
                     failure.error.code,
                     lease.as_ref(),
                     &error.at,
@@ -142,6 +199,22 @@ impl s::Authorization for CallAuthorization<'_> {
         Ok(actor(&lease.principal))
     }
 }
+impl s::CacheReadRecoveryAuthorization for CallAuthorization<'_> {
+    fn authorize_cache_recovery(
+        &self,
+        lease: &OriginalNetworkLease,
+        registration: &s::SourceRegistration,
+    ) -> s::Result<s::VerifiedActor> {
+        if !std::ptr::eq(lease, self.lease)
+            || !lease.is_revalidation()
+            || registration != lease.source.registration()
+        {
+            return Err(conflict());
+        }
+        lease.check_guard(self.guard).map_err(storage_access)?;
+        Ok(actor(&lease.principal))
+    }
+}
 impl n::NativeNetworkLease<CallAuthorization<'_>> for OriginalNetworkLease {
     fn storage_principal(&self) -> &Self {
         self
@@ -153,7 +226,7 @@ fn held_preparation<T>(
 ) -> s::Result<T> {
     let mut boundary = lease.access.lock().map_err(storage_access)?;
     let mut output = None;
-    boundary
+    let completion = boundary
         .with_lifecycle_authorization(
             &lease.principal,
             &lease.lifecycle,
@@ -166,8 +239,14 @@ fn held_preparation<T>(
                 Ok(())
             },
         )
-        .map_err(|e: PhaseError| e.0)?;
-    output.ok_or_else(conflict)
+        .map_err(|e: PhaseError| e.0);
+    // Once Store issued custody, retain it even if Access finalization fails.
+    // Every later phase still rechecks the original authority.
+    if let Some(prepared) = output {
+        return Ok(prepared);
+    }
+    completion?;
+    Err(conflict())
 }
 /// These private callers invoke only the actual consuming native Store APIs.
 /// Their Ok(CacheStatus) is produced AFTER Store COMMIT. No later authority or

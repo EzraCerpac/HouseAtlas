@@ -368,6 +368,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     pub fn read_snapshot(&mut self, principal: &A::Principal, scope: &Scope) -> Result<Snapshot> {
         read_snapshot(
             &mut self.db,
+            &self.cache_pins,
             &self.contract,
             &self.authorization,
             principal,
@@ -386,6 +387,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let full = self.full_geodata.is_some();
         read_snapshot_cut(
             &mut self.db,
+            &self.cache_pins,
             &self.contract,
             authorization,
             principal,
@@ -408,6 +410,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     ) -> Result<Snapshot> {
         read_snapshot(
             &mut self.db,
+            &self.cache_pins,
             &self.contract,
             authorization,
             principal,
@@ -417,6 +420,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
 }
 fn read_snapshot<C: Contract, B: Authorization>(
     db: &mut Connection,
+    pins: &cache_custody::CachePinRegistry,
     contract: &C,
     authorization: &B,
     principal: &B::Principal,
@@ -424,6 +428,7 @@ fn read_snapshot<C: Contract, B: Authorization>(
 ) -> Result<Snapshot> {
     Ok(read_snapshot_cut(
         db,
+        pins,
         contract,
         authorization,
         principal,
@@ -433,8 +438,10 @@ fn read_snapshot<C: Contract, B: Authorization>(
     )?
     .0)
 }
+#[allow(clippy::too_many_arguments)]
 fn read_snapshot_cut<C: Contract, B: Authorization, T>(
     db: &mut Connection,
+    pins: &cache_custody::CachePinRegistry,
     contract: &C,
     authorization: &B,
     principal: &B::Principal,
@@ -460,6 +467,9 @@ fn read_snapshot_cut<C: Contract, B: Authorization, T>(
     };
     let mut denied = BTreeSet::new();
     let mut accepted = Vec::<(Option<SourcePartition>, Option<Value>)>::new();
+    for partition in pins.held_partitions(scope) {
+        denied.insert(partition_key(&partition));
+    }
     for cache in &snapshot.caches {
         if cache["status"] == "access-revoked" {
             denied.insert(partition_key(&repo::partition(cache)?));
@@ -622,6 +632,15 @@ fn read_snapshot_cut<C: Contract, B: Authorization, T>(
                     "Snapshot source principal changed",
                 ));
             }
+        }
+        // A deny-only handle may arm while Core is occupied by this read.
+        // Never return data qualified before that newer auth observation.
+        if pins
+            .held_partitions(scope)
+            .iter()
+            .any(|partition| !denied.contains(&partition_key(partition)))
+        {
+            return Err(cache_custody::read_hold_error());
         }
         Ok(())
     };

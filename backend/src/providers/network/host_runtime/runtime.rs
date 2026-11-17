@@ -15,9 +15,17 @@ use tokio_util::sync::CancellationToken;
 
 type Result<T> = std::result::Result<T, n::NetworkPublicationError<s::Error>>;
 pub enum RefreshResult {
-    Published(s::CacheStatus),
+    Published {
+        cache: s::CacheStatus,
+        source_revision: u64,
+        unchanged: bool,
+    },
     SourceFailure(s::CacheStatus),
     AlreadyRunning,
+    NeedsReview {
+        reviewed_revision: u64,
+        collector_revision: u64,
+    },
 }
 
 /// Data selected from the actual retained generation and the same Store's
@@ -35,6 +43,13 @@ pub struct HostNetworkRuntime {
     settings: NetworkSettings,
     sidecar: Mutex<n::SqliteNetworkSidecar>,
     collector: Mutex<n::collector::Cached>,
+    pending: Mutex<Option<PendingPublication>>,
+    read_hold: Mutex<Option<s::CacheReadHold>>,
+}
+struct PendingPublication {
+    prepared: Arc<PreparedPublication>,
+    admission: Option<n::NetworkArchiveReservation>,
+    failure: Option<n::RefreshFailure>,
 }
 impl HostNetworkRuntime {
     /// Borrow the original request's already captured grants. The native
@@ -112,6 +127,8 @@ impl HostNetworkRuntime {
             sidecar: Mutex::new(settings.open_sidecar()?),
             settings,
             collector: Mutex::new(None),
+            pending: Mutex::new(None),
+            read_hold: Mutex::new(None),
         })
     }
     pub fn settings(&self) -> &NetworkSettings {
@@ -141,7 +158,54 @@ impl HostNetworkRuntime {
         authority: Arc<NetworkAuthority>,
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
+        clock: C,
+    ) -> Result<RefreshResult> {
+        let mut prior_quarantined = None;
+        self.refresh_inner(
+            core,
+            authority,
+            lease,
+            cancellation,
+            clock,
+            (false, &mut prior_quarantined),
+        )
+        .await
+    }
+    /// Editor entry: reject a changed review before durable archive admission.
+    /// The native refresh contract retains its original single inventory GET.
+    pub(crate) async fn refresh_reviewed<C: FnMut() -> String>(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        authority: Arc<NetworkAuthority>,
+        lease: Arc<OriginalNetworkLease>,
+        cancellation: CancellationToken,
+        clock: C,
+    ) -> (Result<RefreshResult>, Option<bool>) {
+        // None means no baseline was captured, not a cache known to be clear.
+        // Carry the actual captured baseline through failed attempts. A caller
+        // must not infer durable quarantine from requesting recovery or perform
+        // a fallible read after a definite publication receipt.
+        let mut prior_quarantined = None;
+        let outcome = self
+            .refresh_inner(
+                core,
+                authority,
+                lease,
+                cancellation,
+                clock,
+                (true, &mut prior_quarantined),
+            )
+            .await;
+        (outcome, prior_quarantined)
+    }
+    async fn refresh_inner<C: FnMut() -> String>(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        authority: Arc<NetworkAuthority>,
+        lease: Arc<OriginalNetworkLease>,
+        cancellation: CancellationToken,
         mut clock: C,
+        (review_preflight, prior_quarantined): (bool, &mut Option<bool>),
     ) -> Result<RefreshResult> {
         cancelled(&cancellation)?;
         if lease.source().registration() != self.settings.configured_source().registration() {
@@ -158,11 +222,52 @@ impl HostNetworkRuntime {
             return Ok(RefreshResult::AlreadyRunning);
         };
         cancelled(&cancellation)?;
-        let prepared = with_store(core, &lease.access, |store| {
+        self.dispose_pending(core)?;
+        // Canonical runtime retains custody across a dropped request future.
+        // No lock or Access borrow spans transport; no Drop cleanup is used.
+        let prepared = Arc::new(with_store(core, &lease.access, |store| {
             PreparedPublication::prepare(store, lease.clone(), self.settings.source())
-        })?;
+        })?);
+        *prior_quarantined = Some(
+            prepared
+                .baseline()
+                .cache
+                .as_ref()
+                .is_some_and(cache_quarantined),
+        );
+        *self.read_hold.lock().map_err(|_| unavailable())? = Some(prepared.read_hold());
+        *self.pending.lock().map_err(|_| unavailable())? = Some(PendingPublication {
+            prepared: prepared.clone(),
+            admission: None,
+            failure: None,
+        });
+        let result = self
+            .refresh_attempt(
+                core,
+                &authority,
+                &lease,
+                &cancellation,
+                &mut clock,
+                (prepared, review_preflight),
+            )
+            .await;
+        // Definite source-failure receipts survive cleanup contention. The exact
+        // handles remain in this runtime for the next explicit same-source call.
+        let _ = self.dispose_pending(core);
+        result
+    }
+    async fn refresh_attempt<C: FnMut() -> String>(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        authority: &Arc<NetworkAuthority>,
+        lease: &Arc<OriginalNetworkLease>,
+        cancellation: &CancellationToken,
+        clock: &mut C,
+        (prepared, review_preflight): (Arc<PreparedPublication>, bool),
+    ) -> Result<RefreshResult> {
+        let config = self.settings.transport();
         let baseline = prepared.baseline();
-        if !Arc::ptr_eq(prepared.lease(), &lease)
+        if !Arc::ptr_eq(prepared.lease(), lease)
             || baseline.cache_epoch > 9_007_199_254_740_991
             || !baseline.homebox_entities.is_empty()
         {
@@ -170,14 +275,12 @@ impl HostNetworkRuntime {
         }
         // Exact PR36 ordering: quarantine blocks retained loading, transport
         // construction, credentials and sidecar stage. Native CAS stays closed.
-        if baseline.cache.as_ref().is_some_and(|cache| {
-            cache.status == n::CacheStatus::AccessRevoked
-                || cache.error.as_ref().is_some_and(|e| {
-                    matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
-                })
-        }) {
+        if !lease.is_revalidation()
+            && (prepared.read_hold().is_held()
+                || baseline.cache.as_ref().is_some_and(cache_quarantined))
+        {
             return Err(n::NetworkPublicationError::Storage(s::Error::new(
-                "guard-conflict",
+                "access-revoked",
                 "Network cache is quarantined",
             )));
         }
@@ -185,68 +288,102 @@ impl HostNetworkRuntime {
             .cache
             .clone()
             .unwrap_or_else(|| n::RetainedState::empty(self.settings.source().scope.clone()).cache);
-        let prior = self.retained(&cache, &baseline.network_relations)?;
-        cancelled(&cancellation)?;
-        authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
-        // Obtain the original Store fence and Native admission before transport.
-        // Store is locked before the canonical Network catalog owner. Producer
-        // and transport construction are also deferred until this succeeds.
-        // Retire before archive admission: contention here owns no reservation.
+        let prior = self.retained_for_publication(&cache, &baseline.network_relations)?;
+        cancelled(cancellation)?;
+        authority.revalidate_inventory(lease, self.settings.source(), config.reviewed_origin())?;
         // Retire previous health before a new attempt; failed reads remain unknown.
         if self.settings.collector_measurements() {
             *self.collector.try_lock().map_err(|_| unavailable())? = None;
         }
-        let reservation = with_store(core, &lease.access, |store| {
+        let transport = n::HttpInventoryTransport::new(
+            config.clone(),
+            authority.clone(),
+            Arc::new(lease.clone()),
+            cancellation.clone(),
+        )?;
+        let mut provider = self.settings.provider()?;
+        if review_preflight {
+            // The discarded preflight proposal grants no publication authority;
+            // final GET and guarded revision checks remain after admission.
+            let preflight = provider
+                .prepare_refresh(
+                    &prior,
+                    baseline.cache_epoch,
+                    prepared.reserved_generation_id(),
+                    &transport,
+                    &mut *clock,
+                )
+                .await?;
+            prepared.observe(&preflight);
+            cancelled(cancellation)?;
+            authority.revalidate_inventory(
+                lease,
+                self.settings.source(),
+                config.reviewed_origin(),
+            )?;
+            match preflight {
+                n::RefreshOutcome::NeedsReview {
+                    reviewed_revision,
+                    collector_revision,
+                } => {
+                    return Ok(RefreshResult::NeedsReview {
+                        reviewed_revision,
+                        collector_revision,
+                    });
+                }
+                n::RefreshOutcome::Failed(failure) => {
+                    return self
+                        .record_failure(core, *failure)
+                        .map(RefreshResult::SourceFailure);
+                }
+                n::RefreshOutcome::Complete(_) => (),
+            }
+        }
+        with_store(core, &lease.access, |store| {
             let mut references = n::NetworkCacheReferences::new(
                 &self.sidecar,
                 self.settings.source(),
                 self.settings.review(),
                 config.limits(),
             );
-            prepared.admit_before_transport(store, &mut references)
+            let mut pending = self
+                .pending
+                .lock()
+                .map_err(|_| s::Error::new("guard-conflict", "Network candidate unavailable"))?;
+            let pending = pending
+                .as_mut()
+                .ok_or_else(|| s::Error::new("guard-conflict", "Network candidate unavailable"))?;
+            prepared.admit_before_transport(store, &mut references, &mut pending.admission)
         })?;
-        let transport = match n::HttpInventoryTransport::new(
-            config.clone(),
-            authority.clone(),
-            Arc::new(lease.clone()),
-            cancellation.clone(),
-        ) {
-            Ok(transport) => transport,
-            Err(error) => {
-                self.cancel_archive_reservation(reservation)?;
-                return Err(error.into());
-            }
-        };
-        let mut provider = match self.settings.provider() {
-            Ok(provider) => provider,
-            Err(error) => {
-                self.cancel_archive_reservation(reservation)?;
-                return Err(error.into());
-            }
-        };
         let fetched = provider
             .prepare_refresh(
                 &prior,
                 baseline.cache_epoch,
                 prepared.reserved_generation_id(),
                 &transport,
-                &mut clock,
+                &mut *clock,
             )
             .await;
         let outcome = match fetched {
             Ok(outcome) => outcome,
             Err(error) => {
-                self.cancel_archive_reservation(reservation)?;
                 return Err(error.into());
             }
         };
-        if let Err(error) = cancelled(&cancellation).and_then(|_| {
-            authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())
+        prepared.observe(&outcome);
+        if let Err(error) = cancelled(cancellation).and_then(|_| {
+            authority.revalidate_inventory(lease, self.settings.source(), config.reviewed_origin())
         }) {
-            self.cancel_archive_reservation(reservation)?;
             return Err(error.into());
         }
         let result = match outcome {
+            n::RefreshOutcome::NeedsReview {
+                reviewed_revision,
+                collector_revision,
+            } => RefreshResult::NeedsReview {
+                reviewed_revision,
+                collector_revision,
+            },
             n::RefreshOutcome::Complete(proposal) => {
                 // A source-scope DTO or offline response cannot stand in for
                 // the original concrete client's verified origin custody.
@@ -254,19 +391,21 @@ impl HostNetworkRuntime {
                     .original_capture()
                     .is_from_reviewed_origin(config.reviewed_origin())
                 {
-                    self.cancel_archive_reservation(reservation)?;
                     return Err(wrong_scope().into());
                 }
                 let generation = proposal.state().generation.as_ref();
                 let Some(generation) = generation else {
-                    self.cancel_archive_reservation(reservation)?;
                     return Err(wrong_scope().into());
                 };
+                let source_revision = generation.source_revision;
+                let unchanged = prior
+                    .generation
+                    .as_ref()
+                    .is_some_and(|p| p.source_revision == source_revision);
                 if let Err(error) = authority
-                    .authorize_generation(&lease, self.settings.source(), generation)
-                    .and_then(|_| cancelled(&cancellation))
+                    .authorize_generation(lease, self.settings.source(), generation)
+                    .and_then(|_| cancelled(cancellation))
                 {
-                    self.cancel_archive_reservation(reservation)?;
                     return Err(error.into());
                 }
                 let collector = if self.settings.collector_measurements() {
@@ -274,7 +413,7 @@ impl HostNetworkRuntime {
                         &transport,
                         generation,
                         config.limits().max_response_bytes,
-                        &mut clock,
+                        &mut *clock,
                     )
                     .await
                 } else {
@@ -283,14 +422,13 @@ impl HostNetworkRuntime {
                 if self.settings.collector_measurements() {
                     // Auxiliary failures become unknown, but request cancellation and
                     // original authority still fence entry into durable staging.
-                    if let Err(error) = cancelled(&cancellation).and_then(|_| {
+                    if let Err(error) = cancelled(cancellation).and_then(|_| {
                         authority.revalidate_inventory(
-                            &lease,
+                            lease,
                             self.settings.source(),
                             config.reviewed_origin(),
                         )
                     }) {
-                        self.cancel_archive_reservation(reservation)?;
                         return Err(error.into());
                     }
                 }
@@ -310,15 +448,33 @@ impl HostNetworkRuntime {
                     match self.collector.try_lock() {
                         Ok(slot) => Some(slot),
                         Err(_) => {
-                            self.cancel_archive_reservation(reservation)?;
                             return Err(unavailable().into());
                         }
                     }
                 } else {
                     None
                 };
+                drop(prepared);
                 let published = with_core_store(core, &lease.access, |store| {
                     let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
+                    // Only transfer custody after BOTH lock acquisitions, at
+                    // the first possibly durable stage. Earlier contention
+                    // leaves the exact pair in the canonical runtime.
+                    let mut slot = self.pending.lock().map_err(|_| unavailable())?;
+                    let pending = slot.take().ok_or_else(unavailable)?;
+                    let prepared = match Arc::try_unwrap(pending.prepared) {
+                        Ok(prepared) => prepared,
+                        Err(prepared) => {
+                            *slot = Some(PendingPublication {
+                                prepared,
+                                admission: pending.admission,
+                                failure: pending.failure,
+                            });
+                            return Err(unavailable().into());
+                        }
+                    };
+                    let reservation = pending.admission.ok_or_else(unavailable)?;
+                    drop(slot);
                     let projected = n::stage_complete_generation(
                         self.settings.source(),
                         *proposal,
@@ -339,7 +495,7 @@ impl HostNetworkRuntime {
                     // despite late request cancellation. Original authority and
                     // native precommit checks remain; their errors propagate.
                     authority.revalidate_inventory(
-                        &lease,
+                        lease,
                         self.settings.source(),
                         config.reviewed_origin(),
                     )?;
@@ -356,19 +512,15 @@ impl HostNetworkRuntime {
                 if let Some(slot) = collector_slot.as_mut() {
                     **slot = Some(Arc::new((generation_id, collector)));
                 }
-                RefreshResult::Published(published)
+                RefreshResult::Published {
+                    cache: published,
+                    source_revision,
+                    unchanged,
+                }
             }
             n::RefreshOutcome::Failed(failure) => {
-                self.cancel_archive_reservation(reservation)?;
-                cancelled(&cancellation)?;
-                authority.revalidate_inventory(
-                    &lease,
-                    self.settings.source(),
-                    config.reviewed_origin(),
-                )?;
-                RefreshResult::SourceFailure(with_store(core, &lease.access, |store| {
-                    prepared.failure(store, &failure)
-                })?)
+                // Record the original authorized CAS before independent cleanup.
+                RefreshResult::SourceFailure(self.record_failure(core, *failure)?)
             }
         };
         // Native Store checked the original authorizer immediately before COMMIT.
@@ -376,24 +528,135 @@ impl HostNetworkRuntime {
         // cancellation fails; disclosure still requires its own original grants.
         Ok(result)
     }
-    fn cancel_archive_reservation(&self, reservation: n::NetworkArchiveReservation) -> Result<()> {
+    fn record_failure(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        failure: n::RefreshFailure,
+    ) -> Result<s::CacheStatus> {
+        // Caller-authority refusal is not an observed collector failure and
+        // cannot quarantine the source under a later valid callback.
+        if !failure.source_refusal
+            && matches!(
+                failure.error.code,
+                n::ErrorCode::Auth | n::ErrorCode::WrongScope
+            )
+        {
+            return Err(failure.error.into());
+        }
+        let mut slot = self.pending.lock().map_err(|_| unavailable())?;
+        let pending = slot.as_mut().ok_or_else(unavailable)?;
+        pending.failure = Some(failure);
+        // A definite CAS receipt or terminal rejection retires the old write;
+        // contention retains its original grant/time. Never replay a commit.
+        let cache = with_store(core, &pending.prepared.lease().access, |store| {
+            pending
+                .prepared
+                .failure(store, pending.failure.as_ref().unwrap())
+        });
+        if cache.is_ok() || cache.as_ref().is_err_and(terminal_failure_record) {
+            pending.failure = None;
+        }
+        cache
+    }
+    fn dispose_pending(&self, core: &Arc<Mutex<Core>>) -> Result<()> {
+        let mut slot = self.pending.lock().map_err(|_| unavailable())?;
+        let Some(pending) = slot.as_mut() else {
+            return Ok(());
+        };
+        let access = pending.prepared.lease().access.clone();
+        if let Some(failure) = pending.failure.as_ref() {
+            // Core contention may have prevented the original transaction.
+            // Retain its original grant/time; a different caller cannot replace it.
+            match with_store(core, &access, |store| {
+                pending.prepared.failure(store, failure)
+            }) {
+                Ok(_) => pending.failure = None,
+                Err(error) if terminal_failure_record(&error) => pending.failure = None,
+                Err(error) => return Err(error),
+            }
+        }
+
+        with_store(core, &access, |store| {
+            let pending = slot.take().unwrap();
+            let prepared = match Arc::try_unwrap(pending.prepared) {
+                Ok(prepared) => prepared,
+                Err(prepared) => {
+                    *slot = Some(PendingPublication {
+                        prepared,
+                        admission: pending.admission,
+                        failure: None,
+                    });
+                    return Err(s::Error::new(
+                        "guard-conflict",
+                        "Network candidate still borrowed",
+                    ));
+                }
+            };
+            let mut references = n::NetworkCacheReferences::new(
+                &self.sidecar,
+                self.settings.source(),
+                self.settings.review(),
+                self.settings.transport().limits(),
+            );
+            prepared
+                .abandon(store, pending.admission, &mut references)
+                .map_err(|rejected| {
+                    let (error, prepared, admission) = *rejected;
+                    *slot = Some(PendingPublication {
+                        prepared: Arc::new(prepared),
+                        admission,
+                        failure: None,
+                    });
+                    error
+                })
+        })
+    }
+    /// A failed old write can be retired, but its Store-owned auth hold remains.
+    pub(crate) fn cache_reads_held(&self) -> bool {
+        self.read_hold.lock().map_or(true, |hold| {
+            hold.as_ref().is_some_and(s::CacheReadHold::is_held)
+        })
+    }
+    #[cfg(test)]
+    pub(crate) fn with_test_sidecar_lock<T>(&self, operation: impl FnOnce() -> T) -> T {
+        let _guard = self.sidecar.lock().unwrap();
+        operation()
+    }
+    #[cfg(test)]
+    pub(crate) fn test_archive_custody(&self) -> n::NetworkArchiveCustodySnapshot {
         self.sidecar
-            .try_lock()
-            .map_err(|_| unavailable())?
-            .cancel_original_capture(reservation)
-            .map_err(Into::into)
+            .lock()
+            .unwrap()
+            .archive_custody_snapshot()
+            .unwrap()
     }
     fn retained(
         &self,
         cache: &n::CacheMetadata,
         relations: &[n::NetworkRelation],
     ) -> std::result::Result<n::RetainedState, n::NetworkError> {
-        let state = if cache.status == n::CacheStatus::AccessRevoked {
-            n::RetainedState {
+        if cache.status == n::CacheStatus::AccessRevoked {
+            let retained = n::RetainedState {
                 cache: cache.clone(),
                 generation: None,
-            }
-        } else if let Some(id) = &cache.generation_id {
+            };
+            n::validate_state(
+                self.settings.source(),
+                &retained,
+                Some(self.settings.review()),
+            )?;
+            return Ok(retained);
+        }
+        self.retained_for_publication(cache, relations)
+    }
+    // Publication may inspect quarantined original bytes without disclosing them.
+    // Recovery still enforces monotonic revisions and same-revision identity.
+    fn retained_for_publication(
+        &self,
+        cache: &n::CacheMetadata,
+        relations: &[n::NetworkRelation],
+    ) -> std::result::Result<n::RetainedState, n::NetworkError> {
+        let state = if let Some(id) = &cache.generation_id {
             let sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
             let original = sidecar.reopen_original_capture(self.settings.source(), id)?;
             if !original.is_from_reviewed_origin(self.settings.transport().reviewed_origin()) {
@@ -566,4 +829,19 @@ fn cancelled(token: &CancellationToken) -> std::result::Result<(), n::NetworkErr
     } else {
         Ok(())
     }
+}
+
+// Contention/I/O remain retryable. The original actor cannot ever commit an
+// expired/revoked grant or an obsolete CAS; retiring that write grants nobody
+// authority to replay it, and never clears its independently retained read hold.
+fn terminal_failure_record(error: &n::NetworkPublicationError<s::Error>) -> bool {
+    matches!(error, n::NetworkPublicationError::Storage(error)
+        if matches!(error.code, "unauthenticated" | "forbidden" | "not-found" | "guard-conflict"))
+}
+
+fn cache_quarantined(cache: &n::CacheMetadata) -> bool {
+    cache.status == n::CacheStatus::AccessRevoked
+        || cache.error.as_ref().is_some_and(|error| {
+            matches!(error.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+        })
 }

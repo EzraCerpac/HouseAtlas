@@ -106,6 +106,13 @@ fn source_snapshot_cut(
             &[],
         ) {
             Ok(before) => before,
+            // The original Store ReadCache guard has checked this partition's
+            // authority and refused its active read hold. The common snapshot
+            // cut withholds that partition; other bindings still qualify and
+            // retain their ordinary baseline/authority release checks.
+            Err(n::NetworkPublicationError::Storage(error)) if error.code == "access-revoked" => {
+                continue;
+            }
             Err(n::NetworkPublicationError::Network(error))
                 if matches!(
                     error.code,

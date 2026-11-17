@@ -387,6 +387,47 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
         super::StagedNetworkPublication<super::NetworkStagingReceipt<DurableNetworkReceipt>>;
     type Admission = super::NetworkArchiveReservation;
 
+    fn cancel_proven_pre_stage(
+        &mut self,
+        registration: &crate::storage::SourceRegistration,
+        generation_id: &str,
+        admission: Option<&Self::Admission>,
+    ) -> crate::storage::Result<()> {
+        if registration != &storage_registration(self.source)? {
+            return Err(storage_network_conflict());
+        }
+        self.sidecar.check_owner().map_err(storage_network_error)?;
+        let key = super::partition_key(&self.source.scope).map_err(storage_network_error)?;
+        if self
+            .sidecar
+            .protected_projected_rows()
+            .map_err(storage_network_error)?
+            .iter()
+            .any(|row| row.partition_key == key && row.generation_id == generation_id)
+        {
+            return Err(storage_network_conflict());
+        }
+        // Complete archive census also rejects orphan/partial segment bytes.
+        let refs = self
+            .sidecar
+            .protected_archive_references()
+            .map_err(storage_network_error)?;
+        match admission {
+            Some(token) => self
+                .sidecar
+                .archive
+                .cancel_proven_pre_stage(self.source, generation_id, token)
+                .map_err(storage_network_error),
+            None if !refs
+                .iter()
+                .any(|r| r.partition_key == key && r.generation_id == generation_id) =>
+            {
+                Ok(())
+            }
+            None => Err(storage_network_conflict()),
+        }
+    }
+
     fn reclamation_coverage(&self) -> crate::storage::CacheReferenceCoverage {
         // Persisted rows/catalog are complete, but live disclosure leases and
         // external recovery custody have no actual owner registry here yet.
@@ -459,7 +500,8 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
             let registration = storage_registration(source)?;
             let reason = match reference.state {
                 super::archive::NetworkArchiveReferenceState::PermanentlyReserved => {
-                    crate::storage::CacheProtectionReason::StagedOrAmbiguous
+                    // Identifier history alone is never a payload reference.
+                    crate::storage::CacheProtectionReason::History
                 }
                 super::archive::NetworkArchiveReferenceState::CapacityReserved => {
                     crate::storage::CacheProtectionReason::InFlightOrAmbiguous
@@ -552,13 +594,20 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
             .sidecar
             .protected_archive_references()
             .map_err(storage_network_error)?;
-        // Do not let a projected-only or otherwise untracked Network pointer
-        // disappear from capacity accounting. Every Network Store pin must map
-        // to an immutable/reserved catalog generation with its exact digest.
-        for pin in protected
-            .iter()
-            .filter(|p| p.registration().owner == crate::storage::SourceOwner::Network)
-        {
+        // Store enumerates every partition, while this original archive owns
+        // only its configured partitions. Reconcile all references IN that
+        // domain, including conflicting full registrations; another archive's
+        // retained generations are not missing rows in this one.
+        for pin in protected.iter().filter(|pin| {
+            let registration = pin.registration();
+            registration.owner == crate::storage::SourceOwner::Network
+                && self.sidecar.sources.iter().any(|source| {
+                    source.scope.workspace_id == registration.workspace_id
+                        && source.scope.home_id == registration.home_id
+                        && source.scope.source_instance_id == registration.source_instance_id
+                        && source.scope.collection_id == registration.collection_id
+                })
+        }) {
             let source = self
                 .sidecar
                 .sources
@@ -580,6 +629,13 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
                 continue;
             }
             let found = found.ok_or_else(storage_network_conflict)?;
+            if found.state == super::archive::NetworkArchiveReferenceState::PermanentlyReserved
+                && pin.origin() == crate::storage::CacheProtectionOrigin::OriginalOwner
+                && pin.reason() == crate::storage::CacheProtectionReason::History
+                && pin.native_sha256().is_none()
+            {
+                continue;
+            }
             if pin
                 .native_sha256()
                 .is_some_and(|digest| found.body_sha256.as_deref() != Some(digest))

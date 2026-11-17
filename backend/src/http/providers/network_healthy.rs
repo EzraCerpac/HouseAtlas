@@ -80,11 +80,30 @@ struct Fixture {
     csrf: String,
     peer: Arc<FakePeer>,
     holder: Arc<Holder>,
+    inventory: Option<Arc<refresh::InventoryPeer>>,
 }
 async fn fixture() -> Result<Fixture> {
     fixture_with_source(true).await
 }
 async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
+    fixture_options(register_source, false, true).await
+}
+#[derive(Default)]
+struct FixtureSetup {
+    second_partition: bool,
+    revalidation: bool,
+    second_editor: bool,
+    clock: Option<Arc<std::sync::atomic::AtomicI64>>,
+}
+async fn fixture_options(register_source: bool, refresh: bool, seed: bool) -> Result<Fixture> {
+    fixture_setup(register_source, refresh, seed, FixtureSetup::default()).await
+}
+async fn fixture_setup(
+    register_source: bool,
+    refresh: bool,
+    seed: bool,
+    setup: FixtureSetup,
+) -> Result<Fixture> {
     let temporary = tempfile::Builder::new()
         .permissions(fs::Permissions::from_mode(0o700))
         .tempdir()?;
@@ -93,7 +112,13 @@ async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
     let registration: s::SourceRegistration = serde_json::from_value(
         json!({"workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(12),"collectionId":"inventory","owner":"network","partitionMode":"exclusive-home","allowedExternalIds":[]}),
     )?;
-    let registry = ProviderRegistry::from_trusted_configuration(vec![registration.clone()])?;
+    let mut registrations = vec![registration.clone()];
+    if setup.second_partition {
+        let mut second = registration.clone();
+        second.source_instance_id = id(13);
+        registrations.push(second);
+    }
+    let registry = ProviderRegistry::from_trusted_configuration(registrations.clone())?;
     let settings = NetworkSettings::new(
         registry.sources()[0].clone(),
         "http://127.0.0.1:42001",
@@ -136,26 +161,75 @@ async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
         .as_ref()
         .ok_or("Missing synthetic generation")?;
     let refs = n::host_runtime::generation_references(settings.source(), generation)?;
-    let mut sidecar = settings.open_sidecar()?;
-    let reservation = sidecar.reserve_original_capture(
-        settings.source(),
-        settings.review(),
-        &id(90),
-        n::Limits::default(),
-    )?;
-    let projected = sidecar.stage(
-        settings.source(),
-        &n::stage_row(settings.source(), &proposal)?,
-    )?;
-    sidecar.stage_original_capture(reservation, &proposal, &projected)?;
-    sidecar.close()?;
-    let snapshot: s::Snapshot = serde_json::from_value(
+    if seed {
+        let mut sidecar = settings.open_sidecar()?;
+        let reservation = sidecar.reserve_original_capture(
+            settings.source(),
+            settings.review(),
+            &id(90),
+            n::Limits::default(),
+        )?;
+        let projected = sidecar.stage(
+            settings.source(),
+            &n::stage_row(settings.source(), &proposal)?,
+        )?;
+        sidecar.stage_original_capture(reservation, &proposal, &projected)?;
+        sidecar.close()?;
+    }
+    let mut snapshot: s::Snapshot = serde_json::from_value(
         json!({"contractVersion":s::CONTRACT_VERSION,"synthetic":true,"sources":[registration],"records":[],
         "homeboxEntities":[],"caches":[state.cache],"networkRelations":generation.network_relations}),
     )?;
+    if !seed {
+        snapshot.sources.clear();
+        snapshot.caches.clear();
+        snapshot.network_relations.clear();
+    }
+    let mut rules = Vec::new();
+    if refresh {
+        let mut capabilities = vec![
+            a::LifecycleCapability::ConfigureSource,
+            a::LifecycleCapability::PublishCache,
+        ];
+        if setup.revalidation {
+            capabilities.push(a::LifecycleCapability::RevalidateSource);
+        }
+        for registration in &registrations {
+            for capability in &capabilities {
+                rules.push(a::LifecycleRule::new(
+                    a::CanonicalId::parse(&id(4))?,
+                    a::CanonicalId::parse(&id(5))?,
+                    serde_json::from_value(serde_json::to_value(registration)?)?,
+                    *capability,
+                    a::Action::Mutate,
+                )?);
+            }
+        }
+    }
+    if setup.second_editor {
+        for registration in &registrations {
+            for capability in [
+                a::LifecycleCapability::ConfigureSource,
+                a::LifecycleCapability::PublishCache,
+            ] {
+                rules.push(a::LifecycleRule::new(
+                    a::CanonicalId::parse(&id(8))?,
+                    a::CanonicalId::parse(&id(9))?,
+                    serde_json::from_value(serde_json::to_value(registration)?)?,
+                    capability,
+                    a::Action::Mutate,
+                )?);
+            }
+        }
+    }
+    let mut access_config = a::AccessConfig::new(vec![ORIGIN.into()])?
+        .with_lifecycle_policy(a::LifecyclePolicy::from_trusted_configuration(rules));
+    if let Some(clock) = setup.clock {
+        access_config = access_config.with_clock(move || clock.load(Ordering::SeqCst));
+    }
     let access = Arc::new(Mutex::new(a::AccessBoundary::open(
         root.join("access.sqlite"),
-        a::AccessConfig::new(vec![ORIGIN.into()])?,
+        access_config,
     )?));
     let access_scope = a::Scope {
         workspace_id: a::CanonicalId::parse(&id(1))?,
@@ -216,13 +290,28 @@ async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
         atlas_list_pages: Default::default(),
         media_policy_evidence: Mutex::default(),
     };
-    let mut binding = NetworkBinding::from_trusted_configuration(
-        &core,
-        settings.for_existing_cached_storage(),
-        refs,
-    )?;
-
     let peer = Arc::new(FakePeer::default());
+    let second_wire = wire.clone();
+    let inventory = refresh.then(|| {
+        Arc::new(refresh::InventoryPeer::new(
+            settings.transport(),
+            peer.clone(),
+            wire,
+        ))
+    });
+    let settings = if let Some(peer) = &inventory {
+        settings.with_test_peer(peer.clone())
+    } else {
+        settings.for_existing_cached_storage()
+    };
+    let mut binding = NetworkBinding::from_trusted_configuration(&core, settings, refs)?;
+
+    if refresh {
+        binding.refresh_editors = vec![a::CanonicalId::parse(&id(5))?];
+        if setup.second_editor {
+            binding.refresh_editors.push(a::CanonicalId::parse(&id(9))?);
+        }
+    }
     let holder = Arc::new(Holder::default());
     holder
         .poll(peer.as_ref(), &|| crate::app::now().unwrap())
@@ -233,8 +322,53 @@ async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
     if register_source {
         access.lock().unwrap().put_source(&native, Some(true))?;
     }
+    let mut bindings = vec![binding];
+    if setup.second_partition {
+        let settings = NetworkSettings::new(
+            registry.sources()[1].clone(),
+            "http://127.0.0.1:42002",
+            serde_json::from_str(include_str!(
+                "../../../../adapters/network/fixtures/link-review.json"
+            ))?,
+            n::Limits::default(),
+            2000,
+            2000,
+            60000,
+            &root,
+        )?
+        .with_collector_measurements(true)?;
+        let generation = n::project_capture(
+            settings.source(),
+            n::NetworkCapture {
+                source: &settings.source().scope,
+                document: &serde_json::to_vec(&second_wire)?,
+                retrieved_at: &now,
+                source_snapshot_at: None,
+            },
+            settings.review(),
+            n::Limits::default(),
+        )?;
+        let refs = n::host_runtime::generation_references(settings.source(), &generation)?;
+        let inventory = Arc::new(refresh::InventoryPeer::new(
+            settings.transport(),
+            peer.clone(),
+            second_wire,
+        ));
+        let mut binding = NetworkBinding::from_trusted_configuration(
+            &core,
+            settings.with_test_peer(inventory),
+            refs,
+        )?;
+        binding.refresh_editors = vec![a::CanonicalId::parse(&id(5))?];
+        if setup.second_editor {
+            binding.refresh_editors.push(a::CanonicalId::parse(&id(9))?);
+        }
+        binding.observations = Some(holder.clone());
+        binding.collector_peer = Some(peer.clone());
+        bindings.push(binding);
+    }
     let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
-        .with_network_bindings(vec![binding])?;
+        .with_network_bindings(bindings)?;
     Ok(Fixture {
         _root: temporary,
         host,
@@ -242,8 +376,12 @@ async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
         csrf,
         peer,
         holder,
+        inventory,
     })
 }
+
+#[path = "network_refresh_healthy.rs"]
+mod refresh;
 async fn request(
     f: &Fixture,
     post: bool,

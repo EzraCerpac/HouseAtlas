@@ -171,6 +171,33 @@ where
             .map_err(|rejected| rejected.into_parts().0)?;
         Ok(published.cache().clone())
     }
+    pub(crate) fn publish_revalidated_staged_generation<L>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        staged: StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        lease: &L,
+        references: &mut impl storage::OriginalCacheReferences<
+            Staged = StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        >,
+        hold: storage::CacheReadHold,
+    ) -> storage::Result<storage::CacheStatus>
+    where
+        L: NativeNetworkLease<B>,
+        B: storage::CacheReadRecoveryAuthorization,
+    {
+        let published = self
+            .store
+            .publish_revalidated_staged_generation(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                staged,
+                references,
+                hold,
+            )
+            .map_err(|rejected| rejected.into_parts().0)?;
+        Ok(published.cache().clone())
+    }
     pub fn record_prepared_cache_failure<L: NativeNetworkLease<B>>(
         &mut self,
         fence: storage::CachePublicationFence,
@@ -209,6 +236,23 @@ where
     ) -> storage::Result<storage::CacheStatus> {
         let (fence, code, lease, attempted_at) = pending_input(pending)?;
         self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
+    }
+    pub(crate) fn record_prepared_cache_failure_at_borrowed<L: NativeNetworkLease<B>>(
+        &mut self,
+        fence: &storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(fence, code)?;
+        self.store
+            .record_prepared_cache_failure_at_borrowed_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                &failure,
+                attempted_at,
+            )
     }
 }
 impl<C, A, R, B, L> NetworkCachePublisher<L> for BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>

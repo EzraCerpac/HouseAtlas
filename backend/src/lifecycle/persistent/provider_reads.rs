@@ -1,5 +1,5 @@
 //! Explicit cached-provider startup selection. Startup performs no enrollment,
-//! grant or refresh; schema 2 may select an owner-only HomeBox credential file,
+//! grant or refresh; schema 2 may name Network refresh Editors or select an owner-only HomeBox credential file,
 //! the Editors approved to request one explicit refresh and, separately, whether
 //! those Editors may recheck a quarantined source.
 use super::{Failure, ServerLease};
@@ -114,6 +114,30 @@ impl ProviderReadSelection {
                 }
             }
         }
+        for value in &packet.network_cached {
+            let registration: a::SourceRegistration =
+                serde_json::from_value(serde_json::to_value(&value.registration)?)?;
+            for editor in &value.refresh_editors {
+                for capability in [
+                    a::LifecycleCapability::ConfigureSource,
+                    a::LifecycleCapability::PublishCache,
+                ]
+                .into_iter()
+                .chain(
+                    value
+                        .revalidate_source
+                        .then_some(a::LifecycleCapability::RevalidateSource),
+                ) {
+                    rules.push(a::LifecycleRule::new(
+                        editor.user_id.clone(),
+                        editor.actor_id.clone(),
+                        registration.clone(),
+                        capability,
+                        a::Action::Mutate,
+                    )?);
+                }
+            }
+        }
         Ok(a::LifecyclePolicy::from_trusted_configuration(rules))
     }
     fn capture(&self, config: &ServerConfig) -> Result<Packet, Failure> {
@@ -208,6 +232,11 @@ impl HomeBoxLimits {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Network {
     #[serde(default)]
+    refresh_editors: Vec<RefreshEditor>,
+    /// Separate schema-2 owner approval for explicit source revalidation.
+    #[serde(default)]
+    revalidate_source: bool,
+    #[serde(default)]
     collector_measurements: bool,
     #[serde(default, deserialize_with = "n::present")]
     collector_interval_seconds: Option<u64>,
@@ -225,11 +254,19 @@ struct Network {
 }
 impl Packet {
     fn validate(&self, config: &ServerConfig) -> Result<(), Failure> {
-        let extended = self.homebox_cached.iter().any(|v| {
-            v.credential_file.is_some() || v.refresh_editors.is_some() || v.revalidate_source
-        });
+        let extended = self
+            .network_cached
+            .iter()
+            .any(|v| !v.refresh_editors.is_empty() || v.revalidate_source)
+            || self.homebox_cached.iter().any(|v| {
+                v.credential_file.is_some() || v.refresh_editors.is_some() || v.revalidate_source
+            });
         if !matches!(self.schema_version, 1 | 2)
             || (self.schema_version == 1 && extended)
+            || self.network_cached.iter().any(|v| {
+                v.refresh_editors.len() > MAX_REFRESH_EDITORS
+                    || (v.revalidate_source && v.refresh_editors.is_empty())
+            })
             || self.homebox_cached.iter().any(|v| {
                 v.credential_file
                     .as_deref()
@@ -395,19 +432,24 @@ impl ProviderReadMounts {
                 value.stale_after_ms,
                 &value.private_directory,
             )?
-            .with_collector_measurements(value.collector_measurements)?
-            .for_existing_cached_storage();
+            .with_collector_measurements(value.collector_measurements)?;
+            if value.refresh_editors.is_empty() {
+                settings = settings.for_existing_cached_storage();
+            }
             if let Some(seconds) = value.collector_interval_seconds {
                 settings = settings.with_collector_interval_seconds(seconds)?;
             }
             if let Some(ports) = value.collector_action_ports {
                 settings = settings.with_collector_action_ports(ports)?;
             }
-            network.push(NetworkBinding::from_trusted_configuration(
-                core,
-                settings,
-                value.entities,
-            )?);
+            let mut binding =
+                NetworkBinding::from_trusted_configuration(core, settings, value.entities)?;
+            binding.refresh_editors = value
+                .refresh_editors
+                .iter()
+                .map(|e| e.actor_id.clone())
+                .collect();
+            network.push(binding);
         }
         Ok(Self {
             original: Some((core.access.clone(), core.store.clone())),

@@ -102,6 +102,7 @@ pub struct Host {
     pinned_homebox_capture_requests: Arc<Mutex<homebox_pinned_files::CaptureRequests>>,
     homebox_refresh_bindings: Arc<Vec<providers::homebox_refresh::HomeBoxRefreshBinding>>,
     homebox_refresh_running: Arc<std::sync::atomic::AtomicBool>,
+    network_refresh_running: Arc<std::sync::atomic::AtomicBool>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     network_action_gate: Arc<providers::network::ActionGate>,
     atlas_download_handles: d::stock::AtlasDownloadHandles,
@@ -360,6 +361,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/results", get(providers::network::results).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/actions", post(providers::network::action).fallback(auth::session_head))
+        .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/refresh", post(providers::network_refresh::refresh).fallback(auth::session_head))
         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))

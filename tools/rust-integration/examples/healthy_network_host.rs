@@ -310,7 +310,7 @@ async fn main() -> Result<(), Failure> {
         )
         .await;
     let cache = match outcome {
-        Ok(RefreshResult::Published(cache)) => cache,
+        Ok(RefreshResult::Published { cache, .. }) => cache,
         Ok(RefreshResult::SourceFailure(cache)) => {
             return Err(format!(
                 "Healthy fixture returned sanitized source failure: {:?}",
@@ -319,6 +319,7 @@ async fn main() -> Result<(), Failure> {
             .into());
         }
         Ok(RefreshResult::AlreadyRunning) => return Err("Unexpected in-progress result".into()),
+        Ok(RefreshResult::NeedsReview { .. }) => return Err("Unexpected review mismatch".into()),
         Err(n::NetworkPublicationError::Network(e)) => return Err(e.into()),
         Err(n::NetworkPublicationError::Storage(e)) => return Err(e.into()),
     };

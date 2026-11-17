@@ -87,9 +87,9 @@ fn binding_error() -> s::Error {
 }
 
 /// At most one refresh runs in this process; a second request is answered.
-struct Running<'a>(&'a AtomicBool);
+pub(super) struct Running<'a>(&'a AtomicBool);
 impl<'a> Running<'a> {
-    fn acquire(flag: &'a AtomicBool) -> Option<Self> {
+    pub(super) fn acquire(flag: &'a AtomicBool) -> Option<Self> {
         flag.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .ok()
             .map(|_| Self(flag))

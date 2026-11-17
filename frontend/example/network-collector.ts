@@ -18,6 +18,7 @@ const RUNS: readonly SpeedResult[] = Array.from({ length: 30 }, (_, i) => i).fil
     uploadBitsPerSecond: Math.round((41 + 3 * Math.cos(i / 4)) * 1e6), latencyMs: 11 + (i % 4), reason: null });
 const RESULTS: CollectorResults = {
   status: 'available', retrievedAt: '2026-01-02T09:01:00Z', inventoryRevision: 3, servedInventoryRevision: 3, measurementReason: null,
+  mayRefresh: false, reviewedInventoryRevision: 3, needsReview: false,
   results: { version: 1, speed: { latest: RUNS[RUNS.length - 1]!, recent: RUNS },
     wifi: { latest: { state: 'unavailable', recordedAt: '2026-01-02T08:45:00Z', networks: null, reason: 'no-dependable-unprivileged-scanner' } }, actions: [] },
 };
