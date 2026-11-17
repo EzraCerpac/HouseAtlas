@@ -54,7 +54,21 @@ export interface NetworkPackagePlaceSelection {
   readonly targets: readonly { readonly packagePlaceKey: string; readonly packagePlaceUuid: string }[];
   readonly unresolvedLabels: readonly string[];
 }
+export type NetworkObservationValue = null | boolean | number | string | readonly NetworkObservationValue[] | { readonly [key:string]:NetworkObservationValue };
+export interface NetworkLiveFacts {
+  readonly status: 'available' | 'absent' | 'unknown' | 'stale';
+  readonly source: Readonly<{workspaceId:string;homeId:string;sourceInstanceId:string;collectionId:string;sourceKind:'network-device';externalId:string}>;
+  readonly addresses: readonly string[] | null;
+  /** Original source observations, never interpreted as current physical state. */
+  readonly observedState: readonly Readonly<{id:string;kind:string;value:NetworkObservationValue;factAt:string;sourceSnapshotAt:string|null;retrievedAt:string;vantage:string;invalidatedAt:string|null;freshness:'recent'|'stale'|'invalidated'}>[] | null;
+  readonly lastSeenAt: string | null;
+  readonly sourceSnapshotAt: string | null;
+  readonly retrievedAt: string | null;
+  readonly freshness: 'unknown' | 'recent' | 'stale' | 'invalidated';
+}
 export interface NetworkOverlayDevice {
+  /** Absent without an unambiguous independently reviewed server join. */
+  readonly liveFacts?: NetworkLiveFacts;
   readonly id: string;
   readonly label: string;
   readonly kind: string;
@@ -93,6 +107,8 @@ export interface NetworkOverlayEndpoint {
   readonly notes: string;
 }
 export interface NetworkOverlayData {
+  /** Absent on legacy documentary frames and saved copies. */
+  readonly schema?: 'houseatlas.network-overlay.v2';
   /** Fresh opaque owner identity; changed on session/scope/building/revision. */
   readonly viewKey: string;
   readonly source: NetworkOverlaySource;

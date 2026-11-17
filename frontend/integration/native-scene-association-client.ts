@@ -1,3 +1,4 @@
+import { decodeNetworkLiveFacts, type NetworkLiveFactsFrame } from './network-overlay-live-facts';
 import type { AtlasSessionInfo } from '../src/app/session';
 import type { ReadyView } from '../src/app/types';
 import type { StockAdmission } from '../src/app/StockApplication';
@@ -214,7 +215,7 @@ async function qualifyCurrentResponse(raw:LosslessJson,next:SceneAssociationCont
         return Object.freeze({ status: 'unavailable' as const,
           reason: output.reason as 'no-current-association' | 'current-source-unavailable' });
       }
-      row(raw, ['status','association']); need(output.status === 'available');
+      row(raw, output.networkLiveFacts === undefined ? ['status','association'] : ['status','association','networkLiveFacts']); need(output.status === 'available');
       // Root registers the exact closed Stock3 Atlas record root. The current
       // route returns a raw stored record, not a Stock atlasReceipt envelope.
       need(validator.validateNativeEvidenceShape('scene-association', output.association!));
@@ -260,17 +261,18 @@ async function qualifyCurrentResponse(raw:LosslessJson,next:SceneAssociationCont
         sceneAssetRevision: integer(primary.originalAssetRevision),
         acceptedRoomReceiptId: str(receipt.receiptId, 256), acceptedRoomReceiptSha256: sha(receipt.canonicalSha256),
         acceptedRoomAnchors, acceptedRoomMappings, sourceFloorBindings });
-  return Object.freeze({status:'available',recordId,revision,payload:record.payload!,selection});
+  return Object.freeze({status:'available',recordId,revision,payload:record.payload!,selection,
+    ...(output.networkLiveFacts === undefined ? {} : {networkLiveFacts:decodeNetworkLiveFacts(output.networkLiveFacts,selection.sceneOriginalSha256,selection.workspaceId,selection.homeId)})});
 }
 
 /** Source-only current read. The actual authenticated endpoint qualifies native
  * floor references; it does not require a displayed legacy geometry frame.
  * guard is the owning host's exact publication/session/current-attempt fence. */
 export async function readNativeOverlayAssociation(next:SceneAssociationContext,buildingId:string,viewKey:string,
-  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch):Promise<SceneAssociationRead> {
+  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch, liveFacts=false):Promise<SceneAssociationRead> {
   guard();need(UUID.test(buildingId)&&next.sessionIdentity&&Number.isFinite(Date.parse(next.session.expiresAt))&&Date.parse(next.session.expiresAt)>Date.now());
   return bounded(signal,async signal=>{
-    guard();const response=await transport(`/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/current`,
+    guard();const response=await transport(`/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/current${liveFacts ? '?networkLiveFacts=2' : ''}`,
       {method:'GET',headers:{Accept:'application/json'},signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'});
     let raw:LosslessJson;try{raw=await responseJson(response,signal);}catch(error){void response.body?.cancel().catch(()=>undefined);throw error;}
     guard();const result=await qualifyCurrentResponse(raw,next,buildingId,viewKey,null,createExactStockResultValidator());guard();return result;
@@ -330,6 +332,7 @@ export interface SceneAssociationCandidate {
   readonly guards: readonly JsonForSerialization[];
 }
 export interface SceneAssociationCurrent {
+  readonly networkLiveFacts?: NetworkLiveFactsFrame;
   readonly status: 'available'; readonly recordId: string; readonly revision: ExactDecimal;
   readonly payload: LosslessJson; readonly selection: NativeSceneSourceSelection;
 }

@@ -43,8 +43,7 @@ pub(in crate::http) async fn cached(
             workspace_id,
             home_id,
         };
-        let access_scope =
-            crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+        crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
         let collection = super::super::query::one_utf8(
             &uri,
             "collection",
@@ -54,72 +53,115 @@ pub(in crate::http) async fn cached(
         if collection.is_empty() || collection.chars().count() > 4096 {
             return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
         }
-        let core = host.core.lock().map_err(|_| unavailable())?;
-        let url = crate::http::auth::url(&host, &uri);
-        let request =
-            evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
-        // Fresh issuance is owned directly by the native disclosure. Never copy
-        // a RequestPrincipal into a second issuer or reconstruct its grants.
-        let principal = core
-            .access
-            .lock()
-            .map_err(|_| unavailable())?
-            .authorize(&request, &access_scope, a::Action::Read)
-            .map_err(access_error)?;
-        let binding = host
-            .network_bindings
-            .iter()
-            .find(|binding| {
-                let partition = binding.runtime().settings().configured_source().partition();
-                partition.workspace_id.as_str() == scope.workspace_id
-                    && partition.home_id.as_str() == scope.home_id
-                    && partition.source_instance_id.as_str() == source_instance_id
-                    && partition.collection_id == collection
-            })
-            .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
-        if !Arc::ptr_eq(binding.access().shared().as_existing(), &core.access) {
-            return Err(unavailable());
-        }
-        let partition = binding
-            .access()
-            .partition_grant(
-                &principal,
-                &binding.runtime().settings().configured_source().partition(),
-            )
-            .map_err(access_error)?;
-        let entities = binding
-            .entities()
-            .iter()
-            .map(|reference| binding.access().source_grant(&principal, reference))
-            .collect::<a::AccessResult<Vec<_>>>()
-            .map_err(access_error)?;
-        // Native read/disclose borrow the exact owning Core themselves. Retain
-        // the original grants, and release this earlier borrow before entry.
-        drop(core);
-        let now = ServerRuntime.now().map_err(|_| unavailable())?;
-        let (facet, original) = binding
-            .runtime()
-            .read(
-                &host.core,
-                binding.access().clone(),
-                principal,
-                partition,
-                entities,
-                &now,
-            )
-            .map_err(native_error)?;
-        let value = serde_json::to_value(&facet).map_err(|_| unavailable())?;
-        let released = binding
-            .runtime()
-            .disclose(&host.core, &original, &now)
-            .map_err(native_error)?;
-        if released != facet {
-            return Err(unavailable());
-        }
+        let read = read_cached(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            &scope,
+            &source_instance_id,
+            &collection,
+        )?;
+        let facet = &read.facet;
+        let value = serde_json::to_value(facet).map_err(|_| unavailable())?;
         let response = json_response(value);
-        original.revalidate().map_err(access_error)?;
+        read.revalidate()?;
         Ok(response)
     })
     .await
     .map_err(|_| unavailable())?
+}
+
+/// The existing cached read, shared with the optional scene enrichment. No transport.
+pub(in crate::http) struct CachedRead<'h> {
+    pub facet: n::NetworkFacet,
+    binding: &'h crate::config::providers::network_host::NetworkBinding,
+    host: &'h Host,
+    original: Arc<n::host_runtime::OriginalNetworkDisclosure>,
+    now: String,
+}
+impl CachedRead<'_> {
+    pub fn revalidate(&self) -> Result<(), super::super::HttpFailure> {
+        let released = self
+            .binding
+            .runtime()
+            .disclose(&self.host.core, &self.original, &self.now)
+            .map_err(native_error)?;
+        if released != self.facet {
+            return Err(unavailable());
+        }
+        self.original.revalidate().map_err(access_error)
+    }
+}
+pub(in crate::http) fn read_cached<'h>(
+    host: &'h Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: &d::Scope,
+    source_instance_id: &str,
+    collection: &str,
+) -> Result<CachedRead<'h>, super::super::HttpFailure> {
+    let access_scope =
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let core = host.core.lock().map_err(|_| unavailable())?;
+    let url = crate::http::auth::url(host, uri);
+    let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
+    // Fresh issuance is owned directly by the native disclosure. Never copy
+    // a RequestPrincipal into a second issuer or reconstruct its grants.
+    let principal = core
+        .access
+        .lock()
+        .map_err(|_| unavailable())?
+        .authorize(&request, &access_scope, a::Action::Read)
+        .map_err(access_error)?;
+    let binding = host
+        .network_bindings
+        .iter()
+        .find(|binding| {
+            let partition = binding.runtime().settings().configured_source().partition();
+            partition.workspace_id.as_str() == scope.workspace_id
+                && partition.home_id.as_str() == scope.home_id
+                && partition.source_instance_id.as_str() == source_instance_id
+                && partition.collection_id == collection
+        })
+        .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+    if !Arc::ptr_eq(binding.access().shared().as_existing(), &core.access) {
+        return Err(unavailable());
+    }
+    let partition = binding
+        .access()
+        .partition_grant(
+            &principal,
+            &binding.runtime().settings().configured_source().partition(),
+        )
+        .map_err(access_error)?;
+    let entities = binding
+        .entities()
+        .iter()
+        .map(|reference| binding.access().source_grant(&principal, reference))
+        .collect::<a::AccessResult<Vec<_>>>()
+        .map_err(access_error)?;
+    // Native read/disclose borrow the exact owning Core themselves. Retain
+    // the original grants, and release this earlier borrow before entry.
+    drop(core);
+    let now = ServerRuntime.now().map_err(|_| unavailable())?;
+    let (facet, original) = binding
+        .runtime()
+        .read(
+            &host.core,
+            binding.access().clone(),
+            principal,
+            partition,
+            entities,
+            &now,
+        )
+        .map_err(native_error)?;
+    Ok(CachedRead {
+        facet,
+        binding,
+        host,
+        original,
+        now,
+    })
 }
