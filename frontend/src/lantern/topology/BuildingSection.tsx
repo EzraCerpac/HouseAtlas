@@ -16,7 +16,7 @@ export const messages = {
 
 // Offline, a failed live read is not a fault to retry: no reload repeats it until the
 // device is online. This live lens does not check the saved copy's building records.
-const offlineMessage = 'Live building records cannot be read offline. Use “Open saved house copy” in Atlas tools to check saved records.';
+const offlineMessage = 'Live building records cannot be read offline. Reopen HouseAtlas while offline to check the copy automatically saved on this device, if available.';
 const watchOnline = (notify: () => void) => { addEventListener('online', notify); addEventListener('offline', notify); return () => { removeEventListener('online', notify); removeEventListener('offline', notify); }; };
 /** Unavailable held membership names the copy's limit; live reads name the offline limitation. */
 export function useBuildingMessages(): (key: keyof typeof messages) => string {

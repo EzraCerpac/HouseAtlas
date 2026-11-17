@@ -24,7 +24,7 @@ export function SavedHouseManager({ store, selected, quiet = false, onOpen, onCl
   if (quiet && !error && houses.length === 0) return null;
   return <section className="saved-manager" aria-label="Saved copies">
     {error && <p role="alert">{error}</p>}
-    {!error && houses.length === 0 && <p role="status">No saved copy on this browser.</p>}
+    {!error && houses.length === 0 && <p role="status">No manually saved house copy on this browser.</p>}
     {houses.map(house => <div className="saved-copy" key={house.localRevision}>
       <div><strong>{house.label}</strong><span>Captured <InlineTime value={house.capturedAt} /></span></div>
       <button type="button" onClick={() => onOpen(house)} aria-pressed={house.localRevision === selected?.localRevision}>Open saved Atlas</button>
