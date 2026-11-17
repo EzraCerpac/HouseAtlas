@@ -310,7 +310,7 @@ async fn main() -> Result<(), Failure> {
         )
         .await;
     let cache = match outcome {
-        Ok(RefreshResult::Published(cache)) => cache,
+        Ok(RefreshResult::Published { cache, .. }) => cache,
         Ok(RefreshResult::SourceFailure(cache)) => {
             return Err(format!(
                 "Healthy fixture returned sanitized source failure: {:?}",
