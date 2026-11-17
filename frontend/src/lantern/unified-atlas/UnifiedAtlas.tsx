@@ -207,7 +207,7 @@ function LensOpeners({ lens }: { readonly lens: AtlasLensHost | undefined }) {
   if (!lens) return null;
   const open = (kind: 'places' | 'network') => { if (lens.value?.kind !== kind) lens.set({ kind, reading: false }); };
   return <div className="ua-lens-openers">
-    <button type="button" className="chip-btn" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
+    <button type="button" className="chip-btn" data-lens-return="" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
     <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network</button>
   </div>;
 }
