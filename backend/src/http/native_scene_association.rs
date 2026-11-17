@@ -22,13 +22,15 @@ pub(super) async fn current(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    if uri.query().is_some() || !m::types::is_uuid(&building_id) {
+    if !matches!(uri.query(), None | Some("networkLiveFacts=2")) || !m::types::is_uuid(&building_id)
+    {
         return Err(failure(StatusCode::NOT_FOUND));
     }
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(&host, &headers, &uri, &method,
-            Some(d::Scope {workspace_id, home_id}), false, |core, principal, home| {
+        let scope = d::Scope {workspace_id, home_id};
+        super::authorized_read_phased(&host, &headers, &uri, &method,
+            (Some(scope.clone()), false), |core, principal, home| {
             let selected = s::Scope {
                 workspace_id: home.scope.workspace_id.clone(),
                 home_id: home.scope.home_id.clone(),
@@ -44,11 +46,11 @@ pub(super) async fn current(
                 .map_err(stock_reads::http_error)?;
             let head = match st::current_scene_head(&graph, &selected, &building_id) {
                 Ok(Some(head)) => head,
-                Ok(None) => return Ok(json_response(json!({"status":"unavailable",
-                    "reason":"no-current-association","association":null}))),
-                Err(st::SceneHeadError::Unavailable) => return Ok(json_response(json!({
+                Ok(None) => return Ok((json!({"status":"unavailable",
+                    "reason":"no-current-association","association":null}), None)),
+                Err(st::SceneHeadError::Unavailable) => return Ok((json!({
                     "status":"unavailable","reason":"current-source-unavailable",
-                    "association":null}))),
+                    "association":null}), None)),
                 Err(st::SceneHeadError::Conflict) => return Err(failure(StatusCode::CONFLICT)),
             };
             let docs = head.payload["sourceDocuments"].as_array()
@@ -100,7 +102,23 @@ pub(super) async fn current(
                     && floor["nativeOriginalSha256"] == item.descriptor.original_sha256)) {
                 return Err(failure(StatusCode::CONFLICT));
             }
-            Ok(json_response(json!({"status":"available","association":head})))
+            let source = crate::contracts::v2::parse_value(&primary)
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            Ok((json!({"status":"available","association":head}), Some((facts.source_sha256, source["network"].clone()))))
+        }, |(mut response, source), _| {
+            let mut enrichment = None;
+            if uri.query() == Some("networkLiveFacts=2")
+                && let Some((sha, network)) = source
+                && let Some(mut frame) = super::network_overlay::read(&host, &headers, &uri, &method, &scope, &sha, &network)? {
+                response["networkLiveFacts"] = frame.value.take();
+                enrichment = Some(frame);
+                if serde_json::to_vec(&response).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?.len() > 1024 * 1024 {
+                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+                }
+            }
+            let response = json_response(response);
+            if let Some(enrichment) = enrichment { enrichment.revalidate()?; }
+            Ok(response)
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }

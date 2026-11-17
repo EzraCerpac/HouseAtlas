@@ -105,6 +105,7 @@ async fn run(
             model_overview.as_ref(),
         )
         .map_err(|error| format!("HouseAtlas unified Atlas settings: {error}"))?;
+    let (arguments, atlas_device_links) = houseatlas_backend::config::atlas_device_links::ServerAtlasDeviceLinksSelection::from_arguments(&arguments)?;
     let (arguments, atlas_room_links) =
         houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection::from_arguments(
             &arguments, atlas_scene.as_ref(), model_overview.as_ref(),
@@ -194,6 +195,7 @@ async fn run(
                         model_overview,
                         atlas_scene,
                         atlas_room_links,
+                        atlas_device_links,
                         atlas_display_policy,
                     },
                     persistent_lease,
@@ -353,6 +355,8 @@ struct PublicationSelections {
     model_overview:
         Option<houseatlas_backend::config::model_overview::ServerModelOverviewSelection>,
     atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
+    atlas_device_links:
+        Option<houseatlas_backend::config::atlas_device_links::ServerAtlasDeviceLinksSelection>,
     atlas_room_links:
         Option<houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection>,
     atlas_display_policy:
@@ -392,6 +396,7 @@ async fn run_persistent(
         model_overview,
         atlas_scene,
         atlas_room_links,
+        atlas_device_links,
         atlas_display_policy,
     } = publications;
     let config = Arc::new(config);
@@ -422,6 +427,9 @@ async fn run_persistent(
     }
     if let Some(selection) = atlas_scene {
         host = host.with_atlas_scene(selection)?;
+    }
+    if let Some(selection) = atlas_device_links {
+        host = host.with_atlas_device_links(selection)?;
     }
     if let Some(selection) = atlas_room_links {
         host = host.with_atlas_room_links(selection)?;
@@ -492,6 +500,7 @@ async fn run_gateway(
         model_overview,
         atlas_scene,
         atlas_room_links,
+        atlas_device_links,
         atlas_display_policy,
     } = publications;
     let selected = Arc::clone(&config);
@@ -525,6 +534,9 @@ async fn run_gateway(
     }
     if let Some(selection) = atlas_scene {
         host = host.with_atlas_scene(selection)?;
+    }
+    if let Some(selection) = atlas_device_links {
+        host = host.with_atlas_device_links(selection)?;
     }
     if let Some(selection) = atlas_room_links {
         host = host.with_atlas_room_links(selection)?;

@@ -1,3 +1,4 @@
+import { applyNetworkLiveFacts } from './network-overlay-live-facts';
 import { scheduleSessionExpiry } from './session-expiry';
 /** Current native documentary details for one selected unified publication.
  * Producer overlay hints are not authority; no rendered old geometry is used. */
@@ -36,6 +37,8 @@ export interface UnifiedAtlasOverlayRoomBinding {
   readonly qualification:'current-native-room-join'; readonly anchor:Readonly<{kind:'room-summary'}>;
 }
 export interface UnifiedAtlasOverlayAvailableFrame {
+  /** Legacy frames omit this; v2 can carry server-joined Network facts. */
+  readonly schema?:'houseatlas.unified-atlas-overlay.v2';
   readonly status:'available'; readonly lease:object;
   readonly sceneSelection:UnifiedAtlasOverlaySceneSelection; readonly nativeBuildingId:string;
   readonly currentSource:Pick<SceneAssociationCurrent,'recordId'|'revision'|'payload'>;
@@ -204,14 +207,16 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       }
       let details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
       const bindings=roomBindings(selection,input.publicationRooms,review);if(!bindings.length){retire(attempt);return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});}
-      const final=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,attempt.controller.signal,pin,transport);pin();
+      const final=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,attempt.controller.signal,pin,transport,true);pin();
       need(final.status==='available'&&final.recordId===association.recordId&&final.revision.compare(association.revision)===0&&stringifyLosslessJson(final.payload)===stringifyLosslessJson(association.payload));
       const headCheckedAt=Date.now();
       if(attempt.drawingProof&&Date.now()-attempt.drawingProof.checkedAt>HEAD_MAX_AGE_MS){
         attempt.drawingProof=null;selection=baseSelection;
         details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
       }
-      const frame:UnifiedAtlasOverlayAvailableFrame=Object.freeze({status:'available',lease:Object.freeze({}),sceneSelection:Object.freeze({...s}),nativeBuildingId:input.nativeBuildingId,
+      if (final.networkLiveFacts && details.network.status === 'available') details = {...details,
+        network:Object.freeze({status:'available' as const,data:applyNetworkLiveFacts(details.network.data,final.networkLiveFacts)})};
+      const frame:UnifiedAtlasOverlayAvailableFrame=Object.freeze({schema:'houseatlas.unified-atlas-overlay.v2',status:'available',lease:Object.freeze({}),sceneSelection:Object.freeze({...s}),nativeBuildingId:input.nativeBuildingId,
         currentSource:Object.freeze({recordId:association.recordId,revision:association.revision,payload:association.payload}),sourceSelection:selection,roomBindings:bindings,...details});
       const expectedPayloadSha256=await abortable(nativeSceneAssociationPayloadDigest(association.payload),attempt.controller.signal);pin();
       // Only one passive read at a time, no retry after an error or changed head.

@@ -27,6 +27,7 @@ mod mutations;
 mod native_geometry;
 mod native_scene_association;
 mod native_upload_admission;
+mod network_overlay;
 mod offline_read_pack;
 mod operation_events;
 mod pages;
@@ -125,6 +126,8 @@ pub struct Host {
     model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
     offline_packs: Arc<Mutex<offline_read_pack::Registry>>,
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
+    atlas_device_links:
+        Option<Arc<crate::config::atlas_device_links::ServerAtlasDeviceLinksSelection>>,
     atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
     atlas_display_policy:
         Option<Arc<crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection>>,

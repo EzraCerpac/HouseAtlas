@@ -111,3 +111,19 @@ gates; main still requires exact candidate review and CI.
 When a pull request is authorized to merge, enable auto-merge
 so GitHub merges it after the required checks pass.
 Investigate failed or missing checks instead of bypassing the ruleset.
+
+## Network overlay live facts
+
+The default backend-library selection additionally discovers the three
+`http::network_overlay::tests::healthy_network_overlay_` cases.
+They use generated Network captures, private disposable review files and an
+in-process anonymous router refusal to check identity joins, stale/absent facts,
+ambiguity withholding, bounds and file/schema/digest fences.
+No provider, socket, real data or operational installation is exercised.
+The frontend healthy list adds `network-live-facts-healthy.mjs`
+(closed decoder, legacy/unjoined preservation, stale/absent and refusal bounds),
+and the existing overlay-source case checks the opt-in current-read extension
+through its generated transport and fake original owners.
+The inventory is 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
+Ordinary-core's existing tools/ci discovery also selects one synthetic offline
+candidate-helper method (34 methods total); no workflow command is added.

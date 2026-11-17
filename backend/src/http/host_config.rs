@@ -21,6 +21,7 @@ impl Host {
             offline_packs: Arc::new(Mutex::new(offline_read_pack::Registry::default())),
             atlas_scene: None,
             atlas_room_links: None,
+            atlas_device_links: None,
             atlas_display_policy: None,
             full_geodata_identity: None,
             geodata_dataset: None,
@@ -95,6 +96,17 @@ impl Host {
         self.atlas_room_links = None;
         self.atlas_display_policy = None;
         self.atlas_scene = Some(Arc::new(selection));
+        Ok(self)
+    }
+    /// Optional private reviewed device identities. No source grant is issued.
+    pub fn with_atlas_device_links(
+        mut self,
+        selection: crate::config::atlas_device_links::ServerAtlasDeviceLinksSelection,
+    ) -> crate::storage::Result<Self> {
+        selection.read().map_err(|_| {
+            crate::storage::Error::new("identity-conflict", "Device links are unavailable")
+        })?;
+        self.atlas_device_links = Some(Arc::new(selection));
         Ok(self)
     }
     /// Independent reviewed documentary links; native qualification is separate.

@@ -35,6 +35,7 @@ const SOURCE = [
   node('site-publication-logic.test.mjs'), node('native-geometry-read.mjs'),
   node('native-geometry-retention.mjs'), node('native-geometry-persistence.mjs'), node('native-geometry-write.mjs'), node('native-place-search-healthy.mjs'),
   node('native-place-write.mjs'), node('native-scan-succession.mjs'),
+  node('network-live-facts-healthy.mjs'),
   node('network-overlay-read.mjs'), node('pdf-fixture-resources.mjs'),
   node('pinned-capture-read.mjs'), node('scan-mesh-read.mjs'),
   node('source-documents-reader.test.mjs'),
