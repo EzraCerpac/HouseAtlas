@@ -87,6 +87,12 @@ impl CustodiedInventoryResponse {
     pub fn into_parts(self) -> (InventoryResponse, Option<InventoryOriginCustody>) {
         (self.response, self.origin)
     }
+    /// Generated offline captures only; the route still uses genuine native
+    /// Access grants and original disclosure leases. No transport is exercised.
+    #[cfg(test)]
+    pub(crate) fn synthetic(config: &NetworkHttpConfig, response: InventoryResponse) -> Self {
+        Self::verified(config, response)
+    }
     fn verified(config: &NetworkHttpConfig, response: InventoryResponse) -> Self {
         let origin = (response.status == 200).then(|| InventoryOriginCustody {
             registration: config.source.clone(),

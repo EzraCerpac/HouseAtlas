@@ -106,14 +106,13 @@ fn facts(facet: &n::NetworkFacet, id: &str) -> Result<Value, HttpFailure> {
             let device = o.observation.value["deviceId"].as_str();
             let interface = o.observation.value["interfaceId"].as_str();
             // A contradictory device/interface attribution is not a device fact.
-            if let (Some(device), Some(interface)) = (device, interface) {
-                if !facet
+            if let (Some(device), Some(interface)) = (device, interface)
+                && !facet
                     .interfaces
                     .iter()
                     .any(|i| i.external_id == interface && i.value["deviceId"] == device)
-                {
-                    return false;
-                }
+            {
+                return false;
             }
             device == Some(id)
                 || (device.is_none() && interface.is_some_and(|i| interface_ids.contains(i)))
@@ -490,55 +489,11 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn healthy_network_overlay_unauthorized() {
-        use axum::{body::Body, extract::ConnectInfo, http::Request};
-        use tower::ServiceExt;
-        let root = tempfile::tempdir_in("/tmp")
-            .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed"));
-        let core =
-            crate::lifecycle::prepare(&root.path().join("fixture"), "https://127.0.0.1:48743")
-                .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed"));
-        let scope = core.home.scope.clone();
-        let host = Host::new(
-            core,
-            "https://127.0.0.1:48743".into(),
-            Arc::new(BTreeMap::new()),
-            vec![],
-        )
-        .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed"));
-        let app = router(host);
-        for path in [
-            format!(
-                "/api/atlas/scene/v1/workspaces/{}/homes/{}/buildings/{}/current?networkLiveFacts=2",
-                scope.workspace_id,
-                scope.home_id,
-                id(3)
-            ),
-            format!(
-                "/api/atlas/providers/network/workspaces/{}/homes/{}/sources/{}/cached?collection=inventory",
-                scope.workspace_id,
-                scope.home_id,
-                id(12)
-            ),
-        ] {
-            let mut request = Request::builder()
-                .uri(path)
-                .header("host", "127.0.0.1:48743")
-                .header("sec-fetch-site", "same-origin")
-                .header("origin", "https://127.0.0.1:48743")
-                .body(Body::empty())
-                .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed"));
-            request.extensions_mut().insert(ConnectInfo(
-                "127.0.0.1:50123"
-                    .parse::<std::net::SocketAddr>()
-                    .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed")),
-            ));
-            let response = app
-                .clone()
-                .oneshot(request)
-                .await
-                .unwrap_or_else(|_| panic!("Synthetic Network overlay fixture failed"));
-            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        }
+    async fn healthy_network_overlay_joined_route() -> Result<(), crate::lifecycle::Failure> {
+        super::route_healthy::run().await
     }
 }
+
+#[cfg(test)]
+#[path = "network_overlay/route_healthy.rs"]
+mod route_healthy;

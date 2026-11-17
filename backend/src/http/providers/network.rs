@@ -63,7 +63,7 @@ pub(in crate::http) async fn cached(
             &collection,
         )?;
         let facet = &read.facet;
-        let value = serde_json::to_value(&facet).map_err(|_| unavailable())?;
+        let value = serde_json::to_value(facet).map_err(|_| unavailable())?;
         let response = json_response(value);
         read.revalidate()?;
         Ok(response)
@@ -105,8 +105,8 @@ pub(in crate::http) fn read_cached<'h>(
     let access_scope =
         crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
     let core = host.core.lock().map_err(|_| unavailable())?;
-    let url = crate::http::auth::url(&host, &uri);
-    let request = evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
+    let url = crate::http::auth::url(host, uri);
+    let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     // Fresh issuance is owned directly by the native disclosure. Never copy
     // a RequestPrincipal into a second issuer or reconstruct its grants.
     let principal = core

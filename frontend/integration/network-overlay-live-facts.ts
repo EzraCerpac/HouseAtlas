@@ -29,7 +29,7 @@ function facts(value: LosslessJson): NetworkLiveFacts {
   for (const key of ['workspaceId','homeId','sourceInstanceId']) need(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text(s[key])));
   need(s.sourceKind === 'network-device');
   const source = Object.freeze({workspaceId:text(s.workspaceId),homeId:text(s.homeId),sourceInstanceId:text(s.sourceInstanceId),collectionId:text(s.collectionId),sourceKind:'network-device' as const,externalId:text(s.externalId)});
-  const addresses = r.addresses === null ? null : Object.freeze(list(r.addresses,32).map(a=>text(a,200)));
+  const addresses = r.addresses === null ? null : Object.freeze(list(r.addresses,32).map(a=>{ need(typeof a === 'string' && a.length <= 200); return a; }));
   need(addresses === null || new Set(addresses).size === addresses.length);
   const observedState = r.observedState === null ? null : Object.freeze(list(r.observedState,64).map(item=>{
     const o = row(item,['id','kind','value','factAt','sourceSnapshotAt','retrievedAt','vantage','invalidatedAt','freshness']);

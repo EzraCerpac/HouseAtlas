@@ -22,6 +22,8 @@ impl Host {
             atlas_scene: None,
             atlas_room_links: None,
             atlas_device_links: None,
+            #[cfg(test)]
+            network_overlay_before_release: None,
             atlas_display_policy: None,
             full_geodata_identity: None,
             geodata_dataset: None,

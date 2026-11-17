@@ -404,6 +404,7 @@
     {"path":"backend/src/http/native_scene_association.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/http/native_upload_admission.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/http/network_overlay.rs","mode":"100644","owner":"core-integration"},
+    {"path":"backend/src/http/network_overlay/route_healthy.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/http/offline_read_pack.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/http/operation_events.rs","mode":"100644","owner":"core-integration"},
     {"path":"backend/src/http/pages.rs","mode":"100644","owner":"core-integration"},

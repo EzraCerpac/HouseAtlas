@@ -39,7 +39,7 @@ def hardware(row):
     return result
 
 
-def candidates(snapshot_bytes, snapshot, cached):
+def candidates(snapshot_bytes, snapshot, cached, hardware_evidence=None):
     devices = snapshot["network"]["devices"]
     live = cached["devices"]
     interfaces = cached["interfaces"]
@@ -49,6 +49,31 @@ def candidates(snapshot_bytes, snapshot, cached):
         raise ValueError("Input record limit exceeded")
     scope = {k: cached[k] for k in ("workspaceId", "homeId", "sourceInstanceId", "collectionId")}
     sha = hashlib.sha256(snapshot_bytes).hexdigest()
+    evidence_by_device = {}
+    if hardware_evidence is not None:
+        if (set(hardware_evidence) != {"profile", "sceneOriginalSha256", "devices"}
+                or hardware_evidence["profile"] != "houseatlas.network-device-hardware-evidence.v1"
+                or hardware_evidence["sceneOriginalSha256"] != sha
+                or not isinstance(hardware_evidence["devices"], list)
+                or len(hardware_evidence["devices"]) > 512):
+            raise ValueError("Hardware evidence must pin the unchanged snapshot")
+        ids = {device["id"] for device in devices}
+        for item in hardware_evidence["devices"]:
+            if (set(item) != {"documentaryDeviceId", "hardwareAddresses", "evidenceReference"}
+                    or item["documentaryDeviceId"] not in ids
+                    or item["documentaryDeviceId"] in evidence_by_device
+                    or not isinstance(item["evidenceReference"], str)
+                    or not 0 < len(item["evidenceReference"]) <= 4096
+                    or not isinstance(item["hardwareAddresses"], list)
+                    or len(item["hardwareAddresses"]) > 32):
+                raise ValueError("Invalid documentary hardware evidence")
+            macs = set()
+            for address in item["hardwareAddresses"]:
+                normalized = hardware({"mac": address})
+                if not normalized:
+                    raise ValueError("Invalid hardware address evidence")
+                macs.update(normalized)
+            evidence_by_device[item["documentaryDeviceId"]] = (macs, item["evidenceReference"])
     by_id, by_mac, rows = {}, {}, {}
     for other in live:
         external = other["externalId"]
@@ -70,16 +95,18 @@ def candidates(snapshot_bytes, snapshot, cached):
     for device in devices:
         possible = []
         eligible = set(by_id.get(device["id"], set()))
-        for mac in hardware(device):
+        device_macs, evidence_reference = evidence_by_device.get(device["id"], (set(), None))
+        for mac in device_macs:
             eligible.update(by_mac.get(mac, set()))
         for external in sorted(eligible):
             other = rows[external]
             evidence = []
             if device["id"] == other["externalId"]:
                 evidence.append({"kind": "exact-identifier-equality", "value": device["id"]})
-            for mac in sorted(hardware(device)):
+            for mac in sorted(device_macs):
                 if external in by_mac.get(mac, set()):
-                    evidence.append({"kind": "shared-explicit-hardware-address", "value": mac})
+                    evidence.append({"kind": "shared-explicit-hardware-address", "value": mac,
+                                     "evidenceReference": evidence_reference})
             if not evidence:
                 continue
             source = {**scope, "sourceKind": "network-device", "externalId": other["externalId"]}
@@ -102,10 +129,12 @@ def main():
     parser.add_argument("snapshot", type=Path)
     parser.add_argument("cached_export", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--hardware-evidence", type=Path, help="Separate evidence pinned to the unchanged snapshot bytes")
     args = parser.parse_args()
     raw, snapshot = read(args.snapshot)
     _, cached = read(args.cached_export)
-    result = candidates(raw, snapshot, cached)
+    evidence = read(args.hardware_evidence)[1] if args.hardware_evidence else None
+    result = candidates(raw, snapshot, cached, evidence)
     # Exclusive creation cannot overwrite an existing review file or an input.
     with os.fdopen(os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as stream:
         json.dump(result, stream, ensure_ascii=False, indent=2, allow_nan=False)

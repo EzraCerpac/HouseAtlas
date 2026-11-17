@@ -1,6 +1,7 @@
 """Generated input only; no source, service, credential or reviewed-record write."""
 import importlib.util
 import json
+import hashlib
 import stat
 import tempfile
 from unittest.mock import patch
@@ -27,10 +28,17 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(link["reviewStatus"], "unreviewed")
         self.assertIsNone(link["reviewer"])
         self.assertIsNone(link["reviewedAt"])
-        snapshot["network"]["devices"][1]["mac"] = "02:00:00:00:00:01"
         cached["interfaces"] = [{**scope, "value": {"deviceId": "device-a", "mac": "02-00-00-00-00-01"}}]
-        result = module.candidates(b"synthetic snapshot bytes", snapshot, cached)
+        evidence = {"profile": "houseatlas.network-device-hardware-evidence.v1",
+                    "sceneOriginalSha256": hashlib.sha256(b"synthetic snapshot bytes").hexdigest(),
+                    "devices": [{"documentaryDeviceId": "other", "hardwareAddresses": ["02:00:00:00:00:01"],
+                                 "evidenceReference": "synthetic:hardware-evidence"}]}
+        self.assertEqual(module.candidates(b"synthetic snapshot bytes", snapshot, cached)["devices"][1]["candidates"], [])
+        result = module.candidates(b"synthetic snapshot bytes", snapshot, cached, evidence)
         self.assertEqual(result["devices"][1]["candidates"][0]["evidence"][0]["kind"], "shared-explicit-hardware-address")
+        self.assertEqual(result["unreviewedLinkTemplate"]["links"][1]["sceneOriginalSha256"], evidence["sceneOriginalSha256"])
+        with self.assertRaises(ValueError):
+            module.candidates(b"different snapshot bytes", snapshot, cached, evidence)
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
             snapshot_file, export_file, output_file = (folder / name for name in ("snapshot.json", "cached.json", "candidates.json"))

@@ -117,6 +117,10 @@ pub(super) async fn current(
                 }
             }
             let response = json_response(response);
+            #[cfg(test)]
+            if enrichment.is_some() && let Some(before_release) = &host.network_overlay_before_release {
+                before_release();
+            }
             if let Some(enrichment) = enrichment { enrichment.revalidate()?; }
             Ok(response)
         })

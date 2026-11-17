@@ -117,7 +117,9 @@ Investigate failed or missing checks instead of bypassing the ruleset.
 The default backend-library selection additionally discovers the three
 `http::network_overlay::tests::healthy_network_overlay_` cases.
 They use generated Network captures, private disposable review files and an
-in-process anonymous router refusal to check identity joins, stale/absent facts,
+in-process authenticated joined-route fixture to check both native authorities,
+source revocation, cache quarantine and final cache-baseline retirement, plus
+identity joins, stale/absent facts,
 ambiguity withholding, bounds and file/schema/digest fences.
 No provider, socket, real data or operational installation is exercised.
 The frontend healthy list adds `network-live-facts-healthy.mjs`

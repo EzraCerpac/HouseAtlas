@@ -387,6 +387,13 @@ pub fn qualify<'a>(
     super::geometry_original::validate(original, super::types::ContentType::Ifc, budget)?;
     Ok(QualifiedGlb { bytes, lineage })
 }
+/// Existing generated floor bytes for disposable same-owner integration fixtures.
+#[cfg(test)]
+pub(crate) fn synthetic_floor_bytes() -> (Vec<u8>, Vec<u8>) {
+    let original = tests::source();
+    let derivative = tests::fixture(&original);
+    (original, derivative)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -395,11 +402,11 @@ mod tests {
     fn budget() -> WorkBudget {
         WorkBudget::new(Duration::from_secs(10), Default::default()).unwrap()
     }
-    fn source() -> Vec<u8> {
+    pub(super) fn source() -> Vec<u8> {
         b"ISO-10303-21;\nHEADER;FILE_SCHEMA(('IFC4'));ENDSEC;\nDATA;ENDSEC;\nEND-ISO-10303-21;"
             .to_vec()
     }
-    fn fixture(original: &[u8]) -> Vec<u8> {
+    pub(super) fn fixture(original: &[u8]) -> Vec<u8> {
         let mut binary = vec![0u8; 44];
         for (i, v) in [0f32, 0., 0., 1., 0., 0., 0., 1., 0.].iter().enumerate() {
             binary[4 * i..4 * i + 4].copy_from_slice(&v.to_le_bytes());

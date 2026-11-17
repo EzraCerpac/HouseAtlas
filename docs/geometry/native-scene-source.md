@@ -270,8 +270,21 @@ python3 tools/network-device-review/candidates.py snapshot.json cached-export.js
 The snapshot is the exact retained native scene-source JSON original;
 the export is the existing passive cached route's JSON facet.
 The helper reads no other data and uses no network.
-It suggests exact identifier matches and shared explicitly recorded hardware
-addresses, never names or prose.
+It suggests exact identifier matches, never names or prose.
+Hardware suggestions require a separate explicit file passed with
+`--hardware-evidence hardware-evidence.json`;
+the strict scene original has no hardware-address fields and stays unchanged.
+That evidence file has the closed shape
+`{profile, sceneOriginalSha256, devices}`,
+where `profile` is `houseatlas.network-device-hardware-evidence.v1`,
+`sceneOriginalSha256` must match the exact original bytes,
+and each device has `documentaryDeviceId`, `hardwareAddresses` and
+`evidenceReference`.
+Device IDs must exist in the snapshot and be unique in the evidence file;
+up to 512 device entries each carry at most 32 explicit hardware addresses.
+The helper compares those addresses with explicit source device/interface
+hardware addresses and retains the evidence reference in each suggestion.
+This file is suggestion evidence only, never a reviewed identity or placement.
 Every snapshot device is listed, including those without suggestions.
 Inputs are bounded to 10 MiB each, 512 snapshot devices,
 10,000 source devices/interfaces and 4,096 candidate pairs.

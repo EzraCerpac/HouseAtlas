@@ -6410,12 +6410,23 @@ python3 -B -m unittest discover -s tools/ci -p test_network_device_candidates.py
 
 The three default-library cases cover generated joined and unjoined identities,
 stale/absent facts, ambiguous mappings, address/device bounds,
-private-file/schema/digest refusal and anonymous refusal on the actual current
-and cached routes.
+private-file/schema/digest refusal and an authenticated mounted current-scene read.
+The joined-route fixture uses genuine generated Viewer and source grants,
+actual retained originals, a generated IFC floor and a custodied offline capture
+in disposable native Store/Media/Access/Network owners.
+It checks overlay-only refusal, both-grant enrichment (including an empty source
+address), mismatched partition isolation, source revocation, withheld quarantined
+cache data and a cache-epoch change after response preparation.
+The latter keeps home/source grants valid and requires final Network disclosure
+revalidation to refuse the response.
+The original anonymous-only case is replaced, not added;
+the three-case count and existing default-library selection are unchanged.
 The frontend cases use generated in-process transports and fake original owners;
 they check the strict v2 decoder and preservation of legacy frames and placement.
 The new healthy-list entry makes 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
-The single candidate-helper method joins the existing tools/ci discovery,
+The single candidate-helper method also checks separate digest-pinned hardware
+evidence without adding unsupported fields to the source snapshot.
+It joins the existing tools/ci discovery,
 which now has 34 methods.
 No new workflow command, browser, real source, household input or deployment
 is exercised; these tests do not qualify installed source authority.
