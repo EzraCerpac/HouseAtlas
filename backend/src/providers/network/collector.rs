@@ -185,7 +185,7 @@ impl Hour {
         guard(if self.reachable == 0 {
             self.min_ms.is_none() && self.mean_ms.is_none() && self.max_ms.is_none()
         } else {
-            matches!((self.min_ms,self.mean_ms,self.max_ms), (Some(a),Some(b),Some(c)) if a.is_finite() && b.is_finite() && c.is_finite() && 0. <= a && a <= b && b <= c)
+            matches!((self.min_ms,self.mean_ms,self.max_ms), (Some(a),Some(b),Some(c)) if a.is_finite() && b.is_finite() && c.is_finite() && 0. <= a && 0. <= b && 0. <= c && a <= c && a - b <= c.max(1.) * 1e-9 && b - c <= c.max(1.) * 1e-9)
         })
     }
 }
@@ -545,6 +545,10 @@ mod tests {
     }
     #[test]
     fn healthy_collector_strict_decode_and_bounds() {
+        // Collector floating-point summation can put a mean just outside min/max.
+        let mut rounded = body();
+        rounded["devices"]["device-a"]["hourly7d"][0]["meanMs"] = json!(2.5 - f64::EPSILON * 2.);
+        assert!(snapshot(&rounded, Some(&health())).is_ok());
         for mutate in [
             |b: &mut Value| b["version"] = json!(2),
             |b: &mut Value| b["inventoryRevision"] = json!(2),

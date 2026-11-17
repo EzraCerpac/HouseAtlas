@@ -276,6 +276,20 @@ impl HostNetworkRuntime {
                 } else {
                     None
                 };
+                if self.settings.collector_measurements() {
+                    // Auxiliary failures become unknown, but request cancellation and
+                    // original authority still fence entry into durable staging.
+                    if let Err(error) = cancelled(&cancellation).and_then(|_| {
+                        authority.revalidate_inventory(
+                            &lease,
+                            self.settings.source(),
+                            config.reviewed_origin(),
+                        )
+                    }) {
+                        self.cancel_archive_reservation(reservation)?;
+                        return Err(error.into());
+                    }
+                }
                 let generation_id = proposal
                     .state()
                     .cache
