@@ -209,6 +209,10 @@ impl HomeBoxLimits {
 struct Network {
     #[serde(default)]
     collector_measurements: bool,
+    #[serde(default, deserialize_with = "n::present")]
+    collector_interval_seconds: Option<u64>,
+    #[serde(default, deserialize_with = "n::present")]
+    collector_action_ports: Option<Vec<u16>>,
     registration: s::SourceRegistration,
     origin: String,
     review: n::LinkReview,
@@ -267,6 +271,13 @@ impl Packet {
                 .any(|v| v.registration.owner != s::SourceOwner::Network)
         {
             return Err(unavailable());
+        }
+        for value in &self.network_cached {
+            if value.collector_measurements {
+                n::ReviewedNetworkOrigin::passive(&value.origin)
+                    .map_err(|_| "Collector measurements require exact-loopback HTTP")?
+                    .require_collector_http()?;
+            }
         }
         // Reuse complete shared registration checks, including ordered allowlists.
         ProviderRegistry::from_trusted_configuration(
@@ -374,7 +385,7 @@ impl ProviderReadMounts {
             if value.private_directory != config.data_directory.join("provider-cache") {
                 return Err(unavailable());
             }
-            let settings = NetworkSettings::new(
+            let mut settings = NetworkSettings::new(
                 configured,
                 &value.origin,
                 value.review,
@@ -384,8 +395,14 @@ impl ProviderReadMounts {
                 value.stale_after_ms,
                 &value.private_directory,
             )?
-            .with_collector_measurements(value.collector_measurements)
+            .with_collector_measurements(value.collector_measurements)?
             .for_existing_cached_storage();
+            if let Some(seconds) = value.collector_interval_seconds {
+                settings = settings.with_collector_interval_seconds(seconds)?;
+            }
+            if let Some(ports) = value.collector_action_ports {
+                settings = settings.with_collector_action_ports(ports)?;
+            }
             network.push(NetworkBinding::from_trusted_configuration(
                 core,
                 settings,

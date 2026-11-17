@@ -1,7 +1,8 @@
 # Network collector, stage 1
 
 One independent Node 26.10.0 process owns collection and a fresh SQLite store.
-The HouseAtlas backend remains a passive reader.
+The HouseAtlas backend reads stored results passively;
+only explicit authenticated Editor actions request diagnostics.
 Collection runs on a fixed schedule even with no viewers;
 HTTP reads never reload files, prune, probe or start work.
 This is G0 source work only, releasing none of G1–G5.
@@ -267,8 +268,10 @@ There is no forwarded-header trust, proxy feature, CORS, SSE or inventory write 
 
 The backend can explicitly select this exact-loopback HTTP origin and enable
 `collectorMeasurements` on its trusted Network settings.
-It reads health and version-1 measurements during an existing inventory refresh;
-ordinary browsing and cached-only startup initiate no refresh or collector work.
+Persistent serving may poll health, measurements and results into memory;
+it never publishes inventory or asks the collector to probe.
+Ordinary browsing initiates no collector read or work;
+explicit authenticated backend Editor actions may request bounded diagnostics.
 Measurements join by device ID within the same source instance and inventory revision.
 The reviewed scene-device manifest still controls documentary scene enrichment.
 See [the optional backend frame extension](../../docs/geometry/native-scene-source.md#optional-collector-measurements)
@@ -298,7 +301,7 @@ node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfi
 
 The typecheck uses the repository's existing frontend TypeScript/Node declarations;
 no new runtime or development dependency is added.
-The 40 node:test cases use fake runners/children, disposable private SQLite files,
+The 42 node:test cases use fake runners/children, disposable private SQLite files,
 controlled clocks and direct handler calls only.
 No listener, real command, live source, credential, private fixture, deployment,
 performance measurement or installed acceptance is exercised.
@@ -306,7 +309,8 @@ performance measurement or installed acceptance is exercised.
 ## Speed, Wi-Fi and actions
 
 The HouseAtlas backend is the only intended HTTP client.
-There is still no backend integration or operational approval in this stage.
+Backend observation reads and explicit Editor diagnostics are optional;
+no operational approval or installation is supplied in this stage.
 Any local process that can connect can also request these bounded diagnostics;
 there is no token or credential.
 
@@ -372,10 +376,20 @@ The latest result and 24 most recent evaluations are retained in SQLite.
 `POST /api/actions` accepts exactly one of these JSON objects:
 
 ```json
-{"kind":"ping","deviceId":"device-example"}
-{"kind":"port","deviceId":"device-example","port":443}
+{"kind":"ping","deviceId":"device-example","expectedInventoryRevision":1}
+{"kind":"port","deviceId":"device-example","port":443,"expectedInventoryRevision":1}
 {"kind":"speed"}
 ```
+
+`expectedInventoryRevision` is required for ping/port and forbidden for speed.
+It is a nonnegative safe integer from the backend's served inventory snapshot,
+not a browser-supplied target or revision selector.
+At execution, the collector synchronously reads inventory,
+checks that revision and selects the target from that same local copy,
+before any home-guard or command await.
+A missing inventory or differing revision returns
+409 `{"error":"inventory-revision-mismatch"}` before any guard/probe or action record.
+Later reloads cannot change an already selected target across an await.
 
 Objects are closed; duplicate keys, invalid UTF-8, free-form targets and
 non-allowlisted ports are refused.
@@ -398,11 +412,18 @@ Every failed connect remains `unknown`/`command-unavailable`, never guessed clos
 Ping results use the unchanged stage 0 fact shape.
 Actions do not add samples to routine ping history.
 
-Success is 200 `{version:1, kind, deviceId?, port?, recordedAt, result}`.
+Success is 200 `{version:1, kind, deviceId?, port?, inventoryRevision?, recordedAt, result}`.
+New ping/port results and their existing action-history entries require
+`inventoryRevision`, identifying the snapshot actually selected.
+Speed results omit it.
+The dispatch-only `expectedInventoryRevision` field is not echoed.
+Older retained device rows can lack a revision;
+backend readers withhold those rows rather than attributing them to a current snapshot.
 The latest 200 completed action entries are retained, including nightly speed work.
 Rejected/busy requests do not create action entries.
 Other refusals use fixed errors: 403 `request-refused`, 415 `content-type`,
-413 `body-limit`, 400 `invalid-action` or `unknown-device`, and 503 `shutdown`.
+413 `body-limit`, 400 `invalid-action` or `unknown-device`,
+409 `inventory-revision-mismatch`, and 503 `shutdown`.
 
 `GET /api/results` uses the existing GET Host/Origin fences and returns
 `{version:1, speed:{latest,recent}, wifi:{latest}, actions}`.
@@ -421,7 +442,7 @@ The schema-2 migration renames the stored speed metrics and their action-log cop
 to `downloadBitsPerSecond` and `uploadBitsPerSecond`, preserving their values.
 It must not subsequently be opened by the stage 0 writer.
 
-The 40 synthetic cases additionally cover good/partial/malformed speed output,
+The 42 synthetic cases additionally cover good/partial/malformed speed output,
 local-time nightly claims and restart/rollback, Wi-Fi unavailability/intervals,
 POST fences/body limits, busy ownership, target/port restrictions, shutdown,
 forward migration and bounded histories, speed/ping exclusion in both start orders,
@@ -429,3 +450,9 @@ controlled-timezone skipped/repeated DST hours, detached-upload response cleanup
 persisted speed metric renaming and missing-close recovery for deadline,
 output overflow and abort, including resumed routine pings and actions.
 No actual command, service, socket or scan runs in these tests.
+
+The two revision-fence cases additionally check missing/invalid revision fields,
+POST inventory replacement without a backend repoll,
+no guard/probe or completed history on mismatch,
+and selected-target/revision retention across a controlled home-guard await.
+They use invented inventory and fake runners only.

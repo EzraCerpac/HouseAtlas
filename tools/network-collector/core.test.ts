@@ -333,8 +333,8 @@ test('speed parser refuses malformed ambiguous and invalid metrics and reports f
 });
 test('action config and closed bodies refuse hosts unknown kinds ports and invalid times', () => {
   for (const patch of [{ speedTime: '24:00' }, { speedTime: null }, { wifiIntervalMs: 1 }, { actionPorts: [22, 22] }, { actionPorts: [0] }, { actionPorts: Array(17).fill(22) }]) assert.throws(() => validateConfig({ ...config(), ...patch }));
-  for (const a of [{ kind: 'speed', host: '192.0.2.10' }, { kind: 'port', deviceId: 'device', port: 1234 }, { kind: 'ping', deviceId: 'device', port: 22 }, { kind: 'scan' }, { kind: 'ping' }]) assert.throws(() => parseAction(a, config()));
-  assert.deepEqual(parseAction({ kind: 'port', deviceId: 'device', port: 443 }, config()), { kind: 'port', deviceId: 'device', port: 443 });
+  for (const a of [{ kind: 'speed', host: '192.0.2.10' }, { kind: 'port', deviceId: 'device', port: 1234, expectedInventoryRevision: 1 }, { kind: 'ping', deviceId: 'device', port: 22, expectedInventoryRevision: 1 }, { kind: 'scan' }, { kind: 'ping' }]) assert.throws(() => parseAction(a, config()));
+  assert.deepEqual(parseAction({ kind: 'port', deviceId: 'device', port: 443, expectedInventoryRevision: 1 }, config()), { kind: 'port', deviceId: 'device', port: 443, expectedInventoryRevision: 1 });
 });
 function post(body = '{"kind":"speed"}', headers: any = {}) {
   return { method: 'POST', url: '/api/actions', headers: { host: '127.0.0.1:42001', 'content-type': 'application/json', ...headers }, socket: { localAddress: '127.0.0.1', remoteAddress: '127.0.0.1' }, async *[Symbol.asyncIterator]() { yield Buffer.from(body); } };
@@ -409,9 +409,9 @@ test('diagnostics only use inventory targets after current home guard', async ()
   const actions = new Actions(f.store, config(), async (file, args, ms, signal) => { commands.push([file, args]); return file === '/usr/bin/nc' ? { stdout: '', code: 0 } : fake(file, args, ms, signal); }, local, () => at);
   try {
     f.store.accept(inventory());
-    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'missing' })).status, 400); assert.equal(commands.length, 0);
-    const ping = JSON.parse((await actions.execute({ kind: 'ping', deviceId: 'device' })).body); assert.equal(ping.result.state, 'reachable');
-    const port = JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 443 })).body); assert.equal(port.result.state, 'open');
+    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'missing', expectedInventoryRevision: 1 })).status, 400); assert.equal(commands.length, 0);
+    const ping = JSON.parse((await actions.execute({ kind: 'ping', deviceId: 'device', expectedInventoryRevision: 1 })).body); assert.equal(ping.result.state, 'reachable');
+    const port = JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 443, expectedInventoryRevision: 1 })).body); assert.equal(port.result.state, 'open');
     assert.deepEqual(commands.at(-1), ['/usr/bin/nc', ['-n', '-z', '-w', '2', '192.0.2.10', '443']]);
     assert.equal(f.store.extras().actions.length, 2);
   } finally { f.close(); }
@@ -443,11 +443,11 @@ test('port failures remain unknown and missing targets or home guard never dispa
     f.store.accept(inventory());
     const runner: Runner = async (file, args, ms, signal) => { if (file === '/usr/bin/nc') { connects++; return { stdout: '', code: 1 }; } return fake(file, args, ms, signal); };
     const actions = new Actions(f.store, config(), runner, local);
-    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.state, 'unknown');
+    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22, expectedInventoryRevision: 1 })).body).result.state, 'unknown');
     const away = new Actions(f.store, config(), runner, () => []);
-    assert.equal(JSON.parse((await away.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.reason, 'not-at-home');
+    assert.equal(JSON.parse((await away.execute({ kind: 'port', deviceId: 'device', port: 22, expectedInventoryRevision: 1 })).body).result.reason, 'not-at-home');
     const doc = inventory(); doc.revision = 2; doc.inventory.interfaces[0].addresses = []; f.store.accept(doc);
-    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22 })).body).result.reason, 'no-target');
+    assert.equal(JSON.parse((await actions.execute({ kind: 'port', deviceId: 'device', port: 22, expectedInventoryRevision: 2 })).body).result.reason, 'no-target');
     assert.equal(connects, 1);
   } finally { f.close(); }
 });
@@ -573,7 +573,7 @@ test('missing child close settles after bounded teardown and releases pings and 
     const speed = actions.execute({ kind: 'speed' }); let settled = false;
     void speed.then(() => { settled = true; }); await Promise.resolve();
     assert.equal((await actions.collectRoutine(inventory(), new AbortController().signal)).facts.get('device')!.reason, 'speed-test-in-progress');
-    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'device' })).status, 409);
+    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'device', expectedInventoryRevision: 1 })).status, 409);
     t.mock.timers.tick(65000); assert.deepEqual(child.kills, ['SIGTERM']);
     t.mock.timers.tick(250); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
     t.mock.timers.tick(249); await Promise.resolve(); assert.equal(settled, false);
@@ -585,7 +585,7 @@ test('missing child close settles after bounded teardown and releases pings and 
     child.stdout.emit('data', Buffer.from('{"base_rtt":1}')); child.emit('close', 0);
     const cycle = await actions.collectRoutine(inventory(), new AbortController().signal);
     assert.equal(cycle.facts.get('device')!.state, 'reachable');
-    const ping = await actions.execute({ kind: 'ping', deviceId: 'device' });
+    const ping = await actions.execute({ kind: 'ping', deviceId: 'device', expectedInventoryRevision: 1 });
     assert.equal(ping.status, 200); assert.equal(JSON.parse(ping.body).result.state, 'reachable');
     assert.equal(pings, 2); assert.equal((await actions.execute({ kind: 'speed' })).status, 200);
     await actions.shutdown(); t.mock.timers.tick(100000);
@@ -600,5 +600,67 @@ test('missing child close settles after bounded teardown and releases pings and 
     const result = await pending; assert.equal(result.code, null); assert.equal(result.interrupted, true);
     assert.equal(parsePing(result, at).state, 'not-measured');
     assert.equal(child.stdout.destroyed, true); assert.equal(child.stderr.destroyed, true); assertClean(child);
+  }
+});
+
+
+test('device actions require a safe expected inventory revision', () => {
+  for (const kind of ['ping', 'port'] as const) {
+    const action = { kind, deviceId: 'device', ...(kind === 'port' ? { port: 443 } : {}) };
+    assert.throws(() => parseAction(action, config()));
+    for (const expectedInventoryRevision of [null, false, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1']) {
+      assert.throws(() => parseAction({ ...action, expectedInventoryRevision }, config()));
+    }
+    for (const expectedInventoryRevision of [0, 1, Number.MAX_SAFE_INTEGER]) {
+      assert.deepEqual(parseAction({ ...action, expectedInventoryRevision }, config()), { ...action, expectedInventoryRevision });
+    }
+  }
+  assert.throws(() => parseAction({ kind: 'speed', expectedInventoryRevision: 1 }, config()));
+});
+
+test('POST diagnostics fence inventory replacement and retain the selected target across guard awaits', async () => {
+  for (const kind of ['ping', 'port'] as const) {
+    const action = { kind, deviceId: 'device', ...(kind === 'port' ? { port: 443 } : {}), expectedInventoryRevision: 1 };
+    const replacement = inventory(); replacement.revision = 2; replacement.inventory.interfaces[0].addresses = ['192.0.2.11'];
+    const f = fixture(); const commands: any[] = [];
+    try {
+      f.store.accept(inventory());
+      assert.equal(JSON.parse(reply(f.store, 'GET', '/api/measurements', at).body).inventoryRevision, 1);
+      const actions = new Actions(f.store, config(), async (file, args, ms, signal) => { commands.push([file, args]); return fake(file, args, ms, signal); }, local, () => at);
+      // The backend has polled 1; inventory changes while the POST is being read.
+      const pending = actionReply(config(), actions, post(JSON.stringify(action)));
+      f.store.accept(replacement);
+      assert.deepEqual(await pending, { status: 409, body: '{"error":"inventory-revision-mismatch"}' });
+      assert.deepEqual(commands, [], 'no home guard or diagnostic command executes');
+      assert.deepEqual(f.store.extras().actions, [], 'refusal creates no completed action');
+      const removed = { ...action, deviceId: 'missing' };
+      assert.deepEqual(await actionReply(config(), actions, post(JSON.stringify(removed))), { status: 409, body: '{"error":"inventory-revision-mismatch"}' });
+    } finally { f.close(); }
+
+    const selected = fixture(); const selectedCommands: any[] = [];
+    let entered!: () => void, release!: () => void;
+    const guardStarted = new Promise<void>(resolve => { entered = resolve; });
+    const guardWait = new Promise<void>(resolve => { release = resolve; });
+    try {
+      selected.store.accept(inventory());
+      const runner: Runner = async (file, args, ms, signal) => {
+        selectedCommands.push([file, args]);
+        if (file === '/sbin/route') { entered(); await guardWait; }
+        return file === '/usr/bin/nc' ? { stdout: '', code: 0 } : fake(file, args, ms, signal);
+      };
+      const actions = new Actions(selected.store, config(), runner, local, () => at);
+      const pending = actions.execute(parseAction(action, config()));
+      await guardStarted; // revision and target were selected synchronously.
+      selected.store.accept(replacement); release();
+      const response = await pending;
+      assert.equal(response.status, 200);
+      const result = JSON.parse(response.body);
+      assert.equal('expectedInventoryRevision' in result, false, 'dispatch field is not echoed');
+      assert.equal(result.inventoryRevision, 1, 'result identifies the selected snapshot, not the later reload');
+      assert.equal(selected.store.extras().actions[0].inventoryRevision, 1);
+      const probe = selectedCommands.find(([file]) => file === (kind === 'port' ? '/usr/bin/nc' : '/sbin/ping'));
+      assert(probe[1].includes('192.0.2.10'));
+      assert(!probe[1].includes('192.0.2.11'), 'a later reload cannot retarget the diagnostic');
+    } finally { release?.(); selected.close(); }
   }
 });

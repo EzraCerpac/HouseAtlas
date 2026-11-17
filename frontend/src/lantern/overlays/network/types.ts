@@ -56,6 +56,7 @@ export interface NetworkPackagePlaceSelection {
 }
 export type NetworkObservationValue = null | boolean | number | string | readonly NetworkObservationValue[] | { readonly [key:string]:NetworkObservationValue };
 export interface NetworkLiveFacts {
+  readonly measurementReason?: 'not-observed' | 'inventory-revision-mismatch' | 'observations-expired' | null;
   /** Optional collector extension: RTT milliseconds and measured loss [0,1]. Null means unmeasured. */
   readonly latencyMs?: number | null;
   readonly loss?: number | null;

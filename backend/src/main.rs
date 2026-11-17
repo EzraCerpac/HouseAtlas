@@ -443,6 +443,7 @@ async fn run_persistent(
     let account_selected = ai_account.is_some();
     let ai_account =
         prepare_persistent_account(&host, ai_account, config.data_directory.clone()).await?;
+    let collector_pollers = host.start_collector_observations();
     let application = mount_persistent_account(host, ai_account).await?;
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     let listener = TcpListener::bind(config.listen)?;
@@ -456,8 +457,10 @@ async fn run_persistent(
     lease.event(ServerEvent::Listening)?;
     let handle = axum_server::Handle::new();
     let shutdown = handle.clone();
+    let collector_stop = collector_pollers.cancellation();
     let signal = tokio::spawn(async move {
         tokio::select! { result = tokio::signal::ctrl_c() => { result?; }, _ = terminate.recv() => {} }
+        collector_stop.cancel();
         shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
         Ok::<_, std::io::Error>(())
     });
@@ -471,6 +474,7 @@ async fn run_persistent(
         .serve(application.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await;
     signal.abort();
+    collector_pollers.shutdown().await;
     result?;
     lease.event(ServerEvent::Shutdown)?;
     Ok(())
@@ -550,6 +554,8 @@ async fn run_gateway(
     // Gateway capture requires the actual bound socket authority. Existing AI
     // files/owners were verified above; final composition precedes serving.
     let (listener, socket) = GatewaySocket::bind(path, policy).await?;
+    let collector_pollers = host.start_collector_observations();
+    let collector_stop = collector_pollers.cancellation();
     let result = async {
         let host = host.with_trusted_gateway(Arc::clone(&socket))?;
         let application = mount_persistent_account(host, ai_account).await?;
@@ -568,6 +574,7 @@ async fn run_gateway(
         )
         .with_graceful_shutdown(async move {
             tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+            collector_stop.cancel();
             let _ =
                 drain_started.send(tokio::time::Instant::now() + std::time::Duration::from_secs(5));
         })
@@ -590,6 +597,7 @@ async fn run_gateway(
     .await;
     // The actual listener is dropped when the serving future finishes, including
     // Host/mount/log/signal failures. Remove only this gateway's checked inode.
+    collector_pollers.shutdown().await;
     socket.remove_after_shutdown()?;
     result?;
     lease.event(ServerEvent::Shutdown)?;

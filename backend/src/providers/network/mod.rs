@@ -13,6 +13,7 @@ mod model;
 mod native;
 #[path = "host_runtime/native_owner.rs"]
 mod native_owner;
+pub mod observations;
 mod projection;
 mod publication;
 mod saved_queries;

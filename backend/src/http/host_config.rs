@@ -45,6 +45,7 @@ impl Host {
             homebox_refresh_bindings: Arc::new(Vec::new()),
             homebox_refresh_running: Arc::default(),
             network_bindings: Arc::new(Vec::new()),
+            network_action_gate: Arc::new(Default::default()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
@@ -490,5 +491,24 @@ impl Host {
         }
         self.network_bindings = Arc::new(bindings);
         Ok(self)
+    }
+}
+
+impl Host {
+    /// Called only by persistent serving, never by mounting a router or browsing.
+    pub fn start_collector_observations(&self) -> crate::providers::network::observations::Pollers {
+        let mut pollers = crate::providers::network::observations::Pollers::new();
+        for binding in self.network_bindings.iter() {
+            if let (Some(holder), Some(peer)) = (&binding.observations, &binding.collector_peer) {
+                pollers.push(
+                    holder.clone(),
+                    peer.clone(),
+                    std::time::Duration::from_secs(
+                        binding.runtime().settings().collector_interval_seconds(),
+                    ),
+                );
+            }
+        }
+        pollers
     }
 }

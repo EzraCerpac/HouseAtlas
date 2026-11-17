@@ -303,8 +303,9 @@ The helper never writes that reviewed manifest or marks a pair reviewed.
 A trusted Network settings selection may enable `collectorMeasurements: true`
 in its `networkCached` entry (or use `NetworkSettings::with_collector_measurements`).
 It defaults to false.
-The source origin may be canonical HTTPS,
-or exact `http://127.0.0.1:<port>` / `http://[::1]:<port>` with port 1–65535.
+Persistent collector polling requires exact `http://127.0.0.1:<port>`
+or `http://[::1]:<port>` with port 1–65535.
+The separate original inventory refresh transport still accepts canonical HTTPS.
 No hostname, alternate loopback spelling, userinfo, path, query or fragment
 is admitted for plain HTTP.
 The client sends the literal loopback authority as Host and no Origin,
@@ -317,9 +318,11 @@ the collector's larger server ceiling does not enlarge the backend limit.
 On an existing explicit inventory refresh,
 the enabled owner also GETs `/api/health` and `/api/measurements`.
 These reads never start collector work.
-Browsing and persistent cached-only startup still perform no upstream GET,
-refresh, source enrollment or grant acquisition.
-This setting supplies neither a scheduler nor a new refresh/action route.
+Browsing performs no upstream GET, refresh, source enrollment or grant acquisition.
+Persistent serving independently polls stored health, measurements and results
+only when explicitly enabled;
+these observation reads write only memory and never refresh inventory.
+See [persistent collector routes and scheduling](../providers/persistent-cached-provider-selection.md#ephemeral-collector-observations-and-editor-diagnostics).
 No configuration, installation or G1–G5 release is included.
 
 Version 1 is decoded as a closed, bounded document,
@@ -334,13 +337,18 @@ and inventory generation.
 No additional measurement link manifest or name/address inference is used.
 Documentary scene IDs alone cannot establish same-source identity.
 
-Measurements are immutable process-local snapshots keyed to the successfully
-published inventory generation and protected by that inventory's native read grants.
-A new refresh retires the previous snapshot;
-failed inventory reads, generation replacement and process restart leave unknowns.
+The original refresh retains generation-keyed process-local measurements.
+The persistent observation holder competes with that served generation's snapshot
+by measurement retrieval time (ties prefer the observation holder),
+joining by served inventory revision and exact device ID
+under that inventory's original native read grants.
+Failed measurement reads retain the previous source/retrieval dates;
+facts age to stale under the existing policy,
+then become unknown after 24 hours without successful measurement retrieval.
+`measurementReason` optionally reports `not-observed`,
+`inventory-revision-mismatch`, `observations-expired`, or null.
+Process restart leaves unknowns until polling succeeds.
 Inventory originals, durable generation bytes and custody are unchanged.
-The current cached-only persistent mount does not initiate an inventory refresh,
-so selecting the setting there alone does not populate measurements.
 
 The v2 frame schemas retain their names and gain an optional, all-or-none trio:
 
