@@ -51,6 +51,7 @@ export class Actions {
     if (this.stop.signal.aborted) return Promise.resolve({ status: 503, body: '{"error":"shutdown"}' });
     // Reserve synchronously before any asynchronous owner work.
     this.active = Promise.resolve().then(async () => {
+      // Persist before dispatch: restart must not repeat a claimed night.
       if (nightlyDate) this.store.claimNight(nightlyDate);
       const signal = this.stop.signal;
       let result: unknown;
@@ -87,12 +88,11 @@ export class Actions {
       this.store.recordExtra('action', entry);
       return { status: 200, body: JSON.stringify({ version: 1, ...entry }) };
     }).finally(() => { this.active = null; });
-    // Persist the nightly claim before dispatch: restart must not repeat it.
     return this.active;
   }
 }
 
-// Called from the ordinary cycle, using local civil time (including DST).
+// Called by the periodic scheduler, using local civil time (including DST).
 // First cycle at/after the configured minute runs once; no prior-day catch-up.
 export async function periodic(store: Store, config: Config, actions: Actions, now = Date.now()) {
   const d = new Date(now);

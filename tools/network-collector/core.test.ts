@@ -300,11 +300,26 @@ test('cross-hour cycle indexes facts by observation time for hourly and 24-hour 
 import { Actions, parseAction, parseSpeed, periodic, wifiUnavailable } from './actions.ts';
 import { actionReply } from './http.ts';
 
-test('speed parser retains measured units and missing fields as unknown', () => {
+test('speed parser retains measured units and missing fields as unknown', async t => {
   const r = parseSpeed({ stdout: '{"dl_throughput":12000000,"ul_throughput":3000000,"base_rtt":12}', code: 0 }, at);
   assert.equal(r.state, 'measured'); assert.equal(r.downloadBps, 12000000); assert.equal(r.latencyMs, 12);
   const partial = parseSpeed({ stdout: '{"dl_throughput":0}', code: 0 }, at);
   assert.equal(partial.downloadBps, 0); assert.equal(partial.uploadBps, null); assert.equal(partial.reason, 'missing-fields');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(); const child = new FakeChild();
+  const runner = createRunner((file, args) => {
+    assert.equal(file, '/usr/bin/networkQuality'); assert.deepEqual(args, ['-c', '-M', '60']); return child;
+  });
+  try {
+    const actions = new Actions(f.store, config(), runner, local, () => at);
+    const pending = actions.execute({ kind: 'speed' }); await Promise.resolve();
+    t.mock.timers.tick(64999); assert.deepEqual(child.kills, []);
+    t.mock.timers.tick(1); assert.deepEqual(child.kills, ['SIGTERM']);
+    t.mock.timers.tick(250); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
+    child.emit('close', null);
+    assert.equal((await pending).status, 200);
+    assert.equal(f.store.extras().speed.latest.state, 'failed'); assertClean(child);
+  } finally { f.close(); }
 });
 test('speed parser refuses malformed ambiguous and invalid metrics and reports failures', () => {
   for (const stdout of ['{', 'null', '[]', '{"base_rtt":-1}', '{"dl_throughput":"12"}', '{"base_rtt":1,"base_rtt":2}', '{"base_rtt":1e999}']) assert.equal(parseSpeed({ stdout, code: 0 }, at).reason, 'malformed-output');
