@@ -486,7 +486,7 @@
 .lantern-host .ua-net-observed { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .lantern-host .ua-net-observed > li { display: grid; }
 .lantern-host .ua-net-observed > li.is-old { color: var(--ink-2); }
-.lantern-host .ua-net-graph-link,
+.lantern-host .ua-net-graph-link { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
 
 .lantern-host .ua-label-hit {
   position: absolute;

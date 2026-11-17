@@ -1046,6 +1046,12 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       .map(row => ({ ...row, folded: true, width: Math.max(countMarkerWidth(row.count), networkGlyphSlot(coarse)) }));
     return folded.length > 0 ? visibleCountMarkers([...kept, ...folded], size, cover, selected, context) : kept;
   }, [markers, size, cover, selected, context, coarse]);
+  // Parts of one room on several floors in view share its name; their counts then name the floor too.
+  const sharedNames = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const row of counts) seen.set(`${row.kind}\n${row.roomLabel}`, (seen.get(`${row.kind}\n${row.roomLabel}`) ?? 0) + 1);
+    return new Set([...seen].filter(([, shown]) => shown > 1).map(([name]) => name));
+  }, [counts]);
   const countGroups = useMemo(() => {
     const groups = new Map<string, StageMarker[]>();
     for (const marker of counts) { const own = groups.get(marker.occurrenceId) ?? []; own.push(marker); groups.set(marker.occurrenceId, own); }
@@ -1888,7 +1894,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           onPointerDown={stop} onPointerUp={stop} onClick={() => setNetFocus({ kind: 'room', occurrenceId: row.occurrenceId })}><Icon name="network" size={12} /><span>{row.count}</span></button>
         : <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(row.kind) } as CSSProperties}
-          aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
+          aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context || sharedNames.has(`${row.kind}\n${row.roomLabel}`) ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}><Icon name={OVERLAY_ICON[row.kind]} size={12} /><span>{row.count}</span></button>)}
         {floorBadges.map(row => <button key={row.key} type="button" className="ua-net-floor" data-stage-key={`floor:${row.key}`}
           style={{ left: row.x, top: row.y }} aria-label={`Show ${row.name}: linked to ${row.names.join(', ')}`}

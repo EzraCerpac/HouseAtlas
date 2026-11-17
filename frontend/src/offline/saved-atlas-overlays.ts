@@ -51,7 +51,9 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   }
   for (const exclusion of manifest.exclusions) reasons.push(`${exclusion.section}: ${exclusion.code}: ${exclusion.label}`);
   // Decoded for this scene and its selectable rooms only; bytes for another model read as absent.
-  const held = house.overlays ? decodeStoredOverlays(new Uint8Array(house.overlays), scene, selectable) : null;
+  // A stored frame without a network (electrical only) holds no map network, so the saved relations still stand in.
+  const decoded = house.overlays ? decodeStoredOverlays(new Uint8Array(house.overlays), scene, selectable) : null;
+  const held = decoded && [...decoded.values()].some(row => row.records.network !== 'unavailable' || (row.records.networkGraphs ?? []).length > 0) ? decoded : null;
   const records = rows(roots.atlas?.records).map(object).filter((row): row is JsonRow => row !== null && scoped(row));
   const electrical: DocumentaryRecord[] = [], network: DocumentaryRecord[] = [];
   const electricalRelation = (row: JsonRow) => {

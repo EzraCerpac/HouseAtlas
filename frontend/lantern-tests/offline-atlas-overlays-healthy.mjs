@@ -221,7 +221,15 @@ for (const variant of ['historical', 'tuples']) {
   assert.equal(other.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
   assert.equal(other.records.networkGraphs[0].data.devices.length, 0); assert.equal(other.records.rooms.size, 0);
   assert(other.reasons.some(reason => reason.includes('saved without the map network')));
-  console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts and their dates, the copy date and qualifier; another model reads as a limited copy');
+  // A stored frame without a network (electrical only) holds no map network: the saved relations stay, unplaced and qualified.
+  const electricalOnly = { rooms: new Map([[room.roomId, { network: [], electrical: [] }]]), network: 'unavailable', electrical: 'available',
+    sourceFacts: [], unplaced: { network: [], electrical: [] }, networkGraphs: [] };
+  const noNetwork = await open(encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records: electricalOnly }]])).slice().buffer);
+  assert.equal(noNetwork.records.networkGraphs.length, 1); assert.equal(noNetwork.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
+  assert.equal(noNetwork.records.networkGraphs[0].data.links.length, 1, 'the saved relation stays in the graph');
+  assert(noNetwork.records.unplaced.network.some(row => row.category === 'Recorded connection'), 'the saved relation stays unplaced');
+  assert(noNetwork.reasons.some(reason => reason.includes('saved without the map network')));
+  console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts and their dates, the copy date and qualifier; another model or a stored frame without a network reads as a limited copy with its saved relations');
 }
 {
   const pack = await generateSavedPack('partial', '1'.repeat(64), false, false, true);
