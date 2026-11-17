@@ -120,6 +120,9 @@ impl HostNetworkRuntime {
     pub(crate) fn collector_snapshot(
         &self,
     ) -> std::result::Result<n::collector::Cached, n::NetworkError> {
+        if !self.settings.collector_measurements() {
+            return Ok(None);
+        }
         Ok(self
             .collector
             .try_lock()
