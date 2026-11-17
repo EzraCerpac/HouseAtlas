@@ -264,6 +264,13 @@ try {
   assert(both.includes('aria-label="Internet speed, Generated network · synthetic"')&&both.includes('aria-label="Internet speed, Generated network · second"'),'colliding source names keep their collection');
   const oneSource=await blocks({synthetic:resultDecode(result),second:{status:'unavailable'}});
   assert(oneSource.includes('aria-label="Internet speed"')&&!oneSource.includes('· second'),'one answering source: the short heading');
+  // Two source instances with the same name and collection are numbered by source identity order; the identity is never shown.
+  { const twinScope={...scopeOf,sourceInstanceId:scopeOf.sourceInstanceId.replace(/.$/,c=>c==='f'?'e':'f')},port={canTest:()=>false,read:async()=>resultDecode(result),act:()=>new Promise(()=>{})},owned=createCollectorStore(port);
+    owned.ensure(scopeOf);owned.ensure(twinScope);await tick();await tick();
+    const twinBlocks=renderToStaticMarkup(createElement(InternetSpeeds,{collector:{port,store:owned},rows:[{scope:twinScope,label:'Generated network'},{scope:scopeOf,label:'Generated network'}]}));
+    const [first,second]=[scopeOf,twinScope].sort((a,b)=>a.sourceInstanceId<b.sourceInstanceId?-1:1);
+    assert(twinBlocks.includes('aria-label="Internet speed, Generated network · synthetic · 1"')&&twinBlocks.includes('aria-label="Internet speed, Generated network · synthetic · 2"'),'same name and collection: numbered');
+    assert(!twinBlocks.includes(first.sourceInstanceId)&&!twinBlocks.includes(second.sourceInstanceId),'no source identity in the markup'); }
   role.editor=false;const viewerBlock=block();
   assert(!viewerBlock.includes('Test speed now')&&!viewerBlock.includes('role="status"')&&viewerBlock.includes('Wi-Fi scan unavailable on this collector'),'a viewer reads speed without the test');
   const noWifi=structuredClone(result);noWifi.results.wifi.latest=null;noWifi.results.speed={latest:null,recent:[]};

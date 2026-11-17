@@ -56,14 +56,18 @@ export function DeviceTestRow({ collector, target }: { readonly collector: Netwo
 }
 
 /** One speed block per Network source whose collector answered. Several are
- * named by their source, and by the collection where source names repeat. */
+ * named by their source, by the collection where source names repeat, and by a
+ * number where both repeat. */
 export function InternetSpeeds({ collector, rows }: { readonly collector: NetworkCollector; readonly rows: readonly { readonly scope: CollectorScope; readonly label: string }[] }) {
   const snapshot = useSyncExternalStore(collector.store.subscribe, collector.store.snapshot, collector.store.snapshot);
   useEffect(() => { for (const row of rows) collector.store.ensure(row.scope); });
   const shown = rows.filter(row => collectorResults(snapshot, row.scope));
   const distinct = new Set(shown.map(row => row.label)).size === shown.length;
+  // Sources that share a name and a collection are numbered in the order of their source identity, never by the identity itself.
+  const full = (row: (typeof shown)[number]) => distinct ? row.label : `${row.label} · ${row.scope.collectionId}`;
+  const twins = (row: (typeof shown)[number]) => shown.filter(other => full(other) === full(row)).map(other => other.scope.sourceInstanceId).sort();
   return shown.map(row => <InternetSpeed key={scopeKey(row.scope)} collector={collector} scope={row.scope}
-    label={shown.length < 2 ? null : distinct ? row.label : `${row.label} · ${row.scope.collectionId}`} />);
+    label={shown.length < 2 ? null : twins(row).length < 2 ? full(row) : `${full(row)} · ${twins(row).indexOf(row.scope.sourceInstanceId) + 1}`} />);
 }
 
 /** The host's internet speed from the collector's runs, the Wi-Fi scan state,
