@@ -6556,41 +6556,60 @@ nor inventory provisioning or G1–G5 acceptance.
 
 ### Named-Editor Network inventory refresh
 
-The default backend-library selection adds six cases under
+The default backend-library selection adds eight cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
 `review_required_then_reviewed_profile_refresh_attaches_observations`,
-`preflight_failure_recovers_after_store_reopen_without_archive_disposition`,
+`preflight_failure_recovers_on_same_store`,
 `concurrent_refresh_returns_running_without_second_get`,
-and `failure_after_archive_reservation_keeps_previous_generation_readable`.
+`failure_after_archive_reservation_keeps_previous_generation_readable`,
+`post_reservation_contention_retains_custody_and_auth_failure_metadata`,
+and `interrupted_pre_stage_future_recovers_on_same_store`.
 The existing persistent profile selection adds
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 These exercise genuine native Access/Store/sidecar/archive owners
 in disposable SQLite and an in-process router with generated users and inventory.
 A test-only HTTP leaf returns generated responses or a transport failure;
 no socket, real collector, provider, credential or household data is used.
-The admitted failure occurs in the final inventory GET after successful preflight
-and the runtime's original archive reservation
-and before publication, then checks previous-generation reads,
-no quarantine and the current next-request `guard-conflict` limitation.
-It then closes/reopens Store/Host with retained synthetic Access
-and checks that the durable permanent archive ID still blocks admission,
-while previous inventory remains readable.
-An independent fresh fixture checks an auth refusal quarantining the source,
-then an `access-revoked` refusal without another transport call.
-The review case checks an explicit `needs-review` refusal with both revisions
-and unchanged cache facts,
-then owner setup for review 43 on the same files
-and clean Store/Host reopen retaining served 42,
+
+The admitted transport failure checks previous-generation reads without quarantine,
+then successful refresh on the same Store and after clean Store/Host reopen.
+An independent fixture checks auth quarantine and the next `access-revoked` refusal
+without another transport call.
+The review case checks explicit `needs-review` with both revisions and unchanged cache,
+then owner setup for review 43 on the same files and clean Store/Host reopen,
 followed by publication and matching observation attachment without another reopen.
-It also changes revision between preflight and final GET,
-checking that the final guard refuses and retains the current disposition limitation.
-The preflight-failure case records a non-quarantined transport failure,
-same-Store pin refusal and successful refresh after clean Store/Host reopen;
-no archive reservation was created for that failed read.
-Neither case runs a service or proves an installed/process restart.
-These bounded cases remain in the default set.
+A revision change between preflight and final GET still refuses;
+the next owner-reviewed refresh succeeds after the required profile reopen.
+Preflight transport failure also recovers on the same Store.
+Controlled post-reservation Core and sidecar contention retain original custody
+and allow the next explicit refresh to succeed without changing the previous cache.
+The sidecar-contention auth variant records quarantine before cleanup can complete.
+The Core-contention auth variant retains the observed failure and original grant/time
+until the metadata transaction can run, then checks quarantine without transport.
+Both check that committed failure metadata is not recorded again,
+that capacity reservations are released and permanent IDs remain burned.
+
+The same lane additionally discovers three generated cases under
+`storage::store::cache_custody::pre_stage_tests::`:
+`pre_stage_disposition_returns_custody_on_wrong_store_or_native_refusal`,
+`pre_stage_disposition_protects_bound_sql_and_native_references`,
+and `pre_stage_pin_only_disposition_preserves_previous_cache_and_other_pin`.
+They use generated Store principals, disposable SQLite and a synthetic native proof owner.
+They verify original-handle return and successful checked retry,
+foreign-Store refusal, bound and SQL current/history protection,
+native staged/recovery/disclosure/ambiguous refusal,
+and removal of only the selected unbound pin without changing cache facts.
+The default lane also discovers
+`providers::network::archive::pre_stage_tests::pre_stage_archive_cancellation_requires_original_token_and_keeps_burned_id`,
+checking native issuer/registration/generation, same-token cancellation retry,
+capacity release and permanent ID reuse refusal in disposable native archives.
+The interrupted-future case drops an admitted refresh before staging,
+then checks unchanged cache and successful same-Store refresh.
+These are synthetic owner-lifetime checks, not process-crash or installed recovery.
+The existing root-router TLS loopback selection retains its original one-GET
+contract, deadlines and assertions; only the Editor entry performs preflight.
 
 The existing `network-live-facts-healthy.mjs` entry adds `mayRefresh`,
 reviewed/collector revisions, `needsReview` and the `needs-review` outcome,
@@ -6606,6 +6625,9 @@ node tools/rust-integration/format.mjs --check
 cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -j 2 -- -D warnings
 cargo test --offline --locked -p houseatlas-backend --lib http::providers::network::tests:: -j 2 -- --test-threads=1
 cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::provider_reads::tests:: -j 2 -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib pre_stage_ -j 2 -- --test-threads=1
+cargo build --offline --locked -p houseatlas-backend --example healthy-network-root-router -j 2
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
 node frontend/lantern-tests/network-live-facts-healthy.mjs
 node tools/publication/refresh-manifest.mjs --check
 npm run verify:publication

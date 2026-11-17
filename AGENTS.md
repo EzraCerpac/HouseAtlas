@@ -193,14 +193,16 @@ acceptance is exercised by these cases; no CI run step is added.
 
 ## Named-Editor Network inventory refresh
 
-The default backend-library lane additionally discovers six cases under
+The default backend-library lane additionally discovers eight cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
 `review_required_then_reviewed_profile_refresh_attaches_observations`,
-`preflight_failure_recovers_after_store_reopen_without_archive_disposition`,
+`preflight_failure_recovers_on_same_store`,
 `concurrent_refresh_returns_running_without_second_get`,
-and `failure_after_archive_reservation_keeps_previous_generation_readable`.
+`failure_after_archive_reservation_keeps_previous_generation_readable`,
+`post_reservation_contention_retains_custody_and_auth_failure_metadata`,
+and `interrupted_pre_stage_future_recovers_on_same_store`.
 The existing persistent profile selection also discovers
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 They use a test-only fake inventory HTTP leaf, generated Viewer/Editors,
@@ -209,12 +211,20 @@ They check opt-in writable custody without startup registration,
 read-only absence, authentication/role/named approval/CSRF refusals,
 first native registration/publication, unchanged capture renewal,
 single-flight refusal, collector-down failure after archive reservation,
-previous-generation reads without quarantine, the failed-attempt pin limitation,
-the durable admission block after clean Store/Host reopen and quarantine refusal.
+previous-generation reads without quarantine, same-Store failed-attempt recovery,
+Core/sidecar contention and auth quarantine independent of deferred cleanup.
 Revision mismatch returns `needs-review` without relaxing the pinned review;
-normal mismatch exits during bounded preflight before durable archive admission.
-owner setup with the current review and Store/Host reopen permits publication
+normal mismatch exits during Editor preflight before durable archive admission.
+Owner setup with the current review and Store/Host reopen permits publication
 and observation attachment without another reopen.
+The same lane discovers three `storage::store::cache_custody::pre_stage_tests::`
+cases for consuming original-handle disposition, foreign-Store/native refusal,
+bound/SQL/native reference protection and exact pin-only retirement.
+The default lane also discovers the generated archive-token cancellation case
+`providers::network::archive::pre_stage_tests::pre_stage_archive_cancellation_requires_original_token_and_keeps_burned_id`.
+It checks original issuer/registration/generation, checked cancellation retry
+and permanent ID reuse refusal in disposable native archives.
+The existing root-router TLS fixture keeps its one-GET contract and deadlines.
 The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
 typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
 No run step, real service, credential, private profile, household data,

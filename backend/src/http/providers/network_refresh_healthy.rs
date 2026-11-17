@@ -10,6 +10,7 @@ pub(super) struct InventoryPeer {
     calls: Mutex<Vec<String>>,
     mode: AtomicUsize,
     entered: tokio::sync::Notify,
+    admitted: tokio::sync::Notify,
     release: tokio::sync::Notify,
 }
 impl InventoryPeer {
@@ -25,6 +26,7 @@ impl InventoryPeer {
             calls: Mutex::default(),
             mode: AtomicUsize::new(0),
             entered: Default::default(),
+            admitted: Default::default(),
             release: Default::default(),
         }
     }
@@ -51,6 +53,24 @@ impl n::TestInventoryPeer for InventoryPeer {
                         // The preflight succeeds; fail the final inventory GET
                         // after Native archive admission, not the preflight.
                         4 => self.mode.store(1, Ordering::SeqCst),
+                        6 => self.mode.store(7, Ordering::SeqCst),
+                        8 => self.mode.store(9, Ordering::SeqCst),
+                        7 | 9 => {
+                            let auth_failure = self.mode.swap(0, Ordering::SeqCst) == 9;
+                            self.admitted.notify_one();
+                            self.release.notified().await;
+                            if auth_failure {
+                                return Ok(n::InventoryResponse {
+                                    status: 403,
+                                    source: Some(self.config.source().scope.clone()),
+                                    body: vec![],
+                                    source_snapshot_at: None,
+                                    redirected: false,
+                                    location: None,
+                                    url: None,
+                                });
+                            }
+                        }
                         3 => {
                             return Ok(n::InventoryResponse {
                                 status: 403,
@@ -465,13 +485,17 @@ async fn review_required_then_reviewed_profile_refresh_attaches_observations() -
         json!({"status":"needs-review","reviewedInventoryRevision":43,"collectorInventoryRevision":44})
     );
     assert_eq!(cache(&f)?, before);
+    // Returning to the still-reviewed revision succeeds on the SAME Store.
+    f.inventory.as_ref().unwrap().revision(43);
+    assert_eq!(refresh(&f).await?.1["status"], "unchanged");
+    f.inventory.as_ref().unwrap().revision(44);
     let f = reopen_with_review(f, 44).await?;
-    assert_eq!(refresh(&f).await?.1["reason"], "guard-conflict");
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
     Ok(())
 }
 
 #[tokio::test]
-async fn preflight_failure_recovers_after_store_reopen_without_archive_disposition() -> Result<()> {
+async fn preflight_failure_recovers_on_same_store() -> Result<()> {
     let f = fixture_options(false, true, false).await?;
     editor(&f, a::Role::Editor)?;
     assert_eq!(refresh(&f).await?.1["status"], "refreshed");
@@ -479,10 +503,7 @@ async fn preflight_failure_recovers_after_store_reopen_without_archive_dispositi
     peer.mode.store(1, Ordering::SeqCst);
     assert_eq!(refresh(&f).await?.1["reason"], "transport");
     peer.mode.store(0, Ordering::SeqCst);
-    // The Store pin still has no retirement owner in this lifetime.
-    assert_eq!(refresh(&f).await?.1["reason"], "guard-conflict");
-    let f = reopen_with_review(f, 42).await?;
-    // Unlike an admitted failure, no permanent archive ID was created.
+    // Pin-only disposition permits the next explicit call on this SAME Store.
     let recovered = refresh(&f).await?.1;
     assert_eq!(recovered["status"], "unchanged", "{recovered}");
     Ok(())
@@ -537,22 +558,14 @@ async fn failure_after_archive_reservation_keeps_previous_generation_readable() 
     assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
     peer.mode.store(0, Ordering::SeqCst);
     let recovered = refresh(&f).await?.1;
-    assert_eq!(
-        recovered,
-        json!({"status":"failed","reason":"guard-conflict","quarantined":false})
-    );
-    // Reopen clears Store pins, but the archive's permanent ID still blocks
-    // admission. No existing owner supplies its unpublished disposition.
+    assert_eq!(recovered["status"], "unchanged", "{recovered}");
+    // Burned archive identifiers remain harmless after clean reopen, too.
     let f = reopen_with_review(f, 42).await?;
-    let recovered = refresh(&f).await?.1;
-    assert_eq!(
-        recovered,
-        json!({"status":"failed","reason":"guard-conflict","quarantined":false})
-    );
+    assert_eq!(refresh(&f).await?.1["status"], "unchanged");
     assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
     drop(f);
-    // Independent auth-quarantine case: do not let the known admission block
-    // prevent these assertions from actually executing.
+    // Independent auth-quarantine fixture keeps these assertions isolated
+    // from the ordinary transport-recovery case.
     let f = fixture_options(false, true, false).await?;
     editor(&f, a::Role::Editor)?;
     assert_eq!(refresh(&f).await?.1["status"], "refreshed");
@@ -563,5 +576,166 @@ async fn failure_after_archive_reservation_keeps_previous_generation_readable() 
     let calls = peer.calls.lock().unwrap().len();
     assert_eq!(refresh(&f).await?.1["reason"], "access-revoked");
     assert_eq!(peer.calls.lock().unwrap().len(), calls);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn post_reservation_contention_retains_custody_and_auth_failure_metadata() -> Result<()> {
+    // All contention is controlled after the final GET's actual admission.
+    for (core_busy, auth_failure) in [(true, false), (false, false), (false, true), (true, true)] {
+        let f = Arc::new(fixture_options(false, true, false).await?);
+        editor(&f, a::Role::Editor)?;
+        assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+        let before = cache(&f)?;
+        let peer = f.inventory.as_ref().unwrap();
+        peer.mode
+            .store(if auth_failure { 8 } else { 6 }, Ordering::SeqCst);
+        let first = {
+            let f = f.clone();
+            tokio::spawn(async move { refresh(&f).await })
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), peer.admitted.notified()).await?;
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let holder = {
+            let f = f.clone();
+            std::thread::spawn(move || {
+                let wait = || {
+                    ready_tx.send(()).unwrap();
+                    release_rx
+                        .recv_timeout(std::time::Duration::from_secs(20))
+                        .unwrap();
+                };
+                if core_busy {
+                    let _guard = f.host.core.lock().unwrap();
+                    wait();
+                } else {
+                    f.host.network_bindings[0]
+                        .runtime()
+                        .with_test_sidecar_lock(wait);
+                }
+            })
+        };
+        ready_rx.recv_timeout(std::time::Duration::from_secs(5))?;
+        peer.release.notify_one();
+        let failed = tokio::time::timeout(std::time::Duration::from_secs(10), first)
+            .await???
+            .1;
+        assert_eq!(failed["status"], "failed", "{failed}");
+        assert_eq!(
+            failed["quarantined"],
+            auth_failure && !core_busy,
+            "{failed}"
+        );
+        release_tx.send(())?;
+        holder.join().map_err(|_| "Contention holder panicked")?;
+        let after = cache(&f)?;
+        assert_eq!(
+            after["caches"][0]["generationId"],
+            before["caches"][0]["generationId"]
+        );
+        let calls = peer.calls.lock().unwrap().len();
+        let recovered = refresh(&f).await?.1;
+        if auth_failure {
+            assert_eq!(recovered["reason"], "access-revoked", "{recovered}");
+            assert_eq!(peer.calls.lock().unwrap().len(), calls);
+            let recorded = cache(&f)?;
+            if !core_busy {
+                assert_eq!(recorded, after);
+            }
+            // Core-held auth failures record once when the owner is available;
+            // subsequent disposition/quarantine checks never record again.
+            assert_eq!(refresh(&f).await?.1["reason"], "access-revoked");
+            assert_eq!(cache(&f)?, recorded);
+        } else {
+            assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
+            assert_eq!(recovered["status"], "unchanged", "{recovered}");
+        }
+        let custody = f.host.network_bindings[0].runtime().test_archive_custody();
+        assert_eq!(custody.active_reservation_count, 0);
+        assert_eq!(custody.permanent_id_count, if auth_failure { 2 } else { 3 });
+    }
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn interrupted_pre_stage_future_recovers_on_same_store() -> Result<()> {
+    let f = Arc::new(fixture_options(false, true, false).await?);
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let before = cache(&f)?;
+    let binding = &f.host.network_bindings[0];
+    let principal = f
+        .host
+        .core
+        .lock()
+        .unwrap()
+        .access
+        .lock()
+        .unwrap()
+        .authorize(
+            &a::RequestEvidence {
+                method: a::Method::Post,
+                url: &format!("{ORIGIN}{}", path()),
+                origin: Some(ORIGIN),
+                sec_fetch_site: Some("same-origin"),
+                referer: None,
+                cookie: Some(&f.cookie),
+                authorization: None,
+                csrf: Some(&f.csrf),
+            },
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(&id(1))?,
+                home_id: a::CanonicalId::parse(&id(2))?,
+            },
+            a::Action::Mutate,
+        )?;
+    let configured = binding.runtime().settings().configured_source();
+    let partition = binding
+        .access()
+        .partition_grant(&principal, &configured.partition())?;
+    let entities = binding
+        .entities()
+        .iter()
+        .map(|r| binding.access().source_grant(&principal, r))
+        .collect::<a::AccessResult<Vec<_>>>()?;
+    let lease =
+        binding
+            .access()
+            .retain_original(principal, configured.clone(), partition, entities)?;
+    let authority = n::host_runtime::NetworkAuthority::new(
+        lease.clone(),
+        &binding.runtime().settings().transport(),
+        None,
+    )?;
+    let peer = f.inventory.as_ref().unwrap();
+    peer.mode.store(6, Ordering::SeqCst);
+    let first = {
+        let f = f.clone();
+        let runtime = binding.runtime().clone();
+        tokio::spawn(async move {
+            runtime
+                .refresh_reviewed(
+                    &f.host.core,
+                    authority,
+                    lease,
+                    tokio_util::sync::CancellationToken::new(),
+                    || crate::app::now().unwrap(),
+                )
+                .await
+        })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), peer.admitted.notified()).await?;
+    first.abort();
+    assert!(matches!(first.await, Err(error) if error.is_cancelled()));
+    assert_eq!(cache(&f)?, before);
+    assert_eq!(refresh(&f).await?.1["status"], "unchanged");
+    assert_eq!(
+        binding
+            .runtime()
+            .test_archive_custody()
+            .active_reservation_count,
+        0
+    );
     Ok(())
 }

@@ -203,6 +203,21 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .record_prepared_cache_failure_at(principal, fence, failure, attempted_at)
     }
 
+    /// Internal failure CAS retaining the original fence for explicit native
+    /// pre-stage disposition. Authorization, epoch and captured-time checks are
+    /// the same validated path as the consuming public entry points.
+    pub(crate) fn record_prepared_cache_failure_at_borrowed_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: &CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction_with_authorization(authorization)
+            .record_prepared_cache_failure_borrowed(principal, fence, failure, Some(attempted_at))
+    }
+
     pub(super) fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
         CacheTransaction {
             db: &mut self.db,
@@ -789,6 +804,16 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         failure: &CacheFailure,
         attempted_at: Option<&str>,
     ) -> Result<CacheStatus> {
+        self.record_prepared_cache_failure_borrowed(principal, &fence, failure, attempted_at)
+    }
+
+    fn record_prepared_cache_failure_borrowed(
+        &mut self,
+        principal: &A::Principal,
+        fence: &CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: Option<&str>,
+    ) -> Result<CacheStatus> {
         if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
         {
@@ -802,7 +827,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &fence.partition.scope(),
             &fence.partition,
             failure,
-            Some(&fence),
+            Some(fence),
             attempted_at,
         )
     }

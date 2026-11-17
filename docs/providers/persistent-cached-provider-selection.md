@@ -315,19 +315,20 @@ remain owner-approved install steps outside this PR and release no G1–G5.
 takes no body and requires the current session, Editor role, same-origin checks,
 current `X-Atlas-CSRF` and that source's named refresh approval.
 It uses `NetworkAccess::configure` if the source is not readable,
-then `retain_original`, `NetworkAuthority::new` and `HostNetworkRuntime::refresh`
+then `retain_original`, `NetworkAuthority::new` and the runtime’s Editor refresh entry
 with the caller's original principal and exact configured partition/member grants.
 Registration remains ordered across the two databases, not atomic.
 Only one Network refresh POST runs per process;
 the runtime's existing per-source single-flight owner also remains in place.
 There is no scheduler, startup refresh, retry or offline CLI.
 Browsing and observation polling never invoke this route or publish inventory.
-Before durable archive admission, a bounded `/api/inventory` preflight runs
+For this Editor entry, before durable archive admission, a bounded `/api/inventory` preflight runs
 through the existing producer and discards its complete proposal.
 A review mismatch exits without an archive reservation or permanent archive ID.
 On success the transport performs the final `/api/inventory` GET after admission,
 repeating all review/content checks under the original Store fence.
 These are preflight and final reads, not a retry after a failure.
+The existing native `HostNetworkRuntime::refresh` retains its one-inventory-GET contract.
 If measurements are enabled it also reads
 the runtime's existing `/api/health` and `/api/measurements` reads.
 It never asks the collector to probe.
@@ -400,65 +401,39 @@ synthetic Access and a review for revision 43 while retaining served revision 42
 Refresh publishes revision 43 and measurements attach without another reopen.
 This is synthetic owner-lifetime coverage, not an installed service restart test.
 
-### Remaining candidate-disposition dependency
+### Pre-stage failure recovery
 
-Normal preflight review refusal creates no durable archive reservation or ID.
-The existing Store still retains a process-local candidate pin;
-the required owner-approved profile update and service restart clears that pin.
-The positive case proves review 42 / collector 43 refusal,
-then reviewed profile 43 and Store/Host reopen followed by publication of 43.
+A refused or interrupted attempt retains its original same-Store fence
+and optional native archive admission in the canonical runtime until staging starts.
+The Store’s consuming `abandon_pre_stage_cache_candidate` takes the Store lock
+before the canonical sidecar lock.
+It verifies the original issuer, full registration, generation and unbound pin,
+and requires absence of SQL current/history and native projected/raw/ambiguous stage.
+Pin-only attempts retire only their proven empty candidate.
+Admitted attempts also cancel the original native capacity reservation;
+the archive’s permanent generation ID remains burned and cannot be reused.
+A burned identifier alone does not block later unrelated admission.
 
-Broader failure recovery remains blocked on native candidate disposition.
-A transport failure during preflight records a non-quarantined cache error
-and leaves the Store pin, but no archive reservation.
-A same-Store retry returns `failed / guard-conflict`;
-clean Store/Host reopen clears that isolated preflight residue and permits refresh.
-A failure after archive admission retains the previous generation too,
-but cancellation leaves both a protected Store pin and a durable permanent ID.
-This later failure remains blocked even after reopen.
+Contention acquiring Core or the sidecar before staging retains these move-only handles.
+The next explicit refresh retries disposition before preparing another candidate;
+there is no background worker or automatic transport retry.
+Dropping an in-flight request future also leaves custody in the runtime.
+Failure metadata uses the original authorized Store CAS once,
+independently of disposition, preserving the producer’s captured attempt time.
+In particular, an auth refusal quarantines the source even when sidecar cleanup must wait.
+If Core contention prevents the metadata transaction itself,
+the original failure, grant and attempt time remain pending until that transaction can run;
+a new caller cannot replace that authority.
+A definite committed failure receipt is cleared and never replayed during disposition.
+Once staging starts, bound, staged or ambiguous candidates remain protected;
+this API supplies no general archive reclamation or ambiguous-publication recovery.
+A process crash after archive admission can still leave a durable reservation
+without its in-memory original token; this change does not claim crash recovery.
 
-HomeBox's `FailedPublication::commit_failure_with_authorization` uses the same
-Store failure-recording owner and does not release a candidate pin.
-`HostNetworkRuntime` cancellation calls only
-`SqliteNetworkSidecar::cancel_original_capture`,
-which removes the archive reservation, not the Store pin.
-No existing Store pin retirement operation is exposed.
-`UnpublishedCacheCandidateGuard` retains its fence/staged custody on release,
-and Network's `verify_unpublished` refuses because it has no original
-unpublished-disposition receipt.
-Adding such authority belongs to the native Store/Network custody owners;
-this route does not remove pins or weaken admission.
-
-The pin registry is process-local and starts empty on Store open,
-but cancellation of an admitted archive reservation retains its permanent ID.
-Archive enumeration exposes that ID as `StagedOrAmbiguous`,
-and Network admission refuses `PermanentlyReserved` entries even without a Store pin.
-The admitted-failure case checks previous-generation reads,
-the next request's `guard-conflict`, clean Store/Host close/reopen,
-and the same refusal with durable inventory still readable.
-A service restart clears the in-memory pin but does not repair that durable block.
-No real service was restarted, and no admission predicate was relaxed.
-The final inventory read also retains its exact review check:
-a revision change between preflight and that read is refused,
-but has already entered this admitted-reservation failure window.
-The revision test records this refusal and its current post-reopen block.
-
-Core/sidecar contention is a separate pre-stage window in the current candidate.
-`with_core_store` can fail before invoking the staging closure
-when Core is busy/poisoned, Store is poisoned or issuer identity differs;
-ordinary Store lock contention waits.
-The closure can also fail acquiring the canonical sidecar before staging starts.
-Those paths currently drop the move-only reservation handle without cancellation,
-retaining an active `CapacityReserved` archive row and the Store pin.
-Reopen leaves that durable capacity allocation intact;
-this residue alone can allow a later refresh if the locks, catalog and quotas permit it,
-but repeated failures consume capacity and permanent IDs.
-This lock-window assessment is source inspection, not a contention-injection test.
-
-The exact dependency is a consuming disposition owned jointly by native Store
-candidate pins and Network archive custody,
-carrying the original fence and reservation through known pre-stage failure.
-It must distinguish a proven unstaged cancellation from ambiguous staging,
-retire only that candidate and preserve permanent-ID reuse protection.
-No existing API supplies that disposition;
-Network's final guarded publication and reference checks remain unchanged.
+Synthetic cases cover same-Store recovery after preflight failure,
+a final review mismatch, admitted transport failure and Core/sidecar contention,
+while retaining previous inventory and the final guarded revision check.
+Separate Store controls refuse foreign issuers, bound pins, SQL current/history
+and native staged/recovery/disclosure/ambiguous references.
+The unchanged root-router TLS fixture still serves exactly one inventory GET
+with its original deadlines and assertions.

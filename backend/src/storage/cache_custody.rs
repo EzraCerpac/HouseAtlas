@@ -67,6 +67,21 @@ pub trait OriginalCacheReferenceGuard {
     type Staged: OriginalStagedCachePublication;
     /// Original non-cloneable capacity reservation consumed by Native staging.
     type Admission;
+    /// Explicit known-pre-stage disposition under this original native lock.
+    /// Prove no projected/raw/ambiguous stage or external reference exists;
+    /// when admitted, verify and cancel the exact original reservation. Failure
+    /// retains the caller's move-only token. Other owners deny by default.
+    fn cancel_proven_pre_stage(
+        &mut self,
+        _registration: &SourceRegistration,
+        _generation_id: &str,
+        _admission: Option<&Self::Admission>,
+    ) -> Result<()> {
+        Err(Error::new(
+            "guard-conflict",
+            "Original pre-stage disposition unavailable",
+        ))
+    }
     fn enumerate(&mut self, output: &mut CacheProtectionSink<'_>) -> Result<()>;
     /// Planning coverage only, never reclamation authority. Existing owners
     /// without an actual complete disclosure/recovery registry remain unknown.
@@ -223,6 +238,18 @@ impl CacheProtectionSink<'_> {
 pub(super) struct CachePinRegistry {
     entries: Vec<ProtectedCacheGeneration>,
     disclosures: Vec<Weak<CacheDisclosureLease>>,
+}
+
+/// Refused pre-stage disposition returns the original move-only custody.
+pub struct RejectedPreStageCacheCandidate<T> {
+    error: Error,
+    fence: CachePublicationFence,
+    admission: Option<T>,
+}
+impl<T> RejectedPreStageCacheCandidate<T> {
+    pub fn into_parts(self) -> (Error, CachePublicationFence, Option<T>) {
+        (self.error, self.fence, self.admission)
+    }
 }
 
 struct CacheDisclosureLease {
@@ -796,6 +823,117 @@ impl<G: OriginalCacheReferenceGuard> UnpublishedCacheCandidateGuard<'_, G> {
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Dispose only an original, unbound candidate proven never staged. This
+    /// does not release history, publication or disclosure custody. Store and
+    /// original Native locks remain held through proof and native cancellation;
+    /// every refusal returns both original handles, with no Drop cleanup.
+    pub fn abandon_pre_stage_cache_candidate<'a, P: OriginalCacheReferences>(
+        &'a mut self,
+        fence: CachePublicationFence,
+        admission: Option<<P::Guard<'a> as OriginalCacheReferenceGuard>::Admission>,
+        references: &'a mut P,
+    ) -> std::result::Result<
+        (),
+        Box<
+            RejectedPreStageCacheCandidate<
+                <P::Guard<'a> as OriginalCacheReferenceGuard>::Admission,
+            >,
+        >,
+    > {
+        let result =
+            self.abandon_pre_stage_cache_candidate_inner(&fence, admission.as_ref(), references);
+        result.map_err(|error| {
+            Box::new(RejectedPreStageCacheCandidate {
+                error,
+                fence,
+                admission,
+            })
+        })
+    }
+    fn abandon_pre_stage_cache_candidate_inner<'a, P: OriginalCacheReferences>(
+        &'a mut self,
+        fence: &CachePublicationFence,
+        admission: Option<&<P::Guard<'a> as OriginalCacheReferenceGuard>::Admission>,
+        references: &'a mut P,
+    ) -> Result<()> {
+        if !Arc::ptr_eq(&self.instance, &fence.issuer)
+            || fence.registration.partition() != fence.partition
+        {
+            return Err(disclosure_conflict());
+        }
+        let pins = &mut self.cache_pins;
+        let live = pins.live_disclosures();
+        let index = pins
+            .entries
+            .iter()
+            .position(|pin| same_candidate(pin, fence))
+            .ok_or_else(disclosure_conflict)?;
+        if pins.entries[index].native_sha256.is_some()
+            || pins
+                .entries
+                .iter()
+                .filter(|pin| same_candidate(pin, fence))
+                .count()
+                != 1
+            || live.iter().any(|pin| {
+                pin.registration == fence.registration
+                    && pin.generation_id == fence.reserved_generation_id
+            })
+        {
+            return Err(disclosure_conflict());
+        }
+        let transaction = self
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if repo::source(&transaction, &fence.partition)? != fence.registration {
+            return Err(disclosure_conflict());
+        }
+        let mut original: P::Guard<'a> = references.lock()?;
+        let mut protected = Vec::new();
+        let mut sink = CacheProtectionSink {
+            contract: &self.contract,
+            entries: &mut protected,
+            failed: None,
+        };
+        enumerate_sql(&transaction, &mut sink)?;
+        if protected.iter().any(|pin| same_candidate(pin, fence)) {
+            return Err(disclosure_conflict());
+        }
+        let mut sink = CacheProtectionSink {
+            contract: &self.contract,
+            entries: &mut protected,
+            failed: None,
+        };
+        original.enumerate(&mut sink)?;
+        if let Some(error) = sink.failed {
+            return Err(error);
+        }
+        if protected
+            .iter()
+            .filter(|pin| same_candidate(pin, fence))
+            .any(|pin| {
+                admission.is_none()
+                    || pin.origin != CacheProtectionOrigin::OriginalOwner
+                    || pin.native_sha256.is_some()
+                    || !matches!(
+                        pin.reason,
+                        CacheProtectionReason::InFlightOrAmbiguous | CacheProtectionReason::History
+                    )
+            })
+        {
+            return Err(disclosure_conflict());
+        }
+        // The original owner proves projected/raw absence and cancels the
+        // exact admission. Nothing fallible follows this native operation.
+        original.cancel_proven_pre_stage(
+            &fence.registration,
+            &fence.reserved_generation_id,
+            admission,
+        )?;
+        pins.entries.remove(index);
+        // Read-only Store transaction: rollback on exit changes no SQL.
+        Ok(())
+    }
     /// Perform the existing actual authorized registered read, then acquire a
     /// same-instance generation pin before the exclusive Store borrow exits.
     /// Caller-supplied snapshots or generation selectors never issue a pin.
@@ -1179,4 +1317,300 @@ fn enumerate_sql(db: &rusqlite::Connection, sink: &mut CacheProtectionSink<'_>) 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod pre_stage_tests {
+    use super::*;
+    use crate::http::contracts::NativeContracts;
+    use std::cell::Cell;
+    type Check = std::result::Result<(), Box<dyn std::error::Error>>;
+    fn id(n: u64) -> String {
+        format!("00000000-0000-4000-8000-{n:012}")
+    }
+    struct Authority;
+    impl Authorization for Authority {
+        type Principal = VerifiedActor;
+        fn authorize(
+            &self,
+            actor: &VerifiedActor,
+            _: AuthorizationRequest<'_>,
+        ) -> Result<VerifiedActor> {
+            Ok(actor.clone())
+        }
+    }
+    struct Clock(Cell<u64>);
+    impl Runtime for Clock {
+        fn now(&self) -> Result<String> {
+            Ok("2026-10-07T12:00:00Z".into())
+        }
+        fn new_id(&self) -> Result<String> {
+            let n = self.0.get();
+            self.0.set(n + 1);
+            Ok(id(n))
+        }
+        fn verify_available_asset(&self, _: &Record) -> Result<AssetProof> {
+            Err(disclosure_conflict())
+        }
+    }
+    type TestStore = AtlasStore<NativeContracts, Authority, Clock>;
+    struct Stage;
+    impl OriginalStagedCachePublication for Stage {
+        fn registration(&self) -> &SourceRegistration {
+            unreachable!()
+        }
+        fn cache(&self) -> &CacheStatus {
+            unreachable!()
+        }
+        fn homebox_entities(&self) -> &[Value] {
+            unreachable!()
+        }
+        fn network_relations(&self) -> &[Value] {
+            unreachable!()
+        }
+        fn native_sha256(&self) -> &str {
+            unreachable!()
+        }
+    }
+    struct Admission {
+        issuer: Arc<()>,
+        registration: SourceRegistration,
+        id: String,
+    }
+    struct References {
+        registration: SourceRegistration,
+        candidate: String,
+        issuer: Arc<()>,
+        protected: Option<CacheProtectionReason>,
+        deny: bool,
+        cancellations: usize,
+    }
+    struct Guard<'a>(&'a mut References);
+    impl OriginalCacheReferences for References {
+        type Staged = Stage;
+        type Guard<'a> = Guard<'a>;
+        fn lock(&mut self) -> Result<Guard<'_>> {
+            Ok(Guard(self))
+        }
+    }
+    impl OriginalCacheReferenceGuard for Guard<'_> {
+        type Staged = Stage;
+        type Admission = Admission;
+        fn enumerate(&mut self, sink: &mut CacheProtectionSink<'_>) -> Result<()> {
+            if let Some(reason) = self.0.protected {
+                sink.protect(&self.0.registration, &self.0.candidate, None, reason)?;
+            }
+            Ok(())
+        }
+        fn verify_staged(&mut self, _: &Stage) -> Result<()> {
+            Err(disclosure_conflict())
+        }
+        fn verify_unpublished(&mut self, _: &Stage) -> Result<()> {
+            Err(disclosure_conflict())
+        }
+        fn admit_candidate(
+            &mut self,
+            _: &SourceRegistration,
+            _: &str,
+            _: u64,
+            _: CacheCapacityLimits,
+            _: &[ProtectedCacheGeneration],
+        ) -> Result<Admission> {
+            Err(disclosure_conflict())
+        }
+        fn cancel_proven_pre_stage(
+            &mut self,
+            registration: &SourceRegistration,
+            id: &str,
+            admission: Option<&Admission>,
+        ) -> Result<()> {
+            if self.0.deny
+                || registration != &self.0.registration
+                || id != self.0.candidate
+                || admission.is_some_and(|token| {
+                    !Arc::ptr_eq(&token.issuer, &self.0.issuer)
+                        || &token.registration != registration
+                        || token.id != id
+                })
+            {
+                return Err(disclosure_conflict());
+            }
+            self.0.cancellations += 1;
+            Ok(())
+        }
+    }
+    fn fixture() -> std::result::Result<
+        (tempfile::TempDir, TestStore, VerifiedActor, References),
+        Box<dyn std::error::Error>,
+    > {
+        let root = tempfile::tempdir()?;
+        let mut store = AtlasStore::open(
+            root.path().join("store.sqlite"),
+            NativeContracts,
+            Authority,
+            Clock(Cell::new(100)),
+            StoreOptions::default(),
+        )?;
+        let registration: SourceRegistration = serde_json::from_value(
+            serde_json::json!({"workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(12),"collectionId":"inventory","owner":"network","partitionMode":"exclusive-home","allowedExternalIds":[]}),
+        )?;
+        let actor = VerifiedActor {
+            workspace_id: id(1),
+            home_id: id(2),
+            actor_id: id(50),
+        };
+        store.register_source(&actor, &registration)?;
+        let refs = References {
+            registration,
+            candidate: id(100),
+            issuer: Arc::new(()),
+            protected: None,
+            deny: false,
+            cancellations: 0,
+        };
+        Ok((root, store, actor, refs))
+    }
+    fn prepare(
+        store: &mut TestStore,
+        actor: &VerifiedActor,
+        refs: &References,
+    ) -> CachePublicationFence {
+        store
+            .prepare_cache_publication(
+                actor,
+                &refs.registration.scope(),
+                &refs.registration.partition(),
+            )
+            .unwrap()
+            .into_parts()
+            .1
+    }
+    #[test]
+    fn pre_stage_disposition_returns_custody_on_wrong_store_or_native_refusal() -> Check {
+        let (_root, mut store, actor, mut refs) = fixture()?;
+        let (_other_root, mut other, other_actor, other_refs) = fixture()?;
+        let _other_fence = prepare(&mut other, &other_actor, &other_refs);
+        let fence = prepare(&mut store, &actor, &refs);
+        let token = Admission {
+            issuer: refs.issuer.clone(),
+            registration: refs.registration.clone(),
+            id: refs.candidate.clone(),
+        };
+        let rejected = other
+            .abandon_pre_stage_cache_candidate(fence, Some(token), &mut refs)
+            .err()
+            .unwrap();
+        let (error, fence, token) = rejected.into_parts();
+        assert_eq!(error.code, "guard-conflict");
+        assert_eq!(refs.cancellations, 0);
+        refs.deny = true;
+        let rejected = store
+            .abandon_pre_stage_cache_candidate(fence, token, &mut refs)
+            .err()
+            .unwrap();
+        let (_, fence, token) = rejected.into_parts();
+        assert!(
+            store
+                .cache_pins
+                .entries
+                .iter()
+                .any(|pin| same_candidate(pin, &fence))
+        );
+        refs.deny = false;
+        store
+            .abandon_pre_stage_cache_candidate(fence, token, &mut refs)
+            .map_err(|e| e.into_parts().0)?;
+        assert!(store.cache_pins.entries.is_empty());
+        assert_eq!(refs.cancellations, 1);
+        assert_eq!(other.cache_pins.entries.len(), 1);
+        Ok(())
+    }
+    #[test]
+    fn pre_stage_disposition_protects_bound_sql_and_native_references() -> Check {
+        for mode in 0..7 {
+            let (_root, mut store, actor, mut refs) = fixture()?;
+            let fence = prepare(&mut store, &actor, &refs);
+            match mode {
+                0 => store.cache_pins.bind(&fence, &"a".repeat(64))?,
+                1 => repo::reserve_generation(
+                    &store.db,
+                    &fence.partition,
+                    &fence.reserved_generation_id,
+                )?,
+                2 => {
+                    // A current pointer without its history row is ambiguous too.
+                    let cache = serde_json::json!({"workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(12),"collectionId":"inventory","generationId":refs.candidate});
+                    repo::write_cache(&store.db, &NativeContracts, &cache)?;
+                }
+                3 => refs.protected = Some(CacheProtectionReason::StagedOrAmbiguous),
+                4 => refs.protected = Some(CacheProtectionReason::Recovery),
+                5 => refs.protected = Some(CacheProtectionReason::Disclosure),
+                _ => refs.deny = true, // raw/partial stage proof unavailable
+            }
+            let rejected = store
+                .abandon_pre_stage_cache_candidate(fence, None, &mut refs)
+                .err()
+                .expect("Protected candidate must refuse");
+            let (_, fence, admission) = rejected.into_parts();
+            assert!(admission.is_none());
+            assert!(
+                store
+                    .cache_pins
+                    .entries
+                    .iter()
+                    .any(|pin| same_candidate(pin, &fence))
+            );
+            assert_eq!(refs.cancellations, 0);
+        }
+        Ok(())
+    }
+    #[test]
+    fn pre_stage_pin_only_disposition_preserves_previous_cache_and_other_pin() -> Check {
+        let (_root, mut store, actor, mut refs) = fixture()?;
+        let seed = prepare(&mut store, &actor, &refs);
+        let previous = CacheStatus {
+            schema_version: 1,
+            workspace_id: id(1),
+            home_id: id(2),
+            source_instance_id: id(12),
+            collection_id: "inventory".into(),
+            status: CacheState::Fresh,
+            last_successful_fetch_at: Some("2026-10-07T12:00:00Z".into()),
+            last_attempt_at: Some("2026-10-07T12:00:00Z".into()),
+            generation_id: Some(id(100)),
+            consistency: "non-transactional-offset-pages".into(),
+            error: None,
+        };
+        store.publish_prepared_generation(&actor, seed, &previous, &[], &[])?;
+        refs.candidate = id(101);
+        let before = store.read_cache_for_publication(
+            &actor,
+            &refs.registration.scope(),
+            &refs.registration.partition(),
+        )?;
+        let fence = prepare(&mut store, &actor, &refs);
+        let other = prepare(&mut store, &actor, &refs);
+        store
+            .abandon_pre_stage_cache_candidate(fence, None, &mut refs)
+            .map_err(|e| e.into_parts().0)?;
+        let after = store.read_cache_for_publication(
+            &actor,
+            &refs.registration.scope(),
+            &refs.registration.partition(),
+        )?;
+        assert_eq!(
+            serde_json::to_value(&before)?,
+            serde_json::to_value(&after)?
+        );
+        assert_eq!(store.cache_pins.entries.len(), 2);
+        assert!(
+            store
+                .cache_pins
+                .entries
+                .iter()
+                .any(|pin| same_candidate(pin, &other))
+        );
+        assert_eq!(after.cache.as_ref(), Some(&previous));
+        Ok(())
+    }
 }

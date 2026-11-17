@@ -72,7 +72,7 @@ pub(in crate::http) async fn refresh(
         };
         let authority = NetworkAuthority::new(lease.clone(), &binding.runtime().settings().transport(), None)
             .map_err(|_| unavailable())?;
-        let outcome = runtime.block_on(binding.runtime().refresh(&host.core, authority, lease, CancellationToken::new(), || crate::app::now().unwrap_or_default()));
+        let outcome = runtime.block_on(binding.runtime().refresh_reviewed(&host.core, authority, lease, CancellationToken::new(), || crate::app::now().unwrap_or_default()));
         // Return the native committed receipt without a fallible post-commit
         // disclosure/read that could hide a successful publication.
         let value = match outcome {

@@ -210,6 +210,23 @@ where
         let (fence, code, lease, attempted_at) = pending_input(pending)?;
         self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
     }
+    pub(crate) fn record_prepared_cache_failure_at_borrowed<L: NativeNetworkLease<B>>(
+        &mut self,
+        fence: &storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(fence, code)?;
+        self.store
+            .record_prepared_cache_failure_at_borrowed_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                &failure,
+                attempted_at,
+            )
+    }
 }
 impl<C, A, R, B, L> NetworkCachePublisher<L> for BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>
 where
