@@ -285,6 +285,31 @@
       ]
     },
     {
+      "id": "core.network-collector",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run synthetic network collector core cases (fake runners and disposable SQLite)",
+      "kind": "test",
+      "if": null,
+      "run": [
+        "node --test --test-concurrency=1 tools/network-collector/core.test.ts"
+      ],
+      "toolchain": [
+        "node"
+      ],
+      "files": [
+        "tools/network-collector/core.test.ts"
+      ],
+      "scope": "Twenty-two synthetic collector cases: strict private config/inventory, revision persistence, single writer, fake home guard and ping parsing, rollup/retention, direct GET handlers, Host/Origin refusal before reads, fake-child command bounds/cleanup, observation-time cross-hour indexing and controlled scheduler shutdown. Disposable SQLite only; no command execution, socket, private data or installed acceptance.",
+      "cases": {
+        "counter": "node-test-toplevel",
+        "files": [
+          "tools/network-collector/core.test.ts"
+        ],
+        "expected": 22
+      }
+    },
+    {
       "id": "core.cargo-modes",
       "workflow": "ordinary-core.yml",
       "job": "ordinary-core",
