@@ -6572,6 +6572,10 @@ no socket, real collector, provider, credential or household data is used.
 The failure occurs after the runtime's original archive reservation
 and before publication, then checks previous-generation reads,
 no quarantine and a succeeding refresh through the same owners.
+The authored case also expects a later auth refusal to quarantine the source,
+then an `access-revoked` refusal without another transport call.
+The current local run fails at the preceding recovery assertion with
+`guard-conflict`, so those later assertions have not been reached.
 These bounded cases remain in the default set.
 
 The existing `network-live-facts-healthy.mjs` entry adds `mayRefresh`,
