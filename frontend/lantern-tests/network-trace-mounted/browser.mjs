@@ -247,15 +247,42 @@ try {
   await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`);
   await chooseHostClient(); await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
   await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
+  // A device glyph opens its card in place: no lens, and the map keeps its scope.
+  const card = `document.querySelector('.ua-inspector.is-network h2')?.textContent`;
+  const scope = `document.querySelector('.ua-viewport').getAttribute('aria-label')`;
+  const scopeBefore = await evaluate(scope), roomBefore = await evaluate(`document.querySelector('.ua-inspector h2')?.textContent`);
+  const settledPress = async (expression, name) => {
+    try { await pressSettled(expression); } catch (error) {
+      throw Error(`${error.message}; ${name}: ${JSON.stringify(await evaluate(`window.__settledPress?.read()`))}`, { cause: error });
+    } finally { await evaluate(`window.__settledPress?.stop(); true`); }
+  };
+  await settledPress(`document.querySelector('.ua-net-device[aria-label^="Host client"]')`, 'Host client glyph');
+  await until(`${card} === 'Host client'`);
+  assert.equal(await evaluate(scope), scopeBefore, 'choosing a device leaves the camera scope as it was');
+  assert.equal(await evaluate(`!!document.querySelector('#generated-lens .ung, .ua-graph')`), false, 'no graph or lens opens for a device');
+  // Its reported link opens the link card; the far end opens that device's card.
+  await press(`document.querySelector('.ua-inspector .ua-net-link-row button')`);
+  await until(`${card} === 'Host client – Host root'`);
+  assert.match(await evaluate(`document.querySelector('.ua-inspector').textContent`), /Mediumethernet/);
+  await press(`[...document.querySelectorAll('.ua-inspector .ua-net-end')].find(x => x.textContent === 'Host root')`);
+  await until(`${card} === 'Host root'`);
+  // Show in graph opens the graph with that device chosen; closing the card returns to the room card.
+  await press(`[...document.querySelectorAll('.ua-inspector button')].find(x => x.textContent.trim() === 'Show in graph')`);
+  await until(`!!document.querySelector('.ua-graph .ung-detail')?.textContent.includes('Host root')`);
+  await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
+  await press(`document.querySelector('.ua-inspector [aria-label="Close network card"]')`);
+  await until(`!document.querySelector('.ua-inspector.is-network') && document.querySelector('.ua-inspector h2')?.textContent === ${JSON.stringify(roomBefore)}`);
+  // With a host lens the Network lens holds no copy of the graph; the key's Graph opens the Atlas's own panel.
   await click('Switch host mode'); await click('Toggle fixture lens');
-  await until(`!!document.querySelector('#generated-lens .ung')`); await chooseHostClient();
+  await until(`!!document.querySelector('#generated-lens')`);
+  assert.equal(await evaluate(`!!document.querySelector('#generated-lens .ung')`), false, 'no lens-hosted graph');
+  await until(`!!(${hostGraphOpen})`);
+  if (await evaluate(`(${networkHeader}).getAttribute('aria-expanded') !== 'true'`)) await settledPress(networkHeader, 'Network header');
+  await press(hostGraphOpen); await until(`!!document.querySelector('.ua-graph .ung')`); await chooseHostClient();
   await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
-  await click('Toggle fixture lens'); await until(`!document.querySelector('#generated-lens .ung')`);
-  assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
-  await click('Toggle fixture lens'); await until(`!!document.querySelector('#generated-lens .ung')`); await chooseHostClient();
-  await until(`document.querySelectorAll('.ua-net-trace').length === 1`);
+  assert.equal(await evaluate(`!!document.querySelector('#generated-lens .ung')`), false);
   await press(`[...document.querySelectorAll('.layer-chip')].find(x=>x.textContent.trim().startsWith('Network'))`);
-  await until(`!document.querySelector('#generated-lens .ung')`);
+  await until(`!document.querySelector('.ua-graph .ung')`);
   assert.equal(await evaluate(`!!document.querySelector('.ua-net-tracing')`), false);
   console.log('mounted generated network trace controls passed');
 } finally {

@@ -186,13 +186,21 @@ Both are invented documentary records, not wiring or device evidence
   Hall. No test was performed and nothing here is wiring evidence. No
   configured home supplies such a projection yet. The 18-page drawing opens
   from **Library** › **Electrical drawings**.
-- **Network**: open the Network lens and show the Network layer. Devices lists
-  four: *Fictional network root* (Living room), *Fictional access point*
-  (Stairs), *Fictional switch* (Hall) and *Fictional streaming box* (Living
-  room). Select the access point or switch for a one-step route to the root;
-  select the streaming box for a two-step route whose tentative Wi-Fi hop is
-  marked uncertain. This graph shows logical associations, not physical
-  locations or cable routes; its source coverage is partial.
+- **Network**: show the Network layer. Device glyphs stand at their reviewed
+  rooms: *Fictional network root*, *Fictional streaming box*, *Fictional
+  speaker* and *Fictional printer* in Living room (the fourth behind a +1
+  chip), *Fictional switch* in Hall, *Fictional access point* in Stairs and
+  *Fictional desk computer* in the upper-floor Bedroom. Links are solid when
+  wired, dashed when wireless and dotted when the medium is not recorded; the
+  tentative streaming box link is fainter, and the desk computer's link crosses
+  floors (a stub with a floor badge in Plan). The Network key lists *Fictional
+  tablet* (moves around) and *Fictional garden camera* (no reviewed room) as
+  not placed. Tap a glyph or a link for its card; the access point's card also
+  shows invented Network source facts. **Graph** in the key opens the logical
+  graph: select the access point or switch for a one-step route to the root,
+  the streaming box for a two-step route whose tentative Wi-Fi hop is marked
+  uncertain. None of this shows physical positions or cable routes; source
+  coverage is partial.
 
 ### Named links
 
@@ -203,9 +211,9 @@ Each opens the actual Atlas at a named view (rule below), then the step shown.
   **Show drawing group** on *Fictional symbol 1* shows circuits A1 and A2.
 - `/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-living&view=3d`:
   Living room in 3D. **Electrical** shows its one grouped symbol; the Network
-  lens has the root and streaming box.
+  layer shows its four devices.
 - `/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan`:
-  Stairs. The Network lens traces the access point to the root.
+  Stairs. The Network graph traces the access point to the root.
 - `/example/index.html`, then **Rooms & places**: the unplaced belongings with
   quantity and source hierarchy; **Upkeep** lists the lamp's two entries.
 

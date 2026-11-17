@@ -88,15 +88,11 @@ export function AtlasView() {
 }
 
 const LENS_TITLE = { places: 'Rooms & places', network: 'Network' } as const;
-/** Said in the lens in place of the unified Atlas's own part, its model rooms
- * or network graph, when there is no house model yet. */
-const NO_ROOM_MAP = {
-  places: 'There is no house model yet, so its rooms are not listed here.',
-  network: 'There is no house model yet, so its network graph is not shown here.',
-} as const;
+/** Said in the places lens in place of the unified Atlas's model rooms when there is no house model yet. */
+const NO_ROOM_MAP = 'There is no house model yet, so its rooms are not listed here.';
 
 /** The Atlas workspace: the map with the chosen lens beside it; the Rooms
- * list's Place records and the network key's graph opener choose a lens
+ * list's Place records and the network graph's Network source records choose a lens
  * (without a house model, the row above the building sections does). Read wide, the lens takes the room
  * and the map stands in the corner as a still-drawn inset, returned by Show
  * map. A record opened from the lens reads wide in the same way while it is
@@ -214,7 +210,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
     {(kind === 'document' || sources) && <div className="atlas-bar">
       {kind === 'document' && <>
         <button type="button" className="chip-btn" onClick={() => choose('places')}><Icon name="rooms" size={15} />Place records</button>
-        <button type="button" className="chip-btn" onClick={() => choose('network')}><Icon name="network" size={15} />Network</button>
+        <button type="button" className="chip-btn" onClick={() => choose('network')}><Icon name="network" size={15} />Network source records</button>
       </>}
       {sources}
     </div>}
@@ -229,10 +225,10 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
             <Icon name="close" size={15} /><span>Close<span className="sr-only"> {LENS_TITLE[lens.kind]}</span></span></button>
         </header>
         <div ref={body} className="atlas-lens-body">
-          {/* The unified Atlas renders its own model rooms or network graph here;
+          {/* The unified Atlas renders its own model rooms here;
               without one, the lens says so before the home's own records. */}
-          {native ? <div ref={nativeTarget} className="atlas-lens-native" />
-            : <p className="atlas-lens-status">{NO_ROOM_MAP[lens.kind]}</p>}
+          {lens.kind === 'places' && (native ? <div ref={nativeTarget} className="atlas-lens-native" />
+            : <p className="atlas-lens-status">{NO_ROOM_MAP}</p>)}
           {lens.kind === 'places' ? <PlacesLens /> : <NetworkLens />}
         </div>
       </section>}

@@ -25,6 +25,7 @@ try {
     `export { exampleElectricalInput, exampleElectricalProjection } from ${JSON.stringify(join(root, 'frontend/example/electrical-data.ts'))};`,
     `export { traceToRoot } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};`,
     `export { buildGraph } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx'))};`,
+    `export { admittedNetworkDevices, networkLinkStyle, networkUnplacedReason, uncertainLink } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-map.ts'))};`,
   ].join('\n'));
   // Expose the actual non-exported builder only in this test bundle.
   const graphPath = join(root, 'frontend/src/lantern/unified-atlas/NetworkGraph.tsx');
@@ -61,10 +62,30 @@ const records = api.documentaryRoomRecords(scene, frame, selectable);
 assert.deepEqual(['syn-room-hall', 'syn-room-living'].map(id => records.rooms.get(id).electrical.length), [3, 1]);
 // Network: every placed device sits in its own reviewed room; the root is in Living room.
 const networkIds = id => records.rooms.get(id).network.map(row => row.id).sort();
-assert.deepEqual(['syn-room-hall', 'syn-room-living', 'syn-room-stairs'].map(networkIds),
-  [['example-switch'], ['example-root', 'example-streaming-box'], ['example-access-point']]);
+assert.deepEqual(['syn-room-hall', 'syn-room-living', 'syn-room-stairs', 'syn-room-bedroom-b'].map(networkIds),
+  [['example-switch'], ['example-printer', 'example-root', 'example-speaker', 'example-streaming-box'], ['example-access-point'], ['example-desk-computer']]);
 const graph = api.buildGraph(frame.network.data);
-assert.equal(graph.nodes.size, 4, 'the Devices list shows the four fictional devices');
+assert.equal(graph.nodes.size, 9, 'the Devices list shows the nine fictional devices');
+// The map draws devices only where their own reviewed room record admits them.
+const admitted = api.admittedNetworkDevices(records);
+assert.deepEqual(admitted.map(row => `${row.roomId}:${row.deviceId}`).sort(), ['syn-room-bedroom-b:example-desk-computer', 'syn-room-hall:example-switch',
+  'syn-room-living:example-printer', 'syn-room-living:example-root', 'syn-room-living:example-speaker', 'syn-room-living:example-streaming-box',
+  'syn-room-stairs:example-access-point']);
+// A graph without the parser-owned record keys places nothing, whatever its names say.
+assert.deepEqual(api.admittedNetworkDevices({ ...records, networkGraphs: records.networkGraphs.map(row => ({ ...row, deviceRecordKeys: undefined })) }), []);
+const links = new Map(frame.network.data.links.map(row => [row.id, row]));
+assert.deepEqual(['example-link', 'example-link-speaker', 'example-link-printer', 'example-link-camera', 'example-link-box'].map(id => api.networkLinkStyle(links.get(id))),
+  ['wired', 'wireless', 'unknown', 'unknown', 'wireless']);
+assert.equal(api.networkLinkStyle(links.get('example-link'), [{ nodeKey: null }]), 'unknown', 'an unresolved end takes the unknown style');
+// Only the source's own word for a medium sets the style: a bare "LAN" names none.
+assert.deepEqual(['wireless LAN', '802.11 LAN', 'LAN', 'powerline'].map(medium => api.networkLinkStyle({ ...links.get('example-link'), medium })),
+  ['wireless', 'wireless', 'unknown', 'wired']);
+assert.deepEqual(['example-link-box', 'example-link'].map(id => api.uncertainLink(links.get(id))), [true, false]);
+const devicesById = new Map(frame.network.data.devices.map(row => [row.id, row]));
+assert.deepEqual(['example-tablet', 'example-garden-camera'].map(id => api.networkUnplacedReason(devicesById.get(id))), ['moves-around', 'no-reviewed-room']);
+assert.ok(!admitted.some(row => row.deviceId === 'example-tablet' || row.deviceId === 'example-garden-camera'));
+// One device carries invented Network source facts; the others carry none.
+assert.deepEqual(frame.network.data.devices.filter(row => row.liveFacts).map(row => row.id), ['example-access-point']);
 const route = from => api.traceToRoot(graph.nodes.values(), graph.edges, `d:${from}`);
 const trace = route('example-access-point');
 assert.equal(trace.status, 'traced');
@@ -134,6 +155,7 @@ assert.deepEqual(api.traceElectricalGroup(group, { ...traceSource, ledger: { ...
 const mismatch = { ...frame, sourceSelection: { ...frame.sourceSelection, acceptedRoomReceiptSha256: 'f'.repeat(64) } };
 const refused = api.documentaryRoomRecords(scene, mismatch, selectable);
 assert.equal(refused.rooms.get('syn-room-stairs').network.length, 0);
+assert.deepEqual(api.admittedNetworkDevices(refused), []);
 assert.equal(refused.rooms.get('syn-room-hall').electrical.length, 0);
 let invalidations = 0;
 handle.source.subscribeInvalidation(frame, () => { invalidations++; });

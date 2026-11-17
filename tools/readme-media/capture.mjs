@@ -79,7 +79,7 @@ try {
   await page.getByRole('heading', { name: 'Lower room', exact: true }).waitFor();
   await page.screenshot({ path: resolve(output, 'synthetic-room.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Close details', exact: true }).click();
-  await page.getByRole('button', { name: 'Network', exact: true }).click();
+  await page.getByRole('button', { name: 'Network source records', exact: true }).click();
   await page.getByRole('button', { name: 'Load Network relations', exact: true }).click();
   await page.getByText('synthetic-link', { exact: true }).waitFor();
   assert.match(await page.locator('body').innerText(), /9007199254740993/);
@@ -808,7 +808,7 @@ try {
   assert.match(await documentDialog.innerText(), /Licence permits use: Synthetic open licence 1\.0/);
   await production.screenshot({ path: resolve(output, 'example-documents-detail.png'), animations: 'disabled' });
   await documentDialog.getByRole('button', { name: 'Close', exact: true }).click();
-  // Trace the fictional logical network through the shipped Atlas lens, opened from the Network layer's key.
+  // Trace the fictional logical network in the Atlas's graph panel, opened from the Network layer's key.
   await section('Atlas');
   await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
   assert.deepEqual(await stateFacts(production), reopened, 'Returning from Library retains the Stairs view');
@@ -817,14 +817,12 @@ try {
   const networkKey = production.getByRole('region', { name: 'Network layer', exact: true });
   const networkKeyHead = networkKey.locator('.ua-key-head');
   if (await networkKeyHead.getAttribute('aria-expanded') !== 'true') await networkKeyHead.click();
-  await networkKey.getByRole('button', { name: 'Open network graph', exact: true }).click();
-  const networkLens = production.locator('section.atlas-lens.is-network');
-  await networkLens.getByRole('heading', { name: 'Logical network graph', exact: true }).waitFor();
-  const showNetwork = networkLens.getByRole('button', { name: 'Show Network layer', exact: true });
-  if (await showNetwork.isVisible()) await showNetwork.click();
-  const graph = networkLens.locator('figure.ung');
+  await networkKey.getByRole('button', { name: 'Graph', exact: true }).click();
+  const networkPanel = production.locator('section.ua-graph');
+  await networkPanel.getByRole('heading', { name: 'Logical network graph', exact: true }).waitFor();
+  const graph = networkPanel.locator('figure.ung');
   await graph.getByText('Recorded logical network; no physical routes', { exact: true }).waitFor();
-  const devices = graph.locator('details.ung-list').filter({ has: production.getByText('Devices (4)', { exact: true }) });
+  const devices = graph.locator('details.ung-list').filter({ has: production.getByText('Devices (9)', { exact: true }) });
   await devices.locator('summary').click();
   await devices.getByRole('button', { name: /^Fictional access point/ }).click();
   const trace = graph.getByRole('region', { name: 'Route to Fictional network root' });

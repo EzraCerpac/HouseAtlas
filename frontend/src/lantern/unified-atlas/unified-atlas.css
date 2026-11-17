@@ -374,6 +374,121 @@
   outline-offset: 2px;
 }
 
+/* ---- Network devices on the map ----------------------------------------- */
+
+/* One glyph per placed device, in a row around its room's anchor. The button
+   is the whole slot; the dot inside is the mark. */
+.lantern-host .ua-net-device,
+.lantern-host .ua-net-more {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.lantern-host .ua-net-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--layer, #B97A00);
+  box-shadow: 0 1px 1px rgba(24, 35, 58, 0.16), 0 6px 12px -8px rgba(24, 35, 58, 0.7);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lantern-host .ua-net-device:hover .ua-net-dot { transform: scale(1.15); }
+/* The source's own root marker: a second ring. */
+.lantern-host .ua-net-device.is-root .ua-net-dot { box-shadow: 0 0 0 1.5px var(--layer, #B97A00), 0 6px 12px -8px rgba(24, 35, 58, 0.7); }
+/* Not confirmed in the source: an open mark. */
+.lantern-host .ua-net-device.is-uncertain .ua-net-dot { background: #fffdf8; border-color: var(--layer, #B97A00); border-style: dashed; }
+.lantern-host .ua-net-device.is-context .ua-net-dot { opacity: 0.7; }
+.lantern-host .ua-net-device.is-chosen .ua-net-dot { transform: scale(1.25); box-shadow: 0 0 0 3px var(--lantern), 0 6px 12px -8px rgba(24, 35, 58, 0.7); }
+
+.lantern-host .ua-net-more > span,
+.lantern-host .ua-net-more {
+  color: var(--layer, #B97A00);
+  font: 700 11px/1 var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lantern-host .ua-net-more::before {
+  content: '';
+  position: absolute;
+  inset: 4px 2px;
+  z-index: -1;
+  border-radius: 9px;
+  border: 1.5px solid var(--layer, #B97A00);
+  background: #fffdf8;
+}
+
+.lantern-host .ua-net-more.is-chosen::before { box-shadow: 0 0 0 3px var(--lantern); }
+
+.lantern-host :is(.ua-net-device, .ua-net-more, .ua-net-floor):focus-visible {
+  outline: 2.5px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* A plan's link to another floor ends in that floor's badge. */
+.lantern-host .ua-net-floor {
+  position: absolute;
+  z-index: 3;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1.5px solid var(--layer, #B97A00);
+  border-radius: 11px;
+  background: #fffdf8;
+  color: var(--ink);
+  font: 650 var(--fs-xs)/1.2 var(--text);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.lantern-host .ua-net-focus { filter: drop-shadow(0 0 2.5px rgba(255, 255, 255, 0.9)); }
+
+/* Line samples for the key and the cards, in the map's own styles. */
+.lantern-host .ua-net-swatch { flex: none; overflow: visible; }
+.lantern-host .ua-net-swatch line { stroke: var(--layer, #B97A00); stroke-width: 2; stroke-linecap: round; }
+.lantern-host .ua-net-swatch.is-wireless line { stroke-dasharray: 5 4; }
+.lantern-host .ua-net-swatch.is-unknown line { stroke-dasharray: 1 4.5; }
+.lantern-host .ua-net-swatch.is-uncertain line { opacity: 0.45; }
+
+.lantern-host .ua-net-legend {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .ua-net-legend > li { display: flex; align-items: center; gap: 8px; }
+
+.lantern-host .ua-net-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.lantern-host .ua-net-list .ua-belonging > .ua-net-dot,
+.lantern-host .ua-net-list .ua-belonging > .ua-net-swatch { flex: none; }
+.lantern-host .ua-net-list .ua-belonging > .ua-net-dot { width: 12px; height: 12px; border-width: 1.5px; box-shadow: none; }
+.lantern-host .ua-net-unplaced > summary { cursor: pointer; font-weight: 650; }
+.lantern-host .ua-net-unplaced h4 { margin: 8px 0 2px; font: 650 var(--fs-xs)/1.3 var(--text); color: var(--muted); }
+
+.lantern-host .ua-net-ends { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.lantern-host .ua-net-addresses { margin: 0; padding: 0; list-style: none; }
+.lantern-host .ua-net-observed { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lantern-host .ua-net-observed > li { display: grid; }
+.lantern-host .ua-net-observed > li.is-old { color: var(--ink-2); }
+.lantern-host .ua-net-graph-link,
+.lantern-host .ua-net-sources { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
+
 .lantern-host .ua-label-hit {
   position: absolute;
   z-index: 3;
@@ -2328,7 +2443,7 @@
   .lantern-host .ua-shell.is-sheet-open .ua-bottom { visibility: hidden; }
 
   .lantern-host .ua-shell.is-sheet-open .ua-label-hit,
-  .lantern-host .ua-shell.is-sheet-open .ua-marker { visibility: hidden; }
+  .lantern-host .ua-shell.is-sheet-open :is(.ua-marker, .ua-net-device, .ua-net-more, .ua-net-floor) { visibility: hidden; }
 
   /* The graph takes the stage, with its close control in reach; the card under it steps aside. */
   .lantern-host .ua-graph {
@@ -3274,6 +3389,11 @@
   .lantern-host .ua-time-strip::-webkit-slider-thumb { height: 50px; }
   .lantern-host .ua-time-strip::-moz-range-thumb { height: 46px; }
   .lantern-host .ua-label-hit { min-width: 44px; min-height: 44px; }
+  /* A glyph's slot is its whole target; the row is laid out at this size. */
+  .lantern-host :is(.ua-net-device, .ua-net-more) { width: 44px; height: 44px; }
+  .lantern-host .ua-net-more::before { inset: 11px 6px; }
+  .lantern-host .ua-net-floor { min-width: 44px; min-height: 44px; }
+  .lantern-host :is(.ua-net-graph-link, .ua-net-sources, .ua-net-end) { min-height: 44px; }
 }
 
 @container ua-stage (max-width: 720px) {
@@ -3322,6 +3442,7 @@
   .lantern-host .ua-dock-btn { transition: none; }
   .lantern-host .ua-stage::before,
   .lantern-host .ua-marker,
+  .lantern-host .ua-net-dot,
   .lantern-host .ua-tile,
   .lantern-host .ua-rung,
   .lantern-host .ua-rung-tick,
@@ -3453,3 +3574,7 @@
 .lantern-host .ua-marker.is-electrical-group {
   box-shadow: 0 0 0 4px rgba(255, 207, 100, .75), 0 0 18px 6px rgba(255, 190, 65, .8);
 }
+
+/* A room's devices folded to one count chip, chosen while its device list is open. */
+.lantern-host .ua-marker.ua-net-folded.is-chosen { box-shadow: 0 0 0 3px var(--lantern), 0 8px 16px -10px rgba(24, 35, 58, 0.7); }
+.lantern-host .ua-key-body > .ua-net-says { color: var(--ink-2); }

@@ -13,7 +13,7 @@ const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}
 export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays']> = async (_selection, scene, building, signal) => {
   signal.throwIfAborted();
   if (building.buildingId !== 'syn-building-house' || building.nativePlaceId === null) return null;
-  const rooms = ['syn-room-hall', 'syn-room-living', 'syn-room-stairs'].map(id => scene.rooms.find(room => room.roomId === id));
+  const rooms = ['syn-room-hall', 'syn-room-living', 'syn-room-stairs', 'syn-room-bedroom-b'].map(id => scene.rooms.find(room => room.roomId === id));
   if (rooms.some(room => !room || room.buildingId !== building.buildingId || room.nativePlaceId === null)) return null;
   const targets = rooms.map((room, i) => ({ packagePlaceKey: `generated-${room!.roomId}`, packagePlaceUuid: U(600 + i) }));
   const receipt = { id: 'example-room-review', sha256: 'a'.repeat(64) }, floorHash = 'c'.repeat(64);
@@ -44,27 +44,45 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
       uncertainty: 'Current wiring is unknown', currentState: 'historic-unverified', physicalCoordinate: null, wireRoute: null })),
   };
   // Logical records only: root (Living room) <- switch (Hall) <- streaming box (Living room, tentative);
-  // root <- access point (Stairs). No cable route, coordinate or radio coverage.
+  // root <- access point (Stairs); switch <- desk computer (Bedroom, upper floor: a link across floors);
+  // access point <- speaker (Living room, Wi-Fi); switch <- printer (Living room, medium not recorded);
+  // tablet (moves around) and garden camera (no reviewed room) stay unplaced. The access point
+  // alone carries invented Network source facts. No cable route, coordinate or radio coverage.
   const placed = (i: number, roomLabel: string) => ({ placeId: null, sourceRoomId: `example-room-${i}`, sourcePlaceId: targets[i]!.packagePlaceKey,
     sourcePlaceUUID: targets[i]!.packagePlaceUuid, planAssociations: [{ sourceAnchorId: `example-anchor-${i}`, sourceFloorKey: 'example-floor',
       sourceFloorLabel: 'Fictional floor', sourceReference: 'Fictional record', sourceHandle: 'example-handle', sourceSHA256: floorHash,
       mappingReceiptSHA256: receipt.sha256 }], roomLabel, detail: '', confidence: 'recorded' as const, basis: 'Fictional association',
     floorKey: null, mappingStatus: 'accepted' as const, coordinate: null });
-  const link = (id: string, from: string, to: string, medium: string, confidence: 'recorded' | 'tentative', notes: string) => ({ id, fromEndpointId: from,
-    toEndpointId: to, kind: 'connection' as const, medium, confidence, sourceConfidence: null, temporalStatus: confidence, recordedAtPrecision: null,
+  const link = (id: string, from: string, to: string, medium: string, confidence: 'recorded' | 'tentative', notes: string,
+    kind: 'connection' | 'hypothesis' = 'connection') => ({ id, fromEndpointId: from, toEndpointId: to, kind, medium, confidence, sourceConfidence: null, temporalStatus: confidence, recordedAtPrecision: null,
     basis: 'Fictional association', recordedAt: null, notes, path: null });
   const network: NetworkOverlayData = {
     viewKey: pins.viewKey, source: { label: 'Fictional network', revision: 'example-1', recordedAt: null, retrievedAt: null,
       status: 'recorded', acceptedAt: null, coverage: 'partial', notes: 'Fictional logical records', roomMappingReceipt: receipt },
     devices: [
-      { id: 'example-access-point', label: 'Fictional access point', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(2, 'Stairs') },
+      { id: 'example-access-point', label: 'Fictional access point', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(2, 'Stairs'),
+        liveFacts: { status: 'available', source: { workspaceId: scene.scope.workspaceId, homeId: scene.scope.homeId, sourceInstanceId: U(620),
+          collectionId: 'example-devices', sourceKind: 'network-device', externalId: 'example-ap' }, addresses: ['192.0.2.10'],
+          observedState: [{ id: 'example-ap-clients', kind: 'Connected clients', value: 2, factAt: '2026-01-02T08:59:00Z', sourceSnapshotAt: '2026-01-02T09:00:00Z',
+            retrievedAt: '2026-01-02T09:01:00Z', vantage: 'Fictional collector', invalidatedAt: null, freshness: 'recent' }],
+          lastSeenAt: '2026-01-02T08:59:00Z', sourceSnapshotAt: '2026-01-02T09:00:00Z', retrievedAt: '2026-01-02T09:01:00Z', freshness: 'recent' } },
       { id: 'example-root', label: 'Fictional network root', kind: 'router', sourceRoot: true, mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
       { id: 'example-switch', label: 'Fictional switch', kind: 'switch', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(0, 'Hall') },
-      { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room') }],
+      { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-desk-computer', label: 'Fictional desk computer', kind: 'computer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(3, 'Bedroom') },
+      { id: 'example-speaker', label: 'Fictional speaker', kind: 'speaker', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-printer', label: 'Fictional printer', kind: 'printer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-tablet', label: 'Fictional tablet', kind: 'tablet', mobility: 'mobile', confidence: 'recorded', notes: '', place: null },
+      { id: 'example-garden-camera', label: 'Fictional garden camera', kind: 'camera', mobility: 'fixed', confidence: 'recorded', notes: '', place: null }],
     endpoints: [], links: [
       link('example-link', 'example-access-point', 'example-root', 'ethernet', 'recorded', 'Logical association only; no cable route'),
       link('example-link-switch', 'example-switch', 'example-root', 'ethernet', 'recorded', 'Logical association only; no cable route'),
-      link('example-link-box', 'example-streaming-box', 'example-switch', 'wifi', 'tentative', 'Unconfirmed; invented for the example')],
+      link('example-link-box', 'example-streaming-box', 'example-switch', 'wifi', 'tentative', 'Unconfirmed; invented for the example'),
+      link('example-link-desk', 'example-desk-computer', 'example-switch', 'ethernet', 'recorded', 'Logical association only; no cable route'),
+      link('example-link-speaker', 'example-speaker', 'example-access-point', 'wifi', 'recorded', 'Logical association only; no radio coverage'),
+      link('example-link-printer', 'example-printer', 'example-switch', '', 'recorded', 'Medium not recorded; invented for the example'),
+      link('example-link-tablet', 'example-tablet', 'example-access-point', 'wifi', 'recorded', 'Logical association only'),
+      link('example-link-camera', 'example-garden-camera', 'example-access-point', 'wifi', 'tentative', 'Invented for the example', 'hypothesis')],
   };
   const sceneSelection = { ...scene.scope, revision: scene.selection.revision, publicationId: scene.publication.publicationId,
     semanticsSha256: scene.publication.semanticsSha256 };
