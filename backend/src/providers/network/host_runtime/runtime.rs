@@ -191,6 +191,11 @@ impl HostNetworkRuntime {
         // Obtain the original Store fence and Native admission before transport.
         // Store is locked before the canonical Network catalog owner. Producer
         // and transport construction are also deferred until this succeeds.
+        // Retire before archive admission: contention here owns no reservation.
+        // Retire previous health before a new attempt; failed reads remain unknown.
+        if self.settings.collector_measurements() {
+            *self.collector.try_lock().map_err(|_| unavailable())? = None;
+        }
         let reservation = with_store(core, &lease.access, |store| {
             let mut references = n::NetworkCacheReferences::new(
                 &self.sidecar,
@@ -219,10 +224,6 @@ impl HostNetworkRuntime {
                 return Err(error.into());
             }
         };
-        // Retire previous health before a new attempt; failed reads remain unknown.
-        if self.settings.collector_measurements() {
-            *self.collector.try_lock().map_err(|_| unavailable())? = None;
-        }
         let fetched = provider
             .prepare_refresh(
                 &prior,

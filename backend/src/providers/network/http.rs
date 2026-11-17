@@ -450,7 +450,8 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
             // A timer cannot interrupt a synchronous callback in a poll. Reject
             // any result that finishes after the original absolute deadline.
             self.check_deadline(deadline)?;
-            // The concrete client alone issues custody after successful TLS,
+            // The concrete client alone issues custody after verified HTTPS or
+            // exact-loopback HTTP,
             // exact endpoint, full bounded body and final original authority
             // checks. Hashing is bounded and remains inside the same deadline.
             let response = CustodiedInventoryResponse::verified(&self.config, result?);
