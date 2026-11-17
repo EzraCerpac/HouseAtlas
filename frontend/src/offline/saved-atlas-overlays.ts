@@ -162,13 +162,21 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
   }
   // The map network this device held at saving, per building, with the date it was stored.
   const networkBuildings = new Set<string>();
-  // Its placement of a device wins: a historical room placement of the same device stays only as an
-  // observation (unplaced until the merge below joins it to the held record), never a second room.
-  const heldDevices = new Set([...(held?.values() ?? [])].flatMap(row => (row.records.networkGraphs ?? []).flatMap(graph => [...(graph.deviceRecordKeys?.values() ?? [])])));
+  // Its answer for a device wins: a historical room placement of a held device retires (staying as an
+  // observation, unplaced until the merge below joins it to the held record) when a held room places the
+  // device or the held copy covers that room's building with a network. In a building the held copy does
+  // not cover, nothing stored replaces the placement, so it stays.
+  const heldRows = [...(held?.values() ?? [])].filter(hasNetwork);
+  const heldDevices = new Set(heldRows.flatMap(row => (row.records.networkGraphs ?? []).flatMap(graph => [...(graph.deviceRecordKeys?.values() ?? [])])));
+  const heldPlaced = new Set(heldRows.flatMap(row => [...row.records.rooms.values()].flatMap(room => room.network.map(record => record.key))));
+  const roomBuilding = new Map(scene.rooms.map(room => [room.roomId, room.buildingId]));
   for (const [id, room] of property.rooms) {
-    const moved = room.network.filter(record => heldDevices.has(record.key));
+    const heldRow = held?.get(roomBuilding.get(id) ?? '');
+    const covered = heldRow !== undefined && hasNetwork(heldRow);
+    const retires = (record: DocumentaryRecord) => heldDevices.has(record.key) && (covered || heldPlaced.has(record.key));
+    const moved = room.network.filter(retires);
     if (!moved.length) continue;
-    (property.rooms as Map<string, typeof room>).set(id, { ...room, network: room.network.filter(record => !heldDevices.has(record.key)) });
+    (property.rooms as Map<string, typeof room>).set(id, { ...room, network: room.network.filter(record => !retires(record)) });
     property.unplaced = { ...property.unplaced, network: [...property.unplaced.network, ...moved] };
   }
   for (const [buildingId, row] of held ?? []) {

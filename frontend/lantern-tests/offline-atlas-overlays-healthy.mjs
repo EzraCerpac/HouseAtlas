@@ -161,7 +161,27 @@ for (const variant of ['historical', 'tuples']) {
     assert([heldRecord, ...(heldRecord.observations ?? [])].some(row => row.sourceFacts.some(fact => fact.label === 'Room association in this observation' && fact.value === historicalRoomId)),
       'the historical placement stays as an observation');
     assert.deepEqual(admittedNetworkDevices(both.records).filter(row => row.deviceId === deviceId).map(row => row.roomId), [otherRoom.roomId]);
-    console.log(`PASS genuine retained historical closure: one room has 1 network + 2 electrical facts; generic and other source records remain unplaced; a stored map network placing the same device elsewhere wins and keeps the historical placement as an observation; snapshot ${house.snapshotId}`);
+    // A held graph is source-wide: listing the device for a building the held copy does not cover replaces
+    // nothing there, so the reviewed historical placement stays; covering its building retires it once.
+    const historicalBuilding = scene.rooms.find(row => row.roomId === historicalRoomId).buildingId;
+    const elsewhere = scene.buildings.find(row => row.levelIds.length > 0 && row.buildingId !== historicalBuilding);
+    assert(elsewhere, 'generated scene has a second building with floors');
+    const listedOnly = building => {
+      const bytes = encodeStoredOverlays(scene, new Map([[building, { storedAt: '2026-11-01T10:07:00Z', records: {
+        rooms: new Map(), network: 'available', electrical: 'unavailable', sourceFacts: [], unplaced: { network: [], electrical: [] },
+        networkGraphs: [{ ...historicalGraph, qualification: 'Recorded logical network; no physical routes' }] } }]]));
+      const listedHouse = { ...house, overlays: bytes.slice().buffer };
+      return readSavedPackSections({ list: async () => [listedHouse], asset: local.asset }, listedHouse, signal)
+        .then(sections => projectSavedAtlasOverlays(sections, scene, historical));
+    };
+    const uncovered = await listedOnly(elsewhere.buildingId);
+    assert(uncovered.records.rooms.get(historicalRoomId).network.some(row => row.key === historicalRecord.key), 'the historical room keeps the device');
+    assert.equal(uncovered.records.unplaced.network.some(row => row.key === historicalRecord.key), false);
+    assert.deepEqual(admittedNetworkDevices(uncovered.records).filter(row => row.deviceId === deviceId).map(row => row.roomId), [historicalRoomId]);
+    const covered = await listedOnly(historicalBuilding);
+    assert.equal((covered.records.rooms.get(historicalRoomId)?.network ?? []).some(row => row.key === historicalRecord.key), false);
+    assert.equal(covered.records.unplaced.network.filter(row => row.key === historicalRecord.key).length, 1, 'the retired device is unplaced once');
+    console.log(`PASS genuine retained historical closure: one room has 1 network + 2 electrical facts; generic and other source records remain unplaced; a stored map network placing the same device elsewhere wins and keeps the historical placement as an observation; one listing it only for an uncovered building keeps the historical room; snapshot ${house.snapshotId}`);
   } else {
     assert.equal(result.records.unplaced.network.length, 2);
     const graph = result.records.networkGraphs[0].data;
