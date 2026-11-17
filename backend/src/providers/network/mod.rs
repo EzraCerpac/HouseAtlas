@@ -2,6 +2,7 @@
 //! configuration, single-flight scheduling and atomic durable publication.
 mod adapter;
 mod archive;
+pub(crate) mod collector;
 mod durable;
 mod facet;
 pub mod host_runtime;

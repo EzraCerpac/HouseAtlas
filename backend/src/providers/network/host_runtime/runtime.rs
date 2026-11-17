@@ -34,6 +34,7 @@ pub struct SnapshotLinkBindings {
 pub struct HostNetworkRuntime {
     settings: NetworkSettings,
     sidecar: Mutex<n::SqliteNetworkSidecar>,
+    collector: Mutex<n::collector::Cached>,
 }
 impl HostNetworkRuntime {
     /// Borrow the original request's already captured grants. The native
@@ -110,10 +111,23 @@ impl HostNetworkRuntime {
         Ok(Self {
             sidecar: Mutex::new(settings.open_sidecar()?),
             settings,
+            collector: Mutex::new(None),
         })
     }
     pub fn settings(&self) -> &NetworkSettings {
         &self.settings
+    }
+    pub(crate) fn collector_snapshot(
+        &self,
+    ) -> std::result::Result<n::collector::Cached, n::NetworkError> {
+        if !self.settings.collector_measurements() {
+            return Ok(None);
+        }
+        Ok(self
+            .collector
+            .try_lock()
+            .map_err(|_| unavailable())?
+            .clone())
     }
     pub fn close(self) -> std::result::Result<(), n::NetworkError> {
         self.sidecar
@@ -127,7 +141,7 @@ impl HostNetworkRuntime {
         authority: Arc<NetworkAuthority>,
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
-        clock: C,
+        mut clock: C,
     ) -> Result<RefreshResult> {
         cancelled(&cancellation)?;
         if lease.source().registration() != self.settings.configured_source().registration() {
@@ -177,6 +191,11 @@ impl HostNetworkRuntime {
         // Obtain the original Store fence and Native admission before transport.
         // Store is locked before the canonical Network catalog owner. Producer
         // and transport construction are also deferred until this succeeds.
+        // Retire before archive admission: contention here owns no reservation.
+        // Retire previous health before a new attempt; failed reads remain unknown.
+        if self.settings.collector_measurements() {
+            *self.collector.try_lock().map_err(|_| unavailable())? = None;
+        }
         let reservation = with_store(core, &lease.access, |store| {
             let mut references = n::NetworkCacheReferences::new(
                 &self.sidecar,
@@ -211,7 +230,7 @@ impl HostNetworkRuntime {
                 baseline.cache_epoch,
                 prepared.reserved_generation_id(),
                 &transport,
-                clock,
+                &mut clock,
             )
             .await;
         let outcome = match fetched {
@@ -250,11 +269,55 @@ impl HostNetworkRuntime {
                     self.cancel_archive_reservation(reservation)?;
                     return Err(error.into());
                 }
+                let collector = if self.settings.collector_measurements() {
+                    n::collector::read(
+                        &transport,
+                        generation,
+                        config.limits().max_response_bytes,
+                        &mut clock,
+                    )
+                    .await
+                } else {
+                    None
+                };
+                if self.settings.collector_measurements() {
+                    // Auxiliary failures become unknown, but request cancellation and
+                    // original authority still fence entry into durable staging.
+                    if let Err(error) = cancelled(&cancellation).and_then(|_| {
+                        authority.revalidate_inventory(
+                            &lease,
+                            self.settings.source(),
+                            config.reviewed_origin(),
+                        )
+                    }) {
+                        self.cancel_archive_reservation(reservation)?;
+                        return Err(error.into());
+                    }
+                }
+                let generation_id = proposal
+                    .state()
+                    .cache
+                    .generation_id
+                    .clone()
+                    .ok_or_else(wrong_scope)?;
                 // Acquire/validate Core and its Store BEFORE the immutable stage.
                 // Contention must not strand a row under the sidecar quota.
                 // Keep this same borrow through publication; HTTPS has ended,
                 // and no access/authority lock spans the sidecar filesystem I/O.
-                RefreshResult::Published(with_core_store(core, &lease.access, |store| {
+                // Reserve the optional snapshot slot before committing; a busy
+                // slot must never turn an already committed publication into an error.
+                let mut collector_slot = if self.settings.collector_measurements() {
+                    match self.collector.try_lock() {
+                        Ok(slot) => Some(slot),
+                        Err(_) => {
+                            self.cancel_archive_reservation(reservation)?;
+                            return Err(unavailable().into());
+                        }
+                    }
+                } else {
+                    None
+                };
+                let published = with_core_store(core, &lease.access, |store| {
                     let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
                     let projected = n::stage_complete_generation(
                         self.settings.source(),
@@ -289,7 +352,11 @@ impl HostNetworkRuntime {
                     prepared
                         .publish(store, staged, &mut references)
                         .map_err(n::NetworkPublicationError::Storage)
-                })?)
+                })?;
+                if let Some(slot) = collector_slot.as_mut() {
+                    **slot = Some(Arc::new((generation_id, collector)));
+                }
+                RefreshResult::Published(published)
             }
             n::RefreshOutcome::Failed(failure) => {
                 self.cancel_archive_reservation(reservation)?;

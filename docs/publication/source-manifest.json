@@ -695,6 +695,7 @@
     {"path":"backend/src/providers/network/README.md","mode":"100644","owner":"network"},
     {"path":"backend/src/providers/network/adapter.rs","mode":"100644","owner":"network"},
     {"path":"backend/src/providers/network/archive.rs","mode":"100644","owner":"network"},
+    {"path":"backend/src/providers/network/collector.rs","mode":"100644","owner":"network"},
     {"path":"backend/src/providers/network/durable.rs","mode":"100644","owner":"network"},
     {"path":"backend/src/providers/network/facet.rs","mode":"100644","owner":"network"},
     {"path":"backend/src/providers/network/failure_contract.rs","mode":"100644","owner":"network"},

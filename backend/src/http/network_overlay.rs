@@ -210,20 +210,18 @@ pub(super) fn read<'h>(
     let mut devices = Vec::new();
     let mut addresses = 0;
     for link in links {
-        let facet = &reads
-            .get(&key(&link.source.scope))
-            .ok_or_else(invalid)?
-            .facet;
+        let read = reads.get(&key(&link.source.scope)).ok_or_else(invalid)?;
+        let facet = &read.facet;
         if matches!(
             facet.status,
             n::FacetStatus::Unavailable | n::FacetStatus::Revoked
         ) {
             continue; // No captured inventory is not evidence of device absence.
         }
-        let live = facts(facet, &link.source.external_id)?;
+        let mut live = facts(facet, &link.source.external_id)?;
+        read.enrich_collector(&link.source.external_id, &mut live)?;
         addresses += live["addresses"].as_array().map_or(0, Vec::len);
         need(addresses <= 16_384)?;
-        let mut live = live;
         live["source"] = json!({"workspaceId":link.source.scope.workspace_id,"homeId":link.source.scope.home_id,
             "sourceInstanceId":link.source.scope.source_instance_id,"collectionId":link.source.scope.collection_id,
             "sourceKind":"network-device","externalId":link.source.external_id});

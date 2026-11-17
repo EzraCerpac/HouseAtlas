@@ -20,6 +20,11 @@ Its required top-level fields are:
 - `homeboxCached`: an array of registration/origin/limits entries.
 - `networkCached`: an array of registration/origin/review/limits,
   connectTimeoutMs/idleTimeoutMs/staleAfterMs/privateDirectory/entities entries.
+  Optional `collectorMeasurements` defaults to false;
+  it enables passive health/measurement GETs only when the existing owner
+  explicitly refreshes inventory, never at cached-only startup or browse.
+  Origins accept HTTPS or exact literal loopback HTTP with an explicit port.
+  See [collector read semantics](../geometry/native-scene-source.md#optional-collector-measurements).
 
 Both arrays are required and together contain at most eight entries. Registrations
 use the existing complete shared sourceRegistration shape. Each registration

@@ -6459,3 +6459,38 @@ This releases no G1–G5 gate.
 Typecheck only this tool with the existing frontend dependencies:
 `node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfig.json`.
 The exact read contract is in `tools/network-collector/README.md`.
+
+
+### Passive Network collector backend reads
+
+The default backend-library lane discovers six generated cases under
+`providers::network::collector::tests::`:
+`healthy_collector_origin_forms`,
+`healthy_collector_join_and_source_freshness`,
+`healthy_collector_no_reply_and_unknown`,
+`healthy_collector_strict_decode_and_bounds`,
+`healthy_collector_fake_get_peer_preserves_inventory`,
+and `healthy_collector_disabled_and_generation_retirement`.
+The existing persistent Network mount case also checks the optional setting,
+and the existing frontend healthy selection checks old/new v2 frame decoding.
+These cases use generated documents and an in-process fake GET peer only;
+no socket, collector, provider, credentials, household data or installation runs.
+They qualify neither scheduling nor installed collection or G1–G5.
+
+Focused commands, using the Rust pin from `rust-toolchain.toml`,
+the existing Cargo target folder and Node 26.10.0:
+
+```sh
+node tools/rust-integration/format.mjs
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -- -D warnings
+cargo test --offline --locked -p houseatlas-backend --lib providers::network::collector::tests:: -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib http::network_overlay:: -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::provider_reads::tests::network_mount_reuses_explicit_existing_custody_without_source_enrollment -- --exact --test-threads=1
+node frontend/lantern-tests/network-live-facts-healthy.mjs
+```
+
+These extend existing selections without changing any CI run step;
+`tools/ci/lanes.json` is unchanged.
+The transport still retains its existing bounds and original source authority.
+See [collector frame semantics](../geometry/native-scene-source.md#optional-collector-measurements)
+for the optional fields, same-source join and process-local cache limits.

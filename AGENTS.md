@@ -3,7 +3,8 @@
 HouseAtlas owns physical identities, reviewed cross-system bindings, optional
 geometry, circuits, valves and provenance. HomeBox owns inventory, locations,
 attachments and maintenance; its fields are read-only projections here and
-edits use verified native links. Network is a separate passive GET source.
+edits use verified native links. Network is a separate passive GET source
+(HTTPS, or explicitly selected exact-loopback HTTP with an explicit port).
 Browsing never sends collector demand, diagnostics, imports or upstream writes.
 
 Preserve arbitrary container types, explicit unknowns, original source dates,
@@ -145,3 +146,13 @@ response cleanup, persisted speed metric renaming and bounded missing-close
 teardown with ping/action recovery are also included;
 no real command, listener, private inventory or G1–G5 acceptance is exercised.
 The measurements contract and explicit limits live in the tool README.
+
+The default backend-library selection additionally discovers the six
+`providers::network::collector::tests::healthy_collector_*` cases.
+They use generated documents, a loopback-free injected GET peer and pure
+origin/frame projections for collector joins, source-time freshness,
+no-reply/unknown, decode bounds and disabled/generation-retirement behavior.
+The existing Network mount selection and frontend `network-live-facts-healthy.mjs`
+cases additionally check the optional setting and measurement frame fields.
+No listener, real collector, provider, credential, household data or installed
+acceptance is exercised; no command, runner or workflow is added.

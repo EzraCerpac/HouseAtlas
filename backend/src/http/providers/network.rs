@@ -79,9 +79,37 @@ pub(in crate::http) struct CachedRead<'h> {
     host: &'h Host,
     original: Arc<n::host_runtime::OriginalNetworkDisclosure>,
     now: String,
+    collector: n::collector::Cached,
 }
 impl CachedRead<'_> {
+    pub fn enrich_collector(
+        &self,
+        id: &str,
+        facts: &mut serde_json::Value,
+    ) -> Result<(), super::super::HttpFailure> {
+        n::collector::enrich(
+            self.binding.runtime().settings().collector_measurements(),
+            &self.collector,
+            self.original.generation_id(),
+            id,
+            &self.now,
+            facts,
+        )
+        .map_err(|_| unavailable())
+    }
     pub fn revalidate(&self) -> Result<(), super::super::HttpFailure> {
+        let current = self
+            .binding
+            .runtime()
+            .collector_snapshot()
+            .map_err(|_| unavailable())?;
+        if !match (&current, &self.collector) {
+            (None, None) => true,
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        } {
+            return Err(unavailable());
+        }
         let released = self
             .binding
             .runtime()
@@ -157,7 +185,12 @@ pub(in crate::http) fn read_cached<'h>(
             &now,
         )
         .map_err(native_error)?;
+    let collector = binding
+        .runtime()
+        .collector_snapshot()
+        .map_err(|_| unavailable())?;
     Ok(CachedRead {
+        collector,
         facet,
         binding,
         host,

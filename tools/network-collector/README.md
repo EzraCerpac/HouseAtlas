@@ -265,11 +265,15 @@ Missing/foreign Host or foreign Origin receives 403 with the fixed body
 Hostnames, alternate ports, opaque origins and trailing slashes are refused.
 There is no forwarded-header trust, proxy feature, CORS, SSE or inventory write API.
 
-The existing backend's HTTPS-only `ReviewedNetworkOrigin` cannot consume this
-HTTP endpoint yet.
-The next backend stage must explicitly add trusted exact-loopback transport,
-measurements decoding, freshness/unknown handling and source/review authority.
-No backend authority or mounted integration is changed here.
+The backend can explicitly select this exact-loopback HTTP origin and enable
+`collectorMeasurements` on its trusted Network settings.
+It reads health and version-1 measurements during an existing inventory refresh;
+ordinary browsing and cached-only startup initiate no refresh or collector work.
+Measurements join by device ID within the same source instance and inventory revision.
+The reviewed scene-device manifest still controls documentary scene enrichment.
+See [the optional backend frame extension](../../docs/geometry/native-scene-source.md#optional-collector-measurements)
+for freshness, response bounds and process-local cache limits.
+No configuration, installation or operational authority is supplied here.
 
 ## Deliberately absent
 

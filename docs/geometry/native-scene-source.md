@@ -297,3 +297,78 @@ After the owner confirms or rejects each pair in one sitting,
 an operator prepares a separate reviewed manifest with decisions,
 attribution, time and evidence, and pins that file as described above.
 The helper never writes that reviewed manifest or marks a pair reviewed.
+
+### Optional collector measurements
+
+A trusted Network settings selection may enable `collectorMeasurements: true`
+in its `networkCached` entry (or use `NetworkSettings::with_collector_measurements`).
+It defaults to false.
+The source origin may be canonical HTTPS,
+or exact `http://127.0.0.1:<port>` / `http://[::1]:<port>` with port 1–65535.
+No hostname, alternate loopback spelling, userinfo, path, query or fragment
+is admitted for plain HTTP.
+The client sends the literal loopback authority as Host and no Origin,
+refuses redirects and proxies,
+and retains the configured per-response byte and time bounds (at most 10 MiB
+and 60 seconds per GET).
+A collector response exceeding that byte bound is unavailable;
+the collector's larger server ceiling does not enlarge the backend limit.
+
+On an existing explicit inventory refresh,
+the enabled owner also GETs `/api/health` and `/api/measurements`.
+These reads never start collector work.
+Browsing and persistent cached-only startup still perform no upstream GET,
+refresh, source enrollment or grant acquisition.
+This setting supplies neither a scheduler nor a new refresh/action route.
+No configuration, installation or G1–G5 release is included.
+
+Version 1 is decoded as a closed, bounded document,
+including the raw and hourly histories even though only recent hours are retained.
+Malformed bodies, unknown versions, missing/extra device IDs,
+or an inventory revision mismatch withhold all measurements,
+without failing the independently accepted inventory read.
+Unhealthy/unreadable collector health makes measured facts unknown.
+The existing reviewed scene-device manifest remains required:
+its source device ID selects measurements directly inside the same source instance
+and inventory generation.
+No additional measurement link manifest or name/address inference is used.
+Documentary scene IDs alone cannot establish same-source identity.
+
+Measurements are immutable process-local snapshots keyed to the successfully
+published inventory generation and protected by that inventory's native read grants.
+A new refresh retires the previous snapshot;
+failed inventory reads, generation replacement and process restart leave unknowns.
+Inventory originals, durable generation bytes and custody are unchanged.
+The current cached-only persistent mount does not initiate an inventory refresh,
+so selecting the setting there alone does not populate measurements.
+
+The v2 frame schemas retain their names and gain an optional, all-or-none trio:
+
+| Field | Meaning |
+| --- | --- |
+| `latencyMs` | Latest reachable one-packet RTT in milliseconds; null for no reply or unknown |
+| `loss` | Latest measured loss: 0 for reachable, 1 for no reply; null for unknown |
+| `recentSeries` | At most the newest 48 retained `hourly7d` rows, ascending, as `{hour, latencyMs, loss}`; latency is the reachable-sample mean, loss excludes unmeasured attempts |
+
+Old v2 frames omit all three fields and remain accepted.
+A missing hour is a gap;
+a null latency/loss point is unmeasured time, never zero loss.
+The series is measured attempts, not uptime or target continuity evidence.
+
+`observedState` has kind `measured-reachability` and `value.state` equal to
+`reachable` or `no-reply`, with the collector's `measuredAt` as `factAt`.
+Both are measured states (`status: available` while recent);
+`no-reply` is not an unknown or an absent device.
+`not-measured` remains unknown with null observedState.
+`lastSeenAt` is the latest timestamp only when that latest fact is reachable;
+no reply does not claim a sighting.
+`sourceSnapshotAt` is collector `generatedAt`,
+while `retrievedAt` is the backend's separate measurement-response retrieval time.
+At each overlay read,
+freshness ages from `measuredAt`, never `generatedAt` or retrieval time.
+Age greater than three times optional envelope/health `intervalMs` is stale;
+the stage-0 collector omits that field, so the fallback is 15 minutes.
+Future-dated latest facts remain unknown.
+Stale measured values retain their source dates and metrics.
+Health failure withholds metrics and series;
+malformed/unavailable measurements retain only unknown facts and inventory metadata.
