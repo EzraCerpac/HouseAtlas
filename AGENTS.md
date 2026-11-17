@@ -6,7 +6,7 @@ attachments and maintenance; its fields are read-only projections here and
 edits use verified native links. Network passively reads stored source results
 (HTTPS, or explicitly selected exact-loopback HTTP with an explicit port).
 Browsing never sends collector demand, diagnostics, imports or upstream writes;
-only explicit authenticated Editor actions may request collector diagnostics.
+the backend requests collector diagnostics only for explicit authenticated Editor actions.
 
 Preserve arbitrary container types, explicit unknowns, original source dates,
 retrieval dates, uncertainty and corrections. Names, graph positions and tree
@@ -136,8 +136,8 @@ candidate-helper method (34 methods total); no workflow command is added.
 
 `tools/network-collector/` owns fixed-schedule collection and its separate store.
 Backend observation reads are passive; browsing never requests collection.
-Diagnostics require explicit authenticated Editor actions.
-Ordinary-core selects exactly the forty synthetic collector cases in
+Backend diagnostics require explicit authenticated Editor actions.
+Ordinary-core selects exactly the forty-two synthetic collector cases in
 `tools/network-collector/core.test.ts` with pinned Node 26.10.0.
 They use fake command runners/children, disposable SQLite, direct handlers and controlled clocks;
 header authority refusals, command bounds/cleanup and cross-hour sample indexing are included;
@@ -161,12 +161,23 @@ acceptance is exercised; no command, runner or workflow is added.
 
 The default backend-library selection additionally discovers five generated
 `providers::network::observations::tests::healthy_*` cases
-and `http::providers::network::tests::healthy_collector_routes_auth_revision_and_outcomes`.
+and four cases under `http::providers::network::tests::`:
+`healthy_collector_routes_auth_revision_and_outcomes`,
+`healthy_collector_routes_refuse_without_current_access`,
+`healthy_collector_routes_refuse_changed_collector_inventory`,
+and `healthy_collector_results_keep_only_revision_qualified_device_actions`.
 They use controlled Tokio time, an injected GET/POST peer, generated originals,
 disposable native Access/Store/sidecar custody and the in-process router.
 They check observation-only scheduling, no overlap, bounded polls, backoff,
 shutdown, absent task sets, result decoding, revision/freshness fences,
-Editor/CSRF refusals and explicit collector action outcomes.
+Editor/CSRF, authentication, workspace/home membership and source/partition/member
+refusals with no collector calls, plus explicit collector action outcomes.
+Device diagnostics require an expected inventory revision checked atomically
+with collector target selection;
+new device action history rows retain that selected revision,
+and unqualified or mismatched rows are withheld from backend results.
+The collector's two added cases cover the required revision field,
+pre-selection inventory replacement and retained targets across guard awaits.
 The existing persistent mount case checks interval/port configuration bounds;
 the existing frontend `network-live-facts-healthy.mjs` selection additionally
 checks typed property-results/action decoders and fake client exchanges.

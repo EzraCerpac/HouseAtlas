@@ -15,6 +15,8 @@ pub(crate) fn measurements(revision: u64) -> Value {
 pub(crate) struct FakePeer {
     pub calls: Mutex<Vec<CollectorRoute>>,
     pub posts: AtomicUsize,
+    pub executions: AtomicUsize,
+    pub actions: Mutex<Vec<Value>>,
     pub revision: std::sync::atomic::AtomicU64,
     pub mode: AtomicUsize,
     pub bad_measurements: AtomicBool,
@@ -25,6 +27,8 @@ impl Default for FakePeer {
         Self {
             calls: Mutex::default(),
             posts: AtomicUsize::new(0),
+            executions: AtomicUsize::new(0),
+            actions: Mutex::default(),
             revision: std::sync::atomic::AtomicU64::new(42),
             mode: AtomicUsize::new(0),
             bad_measurements: AtomicBool::new(false),
@@ -45,7 +49,7 @@ impl CollectorGetPeer for FakePeer {
             Ok(serde_json::to_vec(&match route {
             CollectorRoute::Health=>json!({"version":1,"ok":true,"collector":{"lastCycleAt":AT,"guardOutcome":"home","schemaVersion":1}}),
             CollectorRoute::Measurements=>if self.bad_measurements.load(Ordering::SeqCst) {json!({"version":2})} else {measurements(self.revision.load(Ordering::SeqCst))},
-            CollectorRoute::Results=>if self.bad_results.load(Ordering::SeqCst) {json!({"version":2})} else {results()},
+            CollectorRoute::Results=>if self.bad_results.load(Ordering::SeqCst) {json!({"version":2})} else {let mut value=results();value["actions"]=json!(self.actions.lock().unwrap().clone());value},
         }).unwrap())
         })
     }
@@ -59,8 +63,26 @@ impl Peer for FakePeer {
                 2 => Err(NetworkError::new(ErrorCode::Timeout)),
                 3 => Ok((400, br#"{"error":"invalid-action"}"#.to_vec())),
                 _ => {
-                    let action = Action::parse(&body)?;
+                    let mut request: Value = serde_json::from_slice(&body).unwrap();
+                    if request["kind"] != "speed" {
+                        let expected = request
+                            .as_object_mut()
+                            .unwrap()
+                            .remove("expectedInventoryRevision")
+                            .expect("Backend must supply the revision fence");
+                        if expected != json!(self.revision.load(Ordering::SeqCst)) {
+                            return Ok((
+                                409,
+                                br#"{"error":"inventory-revision-mismatch"}"#.to_vec(),
+                            ));
+                        }
+                    }
+                    let action = Action::parse(&serde_json::to_vec(&request).unwrap())?;
+                    self.executions.fetch_add(1, Ordering::SeqCst);
                     let mut value = serde_json::to_value(&action).unwrap();
+                    if action.device_id().is_some() {
+                        value["inventoryRevision"] = json!(self.revision.load(Ordering::SeqCst));
+                    }
                     value["version"] = json!(1);
                     value["recordedAt"] = json!(AT);
                     value["result"] = match action {
@@ -215,14 +237,37 @@ fn healthy_action_contract_and_correlation() {
     }
     let action = Action::Speed;
     assert_eq!(
-        decode_action(409, br#"{"error":"busy"}"#, &action).unwrap()["status"],
+        decode_action(409, br#"{"error":"busy"}"#, &action, 42).unwrap()["status"],
         "busy"
     );
     assert_eq!(
-        decode_action(400, br#"{"error":"invalid-action"}"#, &action).unwrap()["status"],
+        decode_action(400, br#"{"error":"invalid-action"}"#, &action, 42).unwrap()["status"],
         "refused"
     );
-    assert!(decode_action(200, b"{}", &action).is_err());
+    assert!(decode_action(200, b"{}", &action, 42).is_err());
+    let mismatch = decode_action(
+        409,
+        br#"{"error":"inventory-revision-mismatch"}"#,
+        &action,
+        42,
+    )
+    .unwrap();
+    assert_eq!(mismatch["status"], "refused");
+    assert_eq!(mismatch["reason"], "inventory-revision-mismatch");
+    let ping = Action::parse(br#"{"kind":"ping","deviceId":"device-a"}"#).unwrap();
+    let body: Value = serde_json::from_slice(&ping.collector_body(42).unwrap()).unwrap();
+    assert_eq!(
+        body,
+        json!({"kind":"ping","deviceId":"device-a","expectedInventoryRevision":42})
+    );
+    assert!(
+        Action::parse(&serde_json::to_vec(&body).unwrap()).is_err(),
+        "The caller cannot supply the collector-only pin"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&Action::Speed.collector_body(42).unwrap()).unwrap(),
+        json!({"kind":"speed"})
+    );
 }
 async fn tick(seconds: u64) {
     tokio::time::advance(Duration::from_secs(seconds)).await;

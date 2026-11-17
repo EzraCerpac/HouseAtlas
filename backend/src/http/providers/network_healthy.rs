@@ -82,6 +82,9 @@ struct Fixture {
     holder: Arc<Holder>,
 }
 async fn fixture() -> Result<Fixture> {
+    fixture_with_source(true).await
+}
+async fn fixture_with_source(register_source: bool) -> Result<Fixture> {
     let temporary = tempfile::Builder::new()
         .permissions(fs::Permissions::from_mode(0o700))
         .tempdir()?;
@@ -103,7 +106,7 @@ async fn fixture() -> Result<Fixture> {
         60000,
         &root,
     )?
-    .with_collector_measurements(true);
+    .with_collector_measurements(true)?;
     let mut wire: Value = serde_json::from_str(include_str!(
         "../../../../adapters/network/fixtures/inventory.wire.json"
     ))?;
@@ -227,7 +230,9 @@ async fn fixture() -> Result<Fixture> {
     binding.observations = Some(holder.clone());
     binding.collector_peer = Some(peer.clone());
     let native = serde_json::from_value(serde_json::to_value(&registration)?)?;
-    access.lock().unwrap().put_source(&native, Some(true))?;
+    if register_source {
+        access.lock().unwrap().put_source(&native, Some(true))?;
+    }
     let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
         .with_network_bindings(vec![binding])?;
     Ok(Fixture {
@@ -252,14 +257,26 @@ async fn request(
         id(12),
         if post { "actions" } else { "results" }
     );
+    request_path(f, post, body, csrf, &path, Some(&f.cookie)).await
+}
+async fn request_path(
+    f: &Fixture,
+    post: bool,
+    body: Value,
+    csrf: Option<&str>,
+    path: &str,
+    cookie: Option<&str>,
+) -> Result<(StatusCode, Value)> {
     let mut req = Request::builder()
         .uri(path)
         .method(if post { "POST" } else { "GET" })
         .header("host", "127.0.0.1:48743")
         .header("origin", ORIGIN)
         .header("sec-fetch-site", "same-origin")
-        .header("cookie", &f.cookie)
         .header("content-type", "application/json");
+    if let Some(cookie) = cookie {
+        req = req.header("cookie", cookie);
+    }
     if let Some(csrf) = csrf {
         req = req.header("x-atlas-csrf", csrf);
     }
@@ -393,5 +410,272 @@ async fn healthy_collector_routes_auth_revision_and_outcomes() -> Result<()> {
     tokio::task::yield_now().await;
     absent.shutdown().await;
     assert_eq!(f.peer.calls.lock().unwrap().len(), before);
+    Ok(())
+}
+
+fn editor(f: &Fixture) -> Result<()> {
+    f.host
+        .core
+        .lock()
+        .unwrap()
+        .access
+        .lock()
+        .unwrap()
+        .set_membership(
+            &a::CanonicalId::parse(&id(4))?,
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(&id(1))?,
+                home_id: a::CanonicalId::parse(&id(2))?,
+            },
+            a::Role::Editor,
+            true,
+        )?;
+    Ok(())
+}
+fn route(post: bool, workspace: u32, home: u32, collection: &str) -> String {
+    format!(
+        "/api/atlas/providers/network/workspaces/{}/homes/{}/sources/{}/{}?collection={collection}",
+        id(workspace),
+        id(home),
+        id(12),
+        if post { "actions" } else { "results" }
+    )
+}
+async fn refused_without_collector(
+    f: &Fixture,
+    cookie: Option<&str>,
+    workspace: u32,
+    home: u32,
+    collection: &str,
+    expected: StatusCode,
+) -> Result<()> {
+    for post in [false, true] {
+        let before = (
+            f.peer.calls.lock().unwrap().len(),
+            f.peer.posts.load(Ordering::SeqCst),
+        );
+        let (status, value) = request_path(
+            f,
+            post,
+            json!({"kind":"ping","deviceId":"device-a"}),
+            post.then_some(f.csrf.as_str()),
+            &route(post, workspace, home, collection),
+            cookie,
+        )
+        .await?;
+        assert_eq!(status, expected, "{value}");
+        if expected == StatusCode::OK {
+            assert_eq!(value, json!({"status":"unavailable"}));
+        }
+        assert_eq!(
+            (
+                f.peer.calls.lock().unwrap().len(),
+                f.peer.posts.load(Ordering::SeqCst)
+            ),
+            before,
+            "Refusal must perform neither collector GET nor POST"
+        );
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn healthy_collector_routes_refuse_without_current_access() -> Result<()> {
+    let f = fixture_with_source(false).await?;
+    editor(&f)?;
+    // Genuine Editor session and retained inventory, but no Access source/partition.
+    refused_without_collector(
+        &f,
+        Some(&f.cookie),
+        1,
+        2,
+        "inventory",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    let source = f.host.network_bindings[0]
+        .runtime()
+        .settings()
+        .configured_source()
+        .access_registration()
+        .clone();
+    let access = f.host.core.lock().unwrap().access.clone();
+    access.lock().unwrap().put_source(&source, Some(true))?;
+    // Positive controls make later refusals distinguishable from fixture failure.
+    assert_eq!(
+        request(&f, false, Value::Null, None).await?.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        request(
+            &f,
+            true,
+            json!({"kind":"ping","deviceId":"device-a"}),
+            Some(&f.csrf)
+        )
+        .await?
+        .1["status"],
+        "completed"
+    );
+    refused_without_collector(&f, None, 1, 2, "inventory", StatusCode::UNAUTHORIZED).await?;
+    let user = a::CanonicalId::parse(&id(4))?;
+    let own = a::Scope {
+        workspace_id: a::CanonicalId::parse(&id(1))?,
+        home_id: a::CanonicalId::parse(&id(2))?,
+    };
+    for (workspace, home) in [(91, 2), (1, 92)] {
+        let foreign = a::Scope {
+            workspace_id: a::CanonicalId::parse(&id(workspace))?,
+            home_id: a::CanonicalId::parse(&id(home))?,
+        };
+        {
+            let mut issuer = access.lock().unwrap();
+            issuer.set_membership(&user, &own, a::Role::Editor, false)?;
+            issuer.set_membership(&user, &foreign, a::Role::Editor, true)?;
+        }
+        // Membership exists only in a different workspace or a different home.
+        refused_without_collector(
+            &f,
+            Some(&f.cookie),
+            1,
+            2,
+            "inventory",
+            StatusCode::NOT_FOUND,
+        )
+        .await?;
+        refused_without_collector(
+            &f,
+            Some(&f.cookie),
+            workspace,
+            home,
+            "inventory",
+            StatusCode::NOT_FOUND,
+        )
+        .await?;
+        {
+            let mut issuer = access.lock().unwrap();
+            issuer.set_membership(&user, &foreign, a::Role::Editor, false)?;
+            issuer.set_membership(&user, &own, a::Role::Editor, true)?;
+        }
+    }
+    access
+        .lock()
+        .unwrap()
+        .set_source_enabled(&source.partition(), false)?;
+    refused_without_collector(
+        &f,
+        Some(&f.cookie),
+        1,
+        2,
+        "inventory",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    access
+        .lock()
+        .unwrap()
+        .set_source_enabled(&source.partition(), true)?;
+    let mut restricted = source.clone();
+    restricted.partition_mode = a::PartitionMode::ReviewedEntityAllowlist;
+    restricted.allowed_external_ids = f.host.network_bindings[0]
+        .entities()
+        .iter()
+        .map(|r| r.key.external_id.clone())
+        .filter(|id| id != "device-a")
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    access.lock().unwrap().put_source(&restricted, Some(true))?;
+    // The partition is enabled, but the served device has no current source grant.
+    refused_without_collector(
+        &f,
+        Some(&f.cookie),
+        1,
+        2,
+        "inventory",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    access.lock().unwrap().put_source(&source, Some(true))?;
+    refused_without_collector(&f, Some(&f.cookie), 1, 2, "other-inventory", StatusCode::OK).await?;
+    Ok(())
+}
+#[tokio::test]
+async fn healthy_collector_routes_refuse_changed_collector_inventory() -> Result<()> {
+    let mut f = fixture().await?;
+    editor(&f)?;
+    let observations = f.holder.snapshot()?;
+    assert_eq!(observations.revision(), Some(42));
+    // No backend poll: the collector changes independently after the read.
+    f.peer.revision.store(43, Ordering::SeqCst);
+    for action in [
+        json!({"kind":"ping","deviceId":"device-a"}),
+        json!({"kind":"port","deviceId":"device-a","port":443}),
+    ] {
+        f.host.network_action_gate = Arc::new(Default::default());
+        let (status, value) = request(&f, true, action, Some(&f.csrf)).await?;
+        assert_eq!(status, StatusCode::OK, "{value}");
+        assert_eq!(
+            value,
+            json!({"status":"refused","collectorStatus":409,"reason":"inventory-revision-mismatch"})
+        );
+        assert!(Arc::ptr_eq(&observations, &f.holder.snapshot()?));
+        assert_eq!(f.peer.executions.load(Ordering::SeqCst), 0);
+    }
+    assert_eq!(f.peer.posts.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        f.peer.calls.lock().unwrap().len(),
+        3,
+        "Only the fixture's original poll occurred"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn healthy_collector_results_keep_only_revision_qualified_device_actions() -> Result<()> {
+    let f = fixture().await?;
+    let ping = json!({"kind":"ping","deviceId":"device-a","inventoryRevision":42,"recordedAt":AT,"result":crate::providers::network::observations::tests::measurements(42)["devices"]["device-a"]["latest"]});
+    let mut later = ping.clone();
+    later["inventoryRevision"] = json!(43);
+    let mut legacy = ping.clone();
+    legacy.as_object_mut().unwrap().remove("inventoryRevision");
+    let speed = json!({"kind":"speed","recordedAt":AT,"result":crate::providers::network::observations::tests::speed()});
+    *f.peer.actions.lock().unwrap() = vec![later, ping.clone(), legacy, speed.clone()];
+    // Results change to include a revision-43 action, while a failed measurement
+    // read retains the revision-42 snapshot. No new attribution may be inferred.
+    f.peer.revision.store(43, Ordering::SeqCst);
+    f.peer.bad_measurements.store(true, Ordering::SeqCst);
+    assert!(
+        !f.holder
+            .poll(f.peer.as_ref(), &|| crate::app::now().unwrap())
+            .await
+    );
+    assert_eq!(f.holder.snapshot()?.revision(), Some(42));
+    let (status, value) = request(&f, false, Value::Null, None).await?;
+    assert_eq!(status, StatusCode::OK, "{value}");
+    assert_eq!(
+        value["results"]["actions"],
+        json!([ping.clone(), speed.clone()])
+    );
+    f.peer.bad_measurements.store(false, Ordering::SeqCst);
+    assert!(
+        f.holder
+            .poll(f.peer.as_ref(), &|| crate::app::now().unwrap())
+            .await
+    );
+    let (_, value) = request(&f, false, Value::Null, None).await?;
+    assert_eq!(value["measurementReason"], "inventory-revision-mismatch");
+    assert_eq!(value["results"]["actions"], json!([speed.clone()]));
+    // A results read at revision 42 still contains mixed historical revisions;
+    // even same-poll measurement pairing alone would not qualify those rows.
+    f.peer.revision.store(42, Ordering::SeqCst);
+    assert!(
+        f.holder
+            .poll(f.peer.as_ref(), &|| crate::app::now().unwrap())
+            .await
+    );
+    assert_eq!(
+        request(&f, false, Value::Null, None).await?.1["results"]["actions"],
+        json!([ping, speed])
+    );
     Ok(())
 }

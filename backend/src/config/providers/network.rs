@@ -88,9 +88,12 @@ impl NetworkSettings {
             collector_action_ports: vec![22, 80, 443],
         })
     }
-    pub fn with_collector_measurements(mut self, enabled: bool) -> Self {
+    pub fn with_collector_measurements(mut self, enabled: bool) -> Result<Self, &'static str> {
+        if enabled {
+            self.transport.reviewed_origin().require_collector_http()?;
+        }
         self.collector_measurements = enabled;
-        self
+        Ok(self)
     }
     pub fn collector_measurements(&self) -> bool {
         self.collector_measurements

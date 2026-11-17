@@ -1046,7 +1046,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run one healthy synthetic Request group | `npm run test:ordinary` | every run |  | One healthy synthetic WHATWG Request group against the JavaScript reference core, with fake GET transports and disposable stores; no socket or provider. |
 | ordinary-core / ordinary-core | Run the eight synthetic electrical registration cases | `node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs` | every run | 8 top-level tests | Generated pure in-memory registration cases; no receipt, native authority or physical placement. |
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
-| ordinary-core / ordinary-core | Run synthetic network collector core cases (fake runners and disposable SQLite) | `node --test --test-concurrency=1 tools/network-collector/core.test.ts` | every run | 40 top-level tests | Forty synthetic collector cases: strict private config/inventory, revision persistence, single writer, fake home guard and ping parsing, rollup/retention, direct GET handlers, Host/Origin refusal before reads, fake-child command bounds/cleanup, observation-time cross-hour indexing, controlled scheduler shutdown, strict POST fences/body limits and busy ownership, local civil-time nightly claims/restart/rollback, speed parsing, explicit unavailable Wi-Fi intervals, forward migration, target/port restrictions and bounded result histories, speed/ping exclusion, controlled-timezone DST transitions, detached-upload response cleanup and persisted speed-field renaming and bounded missing-close teardown/recovery. Disposable SQLite only; no command execution, socket, private data or installed acceptance. |
+| ordinary-core / ordinary-core | Run synthetic network collector core cases (fake runners and disposable SQLite) | `node --test --test-concurrency=1 tools/network-collector/core.test.ts` | every run | 42 top-level tests | Forty-two synthetic collector cases: strict private config/inventory, revision persistence, single writer, fake home guard and ping parsing, rollup/retention, direct GET handlers, Host/Origin refusal before reads, fake-child command bounds/cleanup, observation-time cross-hour indexing, controlled scheduler shutdown, strict POST fences/body limits and busy ownership, local civil-time nightly claims/restart/rollback, speed parsing, explicit unavailable Wi-Fi intervals, forward migration, target/port restrictions and bounded result histories, speed/ping exclusion, controlled-timezone DST transitions, detached-upload response cleanup and persisted speed-field renaming and bounded missing-close teardown/recovery, required action inventory revisions, atomic replacement refusal before probes and selected-target retention across guard awaits. Disposable SQLite only; no command execution, socket, private data or installed acceptance. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
 | ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 62 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
 | ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 30 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
@@ -6444,13 +6444,16 @@ for the private file and frame shapes.
 Ordinary-core runs
 `node --test --test-concurrency=1 tools/network-collector/core.test.ts`
 under Node 26.10.0.
-Its forty synthetic cases cover strict config/private modes and JSON,
+Its forty-two synthetic cases cover strict config/private modes and JSON,
 inventory validation/revision persistence, writer exclusion, fake guards,
 ping parsing, unknown-versus-loss recording, retention/rollups,
 GET measurement handlers and monotonic scheduler overlap/shutdown.
 Stage 1 adds strict POST fences/body limits and busy ownership, fake speed parsing,
 local civil-time nightly claims/restart/rollback, explicit unavailable Wi-Fi intervals,
 forward store migration, target/port restrictions and bounded result histories.
+Two further cases require a safe expected revision on ping/port,
+refuse inventory replacement before target selection with no guard/probe,
+and preserve the selected target/revision across controlled guard awaits.
 The follow-up cases cover speed/ping exclusion in both start orders,
 controlled-timezone skipped/repeated DST hours, detached-upload response cleanup,
 persisted speed metric renaming and bounded missing-close teardown/recovery
@@ -6509,9 +6512,24 @@ The default backend-library selection additionally discovers these five
 `healthy_action_contract_and_correlation`,
 `healthy_periodic_slots_backoff_and_shutdown`,
 and `healthy_periodic_deadline_no_overlap_and_cancel_inflight`.
-It also discovers
-`http::providers::network::tests::healthy_collector_routes_auth_revision_and_outcomes`.
-They use generated documents, fake GET/POST peers, controlled Tokio time,
+It also discovers four cases under `http::providers::network::tests::`:
+`healthy_collector_routes_auth_revision_and_outcomes`,
+`healthy_collector_routes_refuse_without_current_access`,
+`healthy_collector_routes_refuse_changed_collector_inventory`,
+and `healthy_collector_results_keep_only_revision_qualified_device_actions`.
+The two revision-fence/identity additions check native Editor read/mutation
+refusals without collector GET/POST calls,
+and independent collector inventory replacement between poll and POST
+for both ping and port with zero fake executions.
+The history case checks mixed per-action revisions,
+legacy unqualified rows, measurement failure with a retained snapshot,
+and mismatch/recovery without claiming historical target equivalence.
+The existing settings case also checks early HTTPS collector refusal
+with its fixed configuration error and unchanged disabled HTTPS behavior.
+The existing frontend healthy case rejects fractional revisions from raw JSON
+before numeric conversion and checks selected action-result revisions.
+These nine observation/HTTP cases use generated documents,
+fake GET/POST peers, controlled Tokio time,
 disposable synthetic native stores and the in-process router.
 No socket, collector, provider, real credential, household data or installation runs.
 The existing persistent mount test adds interval/port bounds;

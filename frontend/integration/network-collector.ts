@@ -9,8 +9,8 @@ export interface WifiResult { readonly state:'unavailable'; readonly recordedAt:
 export interface PingResult {readonly state:'reachable'|'no-reply'|'not-measured';readonly latencyMs:number|null;readonly loss:number|null;readonly measuredAt:string|null;readonly recordedAt:string|null;readonly reason:string|null}
 export type ActionEntry = {readonly recordedAt:string} & (
   {readonly kind:'speed'; readonly result:SpeedResult} |
-  {readonly kind:'ping';readonly deviceId:string; readonly result:PingResult} |
-  {readonly kind:'port';readonly deviceId:string;readonly port:number;readonly result:{readonly state:'open'|'unknown';readonly reason:string|null}});
+  {readonly kind:'ping';readonly deviceId:string;readonly inventoryRevision:number; readonly result:PingResult} |
+  {readonly kind:'port';readonly deviceId:string;readonly port:number;readonly inventoryRevision:number;readonly result:{readonly state:'open'|'unknown';readonly reason:string|null}});
 export type MeasurementReason = 'not-observed'|'inventory-revision-mismatch'|'observations-expired'|null;
 export type CollectorResults = {readonly status:'unavailable'} | {
   readonly status:'available'|'unknown'; readonly retrievedAt:string|null;
@@ -29,6 +29,11 @@ function nullableNumber(v:LosslessJson|undefined,max:number):number|null {return
 function date(v:LosslessJson|undefined):string {const at=text(v);need(Number.isFinite(Date.parse(at)));return at;}
 function reason(v:LosslessJson|undefined):string|null {return v===null?null:text(v);}
 function list(v:LosslessJson|undefined,max:number):LosslessJson[] {need(Array.isArray(v) && v.length<=max);return v;}
+function revision(v:LosslessJson|undefined):number|null {
+  if(v===null) return null;
+  const n=isExactDecimal(v)?v.toSafeInteger():v;
+  need(typeof n==='number' && Number.isSafeInteger(n) && n>=0);return n;
+}
 function speed(v:LosslessJson|undefined):SpeedResult {
   const r=row(v,['state','recordedAt','downloadBitsPerSecond','uploadBitsPerSecond','latencyMs','reason']);
   const result={state:choice(r.state,['measured','unknown','failed'] as const),recordedAt:date(r.recordedAt),downloadBitsPerSecond:nullableNumber(r.downloadBitsPerSecond,1e13),uploadBitsPerSecond:nullableNumber(r.uploadBitsPerSecond,1e13),latencyMs:nullableNumber(r.latencyMs,120000),reason:reason(r.reason)};
@@ -47,16 +52,16 @@ function ping(v:LosslessJson|undefined):PingResult {
 function entry(v:LosslessJson|undefined,versioned=false):ActionEntry {
   need(v!==null && typeof v==='object' && !Array.isArray(v) && !isExactDecimal(v));
   const kind=choice(v.kind,['speed','ping','port'] as const);
-  const r=row(v,['kind','recordedAt','result',...(kind!=='speed'?['deviceId']:[]),...(kind==='port'?['port']:[]),...(versioned?['version']:[])]);
+  const r=row(v,['kind','recordedAt','result',...(kind!=='speed'?['deviceId','inventoryRevision']:[]),...(kind==='port'?['port']:[]),...(versioned?['version']:[])]);
   if(versioned) need(number(r.version,1)===1);
   const recordedAt=date(r.recordedAt);
   if(kind==='speed') return Object.freeze({kind,recordedAt,result:speed(r.result)});
-  const deviceId=text(r.deviceId);
-  if(kind==='ping') return Object.freeze({kind,deviceId,recordedAt,result:ping(r.result)});
+  const deviceId=text(r.deviceId),inventoryRevision=revision(r.inventoryRevision);need(inventoryRevision!==null);
+  if(kind==='ping') return Object.freeze({kind,deviceId,inventoryRevision,recordedAt,result:ping(r.result)});
   const port=number(r.port,65535);need(Number.isInteger(port)&&port>0);
   const p=row(r.result,['state','reason']),state=choice(p.state,['open','unknown'] as const),why=reason(p.reason);
   need(state==='open'?why===null:['no-target','not-at-home','command-unavailable'].includes(why??''));
-  return Object.freeze({kind,deviceId,port,recordedAt,result:Object.freeze({state,reason:why})});
+  return Object.freeze({kind,deviceId,port,inventoryRevision,recordedAt,result:Object.freeze({state,reason:why})});
 }
 export function decodeNetworkCollectorResults(v:LosslessJson):CollectorResults {
   need(stringifyLosslessJson(v).length<=10*1024*1024);
@@ -64,7 +69,6 @@ export function decodeNetworkCollectorResults(v:LosslessJson):CollectorResults {
   if(v.status==='unavailable') {row(v,['status']);return Object.freeze({status:'unavailable'});}
   const r=row(v,['status','retrievedAt','results','inventoryRevision','servedInventoryRevision','measurementReason']);
   const status=choice(r.status,['available','unknown'] as const),retrievedAt=r.retrievedAt===null?null:date(r.retrievedAt);
-  const revision=(v:LosslessJson|undefined)=>{const n=nullableNumber(v,Number.MAX_SAFE_INTEGER);need(n===null||Number.isSafeInteger(n));return n;};
   const inventoryRevision=revision(r.inventoryRevision),servedInventoryRevision=revision(r.servedInventoryRevision),measurementReason=r.measurementReason===null?null:choice(r.measurementReason,['not-observed','inventory-revision-mismatch','observations-expired'] as const);
   if(status==='unknown') {need(r.results===null && retrievedAt===null);return Object.freeze({status,retrievedAt,results:null,inventoryRevision,servedInventoryRevision,measurementReason});}
   need(retrievedAt!==null);
@@ -84,7 +88,7 @@ export function decodeNetworkCollectorAction(v:LosslessJson):CollectorActionResp
   const r=row(v,['status','reason',...(hasCollector?['collectorStatus']:[])]),why=text(r.reason);
   if(status==='timeout'||status==='unknown') {need(!hasCollector);return Object.freeze({status,reason:why});}
   let collectorStatus:number|undefined;
-  if(hasCollector){collectorStatus=number(r.collectorStatus,599);need(Number.isInteger(collectorStatus) && (status==='busy'?collectorStatus===409:[400,403,413,415,503].includes(collectorStatus)));}
+  if(hasCollector){collectorStatus=number(r.collectorStatus,599);need(Number.isInteger(collectorStatus) && (status==='busy'?collectorStatus===409:[400,403,409,413,415,503].includes(collectorStatus)));}
   return Object.freeze({status,reason:why,...(collectorStatus===undefined?{}:{collectorStatus})});
 }
 function route(s:CollectorScope,kind:'results'|'actions') {return `/api/atlas/providers/network/workspaces/${encodeURIComponent(s.workspaceId)}/homes/${encodeURIComponent(s.homeId)}/sources/${encodeURIComponent(s.sourceInstanceId)}/${kind}?collection=${encodeURIComponent(s.collectionId)}`;}

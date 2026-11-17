@@ -6,12 +6,13 @@ import type { Inventory } from './inventory.ts';
 import { targets } from './inventory.ts';
 import type { Store } from './store.ts';
 
-export type Action = { kind: 'speed' } | { kind: 'ping'; deviceId: string } | { kind: 'port'; deviceId: string; port: number };
+export type Action = { kind: 'speed' } | { kind: 'ping'; deviceId: string; expectedInventoryRevision: number } | { kind: 'port'; deviceId: string; port: number; expectedInventoryRevision: number };
 export function parseAction(value: unknown, config: Config): Action {
-  const a = keys(value, ['kind'], ['deviceId', 'port']);
+  const a = keys(value, ['kind'], ['deviceId', 'port', 'expectedInventoryRevision']);
   need(['ping', 'port', 'speed'].includes(a.kind), 'Invalid action');
-  keys(a, a.kind === 'speed' ? ['kind'] : a.kind === 'ping' ? ['kind', 'deviceId'] : ['kind', 'deviceId', 'port']);
+  keys(a, a.kind === 'speed' ? ['kind'] : a.kind === 'ping' ? ['kind', 'deviceId', 'expectedInventoryRevision'] : ['kind', 'deviceId', 'port', 'expectedInventoryRevision']);
   if (a.kind !== 'speed') need(typeof a.deviceId === 'string' && a.deviceId.length > 0 && a.deviceId.length <= 4096, 'Invalid device ID');
+  if (a.kind !== 'speed') need(integer(a.expectedInventoryRevision, 0, Number.MAX_SAFE_INTEGER), 'Invalid inventory revision');
   if (a.kind === 'port') need(integer(a.port, 1, 65535) && config.actionPorts.includes(a.port), 'Port not allowed');
   return a as Action;
 }
@@ -74,7 +75,11 @@ export class Actions {
         result = parseSpeed(output, this.now());
         this.store.recordExtra('speed', result);
       } else {
+        // The synchronous read, comparison and target selection form one
+        // event-loop turn. Keep this selected target across every later await;
+        // an inventory reload must never retarget an admitted diagnostic.
         const doc = this.store.inventory();
+        if (!doc || doc.revision !== action.expectedInventoryRevision) return { status: 409, body: '{"error":"inventory-revision-mismatch"}' };
         const target = doc ? targets(doc, this.config.home).get(action.deviceId) : undefined;
         // Unknown IDs are rejected rather than recorded as real devices.
         if (target === undefined) return { status: 400, body: '{"error":"unknown-device"}' };
@@ -96,7 +101,10 @@ export class Actions {
           }
         }
       }
-      const entry = { ...action, recordedAt: new Date(this.now()).toISOString(), result };
+      // Keep the selected revision in the existing history so readers never
+      // attribute an old device diagnostic to a newer inventory snapshot.
+      const reportedAction = action.kind === 'speed' ? { kind: action.kind } : action.kind === 'ping' ? { kind: action.kind, deviceId: action.deviceId } : { kind: action.kind, deviceId: action.deviceId, port: action.port };
+      const entry = { ...reportedAction, ...(action.kind === 'speed' ? {} : { inventoryRevision: action.expectedInventoryRevision }), recordedAt: new Date(this.now()).toISOString(), result };
       this.store.recordExtra('action', entry);
       return { status: 200, body: JSON.stringify({ version: 1, ...entry }) };
     }).finally(() => { this.active = null; this.speedReserved = false; });

@@ -289,6 +289,7 @@ pub(in crate::http) async fn results(
                         || (observations
                             .reason(read.facet.source_revision, &read.now)
                             .is_none()
+                            && a["inventoryRevision"].as_u64() == read.facet.source_revision
                             && a["deviceId"].as_str().is_some_and(|id| {
                                 read.facet.devices.iter().any(|d| d.external_id == id)
                             }))
@@ -443,7 +444,8 @@ fn run_action(
         ));
     };
     let peer = binding.collector_peer.as_ref().ok_or_else(unavailable)?;
-    let body = serde_json::to_vec(&action).map_err(|_| unavailable())?;
+    let revision = read.facet.source_revision.ok_or_else(unavailable)?;
+    let body = action.collector_body(revision).map_err(|_| unavailable())?;
     read.revalidate()?;
     // Recheck the observed revision immediately before dispatch, without
     // holding any Access, Core, sidecar or observation lock across I/O.
@@ -458,13 +460,20 @@ fn run_action(
             serde_json::json!({"status":"refused","reason":"observations-changed"}),
         ));
     }
-    let value=runtime.block_on(async {
-            match tokio::time::timeout(n::observations::ACTION_TIMEOUT,peer.post(body)).await {
-                Ok(Ok((status,bytes)))=>n::observations::decode_action(status,&bytes,&action).unwrap_or_else(|_|serde_json::json!({"status":"unknown","reason":"invalid-collector-response"})),
-                Ok(Err(e)) if e.code!=n::ErrorCode::Timeout=>serde_json::json!({"status":"unknown","reason":"collector-unavailable"}),
-                _=>serde_json::json!({"status":"timeout","reason":"outcome-unknown"}),
+    let value = runtime.block_on(async {
+        match tokio::time::timeout(n::observations::ACTION_TIMEOUT, peer.post(body)).await {
+            Ok(Ok((status, bytes))) => n::observations::decode_action(
+                status, &bytes, &action, revision,
+            )
+            .unwrap_or_else(
+                |_| serde_json::json!({"status":"unknown","reason":"invalid-collector-response"}),
+            ),
+            Ok(Err(e)) if e.code != n::ErrorCode::Timeout => {
+                serde_json::json!({"status":"unknown","reason":"collector-unavailable"})
             }
-        });
+            _ => serde_json::json!({"status":"timeout","reason":"outcome-unknown"}),
+        }
+    });
     read.revalidate()?;
     principal
         .release(

@@ -358,7 +358,31 @@ fn network_mount_reuses_explicit_existing_custody_without_source_enrollment() {
             .with_collector_action_ports(vec![443])
             .is_err()
     );
-    let observations = settings.clone().with_collector_measurements(true);
+    assert_eq!(
+        settings.clone().with_collector_measurements(true).err(),
+        Some("Collector measurements require exact-loopback HTTP")
+    );
+    let mut https = v.clone();
+    https["networkCached"][0]["collectorMeasurements"] = json!(true);
+    let https: Packet = serde_json::from_value(https).unwrap();
+    assert_eq!(
+        https.validate(&f.config).err().unwrap().to_string(),
+        "Collector measurements require exact-loopback HTTP"
+    );
+    assert!(settings.clone().with_collector_measurements(false).is_ok());
+    let observations = NetworkSettings::new(
+        registry.sources()[0].clone(),
+        "http://127.0.0.1:42001",
+        settings.review().clone(),
+        settings.transport().limits(),
+        selected.connect_timeout_ms,
+        selected.idle_timeout_ms,
+        selected.stale_after_ms,
+        &directory,
+    )
+    .unwrap()
+    .with_collector_measurements(true)
+    .unwrap();
     for seconds in [0, 9, 3601, u64::MAX] {
         assert!(
             observations

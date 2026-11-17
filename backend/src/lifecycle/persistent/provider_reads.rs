@@ -272,6 +272,13 @@ impl Packet {
         {
             return Err(unavailable());
         }
+        for value in &self.network_cached {
+            if value.collector_measurements {
+                n::ReviewedNetworkOrigin::passive(&value.origin)
+                    .map_err(|_| "Collector measurements require exact-loopback HTTP")?
+                    .require_collector_http()?;
+            }
+        }
         // Reuse complete shared registration checks, including ordered allowlists.
         ProviderRegistry::from_trusted_configuration(
             self.homebox_cached
@@ -388,7 +395,7 @@ impl ProviderReadMounts {
                 value.stale_after_ms,
                 &value.private_directory,
             )?
-            .with_collector_measurements(value.collector_measurements)
+            .with_collector_measurements(value.collector_measurements)?
             .for_existing_cached_storage();
             if let Some(seconds) = value.collector_interval_seconds {
                 settings = settings.with_collector_interval_seconds(seconds)?;

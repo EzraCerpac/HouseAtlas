@@ -50,6 +50,16 @@ impl Action {
         guard(!matches!(action, Self::Port { port: 0, .. }))?;
         Ok(action)
     }
+    /// Only the backend's served snapshot supplies this collector-only fence.
+    /// The browser request and v1 result/history shapes remain unchanged.
+    pub(crate) fn collector_body(&self, revision: u64) -> Result<Vec<u8>> {
+        guard(revision <= 9_007_199_254_740_991)?;
+        let mut value = serde_json::to_value(self).map_err(|_| invalid())?;
+        if self.device_id().is_some() {
+            value["expectedInventoryRevision"] = json!(revision);
+        }
+        serde_json::to_vec(&value).map_err(|_| invalid())
+    }
     pub(crate) fn device_id(&self) -> Option<&str> {
         match self {
             Self::Speed => None,
@@ -123,6 +133,11 @@ fn action_result(v: &Value, versioned: bool) -> Result<()> {
     }
     if matches!(kind, "ping" | "port") {
         keys.push("deviceId");
+        // Legacy stored rows can lack a revision; the read route withholds them.
+        if versioned || v.get("inventoryRevision").is_some() {
+            keys.push("inventoryRevision");
+            super::json::safe_revision(&v["inventoryRevision"])?;
+        }
     }
     if kind == "port" {
         keys.push("port");
@@ -204,10 +219,18 @@ impl Results {
         })
     }
 }
-pub(crate) fn decode_action(status: u16, bytes: &[u8], action: &Action) -> Result<Value> {
+pub(crate) fn decode_action(
+    status: u16,
+    bytes: &[u8],
+    action: &Action,
+    revision: u64,
+) -> Result<Value> {
     let v = bounded_json(bytes, 64 * 1024)?;
     if status == 200 {
         action_result(&v, true)?;
+        if action.device_id().is_some() {
+            guard(v["inventoryRevision"] == json!(revision))?;
+        }
         let expected = serde_json::to_value(action).map_err(|_| invalid())?;
         for (key, value) in expected.as_object().ok_or_else(invalid)? {
             guard(v[key] == *value)?;
@@ -217,7 +240,7 @@ pub(crate) fn decode_action(status: u16, bytes: &[u8], action: &Action) -> Resul
     object(&v, &["error"])?;
     guard(matches!(
         (status, v["error"].as_str()),
-        (409, Some("busy"))
+        (409, Some("busy" | "inventory-revision-mismatch"))
             | (403, Some("request-refused"))
             | (415, Some("content-type"))
             | (413, Some("body-limit"))
@@ -225,7 +248,7 @@ pub(crate) fn decode_action(status: u16, bytes: &[u8], action: &Action) -> Resul
             | (503, Some("shutdown"))
     ))?;
     Ok(
-        json!({"status":if status==409 {"busy"} else {"refused"},"collectorStatus":status,"reason":v["error"]}),
+        json!({"status":if status==409 && v["error"]=="busy" {"busy"} else {"refused"},"collectorStatus":status,"reason":v["error"]}),
     )
 }
 #[derive(Clone, Default)]

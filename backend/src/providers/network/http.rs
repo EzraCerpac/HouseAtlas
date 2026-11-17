@@ -90,6 +90,12 @@ impl ReviewedNetworkOrigin {
         hash.update(self.origin().as_bytes());
         format!("{:x}", hash.finalize())
     }
+    pub(crate) fn require_collector_http(&self) -> std::result::Result<(), &'static str> {
+        if self.literal_origin.is_none() {
+            return Err("Collector measurements require exact-loopback HTTP");
+        }
+        Ok(())
+    }
     pub fn origin(&self) -> String {
         self.literal_origin
             .clone()

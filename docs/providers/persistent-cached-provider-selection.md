@@ -24,6 +24,9 @@ Its required top-level fields are:
   on persistent serve it enables process-local polling of stored collector
   health, measurements and results, independently of browsing.
   Collector origins must be exact literal loopback HTTP with an explicit port;
+  profile capture and the fallible `with_collector_measurements` settings builder
+  reject HTTPS with `Collector measurements require exact-loopback HTTP`,
+  before constructing a peer or opening collector custody;
   cached inventory sources without this setting may still use HTTPS.
   Optional `collectorIntervalSeconds` is an integer 10–3600, default 60.
   Optional `collectorActionPorts` contains at most sixteen distinct nonzero
@@ -238,7 +241,10 @@ and require `?collection=` with the exact encoded collection ID:
   Speed/action histories contain at most thirty newest entries each.
   Each source `recordedAt` stays separate from the backend `retrievedAt`.
   Wi-Fi `unavailable` and null visibility pass through unchanged.
-  Device action entries require served membership and a matching observed revision;
+  Device action entries require served membership, a matching observed revision
+  and a per-action `inventoryRevision` equal to the served revision.
+  Rows from older or unknown revisions are withheld;
+  a retained measurement snapshot cannot qualify newly retrieved history by itself;
   speed and Wi-Fi facts are property-level and never enter the overlay frame.
 - `POST /actions` reuses the HomeBox refresh mutation-authentication owner:
   current session, POST, Editor membership, same-origin checks and current CSRF.
@@ -250,6 +256,14 @@ and require `?collection=` with the exact encoded collection ID:
   the backend allowlist are refused before collector dispatch.
   One action runs per process, with at least one second between admissions;
   the collector independently owns its one-at-a-time exclusion.
+  The backend adds required `expectedInventoryRevision` for ping/port,
+  taken from its native served snapshot, never from the browser body.
+  The collector compares it synchronously with inventory selection before any await,
+  retains the selected target across guard awaits,
+  and returns 409 `inventory-revision-mismatch` without execution on mismatch.
+  The backend maps that to `refused` with the same reason and collector status.
+  New completed device results/history retain the selected `inventoryRevision`;
+  the backend checks this revision again before disclosing a POST result.
   The forwarded JSON uses exact-loopback Host, no Origin and no credential.
   Waiting is bounded at 125 seconds to include the collector's speed-cycle drain.
 
