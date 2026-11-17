@@ -76,7 +76,7 @@ function MountedInspector({ model }: { readonly model: AtlasModel }) {
         runtime={null} runtimeReason="generated-mounted-fixture" runtimeConfigured={true}
         open={true} setOpen={() => {}} electricalGroup={group} canElectricalGroup={() => false}
         onElectricalGroup={() => {}} clearElectricalGroup={() => setGroupId('generated-group-1')}
-        electricalData={data} openDocuments={undefined} openNetwork={undefined} />
+        electricalData={data} openDocuments={undefined} />
     </div></div>
   </>;
 }

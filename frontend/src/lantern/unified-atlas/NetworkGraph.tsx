@@ -257,15 +257,18 @@ export interface StageTrace {
   readonly segmentIds: ReadonlySet<string>;
 }
 
-export function NetworkGraph({ graph, onTrace }: {
+export function NetworkGraph({ graph, onTrace, initial = null }: {
   readonly graph: DocumentaryNetworkGraph;
   /** Called with the chosen device's route to the root, or null when none is shown. */
   readonly onTrace?: ((graphKey: string, trace: StageTrace | null, data: NetworkOverlayData) => void) | undefined;
+  /** A device or link chosen on the map, chosen here when the graph opens. */
+  readonly initial?: { readonly kind: 'device' | 'link'; readonly id: string } | null;
 }) {
   const { data } = graph;
   const built = useMemo(() => buildGraph(data), [data]);
   const view = useMemo(() => layoutGraph(built.nodes, built.edges), [built]);
-  const [choice, setChoice] = useState<Choice>(null);
+  const [choice, setChoice] = useState<Choice>(() => initial?.kind === 'device' ? built.nodes.has(`d:${initial.id}`) ? { kind: 'node', id: `d:${initial.id}` } : null
+    : initial?.kind === 'link' ? (id => id ? { kind: 'link', id } : null)(built.edges.find(edge => edge.link.id === initial.id)?.key) : null);
   const root = useRef<HTMLElement>(null), detail = useRef<HTMLDivElement>(null), title = useRef<HTMLElement>(null);
   const focusOrigin = useRef<HTMLElement | null>(null);
   const titleId = useId();

@@ -24,6 +24,7 @@ writeFileSync(entry, [
   ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
   ['frontend/src/lantern/unified-atlas/plan-presentation.tsx', ['PlanTile']],
   ['frontend/src/lantern/unified-atlas/NetworkStageConnections.tsx', ['networkRoomConnections', 'NetworkStageConnections']],
+  ['frontend/src/lantern/unified-atlas/network-map.ts', ['admittedNetworkDevices']],
   ['frontend/src/lantern/canonical-ifc/geometry.ts', ['makeProjection', 'drawnBounds']],
 ].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
 const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react', 'react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
@@ -31,7 +32,7 @@ const output = Array.isArray(built) ? built[0] : built;
 const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code
   .replaceAll(JSON.stringify('react'), JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href))
   .replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)));
-const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels, networkRoomConnections, NetworkStageConnections, makeProjection, drawnBounds } = await import(pathToFileURL(modulePath).href);
+const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels, networkRoomConnections, NetworkStageConnections, admittedNetworkDevices, makeProjection, drawnBounds } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
 const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
 const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
@@ -466,7 +467,9 @@ console.log('PASS canonical source identity dedup retains differing observations
     assert(Number.isFinite(x) && Number.isFinite(y), 'Existing camera projects finite generated room summaries');
     return { roomId, occurrenceId, point: [x, y] };
   }));
-  const connections = networkRoomConnections(result.records, anchors);
+  // Each device the reviewed room records admit, at its room's summary anchor.
+  const connections = networkRoomConnections(result.records, admittedNetworkDevices(result.records)
+    .flatMap(row => anchors.filter(anchor => anchor.roomId === row.roomId).map(anchor => ({ ...row, ...anchor }))));
   assert.deepEqual(connections.coverage, {
     devices: { total: 4, anchored: 3, unplaced: 1 }, endpoints: { total: 7, anchored: 3, unplaced: 4 },
     links: { total: 10, anchored: 5, unplaced: 5 }, sharedMediumAssociations: { total: 1, anchored: 1, unplaced: 0 },

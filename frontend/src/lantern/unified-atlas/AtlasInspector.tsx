@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
@@ -13,6 +13,7 @@ import { DocumentaryRecords } from './AtlasKeys';
 import type { ElectricalGroup } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
 import { ElectricalTraceDetail } from './ElectricalTraceDetail';
+import type { NetworkCardContent } from './NetworkCard';
 import type { TopologyFailure } from '../../api/topology-client';
 import type { CacheStatus, Entry } from '../../app/types';
 import { RecordStatus } from '../../app/components';
@@ -49,9 +50,11 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, network = null, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
-  readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
+  readonly context: readonly string[];
+  /** A device, link or room's devices chosen on the Network layer, shown in place of the room card. */
+  readonly network?: (NetworkCardContent & { readonly close: () => void }) | null;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
@@ -78,6 +81,13 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
     if (!refocus.current) return;
     refocus.current = false; heading.current?.focus();
   }, [state.occurrenceId]);
+  // A network card replaced by another, or closed, takes focus left on the page to the new heading.
+  const networkKey = network?.key ?? null, shownNetwork = useRef(networkKey);
+  useLayoutEffect(() => {
+    if (shownNetwork.current === networkKey) return;
+    shownNetwork.current = networkKey;
+    if (document.activeElement === document.body || document.activeElement === null) heading.current?.focus({ preventScroll: true });
+  }, [networkKey]);
   // The chosen building is already named by the scope control.
   const levelName = (levelId: string) => atlasScopedLevelName(model, levelId, state.buildingId);
   // Where a press on the whole-head opener began, and whether it became a swipe.
@@ -98,6 +108,18 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       if (!swiped) setOpen(!open);
     }}><Icon name="chevronDown" size={18} /><span>{open ? `Hide ${noun}` : `Show ${noun}`}</span></button>;
   const kinds = OVERLAY_KINDS.filter(kind => state.layers[kind]);
+
+  if (network) return <aside className={`ua-inspector is-room is-network${open ? ' is-open' : ''}`} aria-label={network.label}>
+    <div className="ua-sheet-head">
+      <div className="ua-sheet-title">
+        <h2 ref={heading} tabIndex={-1}>{network.title}</h2>
+        <p className="ua-room-floor">{network.sub}</p>
+      </div>
+      {toggle('details')}
+      <button type="button" className="ctrl-btn" aria-label="Close network card" onClick={network.close}><Icon name="close" size={17} /></button>
+    </div>
+    <div className="ua-sheet-body" id={bodyId} key={network.key}>{network.body}</div>
+  </aside>;
 
   if (!occurrence) {
     const listed = listedLevels(model, state);
@@ -212,7 +234,6 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
           {placement && <PublishedOverlayDetails placement={placement} />}
           {unplaced.length > 0 && <p className="ua-unplaced">
             {plural(new Set(unplaced.flatMap(row => row.binding.recordIds)).size, 'record')} not placed: {[...new Set(unplaced.map(row => UNPLACED_LABEL[row.reason]))].join('; ')}.</p>}
-          {kind === 'network' && openNetwork && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
         </div>)}
       </section>}
       <SourceDetails model={model} occurrence={occurrence} room={room} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />

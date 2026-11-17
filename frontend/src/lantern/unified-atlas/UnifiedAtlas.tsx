@@ -28,7 +28,7 @@ import {
 } from './scene';
 import { AtlasReadError, createStartLedger, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
-import { atlasLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRooms, nextUnnamedSnapshot, type UnnamedSnapshot, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
+import { atlasLevelName, atlasScopedLevelName, countClearedLabelY, drawnRoomFloors, drawnRoomNames, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, placePlanRoomLabels, placeStageLabels, drawnStageLabels, labelHitHeight, unnamedRooms, nextUnnamedSnapshot, type UnnamedSnapshot, planLabelFrame, planLabelObstacles, stageLabelBox, stageLabelHeight, stageLabelPad,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, labelHitBoxes, stageHitStyle, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex } from './runtime-overlays';
 import { carriesMeasurements, edgeSpans, estimatedOccurrences, placeLabels, roomArea } from './measurements';
@@ -42,14 +42,18 @@ import { shownTier, stageTier } from './model-tier';
 import { NetworkGraph, type StageTrace } from './NetworkGraph';
 import { currentStageTrace, publishStageTrace } from './network-trace';
 import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
-import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
+import { NetworkStageConnections, networkRoomConnections, networkStubEnd, networkStubLength, type NetworkDeviceAnchor } from './NetworkStageConnections';
+import { admittedNetworkDevices, NETWORK_GLYPHS, networkGlyphOffset, networkGlyphSlot, networkGlyphSlots, networkUnplacedReason } from './network-map';
+import { linkTouches, networkCardContent, type NetworkFocus } from './NetworkCard';
+import { networkConnectionNodeKey } from './network-connections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
 import { Inspector, listedLevels, RoomList, type RoomBelongingsSource, type RoomBelongingsState } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
-import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
+import type { NetworkOverlayDevice } from '../overlays/network/types';
+import { MeasurementKey, OverlayKey } from './AtlasKeys';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
 
@@ -114,7 +118,7 @@ export interface OtherSource { readonly id: string; readonly label: string; read
 /** A lens over the Atlas, held by the host workspace. */
 export interface AtlasLensState { readonly kind: 'places' | 'network'; readonly reading: boolean }
 /** The host's lens: its state and setter, the element in the lens panel this
- * Atlas renders its own model rooms or network graph into, and the panel's id.
+ * Atlas renders its own model rooms into, and the panel's id.
  * Read wide, the Atlas stands as an inset: drawn, out of the tab order, its
  * controls set aside until the host shows the map again. */
 export interface AtlasLensHost {
@@ -129,7 +133,7 @@ export interface AtlasPresentationEnvironment {
   readonly openNetwork?: () => void;
   readonly openDocuments?: () => void;
   readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
-  /** Absent in the saved viewer, which keeps its own graph panel. */
+  /** Absent in the saved viewer. */
   readonly lens?: AtlasLensHost;
   /** Reviewed breaker/panel projection from the current overlay-frame owner,
    * replaced or withdrawn with that frame. Otherwise a current frame's own
@@ -154,7 +158,7 @@ export default function UnifiedAtlas(props: AtlasProps) {
 function LiveAtlasPresentation(props: AtlasProps) {
   const { dispatch, actions, projection } = useStore(), reducedMotion = useReducedMotion(), select = useSelect();
   const roomBelongings = useRoomBelongings(props.buildingRecords, projection, select);
-  // Open Network routes to the Network lens beside this same Atlas.
+  // Network source records open the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
     openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
@@ -196,19 +200,19 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
   }, [index, status, readable, reload, wanted, projection, select]);
 }
 
-/** While the room map is not open, the lens panel still says why the model's
- * own rooms and network graph are absent. */
+/** While the room map is not open, the places lens still says why the model's
+ * own rooms are absent. */
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
-  return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
+  return lens?.value?.kind === 'places' && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
 /** Until the stage mounts with its own openers (Place records in the Rooms
- * list, the graph opener in the Network key), the host's lenses open here. */
+ * list, Network source records in the graph panel), the host's lenses open here. */
 function LensOpeners({ lens }: { readonly lens: AtlasLensHost | undefined }) {
   if (!lens) return null;
   const open = (kind: 'places' | 'network') => { if (lens.value?.kind !== kind) lens.set({ kind, reading: false }); };
   return <div className="ua-lens-openers">
     <button type="button" className="chip-btn" data-lens-return="" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
-    <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network</button>
+    <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network source records</button>
   </div>;
 }
 function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
@@ -386,14 +390,14 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
 
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
     <LensOpeners lens={environment.lens} />
-    <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
+    <LensStatus lens={environment.lens}>No model is selected, so no model rooms are shown.</LensStatus></section>;
   // A retry keeps a stored copy on screen while it runs.
   const outcome = loaded && loaded.selection === selection && (loaded.attempt === attempt
     || loaded.outcome.status === 'ready' && loaded.outcome.stored) ? loaded.outcome : null;
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
     <LensOpeners lens={environment.lens} />
-    <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
+    <LensStatus lens={environment.lens}>Model rooms appear when the room map has loaded.</LensStatus>
   </section>;
   if (outcome.status === 'held') return <section className="ua-shell" aria-label="Atlas">
     <LensStatus lens={environment.lens}>The room map is not on this device yet.</LensStatus>
@@ -406,7 +410,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   if (outcome.status === 'failed') {
     const failure = FAILURE[outcome.reason];
     return <section className="ua-shell" aria-label="Atlas">
-      <LensStatus lens={environment.lens}>The room map is unavailable, so its model rooms and network graph are not shown.</LensStatus>
+      <LensStatus lens={environment.lens}>The room map is unavailable, so its model rooms are not shown.</LensStatus>
       <div className="ua-state" role="alert">
         <p>{failure.text}</p>
         {failure.retry && <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button></div>}
@@ -604,10 +608,16 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   return { cover: [tools, join(scope, docked), union('.ua-bottom', laidOut, dock), peek, graphCovers ? null : graph].filter((box): box is Box => box !== null), sheet, graphCovers };
 }
 
+/** A device the reviewed room mapping places in a room, drawn as a glyph there. */
+interface PlacedDevice { readonly key: string; readonly graphKey: string; readonly device: NetworkOverlayDevice }
 interface StageMarker extends CountMarker {
   readonly kind: OverlayKind; readonly roomLabel: string;
   /** Outside the current building or floor: kept visible as property context. */
   readonly context: boolean;
+  /** Network: the room's placed devices, drawn as glyphs in place of a count. */
+  readonly devices?: readonly PlacedDevice[];
+  /** Too little room for the row: one chip with the count opens the room's device list. */
+  readonly folded?: boolean;
 }
 
 /** Until Spread floors is set, all floors in 3D open spread, roof off, so every
@@ -654,7 +664,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const viewport = useRef<HTMLDivElement>(null);
   const plan = state.view === 'plan';
   const outwardFocus = useRef<Element | null>(null);
+  // An open network card is the first level out; set below, once the card's state exists.
+  const leaveNetworkCard = useRef<() => boolean>(() => false);
   const out = useCallback(() => {
+    if (leaveNetworkCard.current()) return;
     outwardFocus.current = document.activeElement;
     dispatch({ type: 'out' });
   }, [dispatch]);
@@ -740,15 +753,16 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const [drawer, setDrawer] = useState<'floors' | 'layers' | null>(null);
   // The logical network graph: its own panel, beside the model or over a narrow stage.
   const graphs = networkOn ? runtime.records?.networkGraphs ?? [] : [];
-  // With a host lens the graph opens in the Network lens beside this stage;
-  // without one (the saved viewer) it keeps its own panel.
   const hostLens = environment.lens;
   const lens = hostLens?.value ?? null;
   // Read wide, the stage is the host's inset: drawn and kept current, its
   // controls set aside and the stage out of the tab order.
   const readingInset = lens?.reading === true;
   const [graphOpen, setGraphOpen] = useState(false);
-  const showGraph = !hostLens && graphOpen && graphs.length > 0;
+  const showGraph = graphOpen && graphs.length > 0;
+  // A device or link a card asked to show, chosen in the graph as it opens.
+  const [graphStart, setGraphStart] = useState<{ readonly graphKey: string; readonly serial: number;
+    readonly choice: { readonly kind: 'device' | 'link'; readonly id: string } } | null>(null);
   const [graphCovers, setGraphCovers] = useState(false);
   const graphStageFocus = useRef<HTMLElement | null>(null);
   const [cover, setCover] = useState<readonly Box[]>([]);
@@ -812,9 +826,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       if (label?.dataset.atlasOccurrence && model.selectable.has(label.dataset.atlasOccurrence)) {
         select(label.dataset.atlasOccurrence); return;
       }
+      const link = target instanceof Element ? target.closest<SVGElement>('[data-network-link]') : null;
+      if (link?.dataset.networkLink) { setNetFocus({ kind: 'link', key: link.dataset.networkLink }); return; }
       if (!projection) return;
-      dispatch(targetAction(camera.planBlend >= .5 ? planPickTarget(model, presentation, state, t, projection, px, py)
-        : pickTarget(model, shown, state, t, projection, px, py)));
+      const action = targetAction(camera.planBlend >= .5 ? planPickTarget(model, presentation, state, t, projection, px, py)
+        : pickTarget(model, shown, state, t, projection, px, py));
+      // An empty tap first leaves a network card.
+      if (netFocus !== null) { setNetFocus(null); if (action.type === 'out') return; }
+      dispatch(action);
     } });
   const { planBlend, size } = camera;
   // Fitted to the stage the panels leave clear, scored for the target view: the
@@ -986,6 +1005,26 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const nameText = (label: RoomLabel) => isPreliminary(model, label.id) && label.text.endsWith(PRELIMINARY)
     ? <>{label.text.slice(0, -PRELIMINARY.length)}<tspan className="ua-label-note">{PRELIMINARY}</tspan></> : label.text;
   const labelFloors = useMemo(() => drawnRoomFloors(model, live, state.buildingId, !plan), [live, model, plan, state.buildingId]);
+  // Touch targets, 3D and Plan alike, are reserved at the 44 px they are drawn at.
+  const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
+  // Devices the reviewed room mapping places in each room, the source's root first.
+  // A room with any is drawn as their glyphs in place of the Network count.
+  const admittedDevices = useMemo(() => networkOn ? admittedNetworkDevices(runtime.records) : [], [networkOn, runtime.records]);
+  const roomDevices = useMemo(() => {
+    const devices = new Map((runtime.records?.networkGraphs ?? []).flatMap(graph => graph.data.devices.map(device =>
+      [networkConnectionNodeKey(graph.key, 'device', device.id), { graphKey: graph.key, device }] as const)));
+    const rooms = new Map<string, PlacedDevice[]>();
+    for (const row of admittedDevices) {
+      const key = networkConnectionNodeKey(row.graphKey, 'device', row.deviceId), found = devices.get(key);
+      if (!found) continue;
+      const own = rooms.get(row.roomId) ?? [];
+      if (!own.some(item => item.key === key)) own.push({ key, ...found });
+      rooms.set(row.roomId, own);
+    }
+    for (const own of rooms.values()) own.sort((a, b) => Number(b.device.sourceRoot === true) - Number(a.device.sourceRoot === true)
+      || a.device.label.localeCompare(b.device.label) || (a.key < b.key ? -1 : 1));
+    return rooms;
+  }, [admittedDevices, runtime.records]);
   const markers = useMemo(() => {
     const rows: StageMarker[] = [];
     const spread = active.length > 1;
@@ -994,14 +1033,22 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       // A binding with no record IDs keeps its tint and provenance but has no count to show.
       if (placement.recordCount === 0 || !onStage(occurrenceId)) continue;
       const at = anchorOf(occurrenceId); if (!at) continue;
+      const devices = layer.kind === 'network' ? roomDevices.get(placement.roomId) : undefined;
       rows.push({ key: `${layer.kind}:${occurrenceId}`, kind: layer.kind, occurrenceId, roomLabel: atlasOccurrenceName(model, occurrenceId),
-        count: placement.recordCount, x: at.x + (spread ? (layer.kind === 'electrical' ? -MARKER_SPREAD : MARKER_SPREAD) : 0), y: at.y,
-        context: !live.has(occurrenceId) });
+        count: devices?.length ?? placement.recordCount, x: at.x + (spread ? (layer.kind === 'electrical' ? -MARKER_SPREAD : MARKER_SPREAD) : 0), y: at.y,
+        context: !live.has(occurrenceId),
+        ...devices ? { devices, width: networkGlyphSlots(devices.length) * networkGlyphSlot(coarse) } : {} });
     }
     return rows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, live, presentation, shown, projection, t, planBlend, model, planned]);
-  const counts = useMemo(() => visibleCountMarkers(markers, size, cover, selected, context), [markers, size, cover, selected, context]);
+  }, [active, live, presentation, shown, projection, t, planBlend, model, planned, roomDevices, coarse]);
+  // A room's row of device glyphs that does not fit folds to one count chip, kept where that fits.
+  const counts = useMemo(() => {
+    const kept = visibleCountMarkers(markers, size, cover, selected, context), shownRows = new Set(kept);
+    const folded = markers.filter(row => row.devices && row.devices.length > 1 && !shownRows.has(row))
+      .map(row => ({ ...row, folded: true, width: Math.max(countMarkerWidth(row.count), networkGlyphSlot(coarse)) }));
+    return folded.length > 0 ? visibleCountMarkers([...kept, ...folded], size, cover, selected, context) : kept;
+  }, [markers, size, cover, selected, context, coarse]);
   const countGroups = useMemo(() => {
     const groups = new Map<string, StageMarker[]>();
     for (const marker of counts) { const own = groups.get(marker.occurrenceId) ?? []; own.push(marker); groups.set(marker.occurrenceId, own); }
@@ -1033,17 +1080,68 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const [networkTrace, setNetworkTrace] = useState<StageTrace | null>(null);
   const onNetworkTrace = useCallback((graphKey: string, trace: StageTrace | null, data: StageTrace['data']) =>
     setNetworkTrace(current => publishStageTrace(current, graphKey, data, trace)), []);
-  const stageTrace = currentStageTrace(networkTrace, graphs,
-    showGraph || Boolean(hostLens?.target && lens?.kind === 'network'));
+  const stageTrace = currentStageTrace(networkTrace, graphs, showGraph);
+  // Each placed device's glyph on the stage: its slot in its room's row, the
+  // +n chip for the rest, or the room's anchor where the row is not drawn.
+  const glyphPoints = useMemo(() => {
+    const points = new Map<string, readonly [number, number]>();
+    for (const row of counts) if (row.devices) {
+      const slots = networkGlyphSlots(row.devices.length);
+      row.devices.forEach((device, at) => points.set(`${device.key}\n${row.occurrenceId}`,
+        row.folded ? [row.x, row.y] : [row.x + networkGlyphOffset(Math.min(at, slots - 1), slots, coarse), row.y]));
+    }
+    return points;
+  }, [counts, coarse]);
   const networkConnections = useMemo(() => networkRoomConnections(networkOn ? runtime.records : null,
-    networkOn && runtime.records ? [...runtime.records.rooms.keys()].flatMap(roomId =>
-      (model.roomsById.get(roomId)?.occurrenceIds ?? []).flatMap(occurrenceId => {
-        if (!model.selectable.has(occurrenceId)) return [];
-        const at = anchorOf(occurrenceId); if (!at) return [];
-        return [{ roomId, occurrenceId, point: [at.x + (active.length > 1 ? MARKER_SPREAD : 0), at.y] as const }];
-      })) : []),
+    admittedDevices.flatMap(row => (model.roomsById.get(row.roomId)?.occurrenceIds ?? []).flatMap((occurrenceId): NetworkDeviceAnchor[] => {
+      if (!model.selectable.has(occurrenceId)) return [];
+      const glyph = glyphPoints.get(`${networkConnectionNodeKey(row.graphKey, 'device', row.deviceId)}\n${occurrenceId}`);
+      const at = glyph ? null : anchorOf(occurrenceId);
+      return glyph ? [{ ...row, occurrenceId, point: glyph }] : at ? [{ ...row, occurrenceId, point: [at.x + (active.length > 1 ? MARKER_SPREAD : 0), at.y] }] : [];
+    }))),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [networkOn, runtime.records, model, projection, presentation, shown, t, planBlend, active.length]);
+  [networkOn, runtime.records, admittedDevices, glyphPoints, model, projection, presentation, shown, t, planBlend, active.length]);
+  // A device, link or room's devices chosen on the map show in the card; the camera stays where it is.
+  const [netFocus, setNetFocus] = useState<NetworkFocus | null>(null);
+  useEffect(() => { setNetFocus(null); }, [runtime.records, networkOn, state.occurrenceId]);
+  const focusNode = netFocus?.kind === 'device' ? netFocus.key : null, focusLink = netFocus?.kind === 'link' ? netFocus.key : null;
+  leaveNetworkCard.current = () => { if (netFocus === null) return false; setNetFocus(null); return true; };
+  // Glyphs drawn as chosen: the device, or both ends of the link.
+  const chosenDevices = useMemo(() => {
+    if (focusNode !== null) return new Set([focusNode]);
+    const row = focusLink === null ? undefined : networkConnections.connections.find(item => item.key === focusLink);
+    return new Set(row ? networkConnections.nodes.filter(node => node.device && linkTouches(row, node.key)).map(node => node.key) : []);
+  }, [focusNode, focusLink, networkConnections]);
+  // In a plan, a link to another floor ends in a stub with that floor's badge.
+  const floorBadges = useMemo(() => {
+    if (!networkOn || planBlend < .5) return [];
+    const badges = new Map<string, { key: string; x: number; y: number; levelId: string; name: string; names: string[]; box: { l: number; r: number; t: number; b: number } }>();
+    for (const row of networkConnections.connections) for (const placement of row.placements) {
+      const fromShown = onStage(placement.from.occurrenceId), toShown = onStage(placement.to.occurrenceId);
+      if (fromShown === toShown) continue;
+      const [near, far] = fromShown ? [placement.from, placement.to] : [placement.to, placement.from];
+      const levelId = model.occurrencesById.get(far.occurrenceId)!.levelId, [x, y] = networkStubEnd(near.point, far.point, networkStubLength(coarse));
+      const key = `${Math.round(near.point[0])},${Math.round(near.point[1])}\n${levelId}`;
+      if (!badges.has(key)) {
+        // Only where the whole badge is in view and clear of panels, glyphs and other badges;
+        // otherwise its link stays in the device's card and the graph.
+        // Named within the near end's building; another building's floor keeps its building.
+        const name = atlasScopedLevelName(model, levelId, model.occurrencesById.get(near.occurrenceId)!.buildingId);
+        const half = Math.max(coarse ? 22 : 11, (name.length * 6.5 + 20) / 2), tall = coarse ? 22 : 11;
+        const box = { l: x - half, r: x + half, t: y - tall, b: y + tall };
+        const hit = (other: { l: number; r: number; t: number; b: number }) => box.l < other.r && box.r > other.l && box.t < other.b && box.b > other.t;
+        if (box.l < 0 || box.t < 0 || box.r > size.width || box.b > size.height || cover.some(hit) || counts.some(row => hit(countMarkerTarget(row)))
+          || [...badges.values()].some(other => hit(other.box))) continue;
+        badges.set(key, { key, x, y, levelId, name, names: [], box });
+      }
+      const badge = badges.get(key)!;
+      const farEnd = far === placement.to ? row.to : row.from, farKey = farEnd.ownerDeviceKey ?? farEnd.nodeKey;
+      const farName = networkConnections.nodes.find(node => node.key === farKey)?.label ?? farEnd.label;
+      if (!badge.names.includes(farName)) badge.names.push(farName);
+    }
+    return [...badges.values()];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [networkOn, planBlend, networkConnections, planned, model, size, cover, counts, coarse]);
 
   // The selected room's tag stands on a leader in 3D and folds onto its floor
   // as the camera reaches Plan: one landmark through every view.
@@ -1062,8 +1160,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     document.fonts.addEventListener('loadingdone', measure);
     return () => { mounted = false; document.fonts.removeEventListener('loadingdone', measure); };
   }, []);
-  // Touch targets, 3D and Plan alike, are reserved at the 44 px they are drawn at.
-  const coarse = useSyncExternalStore(coarseChanges, coarseNow, () => false);
   const targetHeight = labelHitHeight(coarse);
   const planTextMetrics = useMemo(() => {
     const canvas = document.createElement('canvas'), drawing = canvas.getContext('2d');
@@ -1247,7 +1343,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
   const stageFocus = useRef<string | null>(null);
-  const stageKeys = [...hits.map(label => `label:${label.id}`), ...counts.map(row => `marker:${row.key}`)].join('\n');
+  const stageKeys = [...hits.map(label => `label:${label.id}`), ...counts.flatMap(markerKeys), ...floorBadges.map(row => `floor:${row.key}`)].join('\n');
   useLayoutEffect(() => {
     const key = stageFocus.current;
     if (key === null || stageKeys.split('\n').includes(key)) return;
@@ -1420,9 +1516,20 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // The stage's controls leave the tab order under a covering graph and while
   // the stage is the host's inset.
   const stageInert = underGraph || readingInset;
-  // The Network lens toggle, in the network key, where the host has a lens.
-  const lensGraph = hostLens ? { id: hostLens.panelId, open: lens?.kind === 'network',
-    toggle: () => hostLens.set(lens?.kind === 'network' ? null : { kind: 'network', reading: false }) } : null;
+  // A card's Show in graph opens the graph on that device or link.
+  const showInGraph = (graphKey: string, choice: { readonly kind: 'device' | 'link'; readonly id: string }) => {
+    setGraphStart(value => ({ graphKey, choice, serial: (value?.serial ?? 0) + 1 }));
+    if (!showGraph) { graphOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setGraphOpen(true); }
+    else graphHeading.current?.focus({ preventScroll: true });
+    if (compact) setSheetOpen(false);
+  };
+  const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, choose: setNetFocus, showInGraph,
+    roomName: id => ({ room: atlasOccurrenceName(model, id), floor: atlasScopedLevelName(model, model.occurrencesById.get(id)!.levelId, state.buildingId) }) }) : null;
+  // Network source records (the live relations read among them) open in the host's Network lens.
+  const sourceRecords = environment.openNetwork;
+  // Unplaced devices for the Network key, by why they have no room.
+  const unplacedDevices = useMemo(() => networkConnections.nodes.filter(node => node.device && node.anchors.length === 0)
+    .map(node => ({ key: node.key, label: node.label, kind: node.device!.kind, reason: networkUnplacedReason(node.device!) })), [networkConnections]);
   // Escape in the Atlas's part of the lens belongs to the lens, never the camera.
   const lensKeys = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || !hostLens || !lens) return;
@@ -1720,9 +1827,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           {siteNames.length > 0 && <g className="ua-site-names" style={{ opacity: planBlend }}>
             {siteNames.map(row => <text key={row.key} x={row.x} y={row.y} textAnchor="middle">{row.text}</text>)}
           </g>}
-          {/* Associations fade out into a plan; a traced route stays, between the plan's own rooms. */}
-          {networkOn && (planBlend < 1 || stageTrace) && <NetworkStageConnections connections={networkConnections} selected={selected}
-            trace={stageTrace} fade={1 - planBlend} shown={planBlend < .5 ? undefined : onStage} />}
+          {/* Reported links between device glyphs; a plan keeps its own floors' links and stubs toward the others. */}
+          {networkOn && <NetworkStageConnections connections={networkConnections} selected={netFocus?.kind === 'room' ? netFocus.occurrenceId : selected}
+            focusNode={focusNode} focusLink={focusLink} trace={stageTrace} shown={planBlend < .5 ? undefined : onStage} stubs={planBlend >= .5 ? networkStubLength(coarse) : 0}
+            spread={state.exploded && planBlend < .5} floorOf={id => model.occurrencesById.get(id)?.levelId} hitWidth={coarse ? 24 : 12} />}
           {positions.length > 0 && <g className="ua-positions">
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
@@ -1775,10 +1883,21 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}${labelFloors.get(label.id) ? ` · ${labelFloors.get(label.id)}` : ''}${isPreliminary(model, label.id) ? ', preliminary' : ''}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
-        {counts.map(row => <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
+        {counts.map(row => row.devices && !row.folded ? <NetworkGlyphs key={row.key} row={row as StageMarker & { devices: readonly PlacedDevice[] }} coarse={coarse}
+          chosen={chosenDevices} room={netFocus?.kind === 'room' ? netFocus.occurrenceId : null} choose={setNetFocus}
+          floor={atlasScopedLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, state.buildingId)} />
+        : row.devices ? <button key={row.key} type="button" className={`ua-marker ua-net-folded${row.context ? ' is-context' : ''}${netFocus?.kind === 'room' && netFocus.occurrenceId === row.occurrenceId ? ' is-chosen' : ''}`}
+          data-stage-key={`marker:${row.key}`} style={{ left: row.x, top: row.y, width: row.width, '--layer': badgeFill('network') } as CSSProperties}
+          aria-label={`${row.roomLabel}, ${atlasScopedLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, state.buildingId)}: ${plural(row.count, 'network device')}`}
+          onPointerDown={stop} onPointerUp={stop} onClick={() => setNetFocus({ kind: 'room', occurrenceId: row.occurrenceId })}><Icon name="network" size={12} /><span>{row.count}</span></button>
+        : <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}${row.kind === 'electrical' && groupRooms.has(model.occurrencesById.get(row.occurrenceId)!.roomId) ? ' is-electrical-group' : ''}`} data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(row.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}${row.context ? `, ${atlasLevelName(model, model.occurrencesById.get(row.occurrenceId)!.levelId, buildings.length > 1)}` : ''}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}><Icon name={OVERLAY_ICON[row.kind]} size={12} /><span>{row.count}</span></button>)}
+        {floorBadges.map(row => <button key={row.key} type="button" className="ua-net-floor" data-stage-key={`floor:${row.key}`}
+          style={{ left: row.x, top: row.y }} aria-label={`Show ${row.name}: linked to ${row.names.join(', ')}`}
+          onPointerDown={stop} onPointerUp={stop} onClick={() => dispatch({ type: 'level', levelId: row.levelId })}>
+          {row.name}</button>)}
         {failure && !plan && <p className="cifc-stage-note" role="status">3D view is unavailable. Use Plan or check Source details.</p>}
         {plan && planBlend >= 1 && !planDrawn && <p className="cifc-stage-note" role="status">
           {focusLevel ? `No plan for ${atlasLevelName(model, focusLevel.levelId)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
@@ -1790,19 +1909,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {hasKeys && <LayerDetailsDock dock={keysDock} trigger={layersFold} id={`${foldIds}-layers`}
           short={shortLayerDetails} expanded={drawer === 'layers'} close={() => setDrawer(null)}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records} stored={runtime.stored}
-            connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments && (() => {
               if (shortLayerDetails) setDrawer(null); environment.openDocuments?.();
             })}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            openNetwork={environment.openNetwork && (() => {
-              if (shortLayerDetails) setDrawer(null); environment.openNetwork?.();
-            })}
-            graph={layer.kind === 'network' && (lensGraph || graphs.length > 0) ? {
-              id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
-              toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
-            } : null} />)}
+            network={layer.kind === 'network' && graphs.length > 0 ? { unplaced: unplacedDevices,
+              open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
+              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">
@@ -1867,7 +1981,10 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <button type="button" className="chip-btn ua-graph-close" onClick={closeGraph}><Icon name="close" size={15} /><span>Close graph</span></button>
         </header>
         <div className="ua-graph-body">
-          {graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} onTrace={onNetworkTrace} />)}
+          {graphs.map(graph => <NetworkGraph key={graphStart?.graphKey === graph.key ? `${graph.key}:${graphStart.serial}` : graph.key} graph={graph} onTrace={onNetworkTrace}
+            initial={graphStart?.graphKey === graph.key ? graphStart.choice : null} />)}
+          {sourceRecords && <button type="button" className="text-btn ua-net-sources" onClick={() => { closeGraph(); sourceRecords(); }}>
+            <Icon name="record" size={16} />Network source records</button>}
         </div>
       </section>}
     </div>
@@ -1881,29 +1998,50 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       openPlaces={openPlaces}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
-      openNetwork={environment.openNetwork} />
+      network={networkCard && { ...networkCard, close: () => setNetFocus(null) }} />
 
-    {/* This model's own part of the host lens: its rooms, chosen as on the
-        stage, or its logical network graph. Rendered into the lens panel;
-        state, reads and selection stay with this Atlas. */}
-    {hostLens?.target && lens && createPortal(<div className="ua-lens-native" onKeyDown={lensKeys}>
-      {lens.kind === 'places'
-        ? <section className="ua-lens-section" aria-labelledby={`${graphId}-rooms`}>
-          <h3 id={`${graphId}-rooms`}>Model rooms</h3>
-          {/* On a phone the lens stands where the room sheet does: choosing
-              a room hands the stage and its sheet back. */}
-          <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId} nested
-            choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
-        </section>
-        : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}
-          availability={runtime.records?.network ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })}
-          onTrace={onNetworkTrace} />}
+    {/* This model's own part of the host's places lens: its rooms, chosen as
+        on the stage. Rendered into the lens panel; state, reads and selection
+        stay with this Atlas. */}
+    {hostLens?.target && lens?.kind === 'places' && createPortal(<div className="ua-lens-native" onKeyDown={lensKeys}>
+      <section className="ua-lens-section" aria-labelledby={`${graphId}-rooms`}>
+        <h3 id={`${graphId}-rooms`}>Model rooms</h3>
+        {/* On a phone the lens stands where the room sheet does: choosing
+            a room hands the stage and its sheet back. */}
+        <RoomList model={model} levels={listedLevels(model, state)} buildingId={state.buildingId} nested
+          choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
+      </section>
     </div>, hostLens.target)}
   </section>;
 }
 
 const stop = (event: ReactPointerEvent) => event.stopPropagation();
+/** Stage keys of a marker's controls: its count, or each drawn glyph and the +n chip. */
+const markerKeys = (row: StageMarker) => !row.devices || row.folded ? [`marker:${row.key}`]
+  : [...row.devices.slice(0, row.devices.length > NETWORK_GLYPHS ? NETWORK_GLYPHS : undefined).map(device => `marker:${row.key}:${device.key}`),
+    ...row.devices.length > NETWORK_GLYPHS ? [`marker:${row.key}:more`] : []];
+/** A room's placed devices as glyphs fanned in a row around its anchor: up to
+ * three, then a +n chip for that room's device list. Each opens its card. */
+function NetworkGlyphs({ row, coarse, chosen, room, choose, floor }: {
+  readonly row: StageMarker & { readonly devices: readonly PlacedDevice[] }; readonly coarse: boolean;
+  readonly chosen: ReadonlySet<string>; readonly room: string | null; readonly choose: (next: NetworkFocus) => void;
+  /** The room's floor, within the chosen building. */
+  readonly floor: string;
+}) {
+  const slots = networkGlyphSlots(row.devices.length), more = row.devices.length - NETWORK_GLYPHS;
+  const where = `${row.roomLabel}, ${floor}`;
+  return <>
+    {row.devices.slice(0, more > 0 ? NETWORK_GLYPHS : undefined).map((item, at) => <button key={item.key} type="button"
+      className={`ua-net-device${row.context ? ' is-context' : ''}${item.device.sourceRoot ? ' is-root' : ''}${chosen.has(item.key) ? ' is-chosen' : ''}${item.device.confidence === 'accepted' || item.device.confidence === 'recorded' ? '' : ' is-uncertain'}`}
+      data-stage-key={`marker:${row.key}:${item.key}`} style={{ left: row.x + networkGlyphOffset(at, slots, coarse), top: row.y, '--layer': badgeFill('network') } as CSSProperties}
+      aria-label={`${item.device.label}${item.device.kind ? `, ${item.device.kind}` : ''}: ${where}`}
+      onPointerDown={stop} onPointerUp={stop} onClick={() => choose({ kind: 'device', key: item.key })}><span className="ua-net-dot" /></button>)}
+    {more > 0 && <button type="button" className={`ua-net-more${row.context ? ' is-context' : ''}${room === row.occurrenceId ? ' is-chosen' : ''}`}
+      data-stage-key={`marker:${row.key}:more`} style={{ left: row.x + networkGlyphOffset(NETWORK_GLYPHS, slots, coarse), top: row.y, '--layer': badgeFill('network') } as CSSProperties}
+      aria-label={`+${more} more network devices: ${where}`}
+      onPointerDown={stop} onPointerUp={stop} onClick={() => choose({ kind: 'room', occurrenceId: row.occurrenceId })}>+{more}</button>}
+  </>;
+}
 const COARSE = '(pointer: coarse)';
 const coarseNow = () => window.matchMedia?.(COARSE).matches === true;
 const coarseChanges = (changed: () => void) => {

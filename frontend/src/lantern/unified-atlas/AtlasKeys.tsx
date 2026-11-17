@@ -7,31 +7,9 @@ import { PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import type { BuildingCoverage, DocumentaryRecord, PropertyRecords } from './runtime-overlays';
 import { MEASURED_BASIS, MEASUREMENT_BASIS } from './measurements';
 import type { OverlayFeedSnapshot } from './overlay-feed';
-import { NetworkGraph, type StageTrace } from './NetworkGraph';
-import type { NetworkConnections } from './network-connections';
+import { LINK_STYLE_LABEL, LinkSwatch } from './NetworkCard';
+import { NETWORK_UNPLACED_LABEL, type NetworkUnplacedReason } from './network-map';
 import { OVERLAY_ICON, OVERLAY_LABEL, plural, stampTime, UNPLACED_LABEL } from './atlas-text';
-
-/** The model's network in the Network lens. Its graph is read with the
- * Network layer, as on the stage; the lens offers that layer alone and never
- * changes another. */
-export function NetworkLensSection({ graphs, networkOn, published, availability, headingId, showLayer, onTrace }: {
-  readonly graphs: NonNullable<PropertyRecords['networkGraphs']>; readonly networkOn: boolean; readonly published: boolean;
-  readonly availability: 'available' | 'partial' | 'unavailable' | 'loading'; readonly headingId: string; readonly showLayer: () => void;
-  /** Lights the chosen device's route on the stage. */
-  readonly onTrace?: (graphKey: string, trace: StageTrace | null, data: StageTrace['data']) => void;
-}) {
-  return <section className="ua-lens-section" aria-labelledby={headingId} style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
-    <h3 id={headingId}><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</h3>
-    {!networkOn ? <>
-      <button type="button" className="btn btn-small" onClick={showLayer}>Show Network layer</button>
-    </> : <>
-      {availability === 'partial' && <p className="ua-unplaced">Some buildings or sources are unavailable; their records are not counted.</p>}
-      {graphs.length > 0 ? graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} onTrace={onTrace} />)
-        : <p role="status">{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
-          : published ? 'No logical network graph in this publication.' : 'No logical network graph in the available source.'}</p>}
-    </>}
-  </section>;
-}
 
 export function DocumentaryRecords({ records, openDocuments, onElectricalGroup, canElectricalGroup }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined; readonly onElectricalGroup?: ((recordKey: string) => void) | undefined; readonly canElectricalGroup?: ((recordKey: string) => boolean) | undefined }) {
   // Short type names and glyphs for the categories the source names; any other
@@ -80,22 +58,32 @@ export function DocumentaryRecords({ records, openDocuments, onElectricalGroup, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-export function OverlayKey({ layer, openNetwork, availability, records, stored, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
-  readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
+/** The Network layer's map key, where the source supplies a network: what the
+ * line styles mean, devices without a room, and the graph. */
+export interface NetworkKey {
+  readonly unplaced: readonly { readonly key: string; readonly label: string; readonly kind: string; readonly reason: NetworkUnplacedReason }[];
+  /** Opens a device's card. */
+  readonly open: (key: string) => void;
+  /** The logical network graph's own panel. */
+  readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void };
+}
+
+export function OverlayKey({ layer, availability, records, stored, buildings, openDocuments, publishedOnly, network }: {
+  readonly layer: OverlayLayerIndex; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   /** Set while some building shows the copy last loaded on this device. */
   readonly stored: OverlayFeedSnapshot['stored'];
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
-  readonly connectionCoverage: NetworkConnections['coverage'] | null;
-  /** The logical network graph's own panel, when the source has one. */
-  readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void } | null;
+  /** The Network layer drawn as devices and links, when the source supplies its network. */
+  readonly network?: NetworkKey | null;
 }) {
   const reasons = unplacedByReason(layer);
   const unplaced = records?.unplaced[layer.kind] ?? [];
   // Topology stays separate from physical points: connections are logical only.
-  const connections = layer.kind === 'network' ? unplaced.filter(record => record.category === 'Recorded connection') : [];
   const others = layer.kind === 'network' ? unplaced.filter(record => record.category !== 'Recorded connection') : unplaced;
+  const groups = (['no-reviewed-room', 'moves-around'] as const).map(reason => ({ reason, rows: network?.unplaced.filter(row => row.reason === reason) ?? [] }))
+    .filter(group => group.rows.length > 0);
   // Closed, the head keeps the layer's state in view; the explanation and
   // unplaced records open on request, so the model keeps the stage.
   const [closed, setClosed] = useState(true);
@@ -114,32 +102,42 @@ export function OverlayKey({ layer, openNetwork, availability, records, stored, 
       {stored && <p className="ua-key-stored" role="status" aria-busy={stored.refreshing}><Icon name="history" size={15} />
         <span>Copy last loaded on this device, <time dateTime={stored.storedAt} title={stored.storedAt}>{stampTime(stored.storedAt)}</time>
           {stored.refreshing ? '; updating.' : '; not updated, the source is unreachable.'}</span></p>}
-      <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
+      {(!network || availability !== 'available') && <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
         : availability === 'partial' ? 'Some buildings or sources are unavailable; their records are not counted.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
-        : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room across the property, not device positions.'}</p>
+        : layer.records === 0 ? 'No linked records in the available source.'
+        : 'Counts show source records per room across the property, not device positions.'}</p>}
       {buildings.length > 0 && <ul className="ua-coverage-list" aria-label="Coverage by building">
         {buildings.map((row: BuildingCoverage) => <li key={row.buildingId} className={`is-${row[layer.kind]}`}>
           <span className="ua-coverage-name">{row.label}</span>
           <span className="ua-coverage-state">{COVERAGE_TEXT[row[layer.kind]]}{row.reason !== 'available' ? `: ${row.reason}` : ''}</span></li>)}
       </ul>}
-      {graph && <button type="button" className="ua-graph-open" aria-expanded={graph.open} aria-controls={graph.id} onClick={graph.toggle}>
-        <span className="ua-logical-swatch" aria-hidden="true" /><span>Open network graph</span><Icon name="network" size={16} />
-      </button>}
-      {connectionCoverage && <p>3D lines show {connectionCoverage.links.anchored} of {connectionCoverage.links.total} logical connections at reviewed room summaries;
-        {' '}{connectionCoverage.links.unplaced} have no complete room association. They do not show device positions or cable routes.
-        {connectionCoverage.sharedMediumAssociations.anchored > 0 && ` ${connectionCoverage.sharedMediumAssociations.anchored} shared-medium associations are shown separately.`}</p>}
-      {connections.length > 0 && <details className="ua-logical">
-        <summary><span className="ua-logical-swatch" aria-hidden="true" />{plural(connections.length, 'logical connection')}, no cable routes</summary>
-        <DocumentaryRecords records={connections} openDocuments={openDocuments} />
-      </details>}
-      {(layer.unplacedRecords > 0 || layer.unplaced.length > 0) && <details>
+      {network && <>
+        <p className="ua-net-says">Devices are shown by reviewed room; lines are reported logical connections, not cable routes.</p>
+        <ul className="ua-net-legend" aria-label="Line styles">
+          {(['wired', 'wireless', 'unknown'] as const).map(style => <li key={style}><LinkSwatch style={style} />{LINK_STYLE_LABEL[style]}</li>)}
+          <li><LinkSwatch style="wired" uncertain />Fainter: not confirmed</li>
+        </ul>
+        {groups.length > 0 && <details className="ua-net-unplaced">
+          <summary>Not placed ({network.unplaced.length.toLocaleString()})</summary>
+          {groups.map(group => <section key={group.reason} aria-label={NETWORK_UNPLACED_LABEL[group.reason]}>
+            <h4>{NETWORK_UNPLACED_LABEL[group.reason]}</h4>
+            <ul className="ua-net-list">{group.rows.map(row => <li key={row.key}>
+              <button type="button" className="ua-belonging" onClick={() => network.open(row.key)}>
+                <span className="ua-net-dot" aria-hidden="true" /><span><span className="ua-belonging-name">{row.label}</span>
+                  {row.kind && <span className="ua-belonging-detail">{row.kind}</span>}</span></button></li>)}</ul>
+          </section>)}
+        </details>}
+        <button type="button" className="ua-graph-open" aria-expanded={network.graph.open} aria-controls={network.graph.id} onClick={network.graph.toggle}>
+          <span className="ua-logical-swatch" aria-hidden="true" /><span>Graph</span><Icon name="network" size={16} />
+        </button>
+      </>}
+      {!network && (layer.unplacedRecords > 0 || layer.unplaced.length > 0) && <details>
         <summary>{others.length > 0 ? `${plural(others.length, 'record')} not placed` : layer.unplacedRecords > 0 ? `${plural(layer.unplacedRecords, 'record')} not placed` : 'Unplaced source bindings'}</summary>
         {others.length > 0 ? <DocumentaryRecords records={others} openDocuments={openDocuments} />
           : <><ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>
             {!closed && layer.unplaced.map((row, at) => <PublishedUnplacedBinding key={at} binding={row.binding} reason={UNPLACED_LABEL[row.reason]} />)}</>}
       </details>}
-      {layer.kind === 'network' && openNetwork && !graph && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
     </div>
   </section>;
 }

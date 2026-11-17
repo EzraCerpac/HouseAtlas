@@ -7,13 +7,15 @@ export function floorLabel(source: string): string {
   return names[source.toLowerCase()] ?? source;
 }
 
-export interface CountMarker { readonly key: string; readonly occurrenceId: string; readonly count: number; readonly x: number; readonly y: number }
+export interface CountMarker { readonly key: string; readonly occurrenceId: string; readonly count: number; readonly x: number; readonly y: number;
+  /** A row of device glyphs in place of the count: its drawn width. */
+  readonly width?: number }
 export interface ScreenBox { readonly l: number; readonly t: number; readonly r: number; readonly b: number }
 /** The layer's glyph, then the count: one 12 px glyph and a 3 px gap ahead of the digits. */
 export const countMarkerWidth = (count: number) => Math.max(28, String(count).length * 8 + 33);
 /** Includes the marker's nine-pixel CSS pseudo-element on every side. */
-export const countMarkerTarget = (row: CountMarker): ScreenBox => ({ l: row.x - countMarkerWidth(row.count) / 2 - 9,
-  r: row.x + countMarkerWidth(row.count) / 2 + 9, t: row.y - 23, b: row.y + 23 });
+export const countMarkerTarget = (row: CountMarker): ScreenBox => ({ l: row.x - (row.width ?? countMarkerWidth(row.count)) / 2 - 9,
+  r: row.x + (row.width ?? countMarkerWidth(row.count)) / 2 + 9, t: row.y - 23, b: row.y + 23 });
 const intersects = (a: ScreenBox, b: ScreenBox) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
 
 export const LABEL_TAG_RISE = 49;

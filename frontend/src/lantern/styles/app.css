@@ -324,8 +324,7 @@
 
 .lantern-host .atlas-lens-native:empty { display: none; }
 
-/* Without a selected unified model publication: why its model rooms or
-   network graph are absent. */
+/* Without a selected unified model publication: why its model rooms are absent. */
 .lantern-host .atlas-lens-status {
   margin: 0 0 18px;
   padding-bottom: 18px;
