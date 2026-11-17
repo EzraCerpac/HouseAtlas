@@ -200,8 +200,7 @@
 }
 
 /* ---------------- Atlas workspace ----------------
-   One row to choose Map, Rooms & places or Network, then the map with the
-   chosen lens beside it. Read wide, the lens takes the sheet and the map
+   The map with the chosen lens beside it. Read wide, the lens takes the sheet and the map
    stands in the corner as a drawn inset above Show map. The map frame is the
    same element throughout and changes real size, never scale, so each map
    refits to the room it is given. A document fallback (building sections)
@@ -217,7 +216,7 @@
   flex-direction: column;
 }
 
-.lantern-host .atlas-lens-bar {
+.lantern-host .atlas-bar {
   flex: none;
   display: flex;
   flex-wrap: wrap;
@@ -227,15 +226,6 @@
   border-bottom: 1px solid var(--hair);
   background: var(--card-2);
 }
-
-.lantern-host .atlas-lens-switch button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-}
-
-.lantern-host .atlas-lens-switch .icon { flex: none; }
 
 .lantern-host .atlas-workspace {
   position: relative;
@@ -506,28 +496,9 @@
   from { transform: translate(0, 12px); }
 }
 
-@media (max-width: 759px) {
-  .lantern-host .atlas-lens-bar { padding: 4px 8px; }
-  .lantern-host .atlas-lens-switch { flex: 1 1 auto; }
-  .lantern-host .atlas-lens-switch button { flex: 1 1 auto; justify-content: center; min-height: 40px; padding: 0 10px; }
-}
-
-/* Small phones: Rooms & places shows its short name; the full one stays the
-   control's name. */
-@media (max-width: 419px) {
-  .lantern-host .atlas-lens-name > .atlas-lens-full {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .lantern-host .atlas-lens-name::after {
-    content: attr(data-short);
-    content: attr(data-short) / '';
-  }
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host .atlas-bar { padding: 4px 8px; }
+  .lantern-host .atlas-bar > .chip-btn { min-width: 44px; min-height: 44px; }
 }
 
 /* The record sheet: the overview or one record, laid beside the work sheet. */

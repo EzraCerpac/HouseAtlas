@@ -15,66 +15,25 @@
 .lantern-host .atlas-workspace.has-lens .atlas-map > .ua-shell { min-height: 0; }
 
 /* The stage carries the other sources in its own menu; read wide, its
-   controls are set aside and the lens row offers them again. */
-.lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-stage:not(.is-inset)) .atlas-lens-bar > .atlas-source-details { display: none; }
+   controls are set aside and the source row offers them again. */
+.lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-stage:not(.is-inset)) .atlas-bar { display: none; }
 
-/* On a phone the lens row gives the map its height: the same three lenses
-   stand at the top of the stage's sheet instead (.ua-lens-switch below). */
+/* On a phone the source row gives the map its height. */
 @media (max-width: 720px) {
-  .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar { display: none; }
+  .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-bar { display: none; }
 }
 
 /* ---- Beside a lens, and as its inset ------------------------------------- */
 
 /* On a phone the lens stands below a short map band: the room sheet, the
    dock and the layer details give it their place, and return when the lens
-   closes. The band is a preview framed whole; Map leaves the lens. */
+   closes. The band is a preview framed whole; Close leaves the lens. */
 .lantern-host .ua-shell.has-lens.is-compact .ua-inspector,
 .lantern-host .ua-shell.has-lens.is-compact .ua-bottom { display: none; }
 
 /* Beside Rooms & places the room list is the lens's own; the stage keeps
    only a selected room's panel. */
 .lantern-host .atlas-workspace.is-places .ua-shell .ua-inspector:not(.is-room) { display: none; }
-
-/* Phones: Map, Rooms & places and Network, named as on a wide window, at the
-   top of the sheet. Over an open lens the sheet keeps only this row, at the
-   band's foot directly above the lens. */
-.lantern-host .ua-lens-switch { display: none; }
-
-@media (max-width: 720px) {
-  .lantern-host .ua-inspector > .ua-lens-switch {
-    flex: none;
-    display: flex;
-    margin: 10px 10px 4px;
-  }
-
-  .lantern-host .ua-lens-switch > button {
-    flex: 1 1 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0 10px;
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-lens-switch .icon { flex: none; }
-
-  /* The switch heads the sheet; the head below it keeps its opener, without a grabber. */
-  .lantern-host .ua-inspector > .ua-lens-switch ~ .ua-sheet-head::before { display: none; }
-  .lantern-host .ua-inspector > .ua-lens-switch ~ .ua-sheet-head { padding-top: 4px; }
-
-  .lantern-host .ua-shell.has-lens.is-compact:not(.is-inset) .ua-inspector {
-    display: flex;
-    height: auto;
-    max-height: none;
-  }
-
-  .lantern-host .ua-shell.has-lens.is-compact .ua-inspector > :not(.ua-lens-switch) { display: none; }
-  .lantern-host .ua-shell.has-lens.is-compact .ua-inspector > .ua-lens-switch { margin-bottom: 10px; }
-}
 
 /* Read wide, the stage is a drawn inset: its controls and the room panel are
    set aside (not hidden behind it), so the model frames the inset whole. */
@@ -2195,6 +2154,18 @@
 @media (hover: hover) { .lantern-host .ua-room-btn:hover { background: var(--lantern-soft); } }
 .lantern-host .ua-room-btn:focus-visible { outline-offset: -2px; }
 
+/* After the last floor: the home's place records, in the places lens. */
+.lantern-host .ua-place-records {
+  flex: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+}
+
 /* A model name's Preliminary marker: the list tag's amber, same font so its measured width holds. */
 .lantern-host .cifc-label:not(.is-selected) .ua-label-note { fill: var(--warn); }
 
@@ -2246,6 +2217,20 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+}
+
+/* The host's lens openers under a state, while the stage is not shown. */
+.lantern-host .ua-state:has(+ .ua-lens-openers) { margin-bottom: 12px; }
+.lantern-host .ua-lens-openers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto clamp(32px, 12vh, 120px);
+}
+
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host .ua-lens-openers > .chip-btn { min-width: 44px; min-height: 44px; }
 }
 
 .lantern-host .ua-spinner {

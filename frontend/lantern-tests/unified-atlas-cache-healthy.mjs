@@ -667,7 +667,7 @@ console.log('Unified Atlas cache healthy checks passed.');
     },
     AtlasReadError, createStartLedger, GlbFormatError: class extends Error {},
     RENDER_LIMITS: { uploadBytes: 1024 }, PREPARED_BYTES_PER_TRIANGLE: 1,
-    AtlasStage: function AtlasStage() {}, LensStatus: function LensStatus() {},
+    AtlasStage: function AtlasStage() {}, LensStatus: function LensStatus() {}, LensOpeners: function LensOpeners() {},
     FAILURE: { denied: { text: 'Denied' }, stale: { text: 'Stale' } },
   };
   globalThis[token] = hooks;

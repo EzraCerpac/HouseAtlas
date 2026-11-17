@@ -375,8 +375,8 @@ try {
       && (await caches.keys()).some(name => name.startsWith('houseatlas-saved-public-'));
   })()`, 60_000, 'Root and Saved workers did not activate online');
   if (selected === 'live-launch') {
-    await poll(`[...document.querySelectorAll('button')].some(b => b.textContent === 'Rooms & places')`, 15_000, 'Online lens switch missing');
-    await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Rooms & places').click()`);
+    await poll(`[...document.querySelectorAll('button')].some(b => b.textContent === 'Place records' && b.getClientRects().length > 0)`, 15_000, 'Online Place records missing');
+    await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Place records' && b.getClientRects().length > 0).click()`);
     await poll(`document.body.textContent.includes('Building records: current')`, 15_000, 'Online building records not visible');
     await new Promise(done => setTimeout(done, 20_000));
     assert(topologyReads.length >= 4, 'The live host reads generated building records');

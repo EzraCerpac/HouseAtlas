@@ -61,7 +61,7 @@ export function AtlasView() {
         <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
     </OptionalViewerBoundary>
   </>;
-  // Other sources stay in the row above the stage.
+  // Other sources stay in a row above the stage while the stage's own menu is set aside.
   const sources = others.length > 0 && <details className="atlas-source-details" onBlur={event => {
     if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
   }} onKeyDown={event => {
@@ -95,8 +95,9 @@ const NO_ROOM_MAP = {
   network: 'There is no house model yet, so its network graph is not shown here.',
 } as const;
 
-/** The Atlas workspace: one row to choose Map, Rooms & places or Network, then
- * the map with the chosen lens beside it. Read wide, the lens takes the room
+/** The Atlas workspace: the map with the chosen lens beside it; the Rooms
+ * list's Place records and the network key's graph opener choose a lens
+ * (without a house model, the row above the building sections does). Read wide, the lens takes the room
  * and the map stands in the corner as a still-drawn inset, returned by Show
  * map. A record opened from the lens reads wide in the same way while it is
  * open (on a narrow sheet the lens folds instead), and closing it, or leaving the Atlas, brings the map back beside the
@@ -116,7 +117,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   readonly sources?: ReactNode; readonly children: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null), expandButton = useRef<HTMLButtonElement>(null), showMapButton = useRef<HTMLButtonElement>(null);
-  const mapButton = useRef<HTMLButtonElement>(null), panel = useRef<HTMLElement>(null), body = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null), body = useRef<HTMLDivElement>(null);
   const mapArea = useRef<HTMLDivElement>(null), sheet = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const kindOpen = lens?.kind ?? null;
@@ -163,8 +164,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // on return without the record that began it.
   useEffect(() => () => { const claim = byRecord.current; if (claim) releaseReading(claim); }, []);
   // Opening a lens, or changing it, takes focus to its heading; closing it
-  // returns focus to what opened it when that is still shown, else to Map,
-  // else (the lens bar hidden on a phone) to the map's own lens control.
+  // returns focus to what opened it when that is still shown, else (on a
+  // phone) to the room sheet's opener.
   const shownBefore = useRef<string | null>(null);
   useLayoutEffect(() => {
     const before = shownBefore.current; shownBefore.current = kindOpen;
@@ -181,11 +182,12 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
     }
     const back = opener.current; opener.current = null;
     const active = document.activeElement;
-    // Focus already placed elsewhere, such as Map itself, stays.
+    // Focus already placed elsewhere stays.
     if (active && active !== document.body) return;
     const shown = (target: HTMLElement | null | undefined): target is HTMLElement =>
       !!target && target.isConnected && target.getClientRects().length > 0 && !target.closest('[inert]');
-    [back, mapButton.current, mapArea.current?.querySelector<HTMLElement>('[data-lens-return]')].find(shown)?.focus({ preventScroll: true });
+    // The opener may be gone (the room map replaced the loading row): the first return control on show takes focus, else the map itself.
+    [back, ...(mapArea.current?.querySelectorAll<HTMLElement>('[data-lens-return]') ?? []), mapArea.current?.querySelector<HTMLElement>('.ua-viewport')].find(shown)?.focus({ preventScroll: true });
   }, [kindOpen]);
   // Read wide and back: focus follows to the control that undoes it.
   const readBefore = useRef(reading);
@@ -197,10 +199,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   }, [reading]);
   // Expand and Show map are the user's own choice, never undone by a record closing.
   const setReading = (next: boolean) => { byRecord.current = null; if (lens) setLens({ ...lens, reading: next }); };
-  const choose = (next: 'places' | 'network' | null) => {
-    if (next === null) setLens(null);
-    else if (lens?.kind !== next) setLens({ kind: next, reading: false });
-  };
+  const choose = (next: 'places' | 'network') => { if (lens?.kind !== next) setLens({ kind: next, reading: false }); };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -210,16 +209,15 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // The sheet is always this one element: its width, the room the Atlas has
   // beside the details column, decides the arrangement below.
   return <div ref={sheet} className="atlas-sheet">
-    <div className="atlas-lens-bar">
-      <div className="seg atlas-lens-switch" role="group" aria-label="Atlas lens">
-        <button ref={mapButton} type="button" aria-pressed={lens === null} onClick={() => choose(null)}><Icon name="atlas" size={16} />Map</button>
-        <button type="button" aria-pressed={lens?.kind === 'places'} aria-controls={lens ? panelId : undefined} onClick={() => choose('places')}>
-          <Icon name="rooms" size={16} /><span className="atlas-lens-name" data-short="Rooms"><span className="atlas-lens-full">Rooms &amp; places</span></span></button>
-        <button type="button" aria-pressed={lens?.kind === 'network'} aria-controls={lens ? panelId : undefined} onClick={() => choose('network')}>
-          <Icon name="network" size={16} />Network</button>
-      </div>
+    {/* Without a house model there is no Rooms list or Network layer to open a lens from;
+        a model not yet shown has its own openers in the Atlas's state. */}
+    {(kind === 'document' || sources) && <div className="atlas-bar">
+      {kind === 'document' && <>
+        <button type="button" className="chip-btn" onClick={() => choose('places')}><Icon name="rooms" size={15} />Place records</button>
+        <button type="button" className="chip-btn" onClick={() => choose('network')}><Icon name="network" size={15} />Network</button>
+      </>}
       {sources}
-    </div>
+    </div>}
     <div className={`atlas-workspace${lens ? ` has-lens is-${lens.kind}` : ''}${reading ? ' is-reading' : ''}${replaced ? ' is-replaced' : ''}${folded ? ' is-folded' : ''}`}>
       {lens && <section ref={panel} id={panelId} className={`atlas-lens is-${lens.kind}`} aria-labelledby={`${panelId}-title`} onKeyDown={keys}
         onClickCapture={markLens} onKeyDownCapture={event => { if (event.key === 'Enter' || event.key === ' ') markLens(); }}>

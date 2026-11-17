@@ -153,7 +153,7 @@ try {
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point.point, button: 'left', clickCount: 1 });
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point.point, button: 'left', clickCount: 1 });
   };
-  const nav = label => `Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(button => button.textContent.trim() === ${JSON.stringify(label)})`;
+  const nav = label => `Array.from(document.querySelectorAll('.atlas-bar button')).find(button => button.textContent.trim() === ${JSON.stringify(label)})`;
   const capture = async label => {
     for (const [width, height] of [[1440, 900], [390, 844]]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -266,7 +266,7 @@ try {
   const homeText = await evaluate("document.querySelector('main#main')?.innerText ?? ''");
   assert(homeText.includes('Synthetic home: no reviewed shape projection'));
   assert(homeText.includes('Plan, 3D and measured positions require reviewed geometry.'));
-  await click(nav('Rooms & places'), 'Rooms & places navigation');
+  await click(nav('Place records'), 'Rooms & places navigation');
   await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent === 'Rooms & places'"), 'actual Rooms view');
   const buildingSelector = `document.querySelector('.topology-scope [role="group"][aria-label="Building"] button[title="${U(9701)}"]')`;
   await click(buildingSelector, 'original unnamed building chip');

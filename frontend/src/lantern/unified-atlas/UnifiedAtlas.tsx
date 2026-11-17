@@ -201,6 +201,16 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
   return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
+/** Until the stage mounts with its own openers (Place records in the Rooms
+ * list, the graph opener in the Network key), the host's lenses open here. */
+function LensOpeners({ lens }: { readonly lens: AtlasLensHost | undefined }) {
+  if (!lens) return null;
+  const open = (kind: 'places' | 'network') => { if (lens.value?.kind !== kind) lens.set({ kind, reading: false }); };
+  return <div className="ua-lens-openers">
+    <button type="button" className="chip-btn" data-lens-return="" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
+    <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network</button>
+  </div>;
+}
 function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
   const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
@@ -375,12 +385,14 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   const keepLight = useCallback(() => setDetail(value => value && { ...value, model: null, failed: true }), []);
 
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
+    <LensOpeners lens={environment.lens} />
     <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
   // A retry keeps a stored copy on screen while it runs.
   const outcome = loaded && loaded.selection === selection && (loaded.attempt === attempt
     || loaded.outcome.status === 'ready' && loaded.outcome.stored) ? loaded.outcome : null;
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
+    <LensOpeners lens={environment.lens} />
     <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
   </section>;
   if (outcome.status === 'held') return <section className="ua-shell" aria-label="Atlas">
@@ -389,6 +401,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       <p>The room map is not on this device yet.</p>
       <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>Download room map</button></div>
     </div>
+    <LensOpeners lens={environment.lens} />
   </section>;
   if (outcome.status === 'failed') {
     const failure = FAILURE[outcome.reason];
@@ -398,6 +411,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         <p>{failure.text}</p>
         {failure.retry && <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button></div>}
       </div>
+      <LensOpeners lens={environment.lens} />
     </section>;
   }
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
@@ -580,9 +594,7 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   if (panel && head && style && sheet) {
     const rect = panel.getBoundingClientRect();
     const whole = frame.width <= COMPACT_STAGE && panel.classList.contains('is-open') && rect.height <= frame.height * OPEN_SHEET;
-    // A phone's lens switch heads the closed sheet (over an open lens it is all the sheet shows).
-    const lenses = panel.querySelector(':scope > .ua-lens-switch');
-    const top = whole || (lenses && showing(lenses) && !panel.classList.contains('is-open')) ? rect.top
+    const top = whole ? rect.top
       : rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
     peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
   }
@@ -749,20 +761,17 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const [compact, setCompact] = useState(false);
   // The collapsed head can wrap at narrow widths or enlarged text sizes.
   // Keep the overlay band above its actual height rather than a fixed estimate.
-  // A phone's lens switch above the head belongs to the peek.
   useLayoutEffect(() => {
     const root = shell.current, head = root?.querySelector<HTMLElement>('.ua-sheet-head');
     if (!root || !head) return;
-    const lenses = root.querySelector<HTMLElement>('.ua-inspector > .ua-lens-switch');
     const measure = () => {
-      const box = head.getBoundingClientRect(), above = lenses && lenses.getClientRects().length > 0 ? lenses.getBoundingClientRect().top : box.top;
-      const height = box.height > 0 ? box.bottom - Math.min(above, box.top) : 0;
+      const height = head.getBoundingClientRect().height;
       if (height > 0) root.style.setProperty('--ua-peek', `${Math.ceil(height)}px`);
     };
     measure();
-    const observer = new ResizeObserver(measure); observer.observe(head); if (lenses) observer.observe(lenses);
+    const observer = new ResizeObserver(measure); observer.observe(head);
     return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
-  }, [selected, compact, Boolean(hostLens)]);
+  }, [selected, compact]);
   const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | 'camera' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
@@ -1511,21 +1520,13 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const menuBlur = (which: 'view' | 'stack' | 'layers' | 'camera') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
-  // On a phone the host's lens row gives way to this one, the same three
-  // lenses at the top of the sheet: in the Rooms sheet, and over an open lens.
-  const chooseLens = (kind: 'places' | 'network' | null) => {
+  // Place records, at the end of the Rooms list, opens the host's places lens.
+  // On a phone the lens takes the sheet's place; the Rooms sheet returns folded.
+  const openPlaces = hostLens ? () => {
     setMenu(null);
-    if (kind === null) hostLens?.set(null);
-    // The lens takes the sheet's place; the Rooms sheet returns folded.
-    else if (lens?.kind !== kind) { setSheetOpen(false); hostLens?.set({ kind, reading: false }); }
-  };
-  const lensSwitch = hostLens && compact ? <div className="seg ua-lens-switch" role="group" aria-label="Atlas lens">
-    <button type="button" data-lens-return="" aria-pressed={lens === null} onClick={() => chooseLens(null)}><Icon name="atlas" size={16} />Map</button>
-    <button type="button" aria-pressed={lens?.kind === 'places'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('places')}>
-      <Icon name="rooms" size={16} />Rooms &amp; places</button>
-    <button type="button" aria-pressed={lens?.kind === 'network'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('network')}>
-      <Icon name="network" size={16} />Network</button>
-  </div> : null;
+    if (compact) setSheetOpen(false);
+    hostLens.set({ kind: 'places', reading: false });
+  } : undefined;
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
     if (menu === 'stack' && compact) { setMenu(null); stackHead.current?.focus({ preventScroll: true }); }
@@ -1798,7 +1799,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             openNetwork={environment.openNetwork && (() => {
               if (shortLayerDetails) setDrawer(null); environment.openNetwork?.();
             })}
-            graph={layer.kind === 'network' && graphs.length > 0 ? {
+            graph={layer.kind === 'network' && (lensGraph || graphs.length > 0) ? {
               id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
               toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
             } : null} />)}
@@ -1877,7 +1878,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
-      lensSwitch={lensSwitch}
+      openPlaces={openPlaces}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
       openNetwork={environment.openNetwork} />

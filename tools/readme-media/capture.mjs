@@ -717,7 +717,7 @@ try {
     'Unknown and mismatched values leave the view as it opens');
   examplePhase('ignored state checked; places click starting');
   // Home records derived from the same publication, from a stale HomeBox copy.
-  await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: /^Rooms & places/ }).click();
+  await production.getByRole('button', { name: 'Place records', exact: true }).click();
   const placesLens = production.locator('section.atlas-lens.is-places');
   examplePhase('places lens requested');
   console.log('Example places lens at request:', await production.evaluate(() => {
@@ -808,11 +808,16 @@ try {
   assert.match(await documentDialog.innerText(), /Licence permits use: Synthetic open licence 1\.0/);
   await production.screenshot({ path: resolve(output, 'example-documents-detail.png'), animations: 'disabled' });
   await documentDialog.getByRole('button', { name: 'Close', exact: true }).click();
-  // Trace the fictional logical network through the shipped Atlas lens.
+  // Trace the fictional logical network through the shipped Atlas lens, opened from the Network layer's key.
   await section('Atlas');
   await production.waitForFunction(() => document.querySelector('section.ua-shell.is-stage') && document.querySelector('.ua-inspector.is-room h2'));
   assert.deepEqual(await stateFacts(production), reopened, 'Returning from Library retains the Stairs view');
-  await production.getByRole('group', { name: 'Atlas lens' }).getByRole('button', { name: 'Network', exact: true }).click();
+  const networkChip = production.getByRole('group', { name: 'Layers' }).getByRole('button', { name: /^Network/ });
+  if (await networkChip.getAttribute('aria-pressed') !== 'true') await networkChip.click();
+  const networkKey = production.getByRole('region', { name: 'Network layer', exact: true });
+  const networkKeyHead = networkKey.locator('.ua-key-head');
+  if (await networkKeyHead.getAttribute('aria-expanded') !== 'true') await networkKeyHead.click();
+  await networkKey.getByRole('button', { name: 'Open network graph', exact: true }).click();
   const networkLens = production.locator('section.atlas-lens.is-network');
   await networkLens.getByRole('heading', { name: 'Logical network graph', exact: true }).waitFor();
   const showNetwork = networkLens.getByRole('button', { name: 'Show Network layer', exact: true });

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { displayLevelIds, hasExplodableLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
@@ -49,14 +49,14 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, lensSwitch, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, openPlaces, belongings, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, unnamed, shownLevel, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup, electricalData }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
-  /** The phone's lens switch, at the top of the sheet; absent elsewhere. */
-  readonly lensSwitch?: ReactNode;
+  /** Opens the host's places lens; absent in a saved copy. */
+  readonly openPlaces?: (() => void) | undefined;
   /** The live host's building records; absent in a saved copy, whose card lists none. */
   readonly belongings?: RoomBelongingsSource | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
@@ -84,8 +84,9 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   const press = useRef<{ y: number; swiped: boolean } | null>(null);
   // Shown only while the panel is a sheet. A whole-head opener spans the head
   // under its grabber: a tap opens or closes it, a swipe up opens and down closes.
+  // The sheet's opener is where focus returns from a lens whose opener is no longer shown.
   const toggle = (noun: string, whole = false) => <button type="button" className={`ua-sheet-toggle${whole ? ' is-whole' : ''}`}
-    aria-expanded={open} aria-controls={bodyId}
+    aria-expanded={open} aria-controls={bodyId} data-lens-return=""
     onPointerDown={whole ? event => { event.currentTarget.setPointerCapture(event.pointerId); press.current = { y: event.clientY, swiped: false }; } : undefined}
     onPointerUp={whole ? event => {
       const dy = press.current ? event.clientY - press.current.y : 0;
@@ -105,7 +106,6 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
     const shown = shownLevel !== null && listed.length > 1 && listed.some(level => level.levelId === shownLevel) ? shownLevel : null;
     const levels = shown === null ? listed : [...listed.filter(level => level.levelId === shown), ...listed.filter(level => level.levelId !== shown)];
     return <aside className={`ua-inspector${open ? ' is-open' : ''}`} aria-label="Rooms">
-      {lensSwitch}
       <div className="ua-sheet-head">
         <div className="ua-sheet-title">
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
@@ -124,6 +124,8 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
             fit (on touch, without a full target) are left off the model and marked here. */}
         <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId}
           unnamed={unnamed} unnamedOn={state.view === 'plan' ? 'plan' : 'model'} />
+        {openPlaces && <button type="button" className="text-btn ua-place-records" data-lens-return="" onClick={openPlaces}>
+          <Icon name="rooms" size={16} />Place records</button>}
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
       </div>
     </aside>;
@@ -140,7 +142,6 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
         && (row.binding.spaceOccurrenceId === null || row.binding.spaceOccurrenceId === occurrence.spaceOccurrenceId)) };
   }).filter(row => !runtimeConfigured && (row.placement || row.unplaced.length > 0));
   return <aside className={`ua-inspector is-room${open ? ' is-open' : ''}`} aria-label="Selected room">
-    {lensSwitch}
     <div className="ua-sheet-head">
       <div className="ua-sheet-title">
         <h2 ref={heading} tabIndex={-1}>{room.label}</h2>
