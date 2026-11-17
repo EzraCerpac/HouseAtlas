@@ -5,6 +5,7 @@ import type { NetworkLiveFacts, NetworkObservationValue, NetworkOverlaySource } 
 import type { NetworkConnection, NetworkConnectionEnd, NetworkConnectionNode, NetworkConnections } from './network-connections';
 import { NETWORK_UNPLACED_LABEL, networkLinkStyle, networkUnplacedReason, type NetworkLinkStyle } from './network-map';
 import { plural } from './atlas-text';
+import { reachability, reachabilityObservation, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
@@ -41,6 +42,23 @@ const STATUS: Record<NetworkLiveFacts['status'], string> = {
   available: 'Listed by the Network source', stale: 'Listed by the Network source, stale', unknown: 'Unknown to the Network source',
   absent: 'Not listed in the Network source’s latest read',
 };
+/** The collector's latest reachability, its latest values and date, and the
+ * hourly series; absent when the frame carries no measurements. */
+function ReachabilityRow({ facts }: { readonly facts: NetworkLiveFacts }) {
+  const view = reachability(facts);
+  if (!view) return null;
+  const spark = sparkline(view.series);
+  return <div className={`ua-net-reach${view.old ? ' is-old' : ''}`}><dt>Reachability</dt><dd>
+    <span className="ua-net-reach-state">{view.state}</span>
+    {(view.metrics.length > 0 || view.measuredAt) && <span className="ua-note">{view.metrics.join(' · ')}
+      {view.measuredAt && <>{view.metrics.length > 0 && ' · '}measured <InlineTime value={view.measuredAt} /></>}</span>}
+    {spark && <svg className="ua-net-spark" role="img" aria-label={spark.label} width={SPARK_WIDTH} height={SPARK_HEIGHT} viewBox={`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`}>
+      {spark.line && <path className="ua-net-spark-line" d={spark.line} />}
+      {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
+      {spark.ticks.map(([x, y]) => <line key={x} className="ua-net-spark-loss" x1={x} y1={y} x2={x} y2={SPARK_HEIGHT} />)}
+    </svg>}
+  </dd></div>;
+}
 const observed = (value: NetworkObservationValue): string => value === null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 /** What the Network source reports for this device now, with its own dates
  * and freshness. Shown only when the server joined such facts to the device. */
@@ -49,6 +67,7 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
     <h3 className="ua-records-head"><Icon name="wifi" size={16} />Network source facts</h3>
     <dl className="ua-facts">
       <div><dt>Status</dt><dd>{STATUS[facts.status]}</dd></div>
+      <ReachabilityRow facts={facts} />
       {facts.status !== 'absent' && <div><dt>Addresses</dt><dd>{facts.addresses === null ? 'Not supplied'
         : facts.addresses.length === 0 ? 'No addresses supplied' : <ul className="ua-net-addresses">{facts.addresses.map(address => <li key={address}><code>{address}</code></li>)}</ul>}</dd></div>}
       {facts.status !== 'absent' && <div><dt>Last seen</dt><dd><Stamp value={facts.lastSeenAt} /></dd></div>}
@@ -58,7 +77,7 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
     </dl>
     {facts.observedState && facts.observedState.length > 0 && <ul className="ua-net-observed">{facts.observedState.map(item =>
       <li key={item.id} className={item.freshness === 'recent' ? undefined : 'is-old'}>
-        <span className="ua-belonging-name">{item.kind}: {observed(item.value)}</span>
+        <span className="ua-belonging-name">{reachabilityObservation(item) ?? `${item.kind}: ${observed(item.value)}`}</span>
         <span className="ua-belonging-detail">{FRESHNESS[item.freshness]} · observed <InlineTime value={item.factAt} /> from {item.vantage}
           {item.invalidatedAt && <> · invalidated <InlineTime value={item.invalidatedAt} /></>}
           {' · snapshot '}<Stamp value={item.sourceSnapshotAt} />{' · retrieved '}<InlineTime value={item.retrievedAt} /></span></li>)}</ul>}
