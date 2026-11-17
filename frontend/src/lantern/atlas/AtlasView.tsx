@@ -186,8 +186,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
     if (active && active !== document.body) return;
     const shown = (target: HTMLElement | null | undefined): target is HTMLElement =>
       !!target && target.isConnected && target.getClientRects().length > 0 && !target.closest('[inert]');
-    // The opener may be gone (the room map replaced the loading row): the first return control on show takes focus.
-    [back, ...(mapArea.current?.querySelectorAll<HTMLElement>('[data-lens-return]') ?? [])].find(shown)?.focus({ preventScroll: true });
+    // The opener may be gone (the room map replaced the loading row): the first return control on show takes focus, else the map itself.
+    [back, ...(mapArea.current?.querySelectorAll<HTMLElement>('[data-lens-return]') ?? []), mapArea.current?.querySelector<HTMLElement>('.ua-viewport')].find(shown)?.focus({ preventScroll: true });
   }, [kindOpen]);
   // Read wide and back: focus follows to the control that undoes it.
   const readBefore = useRef(reading);
