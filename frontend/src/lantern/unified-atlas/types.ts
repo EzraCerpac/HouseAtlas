@@ -232,6 +232,8 @@ export interface UnifiedAtlasPort {
   storedOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, selectable: ReadonlySet<string>, signal: AbortSignal): Promise<StoredOverlays | null>;
   /** Keep the records just projected from current frames; best effort. */
   keepOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, overlays: StoredOverlays): void;
+  /** The Network collector's stored results and Editor tests; absent without a collector route. */
+  readonly networkCollector?: import('./network-tests').NetworkCollectorPort;
 }
 
 /** Presentation ownership is separate from the unchanged native read contract. */
@@ -256,6 +258,7 @@ export interface LiveAtlasPresentationPort {
   createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;
   storedOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, selectable: ReadonlySet<string>, signal: AbortSignal): Promise<StoredOverlays | null>;
   keepOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, overlays: StoredOverlays): void;
+  readonly networkCollector?: UnifiedAtlasPort['networkCollector'];
 }
 export interface SavedAtlasPresentationPort {
   readonly kind: 'saved';

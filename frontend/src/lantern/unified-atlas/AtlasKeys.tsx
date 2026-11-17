@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from 'react';
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
 import { BIRCH, BIRCH_DARK } from '../atlas/palette';
 import { TONE_COLOR } from '../canonical-ifc/tones';
@@ -68,6 +68,8 @@ export interface NetworkKey {
   readonly open: (key: string) => void;
   /** The logical network graph's own panel. */
   readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void };
+  /** The collector's internet speed, mounted (and read) only while the key is open. */
+  readonly speed?: ReactNode;
 }
 
 export function OverlayKey({ layer, availability, records, stored, buildings, openDocuments, publishedOnly, network }: {
@@ -138,6 +140,7 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
           <summary>Links and endpoints ({topology.length.toLocaleString()})</summary>
           <DocumentaryRecords records={topology} openDocuments={openDocuments} />
         </details>}
+        {!closed && network.speed}
         <button type="button" className="ua-graph-open" aria-expanded={network.graph.open} aria-controls={network.graph.id} onClick={network.graph.toggle}>
           <span className="ua-logical-swatch" aria-hidden="true" /><span>Graph</span><Icon name="network" size={16} />
         </button>

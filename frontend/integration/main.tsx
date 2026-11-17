@@ -617,6 +617,21 @@ const sourceModels: SourceModelPort = {
         native: Object.freeze({ sessionIdentity: session, session, view, admission }),
         origin: window.location.origin, isCurrent: current, subscribe: subscribeOverview, createDocuments: makeSceneDocumentOwner });
     },
+    // The Network collector: a passive GET of stored results when a device card
+    // or the open Network key asks, and a POST only on an Editor's press.
+    networkCollector: {
+      canTest: () => currentSession !== null && currentReadyView?.canEdit === true,
+      async read(scope, signal) {
+        const { readNetworkCollectorResults } = await import('./network-collector');
+        return readNetworkCollectorResults(scope, undefined, AbortSignal.any([signal, AbortSignal.timeout(30_000)]));
+      },
+      async act(scope, action) {
+        const session = currentSession;
+        if (!session) throw new Error('Signed out');
+        const { requestNetworkCollectorAction } = await import('./network-collector');
+        return requestNetworkCollectorAction(scope, action, session.csrfToken);
+      },
+    },
     // Overlay records last projected on this device for the same scene; the
     // Atlas shows them only where no current frame is held.
     async storedOverlays(selection, scene, selectable, signal) {

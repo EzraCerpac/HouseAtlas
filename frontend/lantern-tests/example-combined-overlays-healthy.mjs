@@ -84,11 +84,13 @@ assert.deepEqual(['example-link-box', 'example-link'].map(id => api.uncertainLin
 const devicesById = new Map(frame.network.data.devices.map(row => [row.id, row]));
 assert.deepEqual(['example-tablet', 'example-garden-camera'].map(id => api.networkUnplacedReason(devicesById.get(id))), ['moves-around', 'no-reviewed-room']);
 assert.ok(!admitted.some(row => row.deviceId === 'example-tablet' || row.deviceId === 'example-garden-camera'));
-// Five devices carry invented Network source facts; the access point's carry no reachability.
+// Six devices carry invented Network source facts; the access point's carry no reachability,
+// and the streaming box's are withheld for a changed device list.
 assert.deepEqual(frame.network.data.devices.filter(row => row.liveFacts).map(row => row.id),
-  ['example-access-point', 'example-root', 'example-switch', 'example-desk-computer', 'example-printer']);
+  ['example-access-point', 'example-root', 'example-switch', 'example-streaming-box', 'example-desk-computer', 'example-printer']);
 assert.deepEqual(frame.network.data.devices.filter(row => row.liveFacts?.recentSeries).map(row => row.id),
-  ['example-root', 'example-switch', 'example-desk-computer', 'example-printer']);
+  ['example-root', 'example-switch', 'example-streaming-box', 'example-desk-computer', 'example-printer']);
+assert.equal(devicesById.get('example-streaming-box').liveFacts.measurementReason, 'inventory-revision-mismatch');
 const route = from => api.traceToRoot(graph.nodes.values(), graph.edges, `d:${from}`);
 const trace = route('example-access-point');
 assert.equal(trace.status, 'traced');

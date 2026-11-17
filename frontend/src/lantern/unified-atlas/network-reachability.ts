@@ -35,22 +35,35 @@ export const latencyText = (ms: number) => `${ms < 10 ? ms.toFixed(1) : Math.rou
 export const lossText = (loss: number) =>
   `${loss > 0 && loss < 0.01 ? '<1' : loss < 1 && loss > 0.99 ? '>99' : Math.round(loss * 100)}% loss`;
 
+/** Withheld because the collector measured another revision of the device list. */
+export const NOT_MEASURED_MISMATCH = 'Not measured: the device list changed and needs a refresh';
 /** The measured reachability joined to a device, or null when the frame
  * carries none of its fields (an old frame or a source without the collector).
  * A missing latest fact is "Not measured": an unknown, never a failure or a reply. */
 export function reachability(facts: NetworkLiveFacts): Reachability | null {
   const latest = (facts.observedState ?? []).filter(item => measuredState(item) !== null)
     .sort((a, b) => Date.parse(b.factAt) - Date.parse(a.factAt))[0];
-  if (latest === undefined && facts.recentSeries === undefined && facts.latencyMs === undefined && facts.loss === undefined) return null;
+  // A withholding reason alone still makes the row: it is the only place that says why nothing was measured.
+  if (latest === undefined && facts.recentSeries === undefined && facts.latencyMs === undefined && facts.loss === undefined && facts.measurementReason == null) return null;
   const freshness = latest === undefined ? 'recent' : latest.freshness !== 'recent' ? latest.freshness : facts.freshness;
   const qualifier = freshness === 'recent' ? null : QUALIFIER[freshness];
   return {
-    state: latest === undefined ? 'Not measured' : [STATE[measuredState(latest)!], qualifier].filter(Boolean).join(' · '),
+    state: latest !== undefined ? [STATE[measuredState(latest)!], qualifier].filter(Boolean).join(' · ')
+      : facts.measurementReason === 'inventory-revision-mismatch' ? NOT_MEASURED_MISMATCH : 'Not measured',
     old: latest === undefined || qualifier !== null,
     metrics: [facts.latencyMs == null ? null : latencyText(facts.latencyMs), facts.loss == null ? null : lossText(facts.loss)]
       .filter((text): text is string => text !== null),
     measuredAt: latest?.factAt ?? null,
     series: facts.recentSeries ?? [],
+  };
+}
+
+const r = (n: number) => Math.round(n * 100) / 100;
+/** Joined runs of points as one path; a lone point is a dot, never a line. */
+export function sparkPaths(runs: readonly (readonly (readonly [number, number])[])[]) {
+  return {
+    line: runs.filter(run => run.length > 1).map(run => run.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${r(px)} ${r(py)}`).join('')).join(''),
+    dots: runs.filter(run => run.length === 1).map(([point]) => [r(point![0]), r(point![1])] as const),
   };
 }
 
@@ -81,12 +94,10 @@ export function sparkline(series: Reachability['series']) {
     if (previous !== null && at - previous === HOUR) runs[runs.length - 1]!.push(xy); else runs.push([xy]);
     previous = at;
   }
-  const r = (n: number) => Math.round(n * 100) / 100;
   const measured = series.filter(point => point.latencyMs !== null || point.loss !== null).length;
   const lossy = series.filter(point => point.loss !== null && point.loss > 0);
   return {
-    line: runs.filter(run => run.length > 1).map(run => run.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${r(px)} ${r(py)}`).join('')).join(''),
-    dots: runs.filter(run => run.length === 1).map(([point]) => [r(point![0]), r(point![1])] as const),
+    ...sparkPaths(runs),
     ticks: lossy.map(point => [r(x(point.hour)), r(TICK_BOTTOM - Math.max(2, point.loss! * TICK_MAX))] as const),
     label: `Hourly latency, ${span === 1 ? fmtDateTimeReadable(series[0]!.hour)
       : `${fmtDateTimeReadable(series[0]!.hour)} to ${fmtDateTimeReadable(series[series.length - 1]!.hour)}`}: `

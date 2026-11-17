@@ -7,6 +7,7 @@ import { NETWORK_UNPLACED_LABEL, networkLinkStyle, networkUnplacedReason, type N
 import { plural } from './atlas-text';
 import { reachability, reachabilityObservation, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
+import { DeviceTestRow, type NetworkCollector } from './NetworkTests';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
  * one room's devices (its +n chip). Choosing never moves the camera. */
@@ -62,12 +63,13 @@ function ReachabilityRow({ facts }: { readonly facts: NetworkLiveFacts }) {
 const observed = (value: NetworkObservationValue): string => value === null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 /** What the Network source reports for this device now, with its own dates
  * and freshness. Shown only when the server joined such facts to the device. */
-function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
+function LiveFacts({ facts, test }: { readonly facts: NetworkLiveFacts; readonly test?: ReactNode }) {
   return <section className="ua-records ua-net-live" aria-label="Network source facts">
     <h3 className="ua-records-head"><Icon name="wifi" size={16} />Network source facts</h3>
     <dl className="ua-facts">
       <div><dt>Status</dt><dd>{STATUS[facts.status]}</dd></div>
       <ReachabilityRow facts={facts} />
+      {test}
       {facts.status !== 'absent' && <div><dt>Addresses</dt><dd>{facts.addresses === null ? 'Not supplied'
         : facts.addresses.length === 0 ? 'No addresses supplied' : <ul className="ua-net-addresses">{facts.addresses.map(address => <li key={address}><code>{address}</code></li>)}</ul>}</dd></div>}
       {facts.status !== 'absent' && <div><dt>Last seen</dt><dd><Stamp value={facts.lastSeenAt} /></dd></div>}
@@ -87,7 +89,7 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
 /** The card for the current choice, or null when it no longer resolves (its
  * source changed or went away). Only fields the source supplies are shown;
  * live facts appear only for a device the server joined them to. */
-export function networkCardContent({ focus, connections, graphs, roomName, choose, showInGraph }: {
+export function networkCardContent({ focus, connections, graphs, roomName, choose, showInGraph, collector }: {
   readonly focus: NetworkFocus; readonly connections: NetworkConnections;
   /** The source graphs, for each device's own source and dates, links or none. */
   readonly graphs: readonly DocumentaryNetworkGraph[];
@@ -95,6 +97,8 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
   readonly roomName: (occurrenceId: string) => { readonly room: string; readonly floor: string };
   readonly choose: (next: NetworkFocus) => void;
   readonly showInGraph: (graphKey: string, choice: { readonly kind: 'device' | 'link'; readonly id: string }) => void;
+  /** The Network collector, where the host has one. */
+  readonly collector?: NetworkCollector | null;
 }): NetworkCardContent | null {
   const nodes = new Map(connections.nodes.map(node => [node.key, node]));
   const deviceButton = (key: string | null, fallback: string) => {
@@ -122,6 +126,11 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
     const device = node.device;
     const links = connections.connections.filter(row => linkTouches(row, node.key));
     const source = graphs.find(graph => graph.key === node.graphKey);
+    // Tests address the device by its Network source's own ID, from a current
+    // frame only (never a stored copy), for a device that source still lists.
+    const facts = device.liveFacts;
+    const test = collector && facts && facts.status !== 'absent' && source && !source.storedAt && collector.port.canTest()
+      ? <DeviceTestRow collector={collector} target={{ scope: facts.source, deviceId: facts.source.externalId }} /> : null;
     return { key: `device:${node.key}`, title: device.label, sub: [device.kind || 'Kind not supplied', device.sourceRoot ? 'Network root' : null].filter(Boolean).join(' · '),
       label: 'Selected network device',
       body: <>
@@ -142,7 +151,7 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
               </button></li>;
           })}</ul>
         </section>}
-        {device.liveFacts && <LiveFacts facts={device.liveFacts} />}
+        {facts && <LiveFacts facts={facts} test={test} />}
         {source && <SourceFacts source={source.data.source} qualification={source.qualification} storedAt={source.storedAt} />}
         <button type="button" className="text-btn ua-net-graph-link" onClick={() => showInGraph(node.graphKey, { kind: 'device', id: device.id })}>
           <Icon name="network" size={16} />Show in graph</button>
