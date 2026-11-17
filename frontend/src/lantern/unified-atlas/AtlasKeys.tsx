@@ -61,6 +61,8 @@ const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable:
 /** The Network layer's map key, where the source supplies a network: what the
  * line styles mean, devices without a room, and the graph. */
 export interface NetworkKey {
+  /** Devices in the source's network, placed or not. */
+  readonly devices: number;
   readonly unplaced: readonly { readonly key: string; readonly label: string; readonly kind: string; readonly reason: NetworkUnplacedReason }[];
   /** Opens a device's card. */
   readonly open: (key: string) => void;
@@ -94,6 +96,8 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
       {/* A count only where the source answered; unavailable is not zero. */}
       <span className={`ua-key-count${availability === 'unavailable' || availability === 'partial' ? ' is-warn' : ''}`}>
         {availability === 'loading' ? 'Loading' : availability === 'unavailable' ? 'Unavailable'
+          // Drawn as devices, the Network layer counts devices, as its Not placed list does.
+          : network ? `${plural(network.devices, 'device')}${availability === 'partial' ? ', partial' : ''}${network.unplaced.length > 0 ? `, ${network.unplaced.length.toLocaleString()} not placed` : ''}${stored ? ', stored' : ''}`
           : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}${stored ? ', stored' : ''}`}
       </span>
       <Icon name="chevronDown" size={16} />

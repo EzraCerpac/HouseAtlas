@@ -1914,7 +1914,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
               if (shortLayerDetails) setDrawer(null); environment.openDocuments?.();
             })}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            network={layer.kind === 'network' && graphs.length > 0 ? { unplaced: unplacedDevices,
+            network={layer.kind === 'network' && graphs.length > 0 ? { devices: networkConnections.coverage.devices.total, unplaced: unplacedDevices,
               open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
               graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}

@@ -79,7 +79,7 @@ try {
   await page.getByRole('heading', { name: 'Lower room', exact: true }).waitFor();
   await page.screenshot({ path: resolve(output, 'synthetic-room.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Close details', exact: true }).click();
-  await page.getByRole('button', { name: 'Network', exact: true }).click();
+  await page.getByRole('button', { name: 'Network source records', exact: true }).click();
   await page.getByRole('button', { name: 'Load Network relations', exact: true }).click();
   await page.getByText('synthetic-link', { exact: true }).waitFor();
   assert.match(await page.locator('body').innerText(), /9007199254740993/);
