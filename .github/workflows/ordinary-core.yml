@@ -70,6 +70,8 @@ jobs:
         run: node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
       - name: Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load)
         run: node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
+      - name: Run synthetic network collector core cases (fake runners and disposable SQLite)
+        run: node --test --test-concurrency=1 tools/network-collector/core.test.ts
       - name: Run synthetic Cargo mode argument-routing regressions
         run: node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs
       - name: Check the NAS deploy tool with a fake service

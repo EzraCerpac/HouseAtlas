@@ -129,3 +129,13 @@ through its generated transport and fake original owners.
 The inventory is 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
 Ordinary-core's existing tools/ci discovery also selects one synthetic offline
 candidate-helper method (34 methods total); no workflow command is added.
+
+## Independent Network collector
+
+`tools/network-collector/` owns fixed-schedule collection and its separate store.
+The backend remains a passive reader; browsing never requests collection.
+Ordinary-core selects exactly the fourteen synthetic collector cases in
+`tools/network-collector/core.test.ts` with pinned Node 26.10.0.
+They use fake command runners, disposable SQLite, direct handlers and controlled clocks;
+no real command, listener, private inventory or G1–G5 acceptance is exercised.
+The measurements contract and explicit limits live in the tool README.
