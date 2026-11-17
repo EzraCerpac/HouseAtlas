@@ -174,6 +174,94 @@ fn read_cached_for_test(f: &Fixture) -> Result<CachedRead<'_>> {
     .map_err(|e| format!("Read refused: {}", e.status))?)
 }
 
+/// Clean native Store/Host close/reopen, with retained synthetic Access. This
+/// proves Store pin lifetime, not a process restart or installed recovery.
+async fn reopen_with_review(f: Fixture, revision: u64) -> Result<Fixture> {
+    let Fixture {
+        _root,
+        host,
+        cookie,
+        csrf,
+        peer,
+        inventory,
+        ..
+    } = f;
+    let binding = &host.network_bindings[0];
+    let source = binding.runtime().settings().configured_source().clone();
+    let entities = binding.entities().to_vec();
+    let mut review = binding.runtime().settings().review().clone();
+    review.revision = revision;
+    let core = host.core.clone();
+    drop(host);
+    let Core {
+        access,
+        store,
+        vault,
+        home,
+        homes,
+        ..
+    } = Arc::try_unwrap(core)
+        .map_err(|_| "Retained Core owner")?
+        .into_inner()
+        .map_err(|_| "Core mutex")?;
+    Arc::try_unwrap(store)
+        .map_err(|_| "Retained Store owner")?
+        .into_inner()
+        .map_err(|_| "Store mutex")?
+        .close()?;
+    let root = fs::canonicalize(_root.path())?;
+    let store = Store::open_existing(
+        root.join("atlas.sqlite"),
+        NativeContracts,
+        ReadAuthority(access.clone()),
+        NativeMediaRuntime {
+            vault: vault.clone(),
+            server: ServerRuntime,
+        },
+        s::StoreOptions::default(),
+    )?;
+    let core = Core {
+        access,
+        store: Arc::new(Mutex::new(store)),
+        vault,
+        home,
+        homes,
+        atlas_list_pages: Default::default(),
+        media_policy_evidence: Mutex::default(),
+    };
+    let settings = NetworkSettings::new(
+        source,
+        "http://127.0.0.1:42001",
+        review,
+        n::Limits::default(),
+        2000,
+        2000,
+        60000,
+        &root,
+    )?
+    .with_collector_measurements(true)?
+    .with_test_peer(inventory.as_ref().ok_or("Missing inventory peer")?.clone());
+    let mut binding = NetworkBinding::from_trusted_configuration(&core, settings, entities)?;
+    binding.refresh_editors = vec![a::CanonicalId::parse(&id(5))?];
+    let holder = Arc::new(Holder::default());
+    holder
+        .poll(peer.as_ref(), &|| crate::app::now().unwrap())
+        .await;
+    binding.observations = Some(holder.clone());
+    binding.collector_peer = Some(peer.clone());
+    let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
+        .with_network_bindings(vec![binding])?;
+    Ok(Fixture {
+        _root,
+        host,
+        cookie,
+        csrf,
+        peer,
+        holder,
+        inventory,
+    })
+}
+
 #[tokio::test]
 async fn refresh_auth_absence_and_named_editor() -> Result<()> {
     let f = fixture_options(false, true, false).await?;
@@ -292,7 +380,7 @@ async fn first_refresh_registers_publishes_and_unchanged_renews_capture() -> Res
 }
 
 #[tokio::test]
-async fn mismatch_refresh_attaches_existing_observations_without_restart() -> Result<()> {
+async fn review_required_then_reviewed_profile_refresh_attaches_observations() -> Result<()> {
     let f = fixture_options(false, true, false).await?;
     editor(&f, a::Role::Editor)?;
     let first = refresh(&f).await?.1;
@@ -301,13 +389,35 @@ async fn mismatch_refresh_attaches_existing_observations_without_restart() -> Re
     f.holder
         .poll(f.peer.as_ref(), &|| crate::app::now().unwrap())
         .await;
-    let held = f.holder.snapshot()?;
     let (_, mismatch) = request(&f, false, Value::Null, None).await?;
     assert_eq!(mismatch["measurementReason"], "inventory-revision-mismatch");
     assert_eq!(mismatch["servedInventoryRevision"], 42);
     assert_eq!(mismatch["inventoryRevision"], 43);
     assert_eq!(mismatch["mayRefresh"], true);
+    assert_eq!(mismatch["needsReview"], true);
+    assert_eq!(mismatch["reviewedInventoryRevision"], 42);
     f.inventory.as_ref().unwrap().revision(43);
+    let before = cache(&f)?;
+    let refused = refresh(&f).await?.1;
+    assert_eq!(
+        refused,
+        json!({"status":"needs-review","reviewedInventoryRevision":42,"collectorInventoryRevision":43})
+    );
+    assert_eq!(cache(&f)?, before); // refusal is not a schema-failure cache write
+    drop(f);
+    // Independent positive path: owner review/restart precedes the POST, so
+    // this fixture has no cancelled candidate from the earlier refusal.
+    let f = fixture_options(false, true, false).await?;
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    f.peer.revision.store(43, Ordering::SeqCst);
+    f.inventory.as_ref().unwrap().revision(43);
+    let f = reopen_with_review(f, 43).await?;
+    let held = f.holder.snapshot()?;
+    let (_, reviewed) = request(&f, false, Value::Null, None).await?;
+    assert_eq!(reviewed["needsReview"], false);
+    assert_eq!(reviewed["reviewedInventoryRevision"], 43);
+    assert_eq!(reviewed["servedInventoryRevision"], 42);
     let refreshed = refresh(&f).await?.1;
     assert_eq!(refreshed["inventoryRevision"], 43, "{refreshed}");
     assert!(Arc::ptr_eq(&held, &f.holder.snapshot()?)); // no poll/restart needed
@@ -318,8 +428,8 @@ async fn mismatch_refresh_attaches_existing_observations_without_restart() -> Re
     let mut facts = json!({"status":"available"});
     read.enrich_collector("device-a", &mut facts)
         .map_err(|e| format!("Enrichment refused: {}", e.status))?;
-    assert_eq!(facts["latencyMs"], 2);
-    assert_eq!(facts["loss"], 0);
+    assert_eq!(facts["latencyMs"].as_f64(), Some(2.0));
+    assert_eq!(facts["loss"].as_f64(), Some(0.0));
     Ok(())
 }
 
@@ -372,7 +482,26 @@ async fn failure_after_archive_reservation_keeps_previous_generation_readable() 
     assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
     peer.mode.store(0, Ordering::SeqCst);
     let recovered = refresh(&f).await?.1;
-    assert_eq!(recovered["status"], "unchanged", "{recovered}");
+    assert_eq!(
+        recovered,
+        json!({"status":"failed","reason":"guard-conflict","quarantined":false})
+    );
+    // Reopen clears Store pins, but the archive's permanent ID still blocks
+    // admission. No existing owner supplies its unpublished disposition.
+    let f = reopen_with_review(f, 42).await?;
+    let recovered = refresh(&f).await?.1;
+    assert_eq!(
+        recovered,
+        json!({"status":"failed","reason":"guard-conflict","quarantined":false})
+    );
+    assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
+    drop(f);
+    // Independent auth-quarantine case: do not let the known admission block
+    // prevent these assertions from actually executing.
+    let f = fixture_options(false, true, false).await?;
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let peer = f.inventory.as_ref().unwrap();
     // Auth quarantine is honest and refuses the next attempt before transport.
     peer.mode.store(3, Ordering::SeqCst);
     assert_eq!(refresh(&f).await?.1["quarantined"], true);

@@ -197,7 +197,7 @@ The default backend-library lane additionally discovers five cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
-`mismatch_refresh_attaches_existing_observations_without_restart`,
+`review_required_then_reviewed_profile_refresh_attaches_observations`,
 `concurrent_refresh_returns_running_without_second_get`,
 and `failure_after_archive_reservation_keeps_previous_generation_readable`.
 The existing persistent profile selection also discovers
@@ -208,8 +208,11 @@ They check opt-in writable custody without startup registration,
 read-only absence, authentication/role/named approval/CSRF refusals,
 first native registration/publication, unchanged capture renewal,
 single-flight refusal, collector-down failure after archive reservation,
-previous-generation reads without quarantine, quarantine refusal,
-and revision mismatch recovery without replacing the observation holder.
+previous-generation reads without quarantine, the failed-attempt pin limitation,
+the durable admission block after clean Store/Host reopen and quarantine refusal.
+Revision mismatch returns `needs-review` without relaxing the pinned review;
+owner setup with the current review and Store/Host reopen permits publication
+and observation attachment without another reopen.
 The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
 typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
 No run step, real service, credential, private profile, household data,

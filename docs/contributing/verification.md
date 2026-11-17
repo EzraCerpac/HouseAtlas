@@ -6560,7 +6560,7 @@ The default backend-library selection adds five cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
-`mismatch_refresh_attaches_existing_observations_without_restart`,
+`review_required_then_reviewed_profile_refresh_attaches_observations`,
 `concurrent_refresh_returns_running_without_second_get`,
 and `failure_after_archive_reservation_keeps_previous_generation_readable`.
 The existing persistent profile selection adds
@@ -6571,14 +6571,22 @@ A test-only HTTP leaf returns generated responses or a transport failure;
 no socket, real collector, provider, credential or household data is used.
 The failure occurs after the runtime's original archive reservation
 and before publication, then checks previous-generation reads,
-no quarantine and a succeeding refresh through the same owners.
-The authored case also expects a later auth refusal to quarantine the source,
+no quarantine and the current next-request `guard-conflict` limitation.
+It then closes/reopens Store/Host with retained synthetic Access
+and checks that the durable permanent archive ID still blocks admission,
+while previous inventory remains readable.
+An independent fresh fixture checks an auth refusal quarantining the source,
 then an `access-revoked` refusal without another transport call.
-The current local run fails at the preceding recovery assertion with
-`guard-conflict`, so those later assertions have not been reached.
+The review case checks an explicit `needs-review` refusal with both revisions
+and unchanged cache facts,
+then an independent positive fixture with owner setup for review 43
+and clean Store/Host reopen retaining served 42,
+followed by publication and matching observation attachment without another reopen.
+Neither case runs a service or proves an installed/process restart.
 These bounded cases remain in the default set.
 
 The existing `network-live-facts-healthy.mjs` entry adds `mayRefresh`,
+reviewed/collector revisions, `needsReview` and the `needs-review` outcome,
 all typed refresh outcomes, exact safe revisions, strict decode refusals,
 and one explicit CSRF POST through fake fetch, without a retry.
 No CI run step changes, so `tools/ci/lanes.json` is unchanged.

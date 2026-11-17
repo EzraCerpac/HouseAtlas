@@ -386,6 +386,17 @@ fn validate_review(review: &LinkReview, input: &InventoryInput) -> Result<()> {
     Ok(())
 }
 
+/// Validate the bounded inventory before distinguishing an unreviewed revision
+/// from other schema errors. This supplies no review or publication authority.
+pub(crate) fn inventory_revision(
+    source: &SourceRegistration,
+    document: &[u8],
+    limits: Limits,
+) -> Result<u64> {
+    let document = bounded_json(document, limits.max_response_bytes)?;
+    Ok(inventory_input(&document, source, limits.max_records)?.revision)
+}
+
 /// Offline input only. The document may be a retained snapshot, but the live
 /// transport can request only GET /api/inventory. Graph positions are discarded.
 pub struct NetworkCapture<'a> {

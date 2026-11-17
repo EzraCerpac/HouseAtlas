@@ -196,6 +196,10 @@ impl<F, L> PendingNetworkFailure<F, L> {
 pub enum NetworkPublicationOutcome<R, F, L> {
     Published(R),
     SourceFailure(Box<PendingNetworkFailure<F, L>>),
+    NeedsReview {
+        reviewed_revision: u64,
+        collector_revision: u64,
+    },
 }
 pub enum NetworkPublicationError<E> {
     Network(NetworkError),
@@ -302,6 +306,13 @@ where
     check_cancelled(&cancellation)?;
     authority.revalidate_inventory(&lease, &source, &origin)?;
     match outcome {
+        RefreshOutcome::NeedsReview {
+            reviewed_revision,
+            collector_revision,
+        } => Ok(NetworkPublicationOutcome::NeedsReview {
+            reviewed_revision,
+            collector_revision,
+        }),
         RefreshOutcome::Complete(proposal) => {
             guard(
                 proposal.precondition().expected_cache_epoch == fence.baseline_cache_epoch()

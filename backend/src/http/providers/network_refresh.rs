@@ -80,6 +80,7 @@ pub(in crate::http) async fn refresh(
                 "status":if unchanged {"unchanged"} else {"refreshed"}, "inventoryRevision":source_revision, "cache":cache_facts(&cache)
             }),
             Ok(RefreshResult::AlreadyRunning) => json!({"status":"running"}),
+            Ok(RefreshResult::NeedsReview { reviewed_revision, collector_revision }) => json!({"status":"needs-review", "reviewedInventoryRevision":reviewed_revision, "collectorInventoryRevision":collector_revision}),
             Ok(RefreshResult::SourceFailure(cache)) => json!({"status":"failed", "reason":cache.error.as_ref().map(|e| e.code), "quarantined":cache.status == crate::storage::CacheState::AccessRevoked, "cache":cache_facts(&cache)}),
             Err(n::NetworkPublicationError::Network(e)) => json!({"status":"failed","reason":e.code,"quarantined":false}),
             Err(n::NetworkPublicationError::Storage(e)) => json!({"status":"failed","reason":e.code,"quarantined":e.code == "access-revoked"}),

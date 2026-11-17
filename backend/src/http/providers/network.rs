@@ -278,6 +278,13 @@ pub(in crate::http) async fn results(
                 p.principal.principal()
             ));
             value["inventoryRevision"] = serde_json::json!(observations.revision());
+            let reviewed = read.binding.runtime().settings().review().revision;
+            value["reviewedInventoryRevision"] = serde_json::json!(reviewed);
+            value["needsReview"] = serde_json::json!(
+                observations
+                    .revision()
+                    .is_some_and(|revision| revision != reviewed)
+            );
             value["servedInventoryRevision"] = serde_json::json!(read.facet.source_revision);
             value["measurementReason"] =
                 serde_json::json!(observations.reason(read.facet.source_revision, &read.now));

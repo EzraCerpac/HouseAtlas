@@ -10,6 +10,7 @@ export interface NetworkRefreshCache {
   readonly errorCode: string | null;
 }
 export type NetworkInventoryRefreshResult =
+  | { readonly status: 'needs-review'; readonly reviewedInventoryRevision: number; readonly collectorInventoryRevision: number }
   | { readonly status: 'refreshed' | 'unchanged'; readonly inventoryRevision: number; readonly cache: NetworkRefreshCache }
   | { readonly status: 'running' | 'not-configured' }
   | { readonly status: 'refused'; readonly reason: string }
@@ -31,6 +32,16 @@ function cache(v: LosslessJson | undefined): NetworkRefreshCache {
 }
 export function decodeNetworkInventoryRefresh(v: LosslessJson): NetworkInventoryRefreshResult {
   const r = row(v), status = text(r.status);
+  if (status === 'needs-review') {
+    keys(r, ['status', 'reviewedInventoryRevision', 'collectorInventoryRevision']);
+    const revision = (v: LosslessJson | undefined) => {
+      const n = isExactDecimal(v) ? v.toSafeInteger() : v;
+      need(typeof n === 'number' && Number.isSafeInteger(n) && n >= 0); return n;
+    };
+    const reviewedInventoryRevision = revision(r.reviewedInventoryRevision), collectorInventoryRevision = revision(r.collectorInventoryRevision);
+    need(reviewedInventoryRevision !== collectorInventoryRevision);
+    return Object.freeze({ status, reviewedInventoryRevision, collectorInventoryRevision });
+  }
   if (status === 'running' || status === 'not-configured') { keys(r, ['status']); return Object.freeze({ status }); }
   if (status === 'refused') { keys(r, ['status', 'reason']); return Object.freeze({ status, reason: text(r.reason) }); }
   if (status === 'failed') {

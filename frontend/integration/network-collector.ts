@@ -16,6 +16,7 @@ export type CollectorResults = {readonly status:'unavailable'} | {
   readonly status:'available'|'unknown'; readonly retrievedAt:string|null;
   readonly inventoryRevision:number|null; readonly servedInventoryRevision:number|null; readonly measurementReason:MeasurementReason;
   readonly mayRefresh:boolean;
+  readonly reviewedInventoryRevision:number; readonly needsReview:boolean;
   readonly results:{readonly version:1;readonly speed:{readonly latest:SpeedResult|null;readonly recent:readonly SpeedResult[]};readonly wifi:{readonly latest:WifiResult|null};readonly actions:readonly ActionEntry[]}|null;
 };
 export type CollectorActionResponse = {readonly status:'completed';readonly collectorStatus:200;readonly result:ActionEntry & {readonly version:1}} |
@@ -68,18 +69,20 @@ export function decodeNetworkCollectorResults(v:LosslessJson):CollectorResults {
   need(stringifyLosslessJson(v).length<=10*1024*1024);
   need(v!==null && typeof v==='object' && !Array.isArray(v) && !isExactDecimal(v));
   if(v.status==='unavailable') {row(v,['status']);return Object.freeze({status:'unavailable'});}
-  const r=row(v,['status','retrievedAt','results','inventoryRevision','servedInventoryRevision','measurementReason','mayRefresh']);
+  const r=row(v,['status','retrievedAt','results','inventoryRevision','servedInventoryRevision','measurementReason','mayRefresh','reviewedInventoryRevision','needsReview']);
+  const reviewedInventoryRevision=revision(r.reviewedInventoryRevision);need(reviewedInventoryRevision!==null && typeof r.needsReview==='boolean');const needsReview=r.needsReview;
   need(typeof r.mayRefresh==='boolean');const mayRefresh=r.mayRefresh;
   const status=choice(r.status,['available','unknown'] as const),retrievedAt=r.retrievedAt===null?null:date(r.retrievedAt);
   const inventoryRevision=revision(r.inventoryRevision),servedInventoryRevision=revision(r.servedInventoryRevision),measurementReason=r.measurementReason===null?null:choice(r.measurementReason,['not-observed','inventory-revision-mismatch','observations-expired'] as const);
-  if(status==='unknown') {need(r.results===null && retrievedAt===null);return Object.freeze({status,retrievedAt,results:null,inventoryRevision,servedInventoryRevision,measurementReason,mayRefresh});}
+  need(needsReview===(inventoryRevision!==null && inventoryRevision!==reviewedInventoryRevision));
+  if(status==='unknown') {need(r.results===null && retrievedAt===null);return Object.freeze({status,retrievedAt,results:null,inventoryRevision,servedInventoryRevision,measurementReason,mayRefresh,reviewedInventoryRevision,needsReview});}
   need(retrievedAt!==null);
   const b=row(r.results,['version','speed','wifi','actions']);need(number(b.version,1)===1);
   const s=row(b.speed,['latest','recent']),w=row(b.wifi,['latest']);
   let wifi:WifiResult|null=null;
   if(w.latest!==null) {const q=row(w.latest,['state','recordedAt','networks','reason']);need(q.state==='unavailable'&&q.networks===null&&q.reason==='no-dependable-unprivileged-scanner');wifi=Object.freeze({state:'unavailable',recordedAt:date(q.recordedAt),networks:null,reason:'no-dependable-unprivileged-scanner'});}
   const recent=Object.freeze(list(s.recent,30).map(speed)),actions=Object.freeze(list(b.actions,30).map(v=>entry(v)));
-  return Object.freeze({status,retrievedAt,inventoryRevision,servedInventoryRevision,measurementReason,mayRefresh,results:Object.freeze({version:1,speed:Object.freeze({latest:s.latest===null?null:speed(s.latest),recent}),wifi:Object.freeze({latest:wifi}),actions})});
+  return Object.freeze({status,retrievedAt,inventoryRevision,servedInventoryRevision,measurementReason,mayRefresh,reviewedInventoryRevision,needsReview,results:Object.freeze({version:1,speed:Object.freeze({latest:s.latest===null?null:speed(s.latest),recent}),wifi:Object.freeze({latest:wifi}),actions})});
 }
 export function decodeNetworkCollectorAction(v:LosslessJson):CollectorActionResponse {
   need(v!==null && typeof v==='object' && !Array.isArray(v) && !isExactDecimal(v));

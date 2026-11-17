@@ -45,16 +45,27 @@ try {
   }
   assert.throws(()=>applyNetworkLiveFacts({...data,devices:[]},decode(raw)));
   const speed={state:'measured',recordedAt:at,downloadBitsPerSecond:12000000,uploadBitsPerSecond:3000000,latencyMs:4,reason:null};
-  const result={status:'available',retrievedAt:at,inventoryRevision:1,servedInventoryRevision:1,measurementReason:null,mayRefresh:false,results:{version:1,speed:{latest:speed,recent:[speed]},wifi:{latest:{state:'unavailable',recordedAt:at,networks:null,reason:'no-dependable-unprivileged-scanner'}},actions:[]}};
+  const result={status:'available',retrievedAt:at,inventoryRevision:1,servedInventoryRevision:1,measurementReason:null,mayRefresh:false,reviewedInventoryRevision:1,needsReview:false,results:{version:1,speed:{latest:speed,recent:[speed]},wifi:{latest:{state:'unavailable',recordedAt:at,networks:null,reason:'no-dependable-unprivileged-scanner'}},actions:[]}};
   const resultDecode=v=>decodeNetworkCollectorResults(parseLosslessJson(JSON.stringify(v)));
   assert.equal(resultDecode(result).results.speed.latest.downloadBitsPerSecond,12000000);
   assert.equal(resultDecode(result).results.wifi.latest.networks,null);
   assert.equal(resultDecode({...result,mayRefresh:true}).mayRefresh,true);
+  assert.equal(resultDecode({...result,inventoryRevision:43,reviewedInventoryRevision:42,needsReview:true}).needsReview,true);
+  assert.throws(()=>resultDecode({...result,inventoryRevision:43,reviewedInventoryRevision:42,needsReview:false}));
+  assert.throws(()=>resultDecode({...result,reviewedInventoryRevision:null}));
   assert.throws(()=>resultDecode({...result,mayRefresh:'yes'}));
   const {decodeNetworkInventoryRefresh,requestNetworkInventoryRefresh}=await import(pathToFileURL(modulePath).href);
   const refreshCache={status:'fresh',lastSuccessfulFetchAt:at,lastAttemptAt:at,errorCode:null};
   const refreshed={status:'refreshed',inventoryRevision:43,cache:refreshCache};
   const refreshDecode=v=>decodeNetworkInventoryRefresh(parseLosslessJson(JSON.stringify(v)));
+  const needsReview={status:'needs-review',reviewedInventoryRevision:42,collectorInventoryRevision:43};
+  assert.deepEqual(refreshDecode(needsReview),needsReview);
+  assert.throws(()=>refreshDecode({...needsReview,collectorInventoryRevision:42}));
+  assert.throws(()=>refreshDecode({...needsReview,reviewedInventoryRevision:null}));
+  for(const field of ['reviewedInventoryRevision','collectorInventoryRevision']) {
+    const raw=JSON.stringify(needsReview).replace(`"${field}":${needsReview[field]}`,`"${field}":1.0000000000000001`);
+    assert.throws(()=>decodeNetworkInventoryRefresh(parseLosslessJson(raw)));
+  }
   for(const status of ['refreshed','unchanged']) assert.equal(refreshDecode({...refreshed,status}).inventoryRevision,43);
   for(const v of [{status:'running'},{status:'not-configured'},{status:'refused',reason:'not-approved'},{status:'failed',reason:'transport',quarantined:false},{status:'failed',reason:'auth',quarantined:true,cache:{...refreshCache,status:'access-revoked',errorCode:'auth'}}]) assert.equal(refreshDecode(v).status,v.status);
   for(const v of [{...refreshed,inventoryRevision:-1},{...refreshed,inventoryRevision:null},{...refreshed,extra:true},{status:'failed',reason:'transport'},{status:'running',inventoryRevision:1},{...refreshed,cache:{...refreshCache,lastAttemptAt:'bad'}}]) assert.throws(()=>refreshDecode(v));

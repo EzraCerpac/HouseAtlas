@@ -199,6 +199,19 @@ pub struct RefreshFailure {
 pub enum RefreshOutcome {
     Complete(Box<CompleteGenerationProposal>),
     Failed(Box<RefreshFailure>),
+    NeedsReview {
+        reviewed_revision: u64,
+        collector_revision: u64,
+    },
+}
+enum FetchError {
+    Network(NetworkError),
+    NeedsReview(u64),
+}
+impl From<NetworkError> for FetchError {
+    fn from(error: NetworkError) -> Self {
+        Self::Network(error)
+    }
 }
 #[derive(Clone, Debug)]
 pub struct NetworkProvider {
@@ -266,7 +279,11 @@ impl NetworkProvider {
                     original_capture,
                 }))
             }
-            Err(error) => {
+            Err(FetchError::NeedsReview(collector_revision)) => RefreshOutcome::NeedsReview {
+                reviewed_revision: self.review.revision,
+                collector_revision,
+            },
+            Err(FetchError::Network(error)) => {
                 let mut state = prior.clone();
                 state.cache.status = if error.code == ErrorCode::Auth
                     || prior.cache.status == CacheStatus::AccessRevoked
@@ -292,7 +309,7 @@ impl NetworkProvider {
         transport: &T,
         attempted_at: &str,
         clock: &mut C,
-    ) -> Result<(RetainedState, OriginalNetworkCapture)>
+    ) -> std::result::Result<(RetainedState, OriginalNetworkCapture), FetchError>
     where
         T: InventoryTransport + ?Sized,
         C: FnMut() -> String,
@@ -305,14 +322,14 @@ impl NetworkProvider {
         .map_err(|_| NetworkError::new(ErrorCode::Timeout))??;
         let (response, origin) = response.into_parts();
         if matches!(response.status, 401 | 403) {
-            return Err(NetworkError::new(ErrorCode::Auth));
+            return Err(NetworkError::new(ErrorCode::Auth).into());
         }
         if response.status != 200
             || response.redirected
             || response.location.is_some()
             || response.url.is_some()
         {
-            return Err(NetworkError::new(ErrorCode::Upstream));
+            return Err(NetworkError::new(ErrorCode::Upstream).into());
         }
         let source = response
             .source
@@ -337,6 +354,11 @@ impl NetworkProvider {
             response.body,
             origin,
         )?;
+        let collector_revision =
+            inventory_revision(&self.registration, original_capture.body(), self.limits)?;
+        if collector_revision != self.review.revision {
+            return Err(FetchError::NeedsReview(collector_revision));
+        }
         let generation = project_capture(
             &self.registration,
             NetworkCapture {

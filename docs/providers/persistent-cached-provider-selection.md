@@ -337,6 +337,10 @@ Structured outcomes are HTTP 200:
 - `not-configured`, when the selected source has no named refresh Editors.
 - `refused` with `reason:"not-approved"`, for an unnamed Editor
   or unavailable original publication grants.
+- `needs-review`, with `reviewedInventoryRevision` and
+  `collectorInventoryRevision`, when the validated inventory revision differs
+  from the pinned profile's `LinkReview.revision`.
+  It publishes no inventory and leaves the cache facts unchanged.
 - `failed`, with a sanitized native `reason` and `quarantined` boolean,
   plus cache facts when the native owner recorded a source failure.
   Transport failure retains the previous generation;
@@ -346,8 +350,12 @@ Structured outcomes are HTTP 200:
 
 HTTP authentication, role, CSRF and malformed selector failures remain errors.
 Results retain `servedInventoryRevision`, collector `inventoryRevision`
-and `measurementReason`, and add `mayRefresh` for the signed-in named Editor.
-This is an admission hint; the POST checks the exact lifecycle policy again.
+and `measurementReason`, and add `mayRefresh` for the signed-in named Editor,
+`reviewedInventoryRevision` from the pinned profile and `needsReview`.
+The last flag compares the observed collector revision with that reviewed revision;
+it is false when no collector revision is known.
+These are hints; the POST checks the exact lifecycle policy
+and validates the actual inventory again.
 After a publication aligns the revisions,
 the existing observation holder attaches matching measurements naturally,
 without a poll or restart.
@@ -363,3 +371,58 @@ then reread inventory/results after a recorded publish or failure.
 A lost POST response may follow a committed publication;
 reconcile instead of automatically retrying.
 No UI control, installation, private profile or live-provider acceptance is included.
+
+### Adopting a changed inventory revision
+
+`LinkReview.revision` must equal the collector inventory revision.
+Refresh never infers, advances or bypasses that review.
+When results report `needsReview:true`,
+the UI can explain that the device list changed and needs review before refresh.
+`mayRefresh` still describes the caller's named Editor eligibility,
+not approval of that changed inventory.
+
+1. The owner reviews the changed inventory and its links,
+   updates the pinned profile's review to that exact revision,
+   selects the new profile SHA256 and restarts the service.
+   This is an owner-approved install/configuration step outside this PR.
+2. The named Editor presses refresh.
+   Matching reviewed inventory can then publish;
+   matching stored measurements attach to the new served revision naturally.
+
+The independent generated positive case closes/reopens native Store/Host with retained
+synthetic Access and a review for revision 43 while retaining served revision 42.
+Refresh publishes revision 43 and measurements attach without another reopen.
+This is synthetic owner-lifetime coverage, not an installed service restart test.
+
+### Existing failed-attempt pin limitation
+
+Same-lifetime failure recovery remains blocked on native candidate disposition.
+A transport failure after archive reservation retains the previous generation
+and records a non-quarantined error,
+but a later refresh in that Store lifetime returns `failed / guard-conflict`.
+The same applies after a `needs-review` refusal cancels its archive reservation.
+The Store's `CachePinRegistry` retains the candidate as in-flight or ambiguous;
+Network archive admission refuses that other pin after its reservation is removed.
+
+HomeBox's `FailedPublication::commit_failure_with_authorization` uses the same
+Store failure-recording owner and does not release a candidate pin.
+`HostNetworkRuntime` cancellation calls only
+`SqliteNetworkSidecar::cancel_original_capture`,
+which removes the archive reservation, not the Store pin.
+No existing Store pin retirement operation is exposed.
+`UnpublishedCacheCandidateGuard` retains its fence/staged custody on release,
+and Network's `verify_unpublished` refuses because it has no original
+unpublished-disposition receipt.
+Adding such authority belongs to the native Store/Network custody owners;
+this route does not remove pins or weaken admission.
+
+The pin registry is process-local and starts empty on Store open,
+but archive cancellation retains the durable permanent generation ID.
+Archive enumeration exposes that ID as `StagedOrAmbiguous`,
+and Network admission refuses `PermanentlyReserved` entries even without a Store pin.
+The synthetic failure case checks previous-generation reads,
+the next request's `guard-conflict`, clean Store/Host close/reopen,
+and the same refusal with durable inventory still readable.
+A service restart clears the in-memory pin but does not repair this durable block.
+No real service was restarted, and no admission predicate was relaxed.
+The native Store pin and Network archive disposition owners need to resolve it.

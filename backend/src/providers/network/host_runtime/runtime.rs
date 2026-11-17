@@ -22,6 +22,10 @@ pub enum RefreshResult {
     },
     SourceFailure(s::CacheStatus),
     AlreadyRunning,
+    NeedsReview {
+        reviewed_revision: u64,
+        collector_revision: u64,
+    },
 }
 
 /// Data selected from the actual retained generation and the same Store's
@@ -251,6 +255,16 @@ impl HostNetworkRuntime {
             return Err(error.into());
         }
         let result = match outcome {
+            n::RefreshOutcome::NeedsReview {
+                reviewed_revision,
+                collector_revision,
+            } => {
+                self.cancel_archive_reservation(reservation)?;
+                RefreshResult::NeedsReview {
+                    reviewed_revision,
+                    collector_revision,
+                }
+            }
             n::RefreshOutcome::Complete(proposal) => {
                 // A source-scope DTO or offline response cannot stand in for
                 // the original concrete client's verified origin custody.
