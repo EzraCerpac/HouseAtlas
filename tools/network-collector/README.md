@@ -28,7 +28,12 @@ During that reservation, routine cycles send no probes and record every device
 as `not-measured` with reason `speed-test-in-progress`, null latency and null loss.
 Those samples retain the ordinary unknown-count rollup behavior.
 SIGTERM/SIGINT abort commands, drain the current cycle, close HTTP and SQLite.
-Commands receive TERM then KILL after 250 ms;
+Commands receive TERM then KILL after 250 ms.
+If close/error still has not arrived after another 250 ms,
+the runner settles with null exit code and `interrupted:true`,
+destroys its owned stdout/stderr pipes and drops its listeners.
+This is an explicit failed/unknown observation, not proof of process exit.
+The caller reservation is released so later pings and actions can resume;
 ping/guard/port commands have a 2.5-second deadline;
 speed runs have a 65-second deadline.
 All commands have a 64 KiB combined output bound.
@@ -289,7 +294,7 @@ node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfi
 
 The typecheck uses the repository's existing frontend TypeScript/Node declarations;
 no new runtime or development dependency is added.
-The 39 node:test cases use fake runners/children, disposable private SQLite files,
+The 40 node:test cases use fake runners/children, disposable private SQLite files,
 controlled clocks and direct handler calls only.
 No listener, real command, live source, credential, private fixture, deployment,
 performance measurement or installed acceptance is exercised.
@@ -377,8 +382,8 @@ Fences run before body reading or owner access.
 Only one action (including a nightly speed run) executes at a time;
 a concurrent request receives 409 `busy`.
 Upload timeout remains 5 seconds; accepted execution gets a 125-second socket bound
-to cover an active routine cycle draining (at most about 45 seconds),
-then the bounded 65-second speed command.
+to cover an active routine cycle draining (at most about 54 seconds including forced teardown),
+then the bounded 65-second speed command plus teardown.
 Ping and TCP checks use the current inventory's selected IPv4 only,
 after the same live home guard used by scheduled pings.
 Unknown device IDs receive 400 without command execution.
@@ -412,10 +417,11 @@ The schema-2 migration renames the stored speed metrics and their action-log cop
 to `downloadBitsPerSecond` and `uploadBitsPerSecond`, preserving their values.
 It must not subsequently be opened by the stage 0 writer.
 
-The 39 synthetic cases additionally cover good/partial/malformed speed output,
+The 40 synthetic cases additionally cover good/partial/malformed speed output,
 local-time nightly claims and restart/rollback, Wi-Fi unavailability/intervals,
 POST fences/body limits, busy ownership, target/port restrictions, shutdown,
 forward migration and bounded histories, speed/ping exclusion in both start orders,
 controlled-timezone skipped/repeated DST hours, detached-upload response cleanup
-and persisted speed metric renaming.
+persisted speed metric renaming and missing-close recovery for deadline,
+output overflow and abort, including resumed routine pings and actions.
 No actual command, service, socket or scan runs in these tests.

@@ -206,9 +206,13 @@ test('literal loopback authority accepts absent or matching Origin including IPv
   } finally { f.close(); }
 });
 
+class FakePipe extends EventEmitter {
+  destroyed = false;
+  destroy() { this.destroyed = true; return this; }
+}
 class FakeChild extends EventEmitter {
-  stdout = new EventEmitter();
-  stderr = new EventEmitter();
+  stdout = new FakePipe();
+  stderr = new FakePipe();
   kills: NodeJS.Signals[] = [];
   kill(signal: NodeJS.Signals) { this.kills.push(signal); return true; }
 }
@@ -552,4 +556,49 @@ test('stage one store migration renames persisted speed and action metrics', () 
       assert.equal(Object.hasOwn(speed, 'downloadBps'), false); assert.equal(Object.hasOwn(speed, 'uploadBps'), false);
     }
   } finally { store.close(); rmSync(f.dir, { recursive: true, force: true }); }
+});
+
+test('missing child close settles after bounded teardown and releases pings and actions', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(); const child = new FakeChild(); let speedCalls = 0; let pings = 0;
+  const stalled = createRunner(() => child);
+  const runner: Runner = (file, args, timeout, signal) => {
+    if (file === '/usr/bin/networkQuality' && speedCalls++ === 0) return stalled(file, args, timeout, signal);
+    if (file === '/sbin/ping') pings++;
+    return file === '/usr/bin/networkQuality' ? Promise.resolve({ stdout: '{}', code: 0 }) : fake(file, args, timeout, signal);
+  };
+  try {
+    f.store.accept(inventory());
+    const actions = new Actions(f.store, config(), runner, local, () => at);
+    const speed = actions.execute({ kind: 'speed' }); let settled = false;
+    void speed.then(() => { settled = true; }); await Promise.resolve();
+    assert.equal((await actions.collectRoutine(inventory(), new AbortController().signal)).facts.get('device')!.reason, 'speed-test-in-progress');
+    assert.equal((await actions.execute({ kind: 'ping', deviceId: 'device' })).status, 409);
+    t.mock.timers.tick(65000); assert.deepEqual(child.kills, ['SIGTERM']);
+    t.mock.timers.tick(250); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
+    t.mock.timers.tick(249); await Promise.resolve(); assert.equal(settled, false);
+    t.mock.timers.tick(1); assert.equal((await speed).status, 200);
+    assert.equal(f.store.extras().speed.latest.state, 'failed');
+    assert.equal(f.store.extras().speed.latest.reason, 'command-unavailable');
+    assert.equal(child.stdout.destroyed, true); assert.equal(child.stderr.destroyed, true); assertClean(child);
+    // Late events cannot overwrite the unknown result or revive old ownership.
+    child.stdout.emit('data', Buffer.from('{"base_rtt":1}')); child.emit('close', 0);
+    const cycle = await actions.collectRoutine(inventory(), new AbortController().signal);
+    assert.equal(cycle.facts.get('device')!.state, 'reachable');
+    const ping = await actions.execute({ kind: 'ping', deviceId: 'device' });
+    assert.equal(ping.status, 200); assert.equal(JSON.parse(ping.body).result.state, 'reachable');
+    assert.equal(pings, 2); assert.equal((await actions.execute({ kind: 'speed' })).status, 200);
+    await actions.shutdown(); t.mock.timers.tick(100000);
+    assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']); assertClean(child);
+  } finally { f.close(); }
+  // The same bound applies to output overflow and abort, not only deadlines.
+  for (const mode of ['output', 'abort']) {
+    const child = new FakeChild(); const stop = new AbortController();
+    const pending = createRunner(() => child)('/example/ping', [], 2500, stop.signal);
+    if (mode === 'output') child.stderr.emit('data', Buffer.alloc(65537)); else stop.abort();
+    t.mock.timers.tick(250); t.mock.timers.tick(250);
+    const result = await pending; assert.equal(result.code, null); assert.equal(result.interrupted, true);
+    assert.equal(parsePing(result, at).state, 'not-measured');
+    assert.equal(child.stdout.destroyed, true); assert.equal(child.stderr.destroyed, true); assertClean(child);
+  }
 });
