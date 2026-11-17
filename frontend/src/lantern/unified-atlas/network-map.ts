@@ -6,7 +6,7 @@ import type { RuntimeRecords } from './runtime-overlays';
 /** How a reported link is drawn on the map. Never a cable route: only the
  * recorded medium, read from the source's own word for it. */
 export type NetworkLinkStyle = 'wired' | 'wireless' | 'unknown';
-const WIRED = /ethernet|\bcable|wired|fib(?:re|er)|coax|copper|powerline|\bplc\b|moca|\bpoe\b|\bcat ?\d|\blan\b|\busb\b/i;
+const WIRED = /ethernet|\bcable|wired|fib(?:re|er)|coax|copper|powerline|\bplc\b|moca|\bpoe\b|\bcat ?\d|\busb\b/i;
 const WIRELESS = /wi-?fi|wireless|\bwlan\b|802\.11|radio|bluetooth|zigbee|z-?wave|\bthread\b|\blte\b|\b[345]g\b|cellular/i;
 
 /** Wired solid, wireless dashed; an unknown medium, an unresolved end or
