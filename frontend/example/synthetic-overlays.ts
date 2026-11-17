@@ -48,7 +48,9 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
   // access point <- speaker (Living room, Wi-Fi); switch <- printer (Living room, medium not recorded);
   // tablet (moves around) and garden camera (no reviewed room) stay unplaced. The access point
   // carries invented Network source facts without reachability; the root, switch, printer and
-  // desk computer carry invented collector reachability (full series; gaps; no reply; stale).
+  // desk computer carry invented collector reachability (full series; gaps; no reply; stale);
+  // the streaming box's are withheld because the collector measured another device list.
+  // ./network-collector answers for the reachability source.
   // No cable route, coordinate or radio coverage.
   const placed = (i: number, roomLabel: string) => ({ placeId: null, sourceRoomId: `example-room-${i}`, sourcePlaceId: targets[i]!.packagePlaceKey,
     sourcePlaceUUID: targets[i]!.packagePlaceUuid, planAssociations: [{ sourceAnchorId: `example-anchor-${i}`, sourceFloorKey: 'example-floor',
@@ -89,7 +91,9 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
       { id: 'example-switch', label: 'Fictional switch', kind: 'switch', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(0, 'Hall'),
         liveFacts: reach(2, 'example-switch', 'reachable', '2026-01-02T08:58:00Z', false, 2.1, series('2026-01-02T08:00:00Z', 48,
           i => i >= 10 && i <= 13 || i === 30 ? null : i === 40 ? { latencyMs: null, loss: null } : i === 20 ? { latencyMs: 3.2, loss: 0.25 } : ms(1.9)(i))) },
-      { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room'),
+        liveFacts: { ...reach(5, 'example-streaming-box', 'reachable', '2026-01-02T08:58:00Z', false, null, []), status: 'unknown', freshness: 'unknown',
+          observedState: null, lastSeenAt: null, loss: null, measurementReason: 'inventory-revision-mismatch' } },
       { id: 'example-desk-computer', label: 'Fictional desk computer', kind: 'computer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(3, 'Bedroom'),
         liveFacts: reach(3, 'example-desk-computer', 'reachable', '2026-01-01T18:04:00Z', true, 12.6, series('2026-01-01T18:00:00Z', 24, ms(12))) },
       { id: 'example-speaker', label: 'Fictional speaker', kind: 'speaker', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },

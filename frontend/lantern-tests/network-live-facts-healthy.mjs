@@ -1,4 +1,4 @@
-/** Generated decoder contracts only; no browser, source, network or native authority. */
+/** Generated decoder contracts, card wording and static markup only; no browser, source, network or native authority. */
 import assert from 'node:assert/strict';
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -10,10 +10,16 @@ const root=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const scratch=mkdtempSync(join(tmpdir(),'network-live-facts-'));
 try {
   const entry=join(scratch,'entry.ts');
-  writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-collector.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))}\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};`);
-  const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
-  const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,(Array.isArray(built)?built[0]:built).output.find(o=>o.type==='chunk'&&o.isEntry).code);
-  const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND}=await import(pathToFileURL(modulePath).href);
+  writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-collector.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))}\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-tests.ts'))};\nexport {InternetSpeed} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkTests.tsx'))};\nexport {networkCardContent} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkCard.tsx'))};`);
+  // React stays external so the components share the one React that renders them.
+  const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},rolldownOptions:{external:['react','react/jsx-runtime'],output:{codeSplitting:false}},minify:false}});
+  const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,(Array.isArray(built)?built[0]:built).output.find(o=>o.type==='chunk'&&o.isEntry).code
+    .replaceAll(JSON.stringify('react'),JSON.stringify(new URL('../node_modules/react/index.js',import.meta.url).href))
+    .replaceAll(JSON.stringify('react/jsx-runtime'),JSON.stringify(new URL('../node_modules/react/jsx-runtime.js',import.meta.url).href)));
+  const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND,
+    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,InternetSpeed,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
+  const {createElement}=await import(new URL('../node_modules/react/index.js',import.meta.url).href);
+  const {renderToStaticMarkup}=await import(new URL('../node_modules/react-dom/server.node.js',import.meta.url).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,sha='a'.repeat(64),at='2026-01-01T00:00:00Z';
   const source={workspaceId:U(1),homeId:U(2),sourceInstanceId:U(3),collectionId:'synthetic',sourceKind:'network-device',externalId:'source-a'};
   const live={status:'available',source,addresses:['','192.0.2.1'],observedState:[{id:'observation',kind:'state',value:{state:'observed',count:7},factAt:at,sourceSnapshotAt:at,retrievedAt:at,vantage:'synthetic',invalidatedAt:null,freshness:'recent'}],lastSeenAt:null,sourceSnapshotAt:at,retrievedAt:at,freshness:'recent'};
@@ -116,4 +122,95 @@ try {
   const one=sparkline([{hour:at,latencyMs:3,loss:0}]);assert.equal(one.line,'');assert.equal(one.dots.length,1);assert.equal(one.ticks.length,0);
   assert.match(sparkline([{hour:at,latencyMs:null,loss:null}]).label,/: 0 of 1 hour measured$/);
   console.log('PASS Network live-facts v2: joined, unjoined/legacy, stale, absent, ambiguity, digest/scope and bounds; reachability wording, nulls, freshness and series gaps');
+  // Withheld for a changed device list: the row says why, never a bare "Not measured".
+  assert.equal(reachability(decode(withheld).devices[0].liveFacts).state,NOT_MEASURED_MISMATCH);
+  assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh');
+
+  // Network tests on the device card and internet speed in the Network key: a fake collector port only.
+  const facts=decode(measured).devices[0].liveFacts,scopeOf=facts.source,tick=()=>new Promise(r=>setTimeout(r,0));
+  const deviceCard=(liveFacts,collector,storedAt)=>{
+    const device={id:'documentary-a',label:'Generated device',kind:'router',mobility:'fixed',confidence:'recorded',notes:'',place:null,liveFacts};
+    const content=networkCardContent({focus:{kind:'device',key:'d'},connections:{nodes:[{key:'d',graphKey:'g',kind:'device',id:device.id,label:device.label,device,endpoint:null,anchors:[],placementReason:'no-reviewed-room'}],connections:[]},
+      graphs:[{key:'g',data:{source:{label:'Generated network',revision:'1',recordedAt:null,retrievedAt:null,status:'recorded',notes:''}},qualification:'Generated',...(storedAt?{storedAt}:{})}],
+      roomName:()=>({room:'',floor:''}),choose:()=>{},showInGraph:()=>{},collector});
+    return renderToStaticMarkup(createElement('div',null,content.body));
+  };
+  const fakePort=(answer,role={editor:true})=>{const port={reads:0,posts:[],pending:[],canTest:()=>role.editor,
+    read:async(scope,signal)=>{port.reads++;assert(signal instanceof AbortSignal);assert.deepEqual([scope.workspaceId,scope.homeId,scope.sourceInstanceId,scope.collectionId],[U(1),U(2),U(3),'synthetic']);if(answer instanceof Error)throw answer;return answer;},
+    act:(scope,action)=>{port.posts.push(action);return new Promise((resolve,reject)=>port.pending.push({resolve,reject}));}};return port;};
+  const plain=deviceCard(facts,null);
+  assert(!plain.includes('<dt>Test</dt>'),'no collector: the card is unchanged');
+  const role={editor:false},port=fakePort(resultDecode(result),role),store=createCollectorStore(port,()=>'2026-01-01T02:00:00Z'),collector={port,store};
+  assert.equal(port.reads,0,'creating the store reads nothing; plain browsing sends no request');
+  assert.equal(deviceCard(facts,collector),plain,'a viewer sees no test control');
+  store.ensure(scopeOf);store.ensure({...scopeOf});await tick();await tick();
+  assert.equal(port.reads,1,'one results GET per scope, reused by later cards and the key');
+  assert.equal(deviceCard(facts,collector),plain,'a viewer still sees no test control after results are read');
+  role.editor=true;
+  const editorCard=deviceCard(facts,collector);
+  for(const text of ['<dt>Test</dt>','>Ping</button>','aria-label="Port"','<option value="443" selected="">443</option>','>Check port</button>','role="status"']) assert(editorCard.includes(text),`editor card shows ${text}`);
+  assert.equal(deviceCard(facts,collector,'2026-01-01T00:05:00Z'),deviceCard(facts,null,'2026-01-01T00:05:00Z'),'a stored copy offers no test');
+  const listedNot={...facts,status:'absent'};assert.equal(deviceCard(listedNot,collector),deviceCard(listedNot,null),'a device the source no longer lists offers no test');
+  for(const answer of [{status:'unavailable'},{...result,status:'unknown',results:null,retrievedAt:null},new Error('refused')]){
+    const other=fakePort(answer instanceof Error?answer:resultDecode(answer)),owned=createCollectorStore(other);owned.ensure(scopeOf);await tick();await tick();
+    assert.equal(deviceCard(facts,{port:other,store:owned}),plain,'no collector results: the card is exactly as without the collector');
+    assert.equal(renderToStaticMarkup(createElement(InternetSpeed,{collector:{port:other,store:owned},scope:scopeOf,label:null})),'','no collector results: no speed block');
+    owned.dispose();
+  }
+  // One request at a time; never retried; the answer replaces "running" with its own time.
+  assert.equal(store.run(scopeOf,{kind:'ping',deviceId:'source-a'}),true);
+  assert.equal(store.run(scopeOf,{kind:'port',deviceId:'source-a',port:443}),false,'a second press while one runs sends nothing');
+  assert.equal(store.run(scopeOf,{kind:'speed'}),false);
+  assert.deepEqual(port.posts,[{kind:'ping',deviceId:'source-a'}]);
+  const runningCard=deviceCard(facts,collector);
+  assert(runningCard.includes('Running ping…')&&runningCard.match(/aria-disabled="true"/g).length===2,'running: said, and both buttons unavailable');
+  assert(renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null})).includes('Another test is running'));
+  port.pending[0].resolve(actionDecode({...complete,result:{version:1,...pingEntry}}));await tick();await tick();
+  const answered=deviceCard(facts,collector);
+  assert(answered.includes('Ping: Reachable, 2.0 ms')&&answered.includes('recorded <time'),'completed ping reads its result and recorded time');
+  assert(!answered.includes('aria-disabled="true"'));
+  assert.equal(store.run(scopeOf,{kind:'port',deviceId:'source-a',port:22}),true);port.pending[1].reject(new Error('lost'));await tick();await tick();
+  assert(deviceCard(facts,collector).includes('Port 22: Outcome unknown, no readable answer'),'a failed request is unknown, never success');
+  assert.equal(port.posts.length,2,'no automatic retry');
+  // Every answer in words.
+  const say=(response,action={kind:'ping',deviceId:'source-a'})=>outcomeText({action,response:response&&actionDecode(response),answeredAt:'2026-01-01T03:00:00Z'});
+  const ping=result=>({...complete,result:{version:1,...pingEntry,result}});
+  assert.deepEqual(say(ping({state:'no-reply',latencyMs:null,loss:1,measuredAt:at,recordedAt:at,reason:null})),{text:'Ping: No reply',at,recorded:true});
+  assert.equal(say(ping({state:'not-measured',latencyMs:null,loss:null,measuredAt:null,recordedAt:at,reason:'not-at-home'})).text,'Ping: Not measured, the collector is not on the home network');
+  const port443={kind:'port',deviceId:'source-a',port:443},portEntry=state=>({...complete,result:{version:1,kind:'port',deviceId:'source-a',port:443,inventoryRevision:1,recordedAt:at,result:state}});
+  assert.equal(say(portEntry({state:'open',reason:null}),port443).text,'Port 443: Open');
+  assert.equal(say(portEntry({state:'unknown',reason:'command-unavailable'}),port443).text,'Port 443: Unknown, the test command is unavailable');
+  assert.equal(say(complete,{kind:'speed'}).text,'Speed test: 12 Mbit/s down · 3.0 Mbit/s up · 4.0 ms');
+  const failedSpeed={...complete,result:{...complete.result,result:{...speed,state:'failed',downloadBitsPerSecond:null,uploadBitsPerSecond:null,latencyMs:null,reason:'tool-error'}}};
+  assert.equal(say(failedSpeed,{kind:'speed'}).text,'Speed test: Failed, the speed tool reported an error');
+  const partial={...complete,result:{...complete.result,result:{...speed,state:'unknown',uploadBitsPerSecond:null,reason:'missing-fields'}}};
+  assert.equal(say(partial,{kind:'speed'}).text,'Speed test: Unknown, the speed tool left out values · 12 Mbit/s down · 4.0 ms','null upload left out, not 0');
+  for(const [response,text] of [[{status:'busy',collectorStatus:409,reason:'busy'},'Ping: Busy, another test is running or just finished'],
+    [{status:'refused',collectorStatus:409,reason:'inventory-revision-mismatch'},'Ping: Refused, the device list changed and needs a refresh'],
+    [{status:'refused',reason:'port-not-allowed'},'Ping: Refused, this port is not allowed on this collector'],
+    [{status:'timeout',reason:'outcome-unknown'},'Ping: Timed out, outcome unknown'],
+    [{status:'unknown',reason:'collector-unavailable'},'Ping: Outcome unknown, the collector did not answer'],
+    [{status:'unavailable'},'Ping: Unavailable, no collector for this source'],[null,'Ping: Outcome unknown, no readable answer']]) {
+    assert.deepEqual(say(response),{text,at:'2026-01-01T03:00:00Z',recorded:false},`${response?.status} keeps the browser's answer time and never reads as a result`);
+  }
+  // Speeds: Mbit/s, Gbit/s from 1000 Mbit/s; null is never zero.
+  assert.deepEqual([12e6,8.44e6,999.6e6,1.04e9,12.5e9,5e4,0].map(rateText),['12 Mbit/s','8.4 Mbit/s','1.00 Gbit/s','1.04 Gbit/s','12.5 Gbit/s','<0.1 Mbit/s','0.0 Mbit/s']);
+  const night=(i,down=300e6)=>({...speed,recordedAt:new Date(Date.parse(at)+i*86400000).toISOString().replace('.000Z','Z'),downloadBitsPerSecond:down,...(down===null?{state:'failed',uploadBitsPerSecond:null,latencyMs:null,reason:'command-unavailable'}:{})});
+  const runs=speedSparkline([night(5),night(0),night(1),night(3),night(4,null)]);
+  assert.equal(runs.line.match(/M/g).length,1,'nights 0-1 join; the missed night 2 and the failed night 4 break the line');
+  assert.equal(runs.dots.length,2,'nights 3 and 5 stand alone');
+  assert.match(runs.label,/^Download per run, 1 Jan 2026, 00:00 UTC to 6 Jan 2026, 00:00 UTC: 4 of 5 runs measured$/);
+  assert.equal(speedSparkline([]),null);
+  // The key's speed block: latest with its recorded time, retrieval, the Wi-Fi line, and the test for Editors only.
+  const block=()=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null}));
+  const editorBlock=block();
+  for(const text of ['aria-label="Internet speed"','12 Mbit/s down · 3.0 Mbit/s up · 4.0 ms','recorded <time','<dt>Retrieved</dt>','>Test speed now</button>','<p class="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>','role="img"']) assert(editorBlock.includes(text),`speed block shows ${text}`);
+  role.editor=false;const viewerBlock=block();
+  assert(!viewerBlock.includes('Test speed now')&&!viewerBlock.includes('role="status"')&&viewerBlock.includes('Wi-Fi scan unavailable on this collector'),'a viewer reads speed without the test');
+  const noWifi=structuredClone(result);noWifi.results.wifi.latest=null;noWifi.results.speed={latest:null,recent:[]};
+  const quiet=fakePort(resultDecode(noWifi)),quietStore=createCollectorStore(quiet);quietStore.ensure(scopeOf);await tick();await tick();
+  const quietBlock=renderToStaticMarkup(createElement(InternetSpeed,{collector:{port:quiet,store:quietStore},scope:scopeOf,label:null}));
+  assert(quietBlock.includes('No speed run supplied')&&!quietBlock.includes('Wi-Fi')&&!quietBlock.includes('<svg'),'no runs supplied: said, no chart or Wi-Fi frame');
+  store.dispose();assert.equal(store.run(scopeOf,{kind:'speed'}),false,'a dropped store sends nothing');assert.equal(port.posts.length,2);
+  console.log('PASS Network tests and internet speed: viewer and absent collector show nothing, one GET per scope, one POST per press, every answer in words with its time, Mbit/Gbit and run gaps, Wi-Fi line, withheld wording');
 } finally {rmSync(scratch,{recursive:true,force:true});}

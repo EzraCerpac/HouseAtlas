@@ -22,6 +22,7 @@ export function createLiveAtlasPresentationPort(native: UnifiedAtlasPort): LiveA
   }
   const port: LiveAtlasPresentationPort = {
     ...(native.savedDocumentary ? { savedDocumentary: native.savedDocumentary } : {}),
+    ...(native.networkCollector ? { networkCollector: native.networkCollector } : {}),
     kind: 'live' as const,
     ...(native.entryBuildingId ? { entryBuildingId: (scene: Parameters<NonNullable<UnifiedAtlasPort['entryBuildingId']>>[0]) => native.entryBuildingId!(scene) } : {}),
     current(): LiveAtlasSelection | null {

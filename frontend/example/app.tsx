@@ -8,7 +8,8 @@
  * Loaded only by ./main after ./isolation has run.
  *
  * `building`, `floor`, `room` and `view` URL parameters name the Atlas
- * starting view (./household exampleStart; rule in docs/demo/README.md). */
+ * starting view (./household exampleStart; rule in docs/demo/README.md);
+ * `role=viewer` hides the Network tests (./network-collector). */
 import type { ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { LanternHost } from '../src/lantern/Host';
@@ -20,6 +21,7 @@ import { readUnifiedAtlas } from '../integration/unified-atlas-reader';
 import { createSyntheticSitePort } from '../lantern-tests/source-host-visual/synthetic-site';
 import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../lantern-tests/unified-atlas/synthetic-atlas';
 import { createExampleOverlays } from './synthetic-overlays';
+import { createExampleCollector } from './network-collector';
 import { createExampleElectrical, createExampleHomeboxOriginals, createExampleSourceDocuments } from './files';
 import { EXAMPLE_SCOPE as scope, exampleHomeView, exampleStart, exampleTopology } from './household';
 
@@ -41,7 +43,7 @@ async function example() {
   const models: SourceModelPort = {
     site: createSyntheticSitePort(),
     // The production reader, guards and admission against the in-page HTTPS fake.
-    atlas: { current, subscribe, createOverlays: createExampleOverlays,
+    atlas: { current, subscribe, createOverlays: createExampleOverlays, networkCollector: createExampleCollector(new URLSearchParams(location.search)),
       async read(requested, signal) {
         const read = await readUnifiedAtlas({ selection: requested, signal,
           origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
