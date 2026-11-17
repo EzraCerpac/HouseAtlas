@@ -45,6 +45,8 @@ import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './
 import { NetworkStageConnections, networkRoomConnections, networkStubEnd, networkStubLength, type NetworkDeviceAnchor } from './NetworkStageConnections';
 import { admittedNetworkDevices, NETWORK_GLYPHS, networkGlyphOffset, networkGlyphSlot, networkGlyphSlots, networkUnplacedReason } from './network-map';
 import { linkTouches, networkCardContent, type NetworkFocus } from './NetworkCard';
+import { InternetSpeeds, type NetworkCollector } from './NetworkTests';
+import { createCollectorStore, scopeKey } from './network-tests';
 import { networkConnectionNodeKey } from './network-connections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
@@ -749,6 +751,23 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const [drawer, setDrawer] = useState<'floors' | 'layers' | null>(null);
   // The logical network graph: its own panel, beside the model or over a narrow stage.
   const graphs = networkOn ? runtime.records?.networkGraphs ?? [] : [];
+  // The Network collector while the layer shows: nothing is read until a
+  // device card or the open key asks, and turning the layer off drops it.
+  const collectorPort = port.kind === 'live' ? port.networkCollector : undefined;
+  const [collector, setCollector] = useState<NetworkCollector | null>(null);
+  useEffect(() => {
+    if (!networkOn || !collectorPort) { setCollector(null); return; }
+    const store = createCollectorStore(collectorPort);
+    setCollector({ port: collectorPort, store });
+    return () => store.dispose();
+  }, [networkOn, collectorPort]);
+  // Each Network source with collector facts in a current frame; a stored copy has no collector.
+  const collectorScopes = useMemo(() => {
+    const scopes = new Map<string, { readonly scope: NonNullable<NetworkOverlayDevice['liveFacts']>['source']; readonly label: string }>();
+    for (const graph of graphs) if (!graph.storedAt) for (const device of graph.data.devices) if (device.liveFacts && !scopes.has(scopeKey(device.liveFacts.source)))
+      scopes.set(scopeKey(device.liveFacts.source), { scope: device.liveFacts.source, label: graph.data.source.label });
+    return [...scopes.values()];
+  }, [graphs]);
   const hostLens = environment.lens;
   const lens = hostLens?.value ?? null;
   // Read wide, the stage is the host's inset: drawn and kept current, its
@@ -1527,7 +1546,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     else graphHeading.current?.focus({ preventScroll: true });
     if (compact) setSheetOpen(false);
   };
-  const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, graphs, choose: setNetFocus, showInGraph,
+  const networkCard = netFocus && networkOn ? networkCardContent({ focus: netFocus, connections: networkConnections, graphs, choose: setNetFocus, showInGraph, collector,
     roomName: id => ({ room: atlasOccurrenceName(model, id), floor: atlasScopedLevelName(model, model.occurrencesById.get(id)!.levelId, state.buildingId) }) }) : null;
   // Unplaced devices for the Network key, by why they have no room.
   const unplacedDevices = useMemo(() => networkConnections.nodes.filter(node => node.device && node.anchors.length === 0)
@@ -1918,7 +1937,8 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
             network={layer.kind === 'network' && graphs.length > 0 ? { devices: networkConnections.coverage.devices.total, unplaced: unplacedDevices,
               open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
-              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } } } : null} />)}
+              graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } },
+              speed: collector && collectorScopes.length > 0 && <InternetSpeeds collector={collector} rows={collectorScopes} /> } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">

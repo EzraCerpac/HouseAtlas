@@ -6429,6 +6429,13 @@ reachable, no-reply and not-measured states, null latency/loss left out,
 stale/invalidated/unknown qualifiers and sparkline breaks at missing hours;
 `offline-atlas-overlays-healthy.mjs` checks the row from stored and saved copies.
 Neither adds a case or run step.
+The same entry renders the device card's Network tests and the Network key's
+internet speed as static markup over a fake collector port:
+viewers, stored copies and unavailable, unknown or failed results show nothing;
+one results GET per scope and one POST per press, never retried;
+every action answer in words with its own time;
+Mbit/s and Gbit/s, run gaps, the Wi-Fi line and the withheld-revision wording.
+No case, run step or browser is added.
 The new healthy-list entry makes 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
 The single candidate-helper method also checks separate digest-pinned hardware
 evidence without adding unsupported fields to the source snapshot.
