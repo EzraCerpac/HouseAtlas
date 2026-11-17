@@ -124,7 +124,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
             fit (on touch, without a full target) are left off the model and marked here. */}
         <RoomList model={model} levels={levels} shownLevel={shown} choose={key => { setOpen(false); choose(key); }} buildingId={state.buildingId}
           unnamed={unnamed} unnamedOn={state.view === 'plan' ? 'plan' : 'model'} />
-        {openPlaces && <button type="button" className="text-btn ua-place-records" onClick={openPlaces}>
+        {openPlaces && <button type="button" className="text-btn ua-place-records" data-lens-return="" onClick={openPlaces}>
           <Icon name="rooms" size={16} />Place records</button>}
         <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
       </div>
