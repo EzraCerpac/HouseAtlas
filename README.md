@@ -30,7 +30,7 @@ The Atlas demo uses the production scene reader against an in-page fake transpor
 - **Geometry and infrastructure:** optional reviewed geometry and separately owned circuit, valve and evidence records. Geometry is not required for browsing.
 - **Source history:** distinct fact and retrieval dates, uncertainty, stale caches and corrections. Passive Network reads never send collector demand.
 
-Some capabilities require a configured native host and reviewed source bindings; these demos show fictional illustrated geometry, building/room browsing, a saved Network relation and separately generated provisional mesh presentation.
+Some capabilities require a configured native host and reviewed source bindings; these demos show fictional illustrated geometry, building/room browsing and separately generated provisional mesh presentation.
 
 ## Run the offline core checks
 
