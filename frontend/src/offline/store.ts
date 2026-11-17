@@ -14,12 +14,16 @@ export interface SavedHouse {
   readonly resources: readonly SavedResource[];
   /** Local manifest without transport hrefs; original numeric tokens retained. */
   readonly manifest: ArrayBuffer;
+  /** The map's overlay records this device held for the copy's model when it
+   * was saved (stored-overlays bytes, with their own storage dates). Absent in
+   * copies saved before they were kept, or when the device held none. */
+  readonly overlays?: ArrayBuffer;
 }
 interface Stage extends SavedHouse { readonly token: string; readonly epoch: string }
 interface Bytes { readonly id: string; readonly data: ArrayBuffer }
 export const SAVED_HOUSE_DATABASE = 'houseatlas-explicit-saved-houses-v1';
 export const SAVED_HOUSE_LIMITS = Object.freeze({ houses: 4, resources: 2048, resourceBytes: 128 * 1024 * 1024,
-  houseBytes: 512 * 1024 * 1024, manifestBytes: 16 * 1024 * 1024 });
+  houseBytes: 512 * 1024 * 1024, manifestBytes: 16 * 1024 * 1024, overlayBytes: 16 * 1024 * 1024 });
 const SHA = /^[0-9a-f]{64}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const text = (value: unknown, cap: number): value is string => typeof value === 'string' && value.length > 0
@@ -42,6 +46,7 @@ export function validateSavedHouse(house: SavedHouse): void {
   need(text(house.snapshotId, 256) && text(house.label, 256) && text(house.capturedAt, 64)
     && Number.isFinite(Date.parse(house.capturedAt)) && SHA.test(house.shellBuildId));
   need(house.manifest instanceof ArrayBuffer && house.manifest.byteLength <= SAVED_HOUSE_LIMITS.manifestBytes);
+  need(house.overlays === undefined || house.overlays instanceof ArrayBuffer && house.overlays.byteLength <= SAVED_HOUSE_LIMITS.overlayBytes);
   need(Array.isArray(house.resources) && house.resources.length <= SAVED_HOUSE_LIMITS.resources);
   const ids = new Set<string>(), pins = new Map<string, number>(); let total = 0;
   for (const resource of house.resources) {
@@ -210,8 +215,10 @@ export function createSavedHouseStore(factory: IDBFactory = indexedDB) {
         };
       });
     },
-    async activate(selected: Stage, options: { readonly signal?: AbortSignal; readonly current?: () => boolean } = {}): Promise<SavedHouse> {
+    async activate(selected: Stage, options: { readonly signal?: AbortSignal; readonly current?: () => boolean; readonly overlays?: ArrayBuffer } = {}): Promise<SavedHouse> {
       const selection = { key: selected.key, token: selected.token, epoch: selected.epoch };
+      const overlays = options.overlays?.slice(0);
+      need(overlays === undefined || overlays.byteLength <= SAVED_HOUSE_LIMITS.overlayBytes);
       const databaseOwner = await database(); options.signal?.throwIfAborted(); need(options.current?.() ?? true);
       const saved = await completed<SavedHouse>(databaseOwner, ['houses', 'stages', 'assets', 'control'], 'readwrite', (tx, answer) => {
         const currentOwner = () => {
@@ -238,7 +245,8 @@ export function createSavedHouseStore(factory: IDBFactory = indexedDB) {
                   if (!stage.resources.some(item => item.sha256 === resource.sha256)) {
                     tx.objectStore('assets').delete(assetKey(stage.key, resource.sha256)); deleteRanges(tx, stage.key, resource);
                   }
-                const { token: _token, epoch: _epoch, ...house } = stage;
+                const { token: _token, epoch: _epoch, overlays: _staged, ...rest } = stage;
+                const house: SavedHouse = overlays ? { ...rest, overlays } : rest;
                 tx.objectStore('houses').put({ ...house, id: house.key }); tx.objectStore('stages').delete(stage.key); answer(house);
               };
             };

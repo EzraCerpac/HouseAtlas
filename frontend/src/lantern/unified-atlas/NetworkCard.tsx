@@ -26,12 +26,13 @@ const endDevice = (end: NetworkConnectionEnd) => end.ownerDeviceKey ?? end.nodeK
 export const linkTouches = (row: NetworkConnection, nodeKey: string) => endDevice(row.from) === nodeKey || endDevice(row.to) === nodeKey;
 
 const Stamp = ({ value }: { readonly value: string | null }) => value ? <InlineTime value={value} /> : <>Not supplied</>;
-function SourceFacts({ source, qualification }: { readonly source: NetworkOverlaySource; readonly qualification: string }) {
+function SourceFacts({ source, qualification, storedAt }: { readonly source: NetworkOverlaySource; readonly qualification: string; readonly storedAt: string | undefined }) {
   return <dl className="ua-facts ua-net-source">
     <div><dt>Source</dt><dd>{source.label}{source.status === 'stale' && ' · stale'}<span className="ua-note">{qualification}</span>
       {source.notes && <span className="ua-note">{source.notes}</span>}</dd></div>
     <div><dt>Source date</dt><dd><Stamp value={source.recordedAt} /></dd></div>
     <div><dt>Retrieved</dt><dd><Stamp value={source.retrievedAt} /></dd></div>
+    {storedAt && <div><dt>Stored on this device</dt><dd><InlineTime value={storedAt} /></dd></div>}
   </dl>;
 }
 
@@ -93,10 +94,8 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
     const { room, floor } = roomName(focus.occurrenceId);
     return { key: `room:${focus.occurrenceId}`, title: room, sub: `${floor} · ${plural(devices.length, 'network device')}`,
       label: 'Network devices in this room',
-      body: <ul className="ua-net-list">{devices.map(node => <li key={node.key}>
-        <button type="button" className="ua-belonging" onClick={() => choose({ kind: 'device', key: node.key })}>
-          <span className="ua-net-dot" aria-hidden="true" /><span><span className="ua-belonging-name">{node.device!.label}</span>
-            {node.device!.kind && <span className="ua-belonging-detail">{node.device!.kind}</span>}</span></button></li>)}</ul> };
+      body: <NetworkDeviceRows devices={devices.map(node => ({ key: node.key, label: node.device!.label, kind: node.device!.kind }))}
+        choose={key => choose({ kind: 'device', key })} /> };
   }
   if (focus.kind === 'device') {
     const node = nodes.get(focus.key);
@@ -125,7 +124,7 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
           })}</ul>
         </section>}
         {device.liveFacts && <LiveFacts facts={device.liveFacts} />}
-        {source && <SourceFacts source={source.data.source} qualification={source.qualification} />}
+        {source && <SourceFacts source={source.data.source} qualification={source.qualification} storedAt={source.storedAt} />}
         <button type="button" className="text-btn ua-net-graph-link" onClick={() => showInGraph(node.graphKey, { kind: 'device', id: device.id })}>
           <Icon name="network" size={16} />Show in graph</button>
       </> };
@@ -145,10 +144,20 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
         <div><dt>Link date</dt><dd><Stamp value={link.recordedAt} /></dd></div>
         {link.notes && <div><dt>Notes</dt><dd>{link.notes}</dd></div>}
       </dl>
-      <SourceFacts source={row.source} qualification={row.qualification} />
+      <SourceFacts source={row.source} qualification={row.qualification} storedAt={graphs.find(graph => graph.key === row.graphKey)?.storedAt} />
       <button type="button" className="text-btn ua-net-graph-link" onClick={() => showInGraph(row.graphKey, { kind: 'link', id: link.id })}>
         <Icon name="network" size={16} />Show in graph</button>
     </> };
+}
+
+/** One row per network device; choosing one opens its device card. */
+export function NetworkDeviceRows({ devices, choose }: {
+  readonly devices: readonly { readonly key: string; readonly label: string; readonly kind: string }[]; readonly choose: (key: string) => void;
+}) {
+  return <ul className="ua-net-list">{devices.map(device => <li key={device.key}>
+    <button type="button" className="ua-belonging" onClick={() => choose(device.key)}>
+      <span className="ua-net-dot" aria-hidden="true" /><span><span className="ua-belonging-name">{device.label}</span>
+        {device.kind && <span className="ua-belonging-detail">{device.kind}</span>}</span></button></li>)}</ul>;
 }
 
 /** A line sample in the link's own style, as the key draws it. */

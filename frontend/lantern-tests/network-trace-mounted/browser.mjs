@@ -272,7 +272,19 @@ try {
   await press(`document.querySelector('.ua-graph-close')`); await until(`!document.querySelector('.ua-graph .ung')`);
   await press(`document.querySelector('.ua-inspector [aria-label="Close network card"]')`);
   await until(`!document.querySelector('.ua-inspector.is-network') && document.querySelector('.ua-inspector h2')?.textContent === ${JSON.stringify(roomBefore)}`);
-  // With a host lens the Network lens holds no copy of the graph; the key's Graph opens the Atlas's own panel.
+  // The selected room's card lists its devices as device rows, not the record listing; a row opens that device's card.
+  await press(`[...document.querySelectorAll('.ua-inspector button')].find(x => x.textContent === 'Hall')`);
+  const roomNetwork = `document.querySelector('.ua-inspector [aria-label="Network in this room"]')`;
+  await until(`document.querySelector('.ua-inspector h2')?.textContent === 'Hall' && !!${roomNetwork}?.querySelector('.ua-net-list')`);
+  assert.deepEqual(await evaluate(`[...${roomNetwork}.querySelectorAll('.ua-net-list .ua-belonging-name')].map(x => x.textContent)`), ['Host client']);
+  assert.equal(await evaluate(`${roomNetwork}.querySelectorAll('.ua-doc').length`), 0, 'no record listing for the room\'s devices');
+  await press(`${roomNetwork}.querySelector('.ua-net-list button')`);
+  await until(`${card} === 'Host client'`);
+  await press(`document.querySelector('.ua-inspector [aria-label="Close network card"]')`);
+  await until(`!document.querySelector('.ua-inspector.is-network') && document.querySelector('.ua-inspector h2')?.textContent === 'Hall'`);
+  await press(`document.querySelector('.ua-inspector [aria-label="Clear room"]')`);
+  await until(`document.querySelector('.ua-inspector h2')?.textContent === ${JSON.stringify(roomBefore)}`);
+  // With a host lens open the lens holds no copy of the graph; the key's Graph opens the Atlas's own panel.
   await click('Switch host mode'); await click('Toggle fixture lens');
   await until(`!!document.querySelector('#generated-lens')`);
   assert.equal(await evaluate(`!!document.querySelector('#generated-lens .ung')`), false, 'no lens-hosted graph');

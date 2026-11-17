@@ -487,7 +487,6 @@
 .lantern-host .ua-net-observed > li { display: grid; }
 .lantern-host .ua-net-observed > li.is-old { color: var(--ink-2); }
 .lantern-host .ua-net-graph-link,
-.lantern-host .ua-net-sources { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
 
 .lantern-host .ua-label-hit {
   position: absolute;
@@ -3393,7 +3392,7 @@
   .lantern-host :is(.ua-net-device, .ua-net-more) { width: 44px; height: 44px; }
   .lantern-host .ua-net-more::before { inset: 11px 6px; }
   .lantern-host .ua-net-floor { min-width: 44px; min-height: 44px; }
-  .lantern-host :is(.ua-net-graph-link, .ua-net-sources, .ua-net-end) { min-height: 44px; }
+  .lantern-host :is(.ua-net-graph-link, .ua-net-end) { min-height: 44px; }
 }
 
 @container ua-stage (max-width: 720px) {

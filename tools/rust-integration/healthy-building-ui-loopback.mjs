@@ -1,4 +1,4 @@
-// Positive real native building membership, source-bound room and explicit saved Network UI.
+// Positive real native building membership and source-bound room UI; no saved Network relations read.
 // Six fresh local creates only. No provider, injected client results, replay or held control.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -159,10 +159,6 @@ try {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
       await until(async () => await evaluate(`innerWidth === ${width}`), 'actual viewport');
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-      if (label === 'saved-network' && width === 390 && await evaluate("document.getElementById('detail-sheet-handle')?.getAttribute('aria-expanded') === 'true'")) {
-        await click(`document.getElementById('detail-sheet-handle')`, 'Hide overview for narrow Network view');
-        await until(async () => await evaluate("document.getElementById('detail-sheet-handle')?.getAttribute('aria-expanded') === 'false'"), 'overview sheet closed');
-      }
       const animationWaitBegan = Date.now();
       const animationSettlement = await until(async () => await evaluate(`(() => {
         const all = document.getAnimations();
@@ -289,17 +285,9 @@ try {
   await until(async () => await evaluate("!document.getElementById('detail-title')"), 'detail selection closed');
   const networkPath = '/api/atlas/v1/workspaces/' + scope.workspaceId + '/homes/' + scope.homeId + '/network/relations';
   assert.equal(requests.filter(row => new URL(row.url).pathname === networkPath).length, 0, 'No automatic saved Network read');
-  await click(nav('Network'), 'Network navigation');
-  await until(async () => await evaluate("document.querySelector('.atlas-lens.is-network h2')?.textContent === 'Network'"), 'actual Network view');
-  assert.equal(requests.filter(row => new URL(row.url).pathname === networkPath).length, 0, 'Network mount does not collect or load');
-  await click(`Array.from(document.querySelectorAll('section[aria-labelledby="network-relations-heading"] button')).find(button=>button.textContent.trim()==='Load Network relations')`, 'Load Network relations');
-  await until(async () => await evaluate(`document.querySelector('section[aria-labelledby="network-relations-heading"] [role="status"]')?.textContent==='No Network relations saved for this home.'`), 'actual saved empty Network result');
-  await capture('saved-network');
-  const networkResponses = responses.filter(row => new URL(row.url).pathname === networkPath);
-  assert.equal(networkResponses.length, 1, 'One explicit actual Network read'); assert.equal(networkResponses[0].status, 200);
-  const network = await nativeBody(networkResponses[0]);
-  assert.equal(network.contractVersion, '1.0.0'); assert.deepEqual(network.items, []); assert.equal(network.nextCursor, null);
-  assert(Array.isArray(network.sourceStatuses));
+  // The saved relations view is gone: no control opens it and the UI never reads relations.
+  assert.equal(await evaluate(`Array.from(document.querySelectorAll('button')).some(button => /Network source records|Load Network relations/.test(button.textContent))`), false, 'No saved Network relations control');
+  const network = { relationsReads: requests.filter(row => new URL(row.url).pathname === networkPath).length };
   const topologyResponses = responses.slice(uiResponseStart).filter(row => new URL(row.url).pathname === prefix + '/invoke');
   const topology = [];
   for (const response of topologyResponses) {
@@ -331,7 +319,7 @@ try {
   evidence={source,browser:version.product,origin,scope,homeText,seed:seeded,selected,sourceFacts,topology,network,
     requests:requests.map(({url,...row})=>({...row,path:new URL(url).pathname,...(new URL(url).search?{query:new URL(url).search}: {})})),
     responses:responses.map(({url,...row})=>({...row,path:new URL(url).pathname})),inputEvidence,domEvidence,screenshots:snapshots,
-    qualification:'Real compiled React and native TLS/SQLite/current issued Editor session. Six fresh local canonical stock creates, actual matched R1–R5, source-bound room selection and one explicit saved empty Network read. Original source dates, unknown elevation and source/physical placement distinctions retained. No populated Network, actual household, provider, import, recovery, security, operator or deployment acceptance.'};
+    qualification:'Real compiled React and native TLS/SQLite/current issued Editor session. Six fresh local canonical stock creates, actual matched R1–R5, source-bound room selection and no saved Network relations read. Original source dates, unknown elevation and source/physical placement distinctions retained. No populated Network, actual household, provider, import, recovery, security, operator or deployment acceptance.'};
 } catch (error) {
   failure = error; failedPhase = phase;
 } finally {

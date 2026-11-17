@@ -332,30 +332,6 @@
   color: var(--ink-2);
 }
 
-.lantern-host .lens-source-title {
-  margin: 0 0 10px;
-  font-size: var(--fs-m);
-  font-weight: 680;
-}
-
-/* A source heading with its standing qualifier on the same line. */
-.lantern-host .lens-source-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-  margin: 0 0 12px;
-}
-
-.lantern-host .lens-source-head .lens-source-title {
-  margin: 0;
-}
-
-.lantern-host .lens-source-note {
-  font-size: var(--fs-s);
-  color: var(--muted);
-}
-
 /* Wide: the lens beside the map. */
 .lantern-host .atlas-workspace.has-lens {
   grid-template-columns: min(460px, 44%) minmax(0, 1fr);

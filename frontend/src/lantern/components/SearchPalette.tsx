@@ -26,13 +26,11 @@ function showsKind(label: string, kind: SearchHit['kind']): boolean {
  * place is not place-bound. On a reviewed plan it opens on the
  * map, any lens set aside. Otherwise it opens Rooms & places beside the map,
  * as it once opened the Rooms view, unless the Atlas already shows the map or
- * Rooms & places, which stay as they are. The Network lens is not where an
- * unplanned place is found, so it gives way to Rooms & places, as the Network
- * view once did. Other results keep the current view. */
-function searchRoute(placeBound: boolean, planned: boolean, current: ViewId, lens: AtlasLens | null): { view?: ViewId; lens?: AtlasLens | null } | undefined {
+ * Rooms & places, which stay as they are. Other results keep the current view. */
+function searchRoute(placeBound: boolean, planned: boolean, current: ViewId): { view?: ViewId; lens?: AtlasLens | null } | undefined {
   if (!placeBound) return undefined;
   if (planned) return { view: 'atlas', lens: null };
-  return current === 'atlas' && lens?.kind !== 'network' ? { view: 'atlas' } : { view: 'rooms' };
+  return current === 'atlas' ? { view: 'atlas' } : { view: 'rooms' };
 }
 
 /** A letter, digit or combining mark: a character that continues a word. */
@@ -223,7 +221,7 @@ export function SearchPalette() {
     // Atlas: its record opens over the current page, which stays as it is.
     const unplaced = (h.kind === 'item' || h.kind === 'container') && !loc.spaceId;
     const placeBound = !unplaced && ['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind);
-    select(h.id, searchRoute(placeBound, Boolean(planned && house.geometry === 'reviewed'), state.view, state.atlasLens));
+    select(h.id, searchRoute(placeBound, Boolean(planned && house.geometry === 'reviewed'), state.view));
     close();
   };
   const choose = (h: Pick<SearchHit, 'id' | 'kind'> | NativePlaceSearchHit) => {

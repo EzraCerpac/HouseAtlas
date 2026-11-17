@@ -823,7 +823,7 @@ function ValveDetail({ v }: { v: Valve }) {
 // ---------------- Network ----------------
 
 function DeviceDetail({ d }: { d: Device }) {
-  const { house, dispatch } = useStore();
+  const { house } = useStore();
   const links = house.links.filter((l) => l.from === d.id || l.to === d.id);
   const cables = house.cables.filter((c) => c.fromId === d.id || c.toId === d.id);
   const ob = latestObservation(house, d.id);
@@ -834,11 +834,6 @@ function DeviceDetail({ d }: { d: Device }) {
       kind="device"
       title={d.name}
       claim={<ClaimBadge claim={d.locationClaim} prefix="Location" />}
-      actions={
-        <button type="button" className="btn" onClick={() => dispatch({ type: 'view', view: 'network' })}>
-          <Icon name="network" size={16} /> Show in topology
-        </button>
-      }
     >
       <Note>Read-only observations from the network import. {stale ? 'Not in the latest export. That does not mean it was removed or switched off.' : 'Present in the latest export.'}</Note>
       <Section title="Details">

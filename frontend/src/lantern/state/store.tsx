@@ -7,18 +7,16 @@ import type { AtlasEditingClient } from '../../app/editing';
 import type { QuantityClient } from '../../api/quantity-client';
 import type { PinnedFileClient } from '../../api/pinned-file-client';
 import type { HomeboxOriginalsPort } from '../homebox-originals/types';
-import type { NetworkRelationsClient } from '../../api/network-relations-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
 import type { RefreshHostPort } from '../homebox-withheld.ts';
-/** 'rooms' and 'network' remain route aliases for existing callers; they
- * resolve to the Atlas with its Places or Network lens and are never the
- * current view. */
-export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'network' | 'library' | 'changes';
+/** 'rooms' remains a route alias for existing callers; it resolves to the
+ * Atlas with its Places lens and is never the current view. */
+export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'library' | 'changes';
 
-/** A lens over the Atlas: Rooms & places or Network beside the live map, or
- * read wide with the map set aside. Presentation state only. */
-export type AtlasLensKind = 'places' | 'network';
+/** A lens over the Atlas: Rooms & places beside the live map, or read wide
+ * with the map set aside. Presentation state only. */
+export type AtlasLensKind = 'places';
 export interface AtlasLens { readonly kind: AtlasLensKind; readonly reading: boolean }
 
 export type Dialog =
@@ -115,8 +113,6 @@ export interface LanternActions {
   pinnedFiles?: PinnedFileClient;
   /** Optional owned verified-copy action; never changes ordinary download anchors. */
   homeboxOriginals?: HomeboxOriginalsPort;
-  /** Optional saved Network relations reader; never a source owner or currentness authority. */
-  networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
   offlineStorage?: ReactNode;
   /** The host's explicit HomeBox refresh port; the lazily loaded button only reads and presses it. */
@@ -131,9 +127,9 @@ function initial(house: HouseData): AppState {
     settings: { outage: false, slowWrites: false, motion: 'system', assistant: 'off' }, ask: {} };
 }
 let toastSeq = 0;
-const LENS_ALIAS: Partial<Record<ViewId, AtlasLensKind>> = { rooms: 'places', network: 'network' };
-/** One place resolves every route: the former Rooms and Network views open
- * the Atlas with that lens beside the map; any other view keeps the lens
+const LENS_ALIAS: Partial<Record<ViewId, AtlasLensKind>> = { rooms: 'places' };
+/** One place resolves every route: the former Rooms view opens the Atlas
+ * with the Places lens beside the map; any other view keeps the lens
  * unless the caller sets it. */
 function route(s: AppState, view: ViewId | undefined, lens: AtlasLens | null | undefined): Pick<AppState, 'view' | 'atlasLens'> {
   const alias = view === undefined ? undefined : LENS_ALIAS[view];

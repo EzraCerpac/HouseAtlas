@@ -330,57 +330,50 @@ assert.equal(mapState.atlasLens, null);
 const besidePlaces = healthyReducer(mapState, { type: 'view', view: 'rooms' });
 assert.equal(besidePlaces.view, 'atlas');
 assert.deepEqual(besidePlaces.atlasLens, { kind: 'places', reading: false });
-const besideNetwork = healthyReducer(besidePlaces, { type: 'view', view: 'network' });
-assert.equal(besideNetwork.view, 'atlas');
-assert.deepEqual(besideNetwork.atlasLens, { kind: 'network', reading: false });
-const readingNetwork = healthyReducer(besideNetwork,
-  { type: 'atlasLens', lens: { kind: 'network', reading: true } });
+// The former Network route is gone; only Rooms & places is a lens.
+const readingPlaces = healthyReducer(besidePlaces,
+  { type: 'atlasLens', lens: { kind: 'places', reading: true } });
 for (const destination of ['library', 'upkeep', 'changes']) {
-  const away = healthyReducer(readingNetwork, { type: 'view', view: destination });
+  const away = healthyReducer(readingPlaces, { type: 'view', view: destination });
   assert.equal(away.view, destination);
-  assert.deepEqual(away.atlasLens, readingNetwork.atlasLens);
+  assert.deepEqual(away.atlasLens, readingPlaces.atlasLens);
   assert.deepEqual(healthyReducer(away, { type: 'view', view: 'atlas' }).atlasLens,
-    readingNetwork.atlasLens);
+    readingPlaces.atlasLens);
 }
-const explicitMap = healthyReducer(readingNetwork, { type: 'atlasLens', lens: null });
+const explicitMap = healthyReducer(readingPlaces, { type: 'atlasLens', lens: null });
 assert.equal(explicitMap.atlasLens, null);
 assert.equal(explicitMap.view, 'atlas');
-assert.deepEqual(healthySearchRoute(true, true, 'atlas', readingNetwork.atlasLens),
-  { view: 'atlas', lens: null });
-assert.deepEqual(healthySearchRoute(true, false, 'atlas', readingNetwork.atlasLens),
-  { view: 'rooms' });
-assert.deepEqual(healthySearchRoute(true, false, 'atlas', besidePlaces.atlasLens),
-  { view: 'atlas' });
-assert.deepEqual(healthySearchRoute(true, false, 'atlas', null), { view: 'atlas' });
-assert.deepEqual(healthySearchRoute(true, false, 'library', readingNetwork.atlasLens),
-  { view: 'rooms' });
-assert.equal(healthySearchRoute(false, false, 'library', readingNetwork.atlasLens), undefined);
-assert.equal(healthySearchRoute(false, true, 'atlas', readingNetwork.atlasLens), undefined);
+assert.deepEqual(healthySearchRoute(true, true, 'atlas'), { view: 'atlas', lens: null });
+assert.deepEqual(healthySearchRoute(true, false, 'atlas'), { view: 'atlas' });
+assert.deepEqual(healthySearchRoute(true, false, 'library'), { view: 'rooms' });
+assert.equal(healthySearchRoute(false, false, 'library'), undefined);
+assert.equal(healthySearchRoute(false, true, 'atlas'), undefined);
 const routeSpace = routeHouse.spaces[0];
 assert(routeSpace, 'Existing generated space for ordinary selection');
 const location = (await import(searchQuery)).locate(routeHouse, routeSpace.id);
-const selectedFromNetwork = healthyReducer(readingNetwork, { type: 'select',
+const inLibrary = healthyReducer(mapState, { type: 'view', view: 'library' });
+const selectedFromLibrary = healthyReducer(inLibrary, { type: 'select',
   sel: { kind: 'space', id: routeSpace.id }, keepOverlay: true,
-  ...healthySearchRoute(true, false, readingNetwork.view, readingNetwork.atlasLens) });
-assert.equal(selectedFromNetwork.view, 'atlas');
-assert.deepEqual(selectedFromNetwork.atlasLens, { kind: 'places', reading: false });
-assert.deepEqual(selectedFromNetwork.selection, { kind: 'space', id: routeSpace.id });
-assert.equal(selectedFromNetwork.floorId, location.floorId ?? readingNetwork.floorId);
-assert.equal(selectedFromNetwork.overlay, readingNetwork.overlay);
-assert.equal(selectedFromNetwork.mode, readingNetwork.mode);
-assert.equal(selectedFromNetwork.exploded, readingNetwork.exploded);
-const selectedOnPlan = healthyReducer(readingNetwork, { type: 'select',
+  ...healthySearchRoute(true, false, inLibrary.view) });
+assert.equal(selectedFromLibrary.view, 'atlas');
+assert.deepEqual(selectedFromLibrary.atlasLens, { kind: 'places', reading: false });
+assert.deepEqual(selectedFromLibrary.selection, { kind: 'space', id: routeSpace.id });
+assert.equal(selectedFromLibrary.floorId, location.floorId ?? inLibrary.floorId);
+assert.equal(selectedFromLibrary.overlay, inLibrary.overlay);
+assert.equal(selectedFromLibrary.mode, inLibrary.mode);
+assert.equal(selectedFromLibrary.exploded, inLibrary.exploded);
+const selectedOnPlan = healthyReducer(readingPlaces, { type: 'select',
   sel: { kind: 'space', id: routeSpace.id }, keepOverlay: true,
-  ...healthySearchRoute(true, true, readingNetwork.view, readingNetwork.atlasLens) });
+  ...healthySearchRoute(true, true, readingPlaces.view) });
 assert.equal(selectedOnPlan.atlasLens, null);
 assert.equal(selectedOnPlan.view, 'atlas');
-assert.equal(healthyReducer(selectedFromNetwork, { type: 'select', sel: null }).selection, null);
+assert.equal(healthyReducer(selectedFromLibrary, { type: 'select', sel: null }).selection, null);
 
 // A record-owned Reading arrangement ends on departure/close without undoing
 // a newer explicit choice. Exercise the actual reducer with both cleanup
 // orders; DOM effect timing and focus still need separate browser proof.
 const recordReadingClaim = { kind: 'places', reading: true };
-const recordReading = healthyReducer(selectedFromNetwork,
+const recordReading = healthyReducer(selectedFromLibrary,
   { type: 'atlasLens', lens: recordReadingClaim });
 const releaseRecordReading = { type: 'atlasReadingRelease', claim: recordReadingClaim };
 for (const destination of ['library', 'upkeep', 'changes']) {
@@ -406,8 +399,8 @@ for (const destination of ['library', 'upkeep', 'changes']) {
 const mapChosenBeforeCleanup = healthyReducer(recordReading, { type: 'atlasLens', lens: null });
 assert.equal(healthyReducer(mapChosenBeforeCleanup, releaseRecordReading), mapChosenBeforeCleanup,
   'Map or source-clearing intent cannot be reinstated by old cleanup');
-const networkChosenBeforeCleanup = healthyReducer(recordReading, { type: 'view', view: 'network' });
-assert.equal(healthyReducer(networkChosenBeforeCleanup, releaseRecordReading), networkChosenBeforeCleanup,
+const placesChosenBeforeCleanup = healthyReducer(recordReading, { type: 'view', view: 'rooms' });
+assert.equal(healthyReducer(placesChosenBeforeCleanup, releaseRecordReading), placesChosenBeforeCleanup,
   'A newer lens alias wins over cleanup');
 const deliberateReading = healthyReducer(recordReading,
   { type: 'atlasLens', lens: { kind: 'places', reading: true } });

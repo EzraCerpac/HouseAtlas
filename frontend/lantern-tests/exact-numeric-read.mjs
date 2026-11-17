@@ -13,7 +13,6 @@ const { createExactStockResultValidator } = await import(await loadNumericSource
 const { createGeometryClient } = await import(await loadNumericSource('api/geometry-client.ts'));
 const { createTopologyClient } = await import(await loadNumericSource('api/topology-client.ts'));
 const { buildTopologyIndex, buildBuildingModel, metres } = await import(await loadNumericSource('lantern/topology/model.ts'));
-const { createNetworkRelationsClient } = await import(await loadNumericSource('api/network-relations-client.ts'));
 const { createAiHostClient } = await import(await loadNumericSource('ai/host/client.ts'));
 const { projectView } = await import('../src/lantern/adapters/read.ts');
 
@@ -141,37 +140,6 @@ assert(model.levels.some(level => level.elevation.status === 'known'
   && metres(level.elevation.elevation.metres) === '−0.45 m'));
 assert.equal(topologyCalls.length, 5);
 
-const networkScope = { workspaceId: uuid(800), homeId: uuid(801) };
-const networkSession = { actorId: uuid(802) };
-const relation = { schemaVersion: 1, ...networkScope, sourceInstanceId: uuid(803), collectionId: 'synthetic-network',
-  externalId: 'synthetic-link', kind: 'network-connection',
-  from: { kind: 'device', id: 'synthetic-a', description: null },
-  to: { kind: 'device', id: 'synthetic-b', description: null }, medium: 'ethernet', sourceRevision: 0,
-  sourceSnapshotAt: null, retrievedAt: '2026-10-08T12:00:00Z', vantage: null,
-  sourceConfidence: 'reported', evidenceBasis: 'source-report', temporalStatus: 'current-claim',
-  factAt: null, notes: '' };
-const networkPage = { contractVersion: '1.0.0', items: [relation], nextCursor: null, sourceStatuses: [] };
-for (const revision of ['9007199254740993', '1e3', '0', 'null']) {
-  const rawPage = JSON.stringify(networkPage).replace('"sourceRevision":0', `"sourceRevision":${revision}`);
-  assert(rawPage.includes(`"sourceRevision":${revision}`));
-  let calls = 0;
-  const network = createNetworkRelationsClient({ getSessionBinding: () => ({ session: networkSession, scope: networkScope }),
-    subscribeSessionBinding: () => () => {}, fetch: async (url, init) => {
-      calls++;
-      const target = new URL(url, 'https://atlas.invalid');
-      assert.equal(target.pathname, `/api/atlas/v1/workspaces/${networkScope.workspaceId}/homes/${networkScope.homeId}/network/relations`);
-      assert.equal(target.searchParams.get('limit'), '25');
-      assert.equal(init.method, 'GET');
-      assert.equal(init.credentials, 'same-origin');
-      return new Response(rawPage, { status: 200, headers: { 'Content-Type': 'application/json' } });
-    } });
-  const read = await network.read(network.getBinding(), null, new AbortController().signal);
-  assert.equal(read.status, 'ready');
-  assert.equal(read.page.items[0].sourceRevision, revision === 'null' ? null : revision);
-  assert.deepEqual(read.page.items[0].from, relation.from);
-  assert.equal(calls, 1);
-}
-
 const aiOutcome = '{"status":"review-required","continuationId":"synthetic-continuation","calls":[{"callId":"synthetic-call","name":"atlas_records","arguments":{"large":9007199254740993,"tiny":1e-1000,"ordinary":2}}],"reviews":[{"challengeId":"synthetic-challenge","commandId":"atlas.circuit.create","requestDigest":"synthetic-request","targetDigest":"synthetic-target","impactId":"synthetic-impact","impactDigest":"synthetic-impact-digest","affectedTargets":[{"revision":9007199254740993,"elevation":-0.45}],"recoverability":"reversible-tombstone","expiresAt":"2099-01-01T00:00:00Z"}],"usage":{"inputTokens":12,"outputTokens":7,"totalTokens":19}}';
 const finished = '{"requestId":"synthetic-request-id","status":"finished","outcome":' + aiOutcome + '}';
 const observed = [];
@@ -208,4 +176,4 @@ assert.deepEqual(observed.map(row => [row.url, row.method]),
 assert.deepEqual(JSON.parse(observed[0].body), input);
 assert.deepEqual(JSON.parse(observed[1].body), { requestId: input.requestId, continuationId: run.continuationId });
 assert.equal(observed[2].body, undefined);
-console.log('PASS exact numeric parser, canonical geometry schema/client, passive network revision read, AI run/resume/finished review values');
+console.log('PASS exact numeric parser, canonical geometry schema/client, AI run/resume/finished review values');

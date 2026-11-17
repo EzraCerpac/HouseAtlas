@@ -18,7 +18,6 @@ import { BuildingSection } from '../topology/BuildingSection';
 import { useTopology } from '../topology/TopologyProvider';
 import { useSourcePorts } from '../source-ports';
 import { PlacesLens } from './PlacesLens';
-import { NetworkLens } from './NetworkLens';
 import './atlas-sources.css';
 
 const SiteArtifactView = lazy(() => import('../site-artifacts/SiteArtifactView').then(module => ({ default: module.SiteArtifactView })));
@@ -87,13 +86,13 @@ export function AtlasView() {
   return workspace('document', <BuildingSection />, false, sources);
 }
 
-const LENS_TITLE = { places: 'Rooms & places', network: 'Network' } as const;
+const LENS_TITLE = { places: 'Rooms & places' } as const;
 /** Said in the places lens in place of the unified Atlas's model rooms when there is no house model yet. */
 const NO_ROOM_MAP = 'There is no house model yet, so its rooms are not listed here.';
 
 /** The Atlas workspace: the map with the chosen lens beside it; the Rooms
- * list's Place records and the network graph's Network source records choose a lens
- * (without a house model, the row above the building sections does). Read wide, the lens takes the room
+ * list's Place records chooses the lens (without a house model, the row
+ * above the building sections does). Read wide, the lens takes the room
  * and the map stands in the corner as a still-drawn inset, returned by Show
  * map. A record opened from the lens reads wide in the same way while it is
  * open (on a narrow sheet the lens folds instead), and closing it, or leaving the Atlas, brings the map back beside the
@@ -195,7 +194,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   }, [reading]);
   // Expand and Show map are the user's own choice, never undone by a record closing.
   const setReading = (next: boolean) => { byRecord.current = null; if (lens) setLens({ ...lens, reading: next }); };
-  const choose = (next: 'places' | 'network') => { if (lens?.kind !== next) setLens({ kind: next, reading: false }); };
+  const choose = (next: AtlasLens['kind']) => { if (lens?.kind !== next) setLens({ kind: next, reading: false }); };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -205,13 +204,10 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // The sheet is always this one element: its width, the room the Atlas has
   // beside the details column, decides the arrangement below.
   return <div ref={sheet} className="atlas-sheet">
-    {/* Without a house model there is no Rooms list or Network layer to open a lens from;
-        a model not yet shown has its own openers in the Atlas's state. */}
+    {/* Without a house model there is no Rooms list to open the lens from;
+        a model not yet shown has its own opener in the Atlas's state. */}
     {(kind === 'document' || sources) && <div className="atlas-bar">
-      {kind === 'document' && <>
-        <button type="button" className="chip-btn" onClick={() => choose('places')}><Icon name="rooms" size={15} />Place records</button>
-        <button type="button" className="chip-btn" onClick={() => choose('network')}><Icon name="network" size={15} />Network source records</button>
-      </>}
+      {kind === 'document' && <button type="button" className="chip-btn" onClick={() => choose('places')}><Icon name="rooms" size={15} />Place records</button>}
       {sources}
     </div>}
     <div className={`atlas-workspace${lens ? ` has-lens is-${lens.kind}` : ''}${reading ? ' is-reading' : ''}${replaced ? ' is-replaced' : ''}${folded ? ' is-folded' : ''}`}>
@@ -227,9 +223,9 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
         <div ref={body} className="atlas-lens-body">
           {/* The unified Atlas renders its own model rooms here;
               without one, the lens says so before the home's own records. */}
-          {lens.kind === 'places' && (native ? <div ref={nativeTarget} className="atlas-lens-native" />
-            : <p className="atlas-lens-status">{NO_ROOM_MAP}</p>)}
-          {lens.kind === 'places' ? <PlacesLens /> : <NetworkLens />}
+          {native ? <div ref={nativeTarget} className="atlas-lens-native" />
+            : <p className="atlas-lens-status">{NO_ROOM_MAP}</p>}
+          <PlacesLens />
         </div>
       </section>}
       {/* Inset while read wide: drawn and kept current, out of the tab order.

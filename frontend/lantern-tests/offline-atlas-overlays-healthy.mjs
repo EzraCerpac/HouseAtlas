@@ -14,12 +14,14 @@ const entry = join(scratch, 'entry.ts'), root = fileURLToPath(new URL('../../', 
 writeFileSync(entry, [
   ['frontend/lantern-tests/offline-atlas-browser/generated-pack.ts', ['generateSavedPack']],
   ['frontend/src/offline/saved-pack-sections.ts', ['readSavedPackSections']],
-  ['frontend/src/offline/saved-atlas-overlays.ts', ['projectSavedAtlasOverlays','readSavedHistoricalFacts']],
+  ['frontend/src/offline/saved-atlas-overlays.ts', ['projectSavedAtlasOverlays','readSavedHistoricalFacts','SAVED_RELATIONS_ONLY']],
+  ['frontend/src/lantern/unified-atlas/stored-overlays.ts', ['encodeStoredOverlays', 'decodeStoredOverlays']],
+  ['frontend/src/lantern/unified-atlas/NetworkCard.tsx', ['networkCardContent']],
   ['frontend/src/offline/saved-atlas-port.ts', ['createSavedAtlasDataAdapter']],
   ['frontend/src/offline/manifest.ts', ['canonicalPack', 'readPackManifest']],
   ['frontend/src/offline/store.ts', ['savedDigest']],
   ['frontend/src/numeric/lossless-json.ts', ['parseLosslessJson']],
-  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords', 'projectDocumentaryFacts', 'documentaryOverlayIndex']],
+  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords', 'projectDocumentaryFacts', 'documentaryOverlayIndex', 'mergeRuntimeRecords', 'STORED_NETWORK_QUALIFICATION', 'SAVED_NETWORK_QUALIFICATION']],
   ['frontend/src/lantern/canonical-ifc/standard-glb.ts', ['loadStandardGlb']],
   ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
   ['frontend/src/lantern/unified-atlas/plan-presentation.tsx', ['PlanTile']],
@@ -32,6 +34,7 @@ const output = Array.isArray(built) ? built[0] : built;
 const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code
   .replaceAll(JSON.stringify('react'), JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href))
   .replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)));
+const { SAVED_RELATIONS_ONLY, encodeStoredOverlays, decodeStoredOverlays, networkCardContent, mergeRuntimeRecords, STORED_NETWORK_QUALIFICATION, SAVED_NETWORK_QUALIFICATION } = await import(pathToFileURL(modulePath).href);
 const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels, networkRoomConnections, NetworkStageConnections, admittedNetworkDevices, makeProjection, drawnBounds } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
 const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
@@ -89,6 +92,9 @@ for (const mode of ['complete', 'partial']) {
   assert.equal(result.retained.inventory.length, 1); assert.equal(result.retained.documents.length, 1);
   assert.equal(result.records.unplaced.electrical.some(row => row.label.includes('filename')), false);
   assert(reads >= 4); assert(result.reasons.some(reason => reason.includes('record-to-room')));
+  // Saved without the map network: its relations stay unplaced and the copy says what it lacks.
+  assert.equal(result.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
+  assert(result.reasons.some(reason => reason.includes('saved without the map network')));
   if (mode === 'partial') assert(result.reasons.some(reason => reason.includes('source-withheld')));
   console.log(`PASS ${mode}: four unplaced electrical records, one logical relation, exact dates/revisions/uncertainty, retained metadata; snapshot ${result.snapshotId}`);
 }
@@ -137,6 +143,85 @@ for (const variant of ['historical', 'tuples']) {
     assert.equal(graph.endpoints.length, 4); assert.equal(new Set(graph.endpoints.map(row => row.id)).size, 4);
     console.log('PASS distinct permitted source collection/external/endpoint tuples retain separate records and graph nodes');
   }
+}
+// The map network a device held when the copy was saved: devices, links,
+// reviewed room placement and Network source facts with their dates. The same
+// bytes are the automatically stored copy; another model's bytes read as absent.
+{
+  const pack = await generateSavedPack('complete', '1'.repeat(64));
+  const scene = pack.scene, selectable = new Set(scene.coverage.selectable ?? scene.occurrences.map(row => row.spaceOccurrenceId));
+  const room = scene.rooms.find(row => row.occurrenceIds.some(id => selectable.has(id)));
+  assert(room, 'generated scene has a selectable room');
+  const sha = 'a'.repeat(64), graphKey = JSON.stringify(['generated-workspace', 'generated-home', 'generated-evidence', sha]);
+  const recordKey = id => JSON.stringify(['houseatlas-documentary-record.v1', 'generated-workspace', 'generated-home', 'primary-scene', 'generated-evidence', 'device', id]);
+  const liveFacts = { status: 'available', source: { workspaceId: '00000000-0000-4000-8000-000000000a01', homeId: '00000000-0000-4000-8000-000000000a02',
+    sourceInstanceId: '00000000-0000-4000-8000-000000000a03', collectionId: 'generated-devices', sourceKind: 'network-device', externalId: 'generated-ap' },
+    addresses: ['192.0.2.10'], observedState: [{ id: 'generated-link-state', kind: 'link', value: { up: true }, factAt: '2026-11-01T10:00:00Z',
+      sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', vantage: 'generated collector', invalidatedAt: null, freshness: 'recent' }],
+    lastSeenAt: '2026-11-01T10:00:00Z', sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', freshness: 'recent' };
+  const data = { schema: 'houseatlas.network-overlay.v2', viewKey: 'generated-view',
+    source: { label: 'Generated network', revision: '7', recordedAt: '2026-10-30T00:00:00Z', retrievedAt: '2026-11-01T10:06:00Z', status: 'recorded', acceptedAt: null, coverage: 'complete', notes: '' },
+    devices: [{ id: 'ap', label: 'Generated AP', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '', place: null, liveFacts },
+      { id: 'phone', label: 'Generated phone', kind: 'phone', mobility: 'mobile', confidence: 'recorded', notes: '', place: null }],
+    endpoints: [], links: [{ id: 'generated-link', fromEndpointId: 'ap', toEndpointId: 'phone', kind: 'connection', medium: 'wifi', confidence: 'recorded',
+      sourceConfidence: null, temporalStatus: 'current', recordedAtPrecision: null, basis: 'source', recordedAt: '2026-10-30T00:00:00Z', notes: '', path: null }] };
+  const placed = { key: recordKey('ap'), id: 'ap', label: 'Generated AP', category: 'Recorded device', detail: 'access point', qualification: 'recorded',
+    sourceDate: '2026-10-30T00:00:00Z', retrievedAt: '2026-11-01T10:06:00Z', connections: [],
+    sourceFacts: [{ label: 'Source original SHA256', value: sha }, { label: 'Room association in this observation', value: room.roomId }] };
+  const records = { rooms: new Map([[room.roomId, { network: [placed], electrical: [] }]]), network: 'available', electrical: 'unavailable', sourceFacts: [],
+    unplaced: { network: [], electrical: [] }, networkGraphs: [{ key: graphKey, data, qualification: 'Recorded logical network; no physical routes',
+      deviceRecordKeys: new Map([['ap', recordKey('ap')], ['phone', recordKey('phone')]]), sourceOriginalSha256: sha }] };
+  const storedAt = '2026-11-01T10:07:00Z';
+  const bytes = encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records }]]));
+  const placedDevices = held => admittedNetworkDevices(held).map(row => [row.deviceId, row.roomId]);
+  const deviceCard = held => {
+    const anchors = admittedNetworkDevices(held).map(row => ({ ...row, occurrenceId: room.occurrenceIds.find(id => selectable.has(id)), point: [0, 0] }));
+    const card = networkCardContent({ focus: { kind: 'device', key: JSON.stringify(['houseatlas-network-node.v1', graphKey, 'device', 'ap']) },
+      connections: networkRoomConnections(held, anchors), graphs: held.networkGraphs, roomName: () => ({ room: 'Generated room', floor: 'Generated floor' }),
+      choose: () => {}, showInGraph: () => {} });
+    assert(card, 'device card resolves'); return renderToStaticMarkup(createElement('div', null, card.body));
+  };
+  // Automatically stored copy: the overlay feed's stored rows carry the copy's date and qualifier.
+  const stored = decodeStoredOverlays(bytes, scene, selectable);
+  const automatic = mergeRuntimeRecords({ buildingsById: new Map(scene.buildings.map(row => [row.buildingId, row])) },
+    [{ buildingId: room.buildingId, reason: 'stored-copy', records: stored.get(room.buildingId).records, storedAt }]);
+  assert.equal(automatic.networkGraphs.length, 1);
+  assert.equal(automatic.networkGraphs[0].storedAt, storedAt); assert.equal(automatic.networkGraphs[0].qualification, STORED_NETWORK_QUALIFICATION);
+  assert.deepEqual(automatic.networkGraphs[0].data.devices[0].liveFacts, liveFacts);
+  assert.deepEqual(placedDevices(automatic), [['ap', room.roomId]]);
+  const automaticCard = deviceCard(automatic);
+  for (const text of ['Network source facts', '192.0.2.10', 'Stored on this device', STORED_NETWORK_QUALIFICATION, 'reviewed room mapping'])
+    assert(automaticCard.includes(text), `automatic copy device card shows ${text}`);
+  for (const at of ['2026-11-01T10:00:00Z', '2026-11-01T10:05:00Z', '2026-11-01T10:06:00Z', '2026-10-30T00:00:00Z', storedAt])
+    assert(automaticCard.includes(`dateTime="${at}"`) || automaticCard.includes(`datetime="${at}"`), `automatic copy device card dates ${at}`);
+  // Manually saved copy holding those bytes: the map network replaces the saved relations.
+  const open = async overlays => {
+    const house = { ...pack.house, localRevision: crypto.randomUUID(), ...(overlays ? { overlays } : {}) };
+    const local = { list: async () => [house], asset: async (_selected, id) => new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType }) };
+    return projectSavedAtlasOverlays(await readSavedPackSections(local, house, new AbortController().signal), scene);
+  };
+  const saved = await open(bytes.slice().buffer);
+  assert.equal(saved.records.networkGraphs.length, 1, 'no graph is built from the saved relations');
+  const graph = saved.records.networkGraphs[0];
+  assert.equal(graph.key, graphKey); assert.equal(graph.storedAt, storedAt); assert.equal(graph.qualification, SAVED_NETWORK_QUALIFICATION);
+  assert.deepEqual(graph.data.devices.map(row => row.id), ['ap', 'phone']); assert.deepEqual(graph.data.devices[0].liveFacts, liveFacts);
+  assert.deepEqual(saved.records.rooms.get(room.roomId).network.map(row => row.id), ['ap']);
+  assert.deepEqual(placedDevices(saved.records), [['ap', room.roomId]], 'only the reviewed room mapping places a device');
+  assert.equal(saved.records.unplaced.network.some(row => row.category === 'Recorded connection'), false);
+  const coverage = saved.records.buildings.find(row => row.buildingId === room.buildingId);
+  assert.equal(coverage.network, 'available'); assert.equal(coverage.reason, 'saved map network; no captured building source');
+  assert(saved.records.sourceFacts.some(fact => fact.label.endsWith('map network stored on this device') && fact.value === storedAt));
+  assert(!saved.reasons.some(reason => reason.includes('saved without the map network')));
+  const savedCard = deviceCard(saved.records);
+  for (const text of ['Network source facts', 'Stored on this device', SAVED_NETWORK_QUALIFICATION]) assert(savedCard.includes(text), `saved copy device card shows ${text}`);
+  assert(savedCard.includes(storedAt) && savedCard.includes('2026-11-01T10:06:00Z'));
+  // Bytes stored for another model are not this copy's network: the copy reads as limited.
+  const otherScene = { ...scene, publication: { ...scene.publication, publicationId: '00000000-0000-4000-8000-0000000000ff' } };
+  const other = await open(encodeStoredOverlays(otherScene, new Map([[room.buildingId, { storedAt, records }]])).slice().buffer);
+  assert.equal(other.records.networkGraphs[0].qualification, SAVED_RELATIONS_ONLY);
+  assert.equal(other.records.networkGraphs[0].data.devices.length, 0); assert.equal(other.records.rooms.size, 0);
+  assert(other.reasons.some(reason => reason.includes('saved without the map network')));
+  console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts and their dates, the copy date and qualifier; another model reads as a limited copy');
 }
 {
   const pack = await generateSavedPack('partial', '1'.repeat(64), false, false, true);

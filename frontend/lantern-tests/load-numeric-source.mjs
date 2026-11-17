@@ -85,10 +85,6 @@ const links = Object.freeze({
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
     '../numeric/stock-decoded': 'numeric/stock-decoded.ts',
   },
-  'api/network-relations-client.ts': {
-    '../numeric/decimal': 'numeric/decimal.ts',
-    '../numeric/lossless-json': 'numeric/lossless-json.ts',
-  },
   'ai/wire.ts': {},
   'ai/types.ts': {},
   'ai/host/decode.ts': {
