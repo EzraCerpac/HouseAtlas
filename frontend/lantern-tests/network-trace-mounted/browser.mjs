@@ -273,7 +273,9 @@ try {
   await press(`document.querySelector('.ua-inspector [aria-label="Close network card"]')`);
   await until(`!document.querySelector('.ua-inspector.is-network') && document.querySelector('.ua-inspector h2')?.textContent === ${JSON.stringify(roomBefore)}`);
   // The selected room's card lists its devices as device rows, not the record listing; a row opens that device's card.
-  await press(`[...document.querySelectorAll('.ua-inspector button')].find(x => x.textContent === 'Hall')`);
+  // The Rooms list returns a moment after the heading; wait for the row before pressing it.
+  const hallRow = `[...document.querySelectorAll('.ua-inspector button')].find(x => x.textContent === 'Hall')`;
+  await until(`!!(${hallRow})`); await press(hallRow);
   const roomNetwork = `document.querySelector('.ua-inspector [aria-label="Network in this room"]')`;
   await until(`document.querySelector('.ua-inspector h2')?.textContent === 'Hall' && !!${roomNetwork}?.querySelector('.ua-net-list')`);
   assert.deepEqual(await evaluate(`[...${roomNetwork}.querySelectorAll('.ua-net-list .ua-belonging-name')].map(x => x.textContent)`), ['Host client']);
