@@ -253,8 +253,8 @@ try {
   assert(!merged.includes(full[29]),'the oldest stored run is dropped');assert.deepEqual(merged.map(run=>run.recordedAt),[...merged.map(run=>run.recordedAt)].sort());
   assert.equal(speedWithTests({latest:speed,recent:[speed]},[]).recent.length,1,'no tested runs: the stored runs as read');
   // A measured run followed by 30 failed ones leaves the chart's window but stays the last measured run.
-  { const good=night(0),fails=Array.from({length:30},(_,i)=>night(i+1,null)),after=speedWithTests({latest:good,recent:[good]},fails);
-    assert.equal(after.recent.length,30);assert(!after.recent.includes(good));
+  { const old=night(-1,200e6),good=night(0),fails=Array.from({length:30},(_,i)=>night(i+1,null)),after=speedWithTests({latest:old,recent:[old]},[good,...fails]);
+    assert.equal(after.recent.length,30);assert(!after.recent.includes(good)&&!after.recent.includes(old));
     assert.deepEqual(latestSpeed(after.latest,after.recent),{measured:good,unmeasured:fails[29]});
     assert.match(speedSparkline(after.recent).label,/0 of 30 runs measured/); }
   // Several collector sources stay told apart, by collection where their source names repeat; one answering source needs no name.
