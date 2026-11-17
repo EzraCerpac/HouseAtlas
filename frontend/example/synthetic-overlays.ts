@@ -5,7 +5,7 @@ import type { UnifiedAtlasPort } from '../src/lantern/unified-atlas/types';
 import type { UnifiedAtlasOverlayAvailableFrame } from '../integration/unified-atlas-overlay-source';
 import type { NativeSceneSourceSelection } from '../src/lantern/scans/native-scene-source-types';
 import type { ElectricalFixtureData } from '../src/lantern/overlays/electricity/fixture-types';
-import type { NetworkOverlayData } from '../src/lantern/overlays/network/types';
+import type { NetworkLiveFacts, NetworkOverlayData } from '../src/lantern/overlays/network/types';
 import { ExactDecimal } from '../src/numeric/decimal';
 import { exampleElectricalInput, exampleElectricalProjection } from './electrical-data';
 
@@ -47,7 +47,9 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
   // root <- access point (Stairs); switch <- desk computer (Bedroom, upper floor: a link across floors);
   // access point <- speaker (Living room, Wi-Fi); switch <- printer (Living room, medium not recorded);
   // tablet (moves around) and garden camera (no reviewed room) stay unplaced. The access point
-  // alone carries invented Network source facts. No cable route, coordinate or radio coverage.
+  // carries invented Network source facts without reachability; the root, switch, printer and
+  // desk computer carry invented collector reachability (full series; gaps; no reply; stale).
+  // No cable route, coordinate or radio coverage.
   const placed = (i: number, roomLabel: string) => ({ placeId: null, sourceRoomId: `example-room-${i}`, sourcePlaceId: targets[i]!.packagePlaceKey,
     sourcePlaceUUID: targets[i]!.packagePlaceUuid, planAssociations: [{ sourceAnchorId: `example-anchor-${i}`, sourceFloorKey: 'example-floor',
       sourceFloorLabel: 'Fictional floor', sourceReference: 'Fictional record', sourceHandle: 'example-handle', sourceSHA256: floorHash,
@@ -56,6 +58,22 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
   const link = (id: string, from: string, to: string, medium: string, confidence: 'recorded' | 'tentative', notes: string,
     kind: 'connection' | 'hypothesis' = 'connection') => ({ id, fromEndpointId: from, toEndpointId: to, kind, medium, confidence, sourceConfidence: null, temporalStatus: confidence, recordedAtPrecision: null,
     basis: 'Fictional association', recordedAt: null, notes, path: null });
+  const hour = (end: string, back: number) => new Date(Date.parse(end) - back * 3_600_000).toISOString().replace('.000Z', 'Z');
+  /** Invented hourly means ending at `end`; null drops the hour (a gap). */
+  const series = (end: string, hours: number, point: (i: number) => { latencyMs: number | null; loss: number | null } | null) =>
+    Array.from({ length: hours }, (_, i) => { const p = point(i); return p && { hour: hour(end, hours - 1 - i), ...p }; })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+  const reach = (n: number, externalId: string, state: 'reachable' | 'no-reply', at: string, stale: boolean, latencyMs: number | null,
+    recentSeries: NonNullable<NetworkLiveFacts['recentSeries']>): NetworkLiveFacts => {
+    const freshness = stale ? 'stale' as const : 'recent' as const, snapshot = hour(at, -1 / 60), retrieved = hour(at, -2 / 60);
+    return { status: stale ? 'stale' : 'available', source: { workspaceId: scene.scope.workspaceId, homeId: scene.scope.homeId, sourceInstanceId: U(621),
+      collectionId: 'example-reachability', sourceKind: 'network-device', externalId }, addresses: [`192.0.2.${n}`],
+      observedState: [{ id: `${externalId}-reachability`, kind: 'measured-reachability', value: { state }, factAt: at, sourceSnapshotAt: snapshot,
+        retrievedAt: retrieved, vantage: 'Fictional collector', invalidatedAt: null, freshness }],
+      lastSeenAt: state === 'reachable' ? at : null, sourceSnapshotAt: snapshot, retrievedAt: retrieved, freshness,
+      latencyMs, loss: state === 'reachable' ? 0 : 1, recentSeries };
+  };
+  const ms = (base: number) => (i: number) => ({ latencyMs: Math.round(base * (1 + 0.25 * Math.sin(i / 4)) * 10) / 10, loss: 0 });
   const network: NetworkOverlayData = {
     viewKey: pins.viewKey, source: { label: 'Fictional network', revision: 'example-1', recordedAt: null, retrievedAt: null,
       status: 'recorded', acceptedAt: null, coverage: 'partial', notes: 'Fictional logical records', roomMappingReceipt: receipt },
@@ -66,12 +84,18 @@ export const createExampleOverlays: NonNullable<UnifiedAtlasPort['createOverlays
           observedState: [{ id: 'example-ap-clients', kind: 'Connected clients', value: 2, factAt: '2026-01-02T08:59:00Z', sourceSnapshotAt: '2026-01-02T09:00:00Z',
             retrievedAt: '2026-01-02T09:01:00Z', vantage: 'Fictional collector', invalidatedAt: null, freshness: 'recent' }],
           lastSeenAt: '2026-01-02T08:59:00Z', sourceSnapshotAt: '2026-01-02T09:00:00Z', retrievedAt: '2026-01-02T09:01:00Z', freshness: 'recent' } },
-      { id: 'example-root', label: 'Fictional network root', kind: 'router', sourceRoot: true, mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
-      { id: 'example-switch', label: 'Fictional switch', kind: 'switch', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(0, 'Hall') },
+      { id: 'example-root', label: 'Fictional network root', kind: 'router', sourceRoot: true, mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room'),
+        liveFacts: reach(1, 'example-root', 'reachable', '2026-01-02T08:58:00Z', false, 1.4, series('2026-01-02T08:00:00Z', 48, ms(1.2))) },
+      { id: 'example-switch', label: 'Fictional switch', kind: 'switch', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(0, 'Hall'),
+        liveFacts: reach(2, 'example-switch', 'reachable', '2026-01-02T08:58:00Z', false, 2.1, series('2026-01-02T08:00:00Z', 48,
+          i => i >= 10 && i <= 13 || i === 30 ? null : i === 40 ? { latencyMs: null, loss: null } : i === 20 ? { latencyMs: 3.2, loss: 0.25 } : ms(1.9)(i))) },
       { id: 'example-streaming-box', label: 'Fictional streaming box', kind: 'media player', mobility: 'fixed', confidence: 'tentative', notes: '', place: placed(1, 'Living room') },
-      { id: 'example-desk-computer', label: 'Fictional desk computer', kind: 'computer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(3, 'Bedroom') },
+      { id: 'example-desk-computer', label: 'Fictional desk computer', kind: 'computer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(3, 'Bedroom'),
+        liveFacts: reach(3, 'example-desk-computer', 'reachable', '2026-01-01T18:04:00Z', true, 12.6, series('2026-01-01T18:00:00Z', 24, ms(12))) },
       { id: 'example-speaker', label: 'Fictional speaker', kind: 'speaker', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
-      { id: 'example-printer', label: 'Fictional printer', kind: 'printer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room') },
+      { id: 'example-printer', label: 'Fictional printer', kind: 'printer', mobility: 'fixed', confidence: 'recorded', notes: '', place: placed(1, 'Living room'),
+        liveFacts: reach(4, 'example-printer', 'no-reply', '2026-01-02T08:58:00Z', false, null, series('2026-01-02T08:00:00Z', 48,
+          i => i < 36 ? ms(4)(i) : { latencyMs: null, loss: 1 })) },
       { id: 'example-tablet', label: 'Fictional tablet', kind: 'tablet', mobility: 'mobile', confidence: 'recorded', notes: '', place: null },
       { id: 'example-garden-camera', label: 'Fictional garden camera', kind: 'camera', mobility: 'fixed', confidence: 'recorded', notes: '', place: null }],
     endpoints: [], links: [

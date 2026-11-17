@@ -488,6 +488,13 @@
 .lantern-host .ua-net-observed { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .lantern-host .ua-net-observed > li { display: grid; }
 .lantern-host .ua-net-observed > li.is-old { color: var(--ink-2); }
+.lantern-host .ua-net-reach.is-old .ua-net-reach-state { color: var(--ink-2); }
+/* Hourly latency: the line breaks at missing hours; loss ticks stand under their hour. */
+.lantern-host .ua-net-spark { display: block; max-width: 100%; height: auto; margin-top: 4px; overflow: visible; }
+.lantern-host .ua-net-spark-line { fill: none; stroke: var(--layer, #B97A00); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.lantern-host .ua-net-spark-dot { fill: var(--layer, #B97A00); }
+.lantern-host .ua-net-spark-loss { stroke: var(--ink-2); stroke-width: 1.5; }
+.lantern-host .ua-net-reach.is-old .ua-net-spark { opacity: 0.55; }
 .lantern-host .ua-net-graph-link { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
 
 .lantern-host .ua-label-hit {

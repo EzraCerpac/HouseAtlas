@@ -6424,6 +6424,11 @@ The original anonymous-only case is replaced, not added;
 the three-case count and existing default-library selection are unchanged.
 The frontend cases use generated in-process transports and fake original owners;
 they check the strict v2 decoder and preservation of legacy frames and placement.
+`network-live-facts-healthy.mjs` also checks the device card's Reachability wording:
+reachable, no-reply and not-measured states, null latency/loss left out,
+stale/invalidated/unknown qualifiers and sparkline breaks at missing hours;
+`offline-atlas-overlays-healthy.mjs` checks the row from stored and saved copies.
+Neither adds a case or run step.
 The new healthy-list entry makes 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
 The single candidate-helper method also checks separate digest-pinned hardware
 evidence without adding unsupported fields to the source snapshot.
