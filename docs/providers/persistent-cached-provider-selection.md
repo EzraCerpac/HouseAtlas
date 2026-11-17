@@ -14,7 +14,8 @@ the existing canonical-path, owner, 0600-mode, regular-file, no-symlink and
 stable-inode startup reader. Its exact bytes must match the selected SHA256.
 Its required top-level fields are:
 
-- `schemaVersion: 1` or `2`. Schema 2 only adds the optional HomeBox fields
+- `schemaVersion: 1` or `2`. Schema 2 adds optional Network `refreshEditors`
+  and the HomeBox fields
   described under [Schema 2](#schema-2-homebox-open-file-and-editor-refresh).
 - `serverConfigurationDigest`: the existing ServerConfig.state_digest() value.
 - `homeboxCached`: an array of registration/origin/limits entries.
@@ -40,7 +41,8 @@ use the existing complete shared sourceRegistration shape. Each registration
 must select an exact configured workspace/home, the correct owner for its array,
 and a unique partition. The original ProviderRegistry validates shared identity,
 partition mode and allowlists. Unknown fields, including credential fields,
-are rejected (schema 1 also refuses the two schema 2 fields). The original typed builders validate endpoints, limits and reviews;
+are rejected (schema 1 also refuses populated Network refresh approvals and the
+HomeBox schema 2 fields). The original typed builders validate endpoints, limits and reviews;
 there are no relaxed versions of those validators.
 
 ## Reopen identity
@@ -74,8 +76,8 @@ Network entries reuse NetworkSettings and NetworkBinding::from_trusted_configura
 against the same Core, then Host::with_network_bindings. Entities are exact
 existing SourceRefs, validated by the original builder; no entity IDs or grants
 are synthesized. The directory must be the canonical private existing
-`<dataDirectory>/provider-cache`. The partition-derived sidecar and raw-archive
-SQLite files must already be regular 0600 files owned by the service user.
+`<dataDirectory>/provider-cache`. By default, the partition-derived sidecar
+and raw-archive SQLite files must already be regular 0600 files owned by the service user.
 Startup selects an existing-only policy in the original opener. That policy
 uses no CREATE flag for database or constructor-custody members, requires the
 existing segment directory and custody locks, and opens both SQLite databases
@@ -92,10 +94,11 @@ directory. Original database ownership, locks and full archive verification
 still apply. Preparation performs no generation publication or inventory
 request and creates no credential lease.
 
-A selected profile is data, not a ConfigureSource/PublishCache/Read grant.
+Source selectors are data, not a ConfigureSource/PublishCache/Read grant.
+Schema 2 `refreshEditors` pairs are explicit owner-approved lifecycle policy.
 Startup does not install Access/Store registrations, enable a source, change
 quarantine, publish a generation, fetch inventory, start a scan
-or create lifecycle authority.
+or issue lifecycle grants.
 The optional collector task reads stored observations only,
 without calling the durable inventory refresh owner. Missing durable registration, retained generation
 or current grants still makes execution unavailable under existing read owners.
@@ -104,17 +107,21 @@ read must capture/revalidate its original principal and partition/member grants.
 
 No authorization/header/password/token fields are accepted. Endpoints and reader
 metadata are explicit owner configuration; credentials and live-GET custody remain
-separate existing owners. This profile is not a live HomeBox/native-query mount
-and is not a first-publication mechanism.
+separate existing owners.
+This profile mounts cached reads by default;
+schema 2 explicitly adds the bridges and refresh paths described below.
 
 ## Required operational inputs and remaining acceptance
 
-Before activation, the existing owner must supply the reviewed profile and both
-pins, existing native registration/grants and complete retained generations.
-Network requires its existing sidecar/raw-archive custody and exact LinkReview.
+Before activation, the existing owner must supply the reviewed profile and both pins.
+Cached-only selections also need existing native registration/grants
+and complete retained generations.
+Network requires its exact LinkReview;
+without named refresh Editors it also requires existing sidecar/raw-archive custody.
 Existing ConfigureSource/PublishCache lease APIs remain the only explicit setup/
 publication path; two-database registration retains its ordered/non-atomic
-semantics and quarantine rules. Nothing in serve calls those APIs.
+semantics and quarantine rules.
+Only the explicit refresh POST calls those APIs in serve.
 
 Backup/restore custody of selected provider stores must be reconciled with the
 existing recovery owner before operational use. This source increment does not
@@ -234,7 +241,7 @@ and require `?collection=` with the exact encoded collection ID:
 - `GET /results` requires an authenticated home Viewer or Editor
   and the same partition/member grants as the cached inventory read.
   It returns `{status, retrievedAt, inventoryRevision, servedInventoryRevision,
-  measurementReason, results}`.
+  measurementReason, mayRefresh, results}`.
   `status` is `available` or `unknown`;
   `results` is the closed collector v1 `{version, speed:{latest,recent},
   wifi:{latest}, actions}` document or null.
@@ -290,27 +297,69 @@ HTTP refusal or transport failure throws;
 the UI must retire failed reads and treat a lost POST response as uncertain.
 There is no UI or installation change in this stage.
 
-## Inventory publication remains a separate install prerequisite
+## Schema 2: named-Editor Network inventory refresh
 
-Persistent serve exposes cached Network reads;
-there is no operational Network inventory import/refresh CLI or HTTP route.
-The existing Rust setup API is `NetworkAccess::configure`,
-under an original principal with explicit `ConfigureSource` approval.
-Publication uses `NetworkAccess::retain_original`, `NetworkAuthority::new`
-and `HostNetworkRuntime::refresh`,
-under an original authenticated principal with explicit `PublishCache` approval
-and the exact partition/entity grants.
-The `healthy-network-root-router` example demonstrates this with a disposable
-synthetic Editor and explicit lifecycle policy;
-it is a verification fixture, not an installation tool.
-Recorded documentary scene Network data is a separate reviewed original asset,
-not a publication of the provider inventory cache.
+A schema 2 Network entry may add `refreshEditors`,
+at most eight `{userId, actorId}` pairs in the same shape as HomeBox.
+Absent or empty keeps the existing-only, read-only mount and exposes no refresh.
+Nonempty selects the original writable sidecar/archive opener
+and adds owner-approved `ConfigureSource` and `PublishCache` rules
+for each exact user/actor, registration and CSRF-checked Mutate principal.
+Startup still registers and publishes nothing.
+The existing canonical private `provider-cache` directory is required;
+the writable owner may create its own custody files there.
+Naming Editors and selecting the changed profile pin on a real installation
+remain owner-approved install steps outside this PR and release no G1–G5.
 
-The runtime's existing transport can GET the collector's `/api/inventory`
-from a reviewed exact-loopback origin and decode its envelope.
-That API can therefore publish collector inventory
-when an authorized setup caller provides the original principal/grants
-and the separately owned writable custody.
-This stage supplies neither that caller nor writable stores;
-persistent cached-provider mounting stays existing-only and read-only.
-An install still needs that explicit setup/publication step from its owner.
+`POST /api/atlas/providers/network/workspaces/{workspace}/homes/{home}/sources/{source}/refresh?collection={collection}`
+takes no body and requires the current session, Editor role, same-origin checks,
+current `X-Atlas-CSRF` and that source's named refresh approval.
+It uses `NetworkAccess::configure` if the source is not readable,
+then `retain_original`, `NetworkAuthority::new` and `HostNetworkRuntime::refresh`
+with the caller's original principal and exact configured partition/member grants.
+Registration remains ordered across the two databases, not atomic.
+Only one Network refresh POST runs per process;
+the runtime's existing per-source single-flight owner also remains in place.
+There is no scheduler, startup refresh, retry or offline CLI.
+Browsing and observation polling never invoke this route or publish inventory.
+The transport GETs `/api/inventory` and, if measurements are enabled,
+the runtime's existing `/api/health` and `/api/measurements` reads.
+It never asks the collector to probe.
+
+Structured outcomes are HTTP 200:
+
+- `refreshed` or `unchanged`, with `inventoryRevision`
+  and `cache:{status,lastSuccessfulFetchAt,lastAttemptAt,errorCode}`.
+  Both commit a fresh captured generation;
+  `unchanged` means the inventory revision and content equal the previous capture,
+  as verified by the existing producer.
+- `running`, when another refresh owns the flight.
+- `not-configured`, when the selected source has no named refresh Editors.
+- `refused` with `reason:"not-approved"`, for an unnamed Editor
+  or unavailable original publication grants.
+- `failed`, with a sanitized native `reason` and `quarantined` boolean,
+  plus cache facts when the native owner recorded a source failure.
+  Transport failure retains the previous generation;
+  upstream authorization failure quarantines it.
+  An already quarantined cache returns `reason:"access-revoked"`
+  before transport; this route cannot lift quarantine.
+
+HTTP authentication, role, CSRF and malformed selector failures remain errors.
+Results retain `servedInventoryRevision`, collector `inventoryRevision`
+and `measurementReason`, and add `mayRefresh` for the signed-in named Editor.
+This is an admission hint; the POST checks the exact lifecycle policy again.
+After a publication aligns the revisions,
+the existing observation holder attaches matching measurements naturally,
+without a poll or restart.
+An inventory change during refresh can still leave a mismatch;
+the UI must reread inventory/results and show the actual revisions.
+
+The UI-stage client is `requestNetworkInventoryRefresh`,
+with `decodeNetworkInventoryRefresh` and `NetworkInventoryRefreshResult`
+in `frontend/integration/network-inventory-refresh.ts`.
+It takes the current session's CSRF explicitly and sends one POST with no retry.
+The UI should offer refresh from `mayRefresh`, show the returned outcome,
+then reread inventory/results after a recorded publish or failure.
+A lost POST response may follow a committed publication;
+reconcile instead of automatically retrying.
+No UI control, installation, private profile or live-provider acceptance is included.

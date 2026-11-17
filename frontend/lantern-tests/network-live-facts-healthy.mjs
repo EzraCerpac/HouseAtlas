@@ -1,6 +1,6 @@
 /** Generated decoder contracts only; no browser, source, network or native authority. */
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -10,7 +10,9 @@ const root=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const scratch=mkdtempSync(join(tmpdir(),'network-live-facts-'));
 try {
   const entry=join(scratch,'entry.ts');
+  // The refresh client joins this existing healthy selection; no new runner.
   writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-collector.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))}\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};`);
+  appendFileSync(entry,`\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-inventory-refresh.ts'))};`);
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,(Array.isArray(built)?built[0]:built).output.find(o=>o.type==='chunk'&&o.isEntry).code);
   const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND}=await import(pathToFileURL(modulePath).href);
@@ -43,10 +45,28 @@ try {
   }
   assert.throws(()=>applyNetworkLiveFacts({...data,devices:[]},decode(raw)));
   const speed={state:'measured',recordedAt:at,downloadBitsPerSecond:12000000,uploadBitsPerSecond:3000000,latencyMs:4,reason:null};
-  const result={status:'available',retrievedAt:at,inventoryRevision:1,servedInventoryRevision:1,measurementReason:null,results:{version:1,speed:{latest:speed,recent:[speed]},wifi:{latest:{state:'unavailable',recordedAt:at,networks:null,reason:'no-dependable-unprivileged-scanner'}},actions:[]}};
+  const result={status:'available',retrievedAt:at,inventoryRevision:1,servedInventoryRevision:1,measurementReason:null,mayRefresh:false,results:{version:1,speed:{latest:speed,recent:[speed]},wifi:{latest:{state:'unavailable',recordedAt:at,networks:null,reason:'no-dependable-unprivileged-scanner'}},actions:[]}};
   const resultDecode=v=>decodeNetworkCollectorResults(parseLosslessJson(JSON.stringify(v)));
   assert.equal(resultDecode(result).results.speed.latest.downloadBitsPerSecond,12000000);
   assert.equal(resultDecode(result).results.wifi.latest.networks,null);
+  assert.equal(resultDecode({...result,mayRefresh:true}).mayRefresh,true);
+  assert.throws(()=>resultDecode({...result,mayRefresh:'yes'}));
+  const {decodeNetworkInventoryRefresh,requestNetworkInventoryRefresh}=await import(pathToFileURL(modulePath).href);
+  const refreshCache={status:'fresh',lastSuccessfulFetchAt:at,lastAttemptAt:at,errorCode:null};
+  const refreshed={status:'refreshed',inventoryRevision:43,cache:refreshCache};
+  const refreshDecode=v=>decodeNetworkInventoryRefresh(parseLosslessJson(JSON.stringify(v)));
+  for(const status of ['refreshed','unchanged']) assert.equal(refreshDecode({...refreshed,status}).inventoryRevision,43);
+  for(const v of [{status:'running'},{status:'not-configured'},{status:'refused',reason:'not-approved'},{status:'failed',reason:'transport',quarantined:false},{status:'failed',reason:'auth',quarantined:true,cache:{...refreshCache,status:'access-revoked',errorCode:'auth'}}]) assert.equal(refreshDecode(v).status,v.status);
+  for(const v of [{...refreshed,inventoryRevision:-1},{...refreshed,inventoryRevision:null},{...refreshed,extra:true},{status:'failed',reason:'transport'},{status:'running',inventoryRevision:1},{...refreshed,cache:{...refreshCache,lastAttemptAt:'bad'}}]) assert.throws(()=>refreshDecode(v));
+  for(const token of ['1.0000000000000001','9007199254740992']) assert.throws(()=>decodeNetworkInventoryRefresh(parseLosslessJson(JSON.stringify(refreshed).replace('"inventoryRevision":43',`"inventoryRevision":${token}`))));
+  const refreshCalls=[];
+  const refreshScope={workspaceId:U(1),homeId:U(2),sourceInstanceId:U(3),collectionId:'inventory / ?'};
+  const refreshedResult=await requestNetworkInventoryRefresh(refreshScope,'synthetic-csrf',async (url,init)=>{refreshCalls.push([url,init]);return new Response(JSON.stringify(refreshed));});
+  assert.equal(refreshedResult.status,'refreshed');assert.equal(refreshCalls.length,1);
+  assert.equal(refreshCalls[0][0],`/api/atlas/providers/network/workspaces/${U(1)}/homes/${U(2)}/sources/${U(3)}/refresh?collection=inventory%20%2F%20%3F`);
+  assert.equal(refreshCalls[0][1].method,'POST');assert.equal(refreshCalls[0][1].headers['X-Atlas-CSRF'],'synthetic-csrf');assert.equal(refreshCalls[0][1].credentials,'same-origin');assert.equal(refreshCalls[0][1].body,undefined);
+  let refusedCalls=0;
+  await assert.rejects(()=>requestNetworkInventoryRefresh(refreshScope,'synthetic-csrf',async()=>{refusedCalls++;return new Response('',{status:403});}));assert.equal(refusedCalls,1);
   for(const field of ['inventoryRevision','servedInventoryRevision']) {
     for(const token of ['1.0000000000000001','9007199254740991.1','9007199254740992','-0.00000000000000001']) {
       const raw=JSON.stringify(result).replace(`"${field}":1`, `"${field}":${token}`);

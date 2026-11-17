@@ -26,6 +26,11 @@ pub struct NetworkSettings {
     collector_action_ports: Vec<u16>,
 }
 impl NetworkSettings {
+    #[cfg(test)]
+    pub(crate) fn with_test_peer(mut self, peer: Arc<dyn n::TestInventoryPeer>) -> Self {
+        self.transport.test_peer = Some(peer);
+        self
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         configured_source: Arc<ConfiguredSource>,

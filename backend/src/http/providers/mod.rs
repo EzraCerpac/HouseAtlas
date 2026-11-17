@@ -4,6 +4,7 @@ pub mod homebox_reads;
 pub mod homebox_refresh;
 pub mod homebox_stock;
 pub mod network;
+pub mod network_refresh;
 
 use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure, json_response};
 use crate::domain as d;

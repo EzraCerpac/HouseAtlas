@@ -15,7 +15,11 @@ use tokio_util::sync::CancellationToken;
 
 type Result<T> = std::result::Result<T, n::NetworkPublicationError<s::Error>>;
 pub enum RefreshResult {
-    Published(s::CacheStatus),
+    Published {
+        cache: s::CacheStatus,
+        source_revision: u64,
+        unchanged: bool,
+    },
     SourceFailure(s::CacheStatus),
     AlreadyRunning,
 }
@@ -177,7 +181,7 @@ impl HostNetworkRuntime {
                 })
         }) {
             return Err(n::NetworkPublicationError::Storage(s::Error::new(
-                "guard-conflict",
+                "access-revoked",
                 "Network cache is quarantined",
             )));
         }
@@ -262,6 +266,11 @@ impl HostNetworkRuntime {
                     self.cancel_archive_reservation(reservation)?;
                     return Err(wrong_scope().into());
                 };
+                let source_revision = generation.source_revision;
+                let unchanged = prior
+                    .generation
+                    .as_ref()
+                    .is_some_and(|p| p.source_revision == source_revision);
                 if let Err(error) = authority
                     .authorize_generation(&lease, self.settings.source(), generation)
                     .and_then(|_| cancelled(&cancellation))
@@ -356,7 +365,11 @@ impl HostNetworkRuntime {
                 if let Some(slot) = collector_slot.as_mut() {
                     **slot = Some(Arc::new((generation_id, collector)));
                 }
-                RefreshResult::Published(published)
+                RefreshResult::Published {
+                    cache: published,
+                    source_revision,
+                    unchanged,
+                }
             }
             n::RefreshOutcome::Failed(failure) => {
                 self.cancel_archive_reservation(reservation)?;

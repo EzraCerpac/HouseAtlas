@@ -10,6 +10,8 @@ use std::{collections::BTreeSet, sync::Arc};
 /// Typed configured selectors are data. Each fresh request still captures real
 /// original grants; the native owner checks the complete generation membership.
 pub struct NetworkBinding {
+    /// Admission hint only. The POST also requires the exact user/actor lifecycle rules.
+    pub(crate) refresh_editors: Vec<a::CanonicalId>,
     access: Arc<native::NetworkAccess>,
     runtime: Arc<native::HostNetworkRuntime>,
     entities: Vec<a::SourceRef>,
@@ -62,6 +64,7 @@ impl NetworkBinding {
             (None, None)
         };
         Ok(Self {
+            refresh_editors: Vec::new(),
             observations,
             collector_peer,
             access,

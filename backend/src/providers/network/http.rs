@@ -215,6 +215,8 @@ pub trait NetworkReadAuthority: Send + Sync {
 
 #[derive(Clone)]
 pub struct NetworkHttpConfig {
+    #[cfg(test)]
+    pub(crate) test_peer: Option<Arc<dyn TestInventoryPeer>>,
     source: SourceRegistration,
     origin: ReviewedNetworkOrigin,
     limits: Limits,
@@ -244,6 +246,8 @@ impl NetworkHttpConfig {
             source,
             origin,
             limits,
+            #[cfg(test)]
+            test_peer: None,
             connect_timeout: Duration::from_millis(connect_timeout_ms),
             idle_timeout: Duration::from_millis(idle_timeout_ms),
             extra_roots: Vec::new(),
@@ -347,6 +351,13 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         deadline: Instant,
     ) -> Result<InventoryResponse> {
         self.revalidate(deadline)?;
+        #[cfg(test)]
+        if let Some(peer) = &self.config.test_peer {
+            let response = peer.get(path).await?;
+            self.revalidate(deadline)?;
+            guard(response.body.len() <= limits.max_response_bytes)?;
+            return Ok(response);
+        }
         let mut endpoint = self.config.origin.endpoint.clone();
         endpoint.set_path(path);
         let mut request = self
@@ -382,6 +393,15 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
             url: None,
         }
     }
+}
+
+/// No socket or external data; injection exists only in the library test build.
+#[cfg(test)]
+pub(crate) trait TestInventoryPeer: Send + Sync {
+    fn get<'a>(
+        &'a self,
+        path: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<InventoryResponse>> + Send + 'a>>;
 }
 impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
     fn get_inventory(

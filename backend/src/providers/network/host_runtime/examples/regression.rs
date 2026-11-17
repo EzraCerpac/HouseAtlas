@@ -371,7 +371,7 @@ fn published(
     result: Result<RefreshResult, n::NetworkPublicationError<s::Error>>,
 ) -> Result<s::CacheStatus, Failure> {
     match result {
-        Ok(RefreshResult::Published(cache)) => Ok(cache),
+        Ok(RefreshResult::Published { cache, .. }) => Ok(cache),
         _ => Err("Expected actual committed native publication".into()),
     }
 }

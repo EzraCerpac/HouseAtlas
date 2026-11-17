@@ -44,6 +44,7 @@ impl Host {
             pinned_homebox_capture_requests: Arc::new(Mutex::new(Default::default())),
             homebox_refresh_bindings: Arc::new(Vec::new()),
             homebox_refresh_running: Arc::default(),
+            network_refresh_running: Arc::default(),
             network_bindings: Arc::new(Vec::new()),
             network_action_gate: Arc::new(Default::default()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),

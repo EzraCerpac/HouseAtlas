@@ -325,7 +325,7 @@ async fn main() -> Check<()> {
         .await
         .map_err(owner_error)?
     {
-        RefreshResult::Published(cache) => cache,
+        RefreshResult::Published { cache, .. } => cache,
         _ => return Err("Expected genuine healthy Network publication".into()),
     };
     original.revalidate()?;

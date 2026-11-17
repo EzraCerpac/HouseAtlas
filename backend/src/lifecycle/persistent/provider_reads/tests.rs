@@ -317,6 +317,49 @@ fn network_selection_without_existing_custody_does_not_bootstrap_storage() {
 }
 
 #[test]
+fn network_refresh_profile_opens_writable_custody_only_for_named_editors() {
+    for empty in [false, true] {
+        let f = Fixture::new();
+        let directory = f.config.data_directory.join("provider-cache");
+        fs::create_dir(&directory).unwrap();
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+        let mut value = network_packet(&f, &directory);
+        value["schemaVersion"] = json!(2);
+        if empty {
+            value["networkCached"][0]["refreshEditors"] = json!([]);
+        }
+        let before = counts(&f.config);
+        let selection = f.selection(&value);
+        selection.lifecycle_policy(&f.config).unwrap();
+        assert!(
+            ProviderReadMounts::prepare(&f.config, &f.core, Some(selection), &f.lease).is_err()
+        );
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
+        value["networkCached"][0]["refreshEditors"] = json!([{
+            "userId":"00000000-0000-4000-8000-000000000006", "actorId":"00000000-0000-4000-8000-000000000007"
+        }]);
+        let selection = f.selection(&value);
+        selection.lifecycle_policy(&f.config).unwrap();
+        let mounts =
+            ProviderReadMounts::prepare(&f.config, &f.core, Some(selection), &f.lease).unwrap();
+        assert_eq!(mounts.network[0].refresh_editors.len(), 1);
+        assert!(fs::read_dir(&directory).unwrap().count() > 0);
+        assert_eq!(counts(&f.config), before); // startup publishes/registers nothing
+        drop(mounts);
+        for invalid in [
+            json!([{"userId":"bad", "actorId":"bad"}]),
+            json!(vec![
+                json!({"userId":"00000000-0000-4000-8000-000000000006", "actorId":"00000000-0000-4000-8000-000000000007"});
+                9
+            ]),
+        ] {
+            value["networkCached"][0]["refreshEditors"] = invalid;
+            assert!(f.selection(&value).capture(&f.config).is_err());
+        }
+    }
+}
+
+#[test]
 fn network_mount_reuses_explicit_existing_custody_without_source_enrollment() {
     let f = Fixture::new();
     let directory = f.config.data_directory.join("provider-cache");

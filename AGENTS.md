@@ -7,6 +7,8 @@ edits use verified native links. Network passively reads stored source results
 (HTTPS, or explicitly selected exact-loopback HTTP with an explicit port).
 Browsing never sends collector demand, diagnostics, imports or upstream writes;
 the backend requests collector diagnostics only for explicit authenticated Editor actions.
+Named-Editor refresh may publish one inventory generation;
+browsing and observation polling never publish inventory.
 
 Preserve arbitrary container types, explicit unknowns, original source dates,
 retrieval dates, uncertainty and corrections. Names, graph positions and tree
@@ -181,10 +183,34 @@ pre-selection inventory replacement and retained targets across guard awaits.
 The existing persistent mount case checks interval/port configuration bounds;
 the existing frontend `network-live-facts-healthy.mjs` selection additionally
 checks typed property-results/action decoders and fake client exchanges.
-Persistent serving may poll only explicitly enabled exact-loopback collectors;
+Persistent observation polling selects only explicitly enabled exact-loopback collectors;
 it reads stored observations into memory without enrollment, publication,
 archive writes, principals or collector demand.
 Explicit Editor diagnostics use the existing mutation-authentication owner;
 there is no new durable journal or publication authority.
 No real socket, collector, credential, household data, installation or G1–G5
 acceptance is exercised by these cases; no CI run step is added.
+
+## Named-Editor Network inventory refresh
+
+The default backend-library lane additionally discovers five cases under
+`http::providers::network::tests::refresh::`:
+`refresh_auth_absence_and_named_editor`,
+`first_refresh_registers_publishes_and_unchanged_renews_capture`,
+`mismatch_refresh_attaches_existing_observations_without_restart`,
+`concurrent_refresh_returns_running_without_second_get`,
+and `failure_after_archive_reservation_keeps_previous_generation_readable`.
+The existing persistent profile selection also discovers
+`network_refresh_profile_opens_writable_custody_only_for_named_editors`.
+They use a test-only fake inventory HTTP leaf, generated Viewer/Editors,
+disposable SQLite Access/Store/sidecar/archive and the in-process router.
+They check opt-in writable custody without startup registration,
+read-only absence, authentication/role/named approval/CSRF refusals,
+first native registration/publication, unchanged capture renewal,
+single-flight refusal, collector-down failure after archive reservation,
+previous-generation reads without quarantine, quarantine refusal,
+and revision mismatch recovery without replacing the observation holder.
+The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
+typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
+No run step, real service, credential, private profile, household data,
+installation or G1–G5 acceptance is added.

@@ -6553,3 +6553,44 @@ node frontend/lantern-tests/network-live-facts-healthy.mjs
 Existing inventory publication and read grants remain unchanged.
 These synthetic checks establish neither installed polling/diagnostics
 nor inventory provisioning or G1–G5 acceptance.
+
+### Named-Editor Network inventory refresh
+
+The default backend-library selection adds five cases under
+`http::providers::network::tests::refresh::`:
+`refresh_auth_absence_and_named_editor`,
+`first_refresh_registers_publishes_and_unchanged_renews_capture`,
+`mismatch_refresh_attaches_existing_observations_without_restart`,
+`concurrent_refresh_returns_running_without_second_get`,
+and `failure_after_archive_reservation_keeps_previous_generation_readable`.
+The existing persistent profile selection adds
+`network_refresh_profile_opens_writable_custody_only_for_named_editors`.
+These exercise genuine native Access/Store/sidecar/archive owners
+in disposable SQLite and an in-process router with generated users and inventory.
+A test-only HTTP leaf returns generated responses or a transport failure;
+no socket, real collector, provider, credential or household data is used.
+The failure occurs after the runtime's original archive reservation
+and before publication, then checks previous-generation reads,
+no quarantine and a succeeding refresh through the same owners.
+These bounded cases remain in the default set.
+
+The existing `network-live-facts-healthy.mjs` entry adds `mayRefresh`,
+all typed refresh outcomes, exact safe revisions, strict decode refusals,
+and one explicit CSRF POST through fake fetch, without a retry.
+No CI run step changes, so `tools/ci/lanes.json` is unchanged.
+Focused commands use installed Rust 1.99.0, Node 26.10.0
+and an existing Cargo target outside the checkout:
+
+```sh
+node tools/rust-integration/format.mjs
+node tools/rust-integration/format.mjs --check
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -j 2 -- -D warnings
+cargo test --offline --locked -p houseatlas-backend --lib http::providers::network::tests:: -j 2 -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::provider_reads::tests:: -j 2 -- --test-threads=1
+node frontend/lantern-tests/network-live-facts-healthy.mjs
+node tools/publication/refresh-manifest.mjs --check
+npm run verify:publication
+```
+
+These checks establish synthetic implementation behavior only.
+They release no G1–G5, installation or live-provider acceptance.
