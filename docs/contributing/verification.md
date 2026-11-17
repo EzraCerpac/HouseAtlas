@@ -6556,11 +6556,12 @@ nor inventory provisioning or G1–G5 acceptance.
 
 ### Named-Editor Network inventory refresh
 
-The default backend-library selection adds five cases under
+The default backend-library selection adds six cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
 `review_required_then_reviewed_profile_refresh_attaches_observations`,
+`preflight_failure_recovers_after_store_reopen_without_archive_disposition`,
 `concurrent_refresh_returns_running_without_second_get`,
 and `failure_after_archive_reservation_keeps_previous_generation_readable`.
 The existing persistent profile selection adds
@@ -6569,7 +6570,8 @@ These exercise genuine native Access/Store/sidecar/archive owners
 in disposable SQLite and an in-process router with generated users and inventory.
 A test-only HTTP leaf returns generated responses or a transport failure;
 no socket, real collector, provider, credential or household data is used.
-The failure occurs after the runtime's original archive reservation
+The admitted failure occurs in the final inventory GET after successful preflight
+and the runtime's original archive reservation
 and before publication, then checks previous-generation reads,
 no quarantine and the current next-request `guard-conflict` limitation.
 It then closes/reopens Store/Host with retained synthetic Access
@@ -6579,9 +6581,14 @@ An independent fresh fixture checks an auth refusal quarantining the source,
 then an `access-revoked` refusal without another transport call.
 The review case checks an explicit `needs-review` refusal with both revisions
 and unchanged cache facts,
-then an independent positive fixture with owner setup for review 43
+then owner setup for review 43 on the same files
 and clean Store/Host reopen retaining served 42,
 followed by publication and matching observation attachment without another reopen.
+It also changes revision between preflight and final GET,
+checking that the final guard refuses and retains the current disposition limitation.
+The preflight-failure case records a non-quarantined transport failure,
+same-Store pin refusal and successful refresh after clean Store/Host reopen;
+no archive reservation was created for that failed read.
 Neither case runs a service or proves an installed/process restart.
 These bounded cases remain in the default set.
 

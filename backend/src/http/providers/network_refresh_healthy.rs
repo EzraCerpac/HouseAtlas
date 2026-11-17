@@ -44,7 +44,13 @@ impl n::TestInventoryPeer for InventoryPeer {
                     self.entered.notify_one();
                     match self.mode.load(Ordering::SeqCst) {
                         1 => return Err(n::NetworkError::new(n::ErrorCode::Transport)),
-                        2 => self.release.notified().await,
+                        2 => {
+                            self.mode.store(0, Ordering::SeqCst);
+                            self.release.notified().await;
+                        }
+                        // The preflight succeeds; fail the final inventory GET
+                        // after Native archive admission, not the preflight.
+                        4 => self.mode.store(1, Ordering::SeqCst),
                         3 => {
                             return Ok(n::InventoryResponse {
                                 status: 403,
@@ -58,7 +64,17 @@ impl n::TestInventoryPeer for InventoryPeer {
                         }
                         _ => (),
                     }
-                    serde_json::to_vec(&*self.wire.lock().unwrap()).unwrap()
+                    let mut wire = self.wire.lock().unwrap();
+                    let body = serde_json::to_vec(&*wire).unwrap();
+                    if self
+                        .mode
+                        .compare_exchange(5, 0, Ordering::SeqCst, Ordering::SeqCst)
+                        .is_ok()
+                    {
+                        let revision = wire["revision"].as_u64().unwrap() + 1;
+                        wire["revision"] = json!(revision);
+                    }
+                    body
                 }
                 "/api/health" => {
                     self.observations
@@ -374,7 +390,13 @@ async fn first_refresh_registers_publishes_and_unchanged_renews_capture() -> Res
     assert_ne!(cache(&f)?["caches"][0]["generationId"], before);
     assert_eq!(
         *f.inventory.as_ref().unwrap().calls.lock().unwrap(),
-        ["/api/inventory", "/api/health", "/api/measurements"].repeat(2)
+        [
+            "/api/inventory",
+            "/api/inventory",
+            "/api/health",
+            "/api/measurements"
+        ]
+        .repeat(2)
     );
     Ok(())
 }
@@ -397,6 +419,7 @@ async fn review_required_then_reviewed_profile_refresh_attaches_observations() -
     assert_eq!(mismatch["needsReview"], true);
     assert_eq!(mismatch["reviewedInventoryRevision"], 42);
     f.inventory.as_ref().unwrap().revision(43);
+    f.inventory.as_ref().unwrap().calls.lock().unwrap().clear();
     let before = cache(&f)?;
     let refused = refresh(&f).await?.1;
     assert_eq!(
@@ -404,14 +427,12 @@ async fn review_required_then_reviewed_profile_refresh_attaches_observations() -
         json!({"status":"needs-review","reviewedInventoryRevision":42,"collectorInventoryRevision":43})
     );
     assert_eq!(cache(&f)?, before); // refusal is not a schema-failure cache write
-    drop(f);
-    // Independent positive path: owner review/restart precedes the POST, so
-    // this fixture has no cancelled candidate from the earlier refusal.
-    let f = fixture_options(false, true, false).await?;
-    editor(&f, a::Role::Editor)?;
-    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
-    f.peer.revision.store(43, Ordering::SeqCst);
-    f.inventory.as_ref().unwrap().revision(43);
+    assert_eq!(
+        *f.inventory.as_ref().unwrap().calls.lock().unwrap(),
+        ["/api/inventory"]
+    );
+    // Preflight refusal created no durable reservation/permanent ID. Updating
+    // the reviewed profile and reopening this SAME Store can adopt revision 43.
     let f = reopen_with_review(f, 43).await?;
     let held = f.holder.snapshot()?;
     let (_, reviewed) = request(&f, false, Value::Null, None).await?;
@@ -430,6 +451,40 @@ async fn review_required_then_reviewed_profile_refresh_attaches_observations() -
         .map_err(|e| format!("Enrichment refused: {}", e.status))?;
     assert_eq!(facts["latencyMs"].as_f64(), Some(2.0));
     assert_eq!(facts["loss"].as_f64(), Some(0.0));
+    drop(read);
+    // A change BETWEEN preflight and final GET must still be refused. This
+    // later window has already reserved archive custody and needs disposition.
+    f.inventory
+        .as_ref()
+        .unwrap()
+        .mode
+        .store(5, Ordering::SeqCst);
+    let before = cache(&f)?;
+    assert_eq!(
+        refresh(&f).await?.1,
+        json!({"status":"needs-review","reviewedInventoryRevision":43,"collectorInventoryRevision":44})
+    );
+    assert_eq!(cache(&f)?, before);
+    let f = reopen_with_review(f, 44).await?;
+    assert_eq!(refresh(&f).await?.1["reason"], "guard-conflict");
+    Ok(())
+}
+
+#[tokio::test]
+async fn preflight_failure_recovers_after_store_reopen_without_archive_disposition() -> Result<()> {
+    let f = fixture_options(false, true, false).await?;
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let peer = f.inventory.as_ref().unwrap();
+    peer.mode.store(1, Ordering::SeqCst);
+    assert_eq!(refresh(&f).await?.1["reason"], "transport");
+    peer.mode.store(0, Ordering::SeqCst);
+    // The Store pin still has no retirement owner in this lifetime.
+    assert_eq!(refresh(&f).await?.1["reason"], "guard-conflict");
+    let f = reopen_with_review(f, 42).await?;
+    // Unlike an admitted failure, no permanent archive ID was created.
+    let recovered = refresh(&f).await?.1;
+    assert_eq!(recovered["status"], "unchanged", "{recovered}");
     Ok(())
 }
 
@@ -454,7 +509,7 @@ async fn concurrent_refresh_returns_running_without_second_get() -> Result<()> {
             .iter()
             .filter(|p| *p == "/api/inventory")
             .count(),
-        1
+        2
     );
     Ok(())
 }
@@ -468,7 +523,7 @@ async fn failure_after_archive_reservation_keeps_previous_generation_readable() 
     let before = cache(&f)?;
     let peer = f.inventory.as_ref().unwrap();
     // read_once is entered only after actual archive admission/reservation.
-    peer.mode.store(1, Ordering::SeqCst);
+    peer.mode.store(4, Ordering::SeqCst);
     let (_, failed) = refresh(&f).await?;
     assert_eq!(failed["status"], "failed", "{failed}");
     assert_eq!(failed["reason"], "transport");

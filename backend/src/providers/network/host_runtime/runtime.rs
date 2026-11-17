@@ -196,13 +196,50 @@ impl HostNetworkRuntime {
         let prior = self.retained(&cache, &baseline.network_relations)?;
         cancelled(&cancellation)?;
         authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
-        // Obtain the original Store fence and Native admission before transport.
-        // Store is locked before the canonical Network catalog owner. Producer
-        // and transport construction are also deferred until this succeeds.
-        // Retire before archive admission: contention here owns no reservation.
         // Retire previous health before a new attempt; failed reads remain unknown.
         if self.settings.collector_measurements() {
             *self.collector.try_lock().map_err(|_| unavailable())? = None;
+        }
+        // Preflight uses the existing bounded producer and original authority,
+        // but discards a complete proposal. It acquires no archive reservation.
+        // The final inventory GET still follows Native archive admission and
+        // repeats the review/content checks under the SAME original Store fence.
+        let transport = n::HttpInventoryTransport::new(
+            config.clone(),
+            authority.clone(),
+            Arc::new(lease.clone()),
+            cancellation.clone(),
+        )?;
+        let mut provider = self.settings.provider()?;
+        let preflight = provider
+            .prepare_refresh(
+                &prior,
+                baseline.cache_epoch,
+                prepared.reserved_generation_id(),
+                &transport,
+                &mut clock,
+            )
+            .await?;
+        cancelled(&cancellation)?;
+        authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
+        match preflight {
+            n::RefreshOutcome::NeedsReview {
+                reviewed_revision,
+                collector_revision,
+            } => {
+                return Ok(RefreshResult::NeedsReview {
+                    reviewed_revision,
+                    collector_revision,
+                });
+            }
+            n::RefreshOutcome::Failed(failure) => {
+                return Ok(RefreshResult::SourceFailure(with_store(
+                    core,
+                    &lease.access,
+                    |store| prepared.failure(store, &failure),
+                )?));
+            }
+            n::RefreshOutcome::Complete(_) => (),
         }
         let reservation = with_store(core, &lease.access, |store| {
             let mut references = n::NetworkCacheReferences::new(
@@ -213,25 +250,6 @@ impl HostNetworkRuntime {
             );
             prepared.admit_before_transport(store, &mut references)
         })?;
-        let transport = match n::HttpInventoryTransport::new(
-            config.clone(),
-            authority.clone(),
-            Arc::new(lease.clone()),
-            cancellation.clone(),
-        ) {
-            Ok(transport) => transport,
-            Err(error) => {
-                self.cancel_archive_reservation(reservation)?;
-                return Err(error.into());
-            }
-        };
-        let mut provider = match self.settings.provider() {
-            Ok(provider) => provider,
-            Err(error) => {
-                self.cancel_archive_reservation(reservation)?;
-                return Err(error.into());
-            }
-        };
         let fetched = provider
             .prepare_refresh(
                 &prior,

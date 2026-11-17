@@ -322,7 +322,13 @@ Only one Network refresh POST runs per process;
 the runtime's existing per-source single-flight owner also remains in place.
 There is no scheduler, startup refresh, retry or offline CLI.
 Browsing and observation polling never invoke this route or publish inventory.
-The transport GETs `/api/inventory` and, if measurements are enabled,
+Before durable archive admission, a bounded `/api/inventory` preflight runs
+through the existing producer and discards its complete proposal.
+A review mismatch exits without an archive reservation or permanent archive ID.
+On success the transport performs the final `/api/inventory` GET after admission,
+repeating all review/content checks under the original Store fence.
+These are preflight and final reads, not a retry after a failure.
+If measurements are enabled it also reads
 the runtime's existing `/api/health` and `/api/measurements` reads.
 It never asks the collector to probe.
 
@@ -389,20 +395,27 @@ not approval of that changed inventory.
    Matching reviewed inventory can then publish;
    matching stored measurements attach to the new served revision naturally.
 
-The independent generated positive case closes/reopens native Store/Host with retained
+The generated positive case closes/reopens the same native Store/Host with retained
 synthetic Access and a review for revision 43 while retaining served revision 42.
 Refresh publishes revision 43 and measurements attach without another reopen.
 This is synthetic owner-lifetime coverage, not an installed service restart test.
 
-### Existing failed-attempt pin limitation
+### Remaining candidate-disposition dependency
 
-Same-lifetime failure recovery remains blocked on native candidate disposition.
-A transport failure after archive reservation retains the previous generation
-and records a non-quarantined error,
-but a later refresh in that Store lifetime returns `failed / guard-conflict`.
-The same applies after a `needs-review` refusal cancels its archive reservation.
-The Store's `CachePinRegistry` retains the candidate as in-flight or ambiguous;
-Network archive admission refuses that other pin after its reservation is removed.
+Normal preflight review refusal creates no durable archive reservation or ID.
+The existing Store still retains a process-local candidate pin;
+the required owner-approved profile update and service restart clears that pin.
+The positive case proves review 42 / collector 43 refusal,
+then reviewed profile 43 and Store/Host reopen followed by publication of 43.
+
+Broader failure recovery remains blocked on native candidate disposition.
+A transport failure during preflight records a non-quarantined cache error
+and leaves the Store pin, but no archive reservation.
+A same-Store retry returns `failed / guard-conflict`;
+clean Store/Host reopen clears that isolated preflight residue and permits refresh.
+A failure after archive admission retains the previous generation too,
+but cancellation leaves both a protected Store pin and a durable permanent ID.
+This later failure remains blocked even after reopen.
 
 HomeBox's `FailedPublication::commit_failure_with_authorization` uses the same
 Store failure-recording owner and does not release a candidate pin.
@@ -417,12 +430,35 @@ Adding such authority belongs to the native Store/Network custody owners;
 this route does not remove pins or weaken admission.
 
 The pin registry is process-local and starts empty on Store open,
-but archive cancellation retains the durable permanent generation ID.
+but cancellation of an admitted archive reservation retains its permanent ID.
 Archive enumeration exposes that ID as `StagedOrAmbiguous`,
 and Network admission refuses `PermanentlyReserved` entries even without a Store pin.
-The synthetic failure case checks previous-generation reads,
+The admitted-failure case checks previous-generation reads,
 the next request's `guard-conflict`, clean Store/Host close/reopen,
 and the same refusal with durable inventory still readable.
-A service restart clears the in-memory pin but does not repair this durable block.
+A service restart clears the in-memory pin but does not repair that durable block.
 No real service was restarted, and no admission predicate was relaxed.
-The native Store pin and Network archive disposition owners need to resolve it.
+The final inventory read also retains its exact review check:
+a revision change between preflight and that read is refused,
+but has already entered this admitted-reservation failure window.
+The revision test records this refusal and its current post-reopen block.
+
+Core/sidecar contention is a separate pre-stage window in the current candidate.
+`with_core_store` can fail before invoking the staging closure
+when Core is busy/poisoned, Store is poisoned or issuer identity differs;
+ordinary Store lock contention waits.
+The closure can also fail acquiring the canonical sidecar before staging starts.
+Those paths currently drop the move-only reservation handle without cancellation,
+retaining an active `CapacityReserved` archive row and the Store pin.
+Reopen leaves that durable capacity allocation intact;
+this residue alone can allow a later refresh if the locks, catalog and quotas permit it,
+but repeated failures consume capacity and permanent IDs.
+This lock-window assessment is source inspection, not a contention-injection test.
+
+The exact dependency is a consuming disposition owned jointly by native Store
+candidate pins and Network archive custody,
+carrying the original fence and reservation through known pre-stage failure.
+It must distinguish a proven unstaged cancellation from ambiguous staging,
+retire only that candidate and preserve permanent-ID reuse protection.
+No existing API supplies that disposition;
+Network's final guarded publication and reference checks remain unchanged.
