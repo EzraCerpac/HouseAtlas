@@ -203,8 +203,11 @@ for (const variant of ['historical', 'tuples']) {
   const liveFacts = { status: 'available', source: { workspaceId: '00000000-0000-4000-8000-000000000a01', homeId: '00000000-0000-4000-8000-000000000a02',
     sourceInstanceId: '00000000-0000-4000-8000-000000000a03', collectionId: 'generated-devices', sourceKind: 'network-device', externalId: 'generated-ap' },
     addresses: ['192.0.2.10'], observedState: [{ id: 'generated-link-state', kind: 'link', value: { up: true }, factAt: '2026-11-01T10:00:00Z',
+      sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', vantage: 'generated collector', invalidatedAt: null, freshness: 'recent' },
+    { id: 'generated-reachability', kind: 'measured-reachability', value: { state: 'reachable' }, factAt: '2026-11-01T10:00:00Z',
       sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', vantage: 'generated collector', invalidatedAt: null, freshness: 'recent' }],
-    lastSeenAt: '2026-11-01T10:00:00Z', sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', freshness: 'recent' };
+    lastSeenAt: '2026-11-01T10:00:00Z', sourceSnapshotAt: '2026-11-01T10:05:00Z', retrievedAt: '2026-11-01T10:06:00Z', freshness: 'recent',
+    latencyMs: 2.5, loss: 0, recentSeries: [{ hour: '2026-11-01T08:00:00Z', latencyMs: 2, loss: 0 }, { hour: '2026-11-01T10:00:00Z', latencyMs: 3, loss: 0 }] };
   const data = { schema: 'houseatlas.network-overlay.v2', viewKey: 'generated-view',
     source: { label: 'Generated network', revision: '7', recordedAt: '2026-10-30T00:00:00Z', retrievedAt: '2026-11-01T10:06:00Z', status: 'recorded', acceptedAt: null, coverage: 'complete', notes: '' },
     devices: [{ id: 'ap', label: 'Generated AP', kind: 'access point', mobility: 'fixed', confidence: 'recorded', notes: '', place: null, liveFacts },
@@ -240,8 +243,10 @@ for (const variant of ['historical', 'tuples']) {
   assert.deepEqual(automatic.networkGraphs[0].data.devices[0].liveFacts, liveFacts);
   assert.deepEqual(placedDevices(automatic), [['ap', room.roomId]]);
   const automaticCard = deviceCard(automatic);
-  for (const text of ['Network source facts', '192.0.2.10', 'Stored on this device', STORED_NETWORK_QUALIFICATION, 'reviewed room mapping'])
+  for (const text of ['Network source facts', '192.0.2.10', 'Stored on this device', STORED_NETWORK_QUALIFICATION, 'reviewed room mapping',
+    '<dt>Reachability</dt>', 'Reachable', '2.5 ms · 0% loss', 'of 3 hours measured', 'Reachability: Reachable', 'from generated collector'])
     assert(automaticCard.includes(text), `automatic copy device card shows ${text}`);
+  assert(!automaticCard.includes('measured-reachability'), 'the reachability observation is worded, not its raw key and value');
   for (const at of ['2026-11-01T10:00:00Z', '2026-11-01T10:05:00Z', '2026-11-01T10:06:00Z', '2026-10-30T00:00:00Z', storedAt])
     assert(automaticCard.includes(`dateTime="${at}"`) || automaticCard.includes(`datetime="${at}"`), `automatic copy device card dates ${at}`);
   // Manually saved copy holding those bytes: the map network replaces the saved relations.
@@ -263,7 +268,7 @@ for (const variant of ['historical', 'tuples']) {
   assert(saved.records.sourceFacts.some(fact => fact.label.endsWith('map network stored on this device') && fact.value === storedAt));
   assert(!saved.reasons.some(reason => reason.includes('saved without a stored map network')));
   const savedCard = deviceCard(saved.records);
-  for (const text of ['Network source facts', 'Stored on this device', SAVED_NETWORK_QUALIFICATION]) assert(savedCard.includes(text), `saved copy device card shows ${text}`);
+  for (const text of ['Network source facts', 'Stored on this device', SAVED_NETWORK_QUALIFICATION, '<dt>Reachability</dt>', 'Reachable']) assert(savedCard.includes(text), `saved copy device card shows ${text}`);
   assert(savedCard.includes(storedAt) && savedCard.includes('2026-11-01T10:06:00Z'));
   // Stored for one building only: saved relations name no building, so they stay beside the stored network.
   const oneBuilding = await open(encodeStoredOverlays(scene, new Map([[room.buildingId, { storedAt, records }]])).slice().buffer);
@@ -293,7 +298,7 @@ for (const variant of ['historical', 'tuples']) {
   assert.equal(noNetwork.records.networkGraphs[0].data.links.length, 1, 'the saved relation stays in the graph');
   assert(noNetwork.records.unplaced.network.some(row => row.category === 'Recorded connection'), 'the saved relation stays unplaced');
   assert(noNetwork.reasons.some(reason => reason.includes('saved without a stored map network')));
-  console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts and their dates, the copy date and qualifier; another model or a stored frame without a network reads as a limited copy with its saved relations');
+  console.log('PASS saved and stored copies carry the map network: device placement from the reviewed room mapping, Network source facts with reachability and their dates, the copy date and qualifier; another model or a stored frame without a network reads as a limited copy with its saved relations');
 }
 {
   const pack = await generateSavedPack('partial', '1'.repeat(64), false, false, true);
