@@ -580,9 +580,7 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   if (panel && head && style && sheet) {
     const rect = panel.getBoundingClientRect();
     const whole = frame.width <= COMPACT_STAGE && panel.classList.contains('is-open') && rect.height <= frame.height * OPEN_SHEET;
-    // A phone's lens switch heads the closed sheet (over an open lens it is all the sheet shows).
-    const lenses = panel.querySelector(':scope > .ua-lens-switch');
-    const top = whole || (lenses && showing(lenses) && !panel.classList.contains('is-open')) ? rect.top
+    const top = whole ? rect.top
       : rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
     peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
   }
@@ -749,20 +747,17 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const [compact, setCompact] = useState(false);
   // The collapsed head can wrap at narrow widths or enlarged text sizes.
   // Keep the overlay band above its actual height rather than a fixed estimate.
-  // A phone's lens switch above the head belongs to the peek.
   useLayoutEffect(() => {
     const root = shell.current, head = root?.querySelector<HTMLElement>('.ua-sheet-head');
     if (!root || !head) return;
-    const lenses = root.querySelector<HTMLElement>('.ua-inspector > .ua-lens-switch');
     const measure = () => {
-      const box = head.getBoundingClientRect(), above = lenses && lenses.getClientRects().length > 0 ? lenses.getBoundingClientRect().top : box.top;
-      const height = box.height > 0 ? box.bottom - Math.min(above, box.top) : 0;
+      const height = head.getBoundingClientRect().height;
       if (height > 0) root.style.setProperty('--ua-peek', `${Math.ceil(height)}px`);
     };
     measure();
-    const observer = new ResizeObserver(measure); observer.observe(head); if (lenses) observer.observe(lenses);
+    const observer = new ResizeObserver(measure); observer.observe(head);
     return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
-  }, [selected, compact, Boolean(hostLens)]);
+  }, [selected, compact]);
   const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | 'camera' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
@@ -1511,21 +1506,13 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   const menuBlur = (which: 'view' | 'stack' | 'layers' | 'camera') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
-  // On a phone the host's lens row gives way to this one, the same three
-  // lenses at the top of the sheet: in the Rooms sheet, and over an open lens.
-  const chooseLens = (kind: 'places' | 'network' | null) => {
+  // Place records, at the end of the Rooms list, opens the host's places lens.
+  // On a phone the lens takes the sheet's place; the Rooms sheet returns folded.
+  const openPlaces = hostLens ? () => {
     setMenu(null);
-    if (kind === null) hostLens?.set(null);
-    // The lens takes the sheet's place; the Rooms sheet returns folded.
-    else if (lens?.kind !== kind) { setSheetOpen(false); hostLens?.set({ kind, reading: false }); }
-  };
-  const lensSwitch = hostLens && compact ? <div className="seg ua-lens-switch" role="group" aria-label="Atlas lens">
-    <button type="button" data-lens-return="" aria-pressed={lens === null} onClick={() => chooseLens(null)}><Icon name="atlas" size={16} />Map</button>
-    <button type="button" aria-pressed={lens?.kind === 'places'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('places')}>
-      <Icon name="rooms" size={16} />Rooms &amp; places</button>
-    <button type="button" aria-pressed={lens?.kind === 'network'} aria-controls={lens ? hostLens.panelId : undefined} onClick={() => chooseLens('network')}>
-      <Icon name="network" size={16} />Network</button>
-  </div> : null;
+    if (compact) setSheetOpen(false);
+    hostLens.set({ kind: 'places', reading: false });
+  } : undefined;
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
     if (menu === 'stack' && compact) { setMenu(null); stackHead.current?.focus({ preventScroll: true }); }
@@ -1798,7 +1785,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             openNetwork={environment.openNetwork && (() => {
               if (shortLayerDetails) setDrawer(null); environment.openNetwork?.();
             })}
-            graph={layer.kind === 'network' && graphs.length > 0 ? {
+            graph={layer.kind === 'network' && (lensGraph || graphs.length > 0) ? {
               id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
               toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
             } : null} />)}
@@ -1877,7 +1864,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
       electricalData={electricalOn ? environment.electricalData ?? runtime.electricalData.find(source => electricalGroup !== null
         && source.ledger.sceneEvidenceId === electricalGroup.source.sceneEvidenceId
         && source.ledger.sceneOriginalSha256 === electricalGroup.source.sceneOriginalSha256) : undefined}
-      lensSwitch={lensSwitch}
+      openPlaces={openPlaces}
       open={sheetOpen} setOpen={setSheetOpen} unnamed={unnamed} shownLevel={plan && planDrawn && state.levelId === null ? presentation.focusLevelId : null}
       openDocuments={environment.openDocuments} belongings={environment.roomBelongings}
       openNetwork={environment.openNetwork} />

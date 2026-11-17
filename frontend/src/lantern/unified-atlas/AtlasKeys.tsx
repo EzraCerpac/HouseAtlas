@@ -124,7 +124,7 @@ export function OverlayKey({ layer, openNetwork, availability, records, stored, 
           <span className="ua-coverage-state">{COVERAGE_TEXT[row[layer.kind]]}{row.reason !== 'available' ? `: ${row.reason}` : ''}</span></li>)}
       </ul>}
       {graph && <button type="button" className="ua-graph-open" aria-expanded={graph.open} aria-controls={graph.id} onClick={graph.toggle}>
-        <span className="ua-logical-swatch" aria-hidden="true" /><span>Logical network graph</span><Icon name="network" size={16} />
+        <span className="ua-logical-swatch" aria-hidden="true" /><span>Open network graph</span><Icon name="network" size={16} />
       </button>}
       {connectionCoverage && <p>3D lines show {connectionCoverage.links.anchored} of {connectionCoverage.links.total} logical connections at reviewed room summaries;
         {' '}{connectionCoverage.links.unplaced} have no complete room association. They do not show device positions or cable routes.
@@ -139,7 +139,7 @@ export function OverlayKey({ layer, openNetwork, availability, records, stored, 
           : <><ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>
             {!closed && layer.unplaced.map((row, at) => <PublishedUnplacedBinding key={at} binding={row.binding} reason={UNPLACED_LABEL[row.reason]} />)}</>}
       </details>}
-      {layer.kind === 'network' && openNetwork && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
+      {layer.kind === 'network' && openNetwork && !graph && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
     </div>
   </section>;
 }

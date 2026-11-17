@@ -465,12 +465,12 @@ try {
   assert.equal(atlasReads.length, 4, 'Four completed actual native topology list reads on Atlas entry');
   const placesResponseStart = nativeListResponses.length;
   await until(async () => await evaluate(`(() => {
-    const button = [...document.querySelectorAll('[aria-label="Atlas lens"] button')]
-      .find(button => button.textContent?.trim() === 'Rooms & places' && button.getClientRects().length);
+    const button = [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.trim() === 'Place records' && button.getClientRects().length);
     if (!button) return false;
     button.click();
     return true;
-  })()`), 'Visible Atlas Rooms & places lens');
+  })()`), 'Visible Atlas Place records');
   await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
   try {
     await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Actual foreground Places topology frame after matched snapshot reads');
