@@ -10,14 +10,14 @@ const root=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const scratch=mkdtempSync(join(tmpdir(),'network-live-facts-'));
 try {
   const entry=join(scratch,'entry.ts');
-  writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-collector.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))}\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-tests.ts'))};\nexport {InternetSpeed} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkTests.tsx'))};\nexport {networkCardContent} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkCard.tsx'))};`);
+  writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/integration/network-collector.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))}\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-tests.ts'))};\nexport {InternetSpeed,InternetSpeeds} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkTests.tsx'))};\nexport {networkCardContent} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkCard.tsx'))};`);
   // React stays external so the components share the one React that renders them.
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},rolldownOptions:{external:['react','react/jsx-runtime'],output:{codeSplitting:false}},minify:false}});
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,(Array.isArray(built)?built[0]:built).output.find(o=>o.type==='chunk'&&o.isEntry).code
     .replaceAll(JSON.stringify('react'),JSON.stringify(new URL('../node_modules/react/index.js',import.meta.url).href))
     .replaceAll(JSON.stringify('react/jsx-runtime'),JSON.stringify(new URL('../node_modules/react/jsx-runtime.js',import.meta.url).href)));
   const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND,
-    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,speedWithTest,latestSpeed,InternetSpeed,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
+    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,speedWithTests,latestSpeed,InternetSpeed,InternetSpeeds,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
   const {createElement}=await import(new URL('../node_modules/react/index.js',import.meta.url).href);
   const {renderToStaticMarkup}=await import(new URL('../node_modules/react-dom/server.node.js',import.meta.url).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,sha='a'.repeat(64),at='2026-01-01T00:00:00Z';
@@ -228,19 +228,40 @@ try {
   assert(testedBlock.includes('1.04 Gbit/s down · 3.0 Mbit/s up · 4.0 ms')&&!testedBlock.includes('12 Mbit/s down'),'Latest shows the tested run');
   assert(testedBlock.includes('Speed test: Completed<span')&&testedBlock.match(/Gbit\/s/g).length===1,'the answer line does not repeat the values');
   assert.equal(port.reads,1,'no second results GET');
-  const stored={latest:speed,recent:[speed]},tested=speedWithTest(stored,{action:{kind:'speed'},response:actionDecode({...complete,result:{...complete.result,result:fresh}}),answeredAt:at});
-  assert.deepEqual([tested.latest,tested.recent.at(-1),tested.recent.length,tested.tested],[tested.recent[1],fresh,2,true],'the tested run is the newest sparkline point');
-  for(const response of [failedSpeed,partial,{status:'busy',collectorStatus:409,reason:'busy'},{status:'refused',reason:'observations-expired'},{status:'timeout',reason:'outcome-unknown'},{status:'unavailable'},null]) {
-    const kept=speedWithTest(stored,{action:{kind:'speed'},response:response&&actionDecode(response),answeredAt:at});
-    assert.equal(kept.latest,speed,`${response?.status ?? 'no answer'} ${response?.result?.result?.state ?? ''} leaves Latest untouched`);assert.equal(kept.recent,stored.recent);
-  }
+  // Later tests never erase an earlier run: a timeout adds nothing, a failed run is kept as a gap, another measured run adds a point.
+  const speedAnswer=run=>actionDecode({...complete,result:{...complete.result,recordedAt:run.recordedAt,result:run}});
+  const answerSpeed=async response=>{assert.equal(store.run(scopeOf,{kind:'speed'}),true);port.pending.at(-1).resolve(actionDecode(response));await tick();await tick();return block();};
+  let later=await answerSpeed({status:'timeout',reason:'outcome-unknown'});
+  assert(later.includes('<dt>Last measured</dt><dd>1.04 Gbit/s down')&&later.includes('Speed test: Timed out, outcome unknown'),'a timeout keeps the earlier tested run as Last measured');
+  for(const response of [{status:'busy',collectorStatus:409,reason:'busy'},{status:'refused',reason:'observations-expired'},{status:'unavailable'}]) assert((await answerSpeed(response)).includes('<dt>Last measured</dt><dd>1.04 Gbit/s down'));
+  const second={...speed,recordedAt:'2026-01-03T00:00:00Z',downloadBitsPerSecond:2e9};
+  later=await answerSpeed(speedAnswer(second));
+  assert(later.includes('<dt>Last measured</dt><dd>2.00 Gbit/s down')&&later.includes(': 3 of 3 runs measured'),'a second test keeps the first test\'s run in the history');
+  const failedRun={...speed,state:'failed',recordedAt:'2026-01-04T00:00:00Z',downloadBitsPerSecond:9e8,reason:'tool-error'};
+  later=await answerSpeed(speedAnswer(failedRun));
+  assert(later.includes('<dt>Last measured</dt><dd>2.00 Gbit/s down')&&later.includes('Newest run: Failed, the speed tool reported an error')&&later.includes(': 3 of 4 runs measured'),'a failed tested run stays a gap and never becomes Last measured');
+  assert(later.includes('Speed test: Failed, the speed tool reported an error · 900 Mbit/s down'),'its answer line still states the failure');
+  assert.deepEqual(store.snapshot().speedRuns.get(JSON.stringify([U(1),U(2),U(3),'synthetic'])).map(run=>run.recordedAt),[fresh.recordedAt,second.recordedAt,failedRun.recordedAt]);
+  assert.equal(port.reads,1,'still one results GET');
+  // A full newest-first stored history keeps the 30 newest runs in time order when a test adds one.
+  const full=Array.from({length:30},(_,i)=>night(29-i)),added=night(30),merged=speedWithTests({latest:full[0],recent:full},[added]).recent;
+  assert.equal(merged.length,30);assert.equal(merged.at(-1),added);assert.equal(merged.at(-2),full[0],'the newest stored run is kept');
+  assert(!merged.includes(full[29]),'the oldest stored run is dropped');assert.deepEqual(merged.map(run=>run.recordedAt),[...merged.map(run=>run.recordedAt)].sort());
+  assert.equal(speedWithTests({latest:speed,recent:[speed]},[]).recent.length,1,'no tested runs: the stored runs as read');
+  // Several collector sources stay told apart, by collection where their source names repeat; one answering source needs no name.
+  const otherScope={...scopeOf,collectionId:'second'},blocks=answers=>{const two={canTest:()=>false,read:async scope=>answers[scope.collectionId],act:()=>new Promise(()=>{})},owned=createCollectorStore(two);
+    owned.ensure(scopeOf);owned.ensure(otherScope);return tick().then(tick).then(()=>renderToStaticMarkup(createElement(InternetSpeeds,{collector:{port:two,store:owned},rows:[{scope:scopeOf,label:'Generated network'},{scope:otherScope,label:'Generated network'}]})));};
+  const both=await blocks({synthetic:resultDecode(result),second:resultDecode(result)});
+  assert(both.includes('aria-label="Internet speed, Generated network · synthetic"')&&both.includes('aria-label="Internet speed, Generated network · second"'),'colliding source names keep their collection');
+  const oneSource=await blocks({synthetic:resultDecode(result),second:{status:'unavailable'}});
+  assert(oneSource.includes('aria-label="Internet speed"')&&!oneSource.includes('· second'),'one answering source: the short heading');
   role.editor=false;const viewerBlock=block();
   assert(!viewerBlock.includes('Test speed now')&&!viewerBlock.includes('role="status"')&&viewerBlock.includes('Wi-Fi scan unavailable on this collector'),'a viewer reads speed without the test');
   const noWifi=structuredClone(result);noWifi.results.wifi.latest=null;noWifi.results.speed={latest:null,recent:[]};
   const quiet=fakePort(resultDecode(noWifi)),quietStore=createCollectorStore(quiet);quietStore.ensure(scopeOf);await tick();await tick();
   const quietBlock=renderToStaticMarkup(createElement(InternetSpeed,{collector:{port:quiet,store:quietStore},scope:scopeOf,label:null}));
   assert(quietBlock.includes('No speed run supplied')&&!quietBlock.includes('Wi-Fi')&&!quietBlock.includes('<svg'),'no runs supplied: said, no chart or Wi-Fi frame');
-  store.dispose();assert.equal(store.run(scopeOf,{kind:'speed'}),false,'a dropped store sends nothing');assert.equal(port.posts.length,3);
+  store.dispose();assert.equal(store.run(scopeOf,{kind:'speed'}),false,'a dropped store sends nothing');assert.equal(port.posts.length,9);
   // A viewer's card says why reachability is withheld (from the frame's own facts) and reads no collector results.
   const viewerPort=fakePort(resultDecode(result),{editor:false}),viewerStore=createCollectorStore(viewerPort);
   const viewerCard=deviceCard(decode(withheld).devices[0].liveFacts,{port:viewerPort,store:viewerStore});

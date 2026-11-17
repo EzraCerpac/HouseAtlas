@@ -28,6 +28,8 @@ export interface CollectorSnapshot {
   readonly running: { readonly scope: string; readonly action: CollectorAction } | null;
   /** The latest answer per device, and for the speed test. */
   readonly outcomes: ReadonlyMap<string, ActionOutcome>;
+  /** Every run this browser's completed speed tests returned, per scope, whatever its state. */
+  readonly speedRuns: ReadonlyMap<string, readonly SpeedResult[]>;
 }
 export interface CollectorStore {
   readonly snapshot: () => CollectorSnapshot;
@@ -51,7 +53,7 @@ export function collectorResults(snapshot: CollectorSnapshot, scope: CollectorSc
 /** One store per Network layer showing: at most one results GET per scope,
  * and one action at a time. Nothing is read until a card or the key asks. */
 export function createCollectorStore(port: NetworkCollectorPort, now: () => string = () => new Date().toISOString()): CollectorStore {
-  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map() };
+  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map(), speedRuns: new Map() };
   let disposed = false;
   const listeners = new Set<() => void>(), controller = new AbortController();
   const set = (next: CollectorSnapshot) => { if (disposed) return; state = next; for (const changed of [...listeners]) changed(); };
@@ -71,8 +73,11 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
     run(scope, action) {
       if (disposed || state.running) return false;
       set({ ...state, running: { scope: scopeKey(scope), action } });
-      send(() => port.act(scope, action)).then(response => response, () => null).then(response => set({
-        ...state, running: null, outcomes: new Map(state.outcomes).set(outcomeKey(scope, action), { action, response, answeredAt: now() }) }));
+      send(() => port.act(scope, action)).then(response => response, () => null).then(response => {
+        const key = scopeKey(scope), run = response?.status === 'completed' && response.result.kind === 'speed' ? response.result.result : null;
+        set({ ...state, running: null, outcomes: new Map(state.outcomes).set(outcomeKey(scope, action), { action, response, answeredAt: now() }),
+          speedRuns: run ? new Map(state.speedRuns).set(key, [...state.speedRuns.get(key) ?? [], run]) : state.speedRuns });
+      });
       return true;
     },
     dispose() { disposed = true; listeners.clear(); controller.abort(); },
@@ -147,14 +152,11 @@ export function outcomeText(outcome: ActionOutcome): { readonly text: string; re
   }
 }
 
-/** The stored runs, with a measured run from this browser's completed speed
- * test as the latest (the action's own answer; no further read). Any other
- * answer, failed or unknown runs included, leaves the runs as read. */
-export function speedWithTest(speed: { readonly latest: SpeedResult | null; readonly recent: readonly SpeedResult[] }, outcome: ActionOutcome | undefined) {
-  const response = outcome?.response;
-  const run = response?.status === 'completed' && response.result.kind === 'speed' && response.result.result.state === 'measured' ? response.result.result : null;
-  if (!run || (speed.latest && Date.parse(speed.latest.recordedAt) > Date.parse(run.recordedAt))) return { latest: speed.latest, recent: speed.recent, tested: false };
-  return { latest: run, recent: [...speed.recent, run].slice(-30), tested: true };
+/** The stored runs plus the runs this browser's speed tests returned (their
+ * own answers; no further read), in time order, keeping the 30 newest. A test
+ * without a run (busy, refused, timed out) adds nothing and removes nothing. */
+export function speedWithTests(speed: { readonly latest: SpeedResult | null; readonly recent: readonly SpeedResult[] }, tested: readonly SpeedResult[]) {
+  return { latest: speed.latest, recent: [...speed.recent, ...tested].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)).slice(-30) };
 }
 
 /** A run's download only when the run was measured: a failed or unknown run

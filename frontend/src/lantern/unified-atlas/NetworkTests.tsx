@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { actionLabel, collectorResults, outcomeKey, outcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTest, latestSpeed, runStateText, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, outcomeKey, outcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -55,14 +55,28 @@ export function DeviceTestRow({ collector, target }: { readonly collector: Netwo
   </dd></div>;
 }
 
+/** One speed block per Network source whose collector answered. Several are
+ * named by their source, and by the collection where source names repeat. */
+export function InternetSpeeds({ collector, rows }: { readonly collector: NetworkCollector; readonly rows: readonly { readonly scope: CollectorScope; readonly label: string }[] }) {
+  const snapshot = useSyncExternalStore(collector.store.subscribe, collector.store.snapshot, collector.store.snapshot);
+  useEffect(() => { for (const row of rows) collector.store.ensure(row.scope); });
+  const shown = rows.filter(row => collectorResults(snapshot, row.scope));
+  const distinct = new Set(shown.map(row => row.label)).size === shown.length;
+  return shown.map(row => <InternetSpeed key={scopeKey(row.scope)} collector={collector} scope={row.scope}
+    label={shown.length < 2 ? null : distinct ? row.label : `${row.label} · ${row.scope.collectionId}`} />);
+}
+
 /** The host's internet speed from the collector's runs, the Wi-Fi scan state,
  * and the speed test for Editors. A host measurement, not one device's. */
 export function InternetSpeed({ collector, scope, label }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly label: string | null }) {
   const snapshot = useCollector(collector, scope);
   const read = collectorResults(snapshot, scope);
   if (!read?.results) return null;
-  const { wifi } = read.results, speed = speedWithTest(read.results.speed, snapshot.outcomes.get(outcomeKey(scope, { kind: 'speed' })));
+  const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
+  // The answer line repeats nothing when its run is the one shown as Last measured.
+  const answer = snapshot.outcomes.get(outcomeKey(scope, { kind: 'speed' }))?.response;
+  const shownAbove = answer?.status === 'completed' && answer.result.kind === 'speed' && answer.result.result === shown.measured;
   return <section className="ua-net-speed" aria-label={label ? `Internet speed, ${label}` : 'Internet speed'}>
     <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>
     <dl className="ua-facts">
@@ -77,7 +91,7 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
-      <Answer collector={collector} scope={scope} action={{ kind: 'speed' }} own={action => action.kind === 'speed'} brief={speed.tested} />
+      <Answer collector={collector} scope={scope} action={{ kind: 'speed' }} own={action => action.kind === 'speed'} brief={shownAbove} />
     </>}
     {wifi.latest && <p className="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>}
   </section>;

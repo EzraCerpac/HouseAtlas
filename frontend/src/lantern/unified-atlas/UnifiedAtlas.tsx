@@ -45,7 +45,7 @@ import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './
 import { NetworkStageConnections, networkRoomConnections, networkStubEnd, networkStubLength, type NetworkDeviceAnchor } from './NetworkStageConnections';
 import { admittedNetworkDevices, NETWORK_GLYPHS, networkGlyphOffset, networkGlyphSlot, networkGlyphSlots, networkUnplacedReason } from './network-map';
 import { linkTouches, networkCardContent, type NetworkFocus } from './NetworkCard';
-import { InternetSpeed, type NetworkCollector } from './NetworkTests';
+import { InternetSpeeds, type NetworkCollector } from './NetworkTests';
 import { createCollectorStore, scopeKey } from './network-tests';
 import { networkConnectionNodeKey } from './network-connections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
@@ -766,8 +766,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const scopes = new Map<string, { readonly scope: NonNullable<NetworkOverlayDevice['liveFacts']>['source']; readonly label: string }>();
     for (const graph of graphs) if (!graph.storedAt) for (const device of graph.data.devices) if (device.liveFacts && !scopes.has(scopeKey(device.liveFacts.source)))
       scopes.set(scopeKey(device.liveFacts.source), { scope: device.liveFacts.source, label: graph.data.source.label });
-    const rows = [...scopes.values()], named = new Set(rows.map(row => row.label)).size > 1;
-    return rows.map(row => ({ ...row, label: named ? row.label : null }));
+    return [...scopes.values()];
   }, [graphs]);
   const hostLens = environment.lens;
   const lens = hostLens?.value ?? null;
@@ -1939,7 +1938,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             network={layer.kind === 'network' && graphs.length > 0 ? { devices: networkConnections.coverage.devices.total, unplaced: unplacedDevices,
               open: key => { if (shortLayerDetails) setDrawer(null); setNetFocus({ kind: 'device', key }); },
               graph: { id: graphId, open: showGraph, toggle: () => { if (shortLayerDetails) setDrawer(null); toggleGraph(); } },
-              speed: collector && collectorScopes.map(row => <InternetSpeed key={scopeKey(row.scope)} collector={collector} scope={row.scope} label={row.label} />) } : null} />)}
+              speed: collector && collectorScopes.length > 0 && <InternetSpeeds collector={collector} rows={collectorScopes} /> } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floor plans">
