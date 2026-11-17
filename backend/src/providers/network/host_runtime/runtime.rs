@@ -160,7 +160,7 @@ impl HostNetworkRuntime {
         cancellation: CancellationToken,
         clock: C,
     ) -> Result<RefreshResult> {
-        let mut prior_quarantined = false;
+        let mut prior_quarantined = None;
         self.refresh_inner(
             core,
             authority,
@@ -180,11 +180,12 @@ impl HostNetworkRuntime {
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
         clock: C,
-    ) -> (Result<RefreshResult>, bool) {
+    ) -> (Result<RefreshResult>, Option<bool>) {
+        // None means no baseline was captured, not a cache known to be clear.
         // Carry the actual captured baseline through failed attempts. A caller
         // must not infer durable quarantine from requesting recovery or perform
         // a fallible read after a definite publication receipt.
-        let mut prior_quarantined = false;
+        let mut prior_quarantined = None;
         let outcome = self
             .refresh_inner(
                 core,
@@ -204,7 +205,7 @@ impl HostNetworkRuntime {
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
         mut clock: C,
-        (review_preflight, prior_quarantined): (bool, &mut bool),
+        (review_preflight, prior_quarantined): (bool, &mut Option<bool>),
     ) -> Result<RefreshResult> {
         cancelled(&cancellation)?;
         if lease.source().registration() != self.settings.configured_source().registration() {
@@ -227,11 +228,13 @@ impl HostNetworkRuntime {
         let prepared = Arc::new(with_store(core, &lease.access, |store| {
             PreparedPublication::prepare(store, lease.clone(), self.settings.source())
         })?);
-        *prior_quarantined = prepared
-            .baseline()
-            .cache
-            .as_ref()
-            .is_some_and(cache_quarantined);
+        *prior_quarantined = Some(
+            prepared
+                .baseline()
+                .cache
+                .as_ref()
+                .is_some_and(cache_quarantined),
+        );
         *self.read_hold.lock().map_err(|_| unavailable())? = Some(prepared.read_hold());
         *self.pending.lock().map_err(|_| unavailable())? = Some(PendingPublication {
             prepared: prepared.clone(),

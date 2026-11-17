@@ -438,6 +438,12 @@ If the original authorized failure transaction commits,
 its existing durable quarantine survives reopen.
 Failed recovery responses retain the captured durable quarantine fact,
 even after reopen when there is no new RAM hold.
+Before baseline capture, status remains unknown unless a definite denial or
+committed receipt establishes it.
+An unknown failure, including registration failure, returns HTTP 503;
+the existing client reports an unavailable/unknown outcome instead of false.
+Known false/true facts after capture and committed success receipts are preserved,
+with no additional cache read.
 Mounted relation lists and offline packs withhold only the held partition
 while qualifying other partitions and retaining their final release checks.
 If expiry/revocation or contention prevents that transaction,

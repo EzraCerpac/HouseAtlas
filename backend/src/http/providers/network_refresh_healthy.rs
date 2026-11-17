@@ -1377,3 +1377,144 @@ async fn failed_revalidation_reports_durable_quarantine_after_reopen() -> Result
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn uncaptured_quarantine_after_reopen_is_unavailable_without_a_definite_hold() -> Result<()> {
+    use crate::http::providers::network_refresh;
+    let mut f = fixture_setup(
+        false,
+        true,
+        false,
+        FixtureSetup {
+            revalidation: true,
+            ..Default::default()
+        },
+    )
+    .await?;
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    f.inventory
+        .as_ref()
+        .unwrap()
+        .mode
+        .store(3, Ordering::SeqCst);
+    assert_eq!(refresh(&f).await?.1["quarantined"], true);
+    for reopened in [false, true] {
+        if reopened {
+            f = reopen_with_review(f, 42).await?;
+        }
+        let before = cache(&f)?;
+        assert_eq!(before["caches"][0]["status"], "access-revoked");
+        let binding = &f.host.network_bindings[0];
+        assert_eq!(binding.runtime().cache_reads_held(), !reopened);
+        let principal = f
+            .host
+            .core
+            .lock()
+            .unwrap()
+            .access
+            .lock()
+            .unwrap()
+            .authorize(
+                &a::RequestEvidence {
+                    method: a::Method::Post,
+                    url: &format!("{ORIGIN}{}", path()),
+                    origin: Some(ORIGIN),
+                    sec_fetch_site: Some("same-origin"),
+                    referer: None,
+                    cookie: Some(&f.cookie),
+                    authorization: None,
+                    csrf: Some(&f.csrf),
+                },
+                &a::Scope {
+                    workspace_id: a::CanonicalId::parse(&id(1))?,
+                    home_id: a::CanonicalId::parse(&id(2))?,
+                },
+                a::Action::Mutate,
+            )?;
+        let source = binding.runtime().settings().configured_source();
+        let partition = binding
+            .access()
+            .partition_grant(&principal, &source.partition())?;
+        let entities = binding
+            .entities()
+            .iter()
+            .map(|r| binding.access().source_grant(&principal, r))
+            .collect::<a::AccessResult<Vec<_>>>()?;
+        let lease =
+            binding
+                .access()
+                .retain_revalidation(principal, source.clone(), partition, entities)?;
+        let authority = n::host_runtime::NetworkAuthority::new(
+            lease.clone(),
+            &binding.runtime().settings().transport(),
+            None,
+        )?;
+        let calls = f.inventory.as_ref().unwrap().calls.lock().unwrap().len();
+        let custody = binding.runtime().test_archive_custody();
+        // Genuine authority is captured first. Core contention then refuses
+        // the initial Store preparation, before any baseline or GET exists.
+        let core = f.host.core.lock().unwrap();
+        let (outcome, prior) = binding
+            .runtime()
+            .refresh_reviewed(
+                &f.host.core,
+                authority,
+                lease,
+                tokio_util::sync::CancellationToken::new(),
+                || crate::app::now().unwrap(),
+            )
+            .await;
+        assert!(
+            matches!(&outcome,Err(n::NetworkPublicationError::Storage(e)) if e.code=="upstream-unavailable")
+        );
+        assert_eq!(prior, None);
+        drop(core);
+        let reply = network_refresh::response(outcome, prior, binding.runtime().cache_reads_held());
+        if reopened {
+            let error = reply
+                .err()
+                .expect("Uncaptured status cannot claim quarantined:false");
+            assert_eq!(error.status, StatusCode::SERVICE_UNAVAILABLE);
+            let body = to_bytes(
+                error.response("synthetic-unknown".into()).into_body(),
+                1024 * 1024,
+            )
+            .await?;
+            let value: Value = serde_json::from_slice(&body)?;
+            assert!(value.get("quarantined").is_none());
+        } else {
+            let reply = reply.map_err(|e| format!("Definite hold lost: {}", e.status))?;
+            let value: Value =
+                serde_json::from_slice(&to_bytes(reply.into_body(), 1024 * 1024).await?)?;
+            assert_eq!(value["quarantined"], true);
+        }
+        assert_eq!(
+            f.inventory.as_ref().unwrap().calls.lock().unwrap().len(),
+            calls
+        );
+        assert_eq!(binding.runtime().test_archive_custody(), custody);
+        assert_eq!(cache(&f)?, before);
+    }
+    // An early registration failure also has no captured cache fact. Exercise
+    // the mounted branch with disabled Access registration and a disposable
+    // SQLite writer lock, without changing the durable quarantine/projections.
+    let binding = &f.host.network_bindings[0];
+    binding
+        .access()
+        .shared()
+        .as_existing()
+        .lock()
+        .unwrap()
+        .set_source_enabled(
+            &binding.runtime().settings().configured_source().partition(),
+            false,
+        )?;
+    let db = rusqlite::Connection::open(fs::canonicalize(f._root.path())?.join("atlas.sqlite"))?;
+    db.execute_batch("BEGIN IMMEDIATE")?;
+    let (status, failed) = refresh(&f).await?;
+    db.execute_batch("ROLLBACK")?;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{failed}");
+    assert!(failed.get("quarantined").is_none());
+    Ok(())
+}

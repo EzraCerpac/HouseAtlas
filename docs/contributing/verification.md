@@ -6563,7 +6563,7 @@ nor inventory provisioning or G1–G5 acceptance.
 
 ### Named-Editor Network inventory refresh
 
-The default backend-library selection adds thirteen cases under
+The default backend-library selection adds fourteen cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
@@ -6577,7 +6577,8 @@ The default backend-library selection adds thirteen cases under
 `deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery`,
 `stale_deferred_failure_retires_without_replaying_metadata`,
 `durable_quarantine_recovery_preserves_reviewed_inventory_baseline`,
-and `failed_revalidation_reports_durable_quarantine_after_reopen`.
+`failed_revalidation_reports_durable_quarantine_after_reopen`,
+and `uncaptured_quarantine_after_reopen_is_unavailable_without_a_definite_hold`.
 The existing persistent profile selection adds
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 These exercise genuine native Access/Store/sidecar/archive owners
@@ -6659,6 +6660,11 @@ withheld A data and the existing authentication/release path.
 The durable-reopen case checks Network and Storage failure responses against
 both a quarantined and a fresh baseline, with no new RAM hold,
 then verifies the successful fresh publication receipt.
+The uncaptured-baseline case then refuses initial Store preparation under Core
+contention, before any GET, both with a definite RAM hold and after durable reopen.
+The shared HTTP response path preserves the definite hold but reports HTTP 503
+when the baseline is unknown; a mounted registration failure also returns 503.
+Cache facts, archive custody and collector call counts remain unchanged.
 The existing root-router TLS loopback selection retains its original one-GET
 contract, deadlines and assertions; only the Editor entry performs preflight.
 

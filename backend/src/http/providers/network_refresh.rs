@@ -60,7 +60,7 @@ pub(in crate::http) async fn refresh(
         // remains governed by the original ConfigureSource owner and Access policy.
         if !revalidate && binding.access().partition_grant(original, &configured.partition()).is_err()
             && binding.access().configure(&host.core, original, configured).is_err() {
-            return Ok(json_response(json!({"status":"failed","reason":"registration-unavailable","quarantined":false})));
+            return Ok(json_response(json!({"status":"failed","reason":"registration-unavailable","quarantined":quarantine_status(None, binding.runtime().cache_reads_held())?})));
         }
         let lease = (|| {
             let partition = binding.access().partition_grant(original, &configured.partition())?;
@@ -78,21 +78,51 @@ pub(in crate::http) async fn refresh(
             .map_err(|_| unavailable())?;
         let clock = || crate::app::now().unwrap_or_default();
         let (outcome, prior_quarantined) = runtime.block_on(binding.runtime().refresh_reviewed(&host.core, authority, lease, CancellationToken::new(), clock));
-        let quarantined = prior_quarantined || binding.runtime().cache_reads_held();
-        // Return the native committed receipt without a fallible post-commit
-        // disclosure/read that could hide a successful publication.
-        let value = match outcome {
-            Ok(RefreshResult::Published { cache, source_revision, unchanged }) => json!({
-                "status":if unchanged {"unchanged"} else {"refreshed"}, "inventoryRevision":source_revision, "cache":cache_facts(&cache)
-            }),
-            Ok(RefreshResult::AlreadyRunning) => json!({"status":"running"}),
-            Ok(RefreshResult::NeedsReview { reviewed_revision, collector_revision }) => json!({"status":"needs-review", "reviewedInventoryRevision":reviewed_revision, "collectorInventoryRevision":collector_revision}),
-            Ok(RefreshResult::SourceFailure(cache)) => json!({"status":"failed", "reason":cache.error.as_ref().map(|e| e.code), "quarantined":quarantined || cache.status == crate::storage::CacheState::AccessRevoked, "cache":cache_facts(&cache)}),
-            Err(n::NetworkPublicationError::Network(e)) => json!({"status":"failed","reason":e.code,"quarantined":quarantined}),
-            Err(n::NetworkPublicationError::Storage(e)) => json!({"status":"failed","reason":e.code,"quarantined":quarantined || e.code == "access-revoked"}),
-        };
-        Ok(json_response(value))
+        response(outcome, prior_quarantined, binding.runtime().cache_reads_held())
     }).await.map_err(|_| unavailable())?
+}
+
+// A missing baseline is unknown. Only a definite denial/receipt can qualify a
+// failure without it; otherwise the existing HTTP error leaves outcome unknown.
+fn quarantine_status(prior: Option<bool>, denied: bool) -> Result<bool, crate::http::HttpFailure> {
+    if denied {
+        Ok(true)
+    } else {
+        prior.ok_or_else(unavailable)
+    }
+}
+pub(super) fn response(
+    outcome: Result<RefreshResult, n::NetworkPublicationError<crate::storage::Error>>,
+    prior_quarantined: Option<bool>,
+    held: bool,
+) -> HttpResult {
+    // Success uses its definite committed receipt without another cache read.
+    let value = match outcome {
+        Ok(RefreshResult::Published {
+            cache,
+            source_revision,
+            unchanged,
+        }) => json!({
+            "status":if unchanged {"unchanged"} else {"refreshed"}, "inventoryRevision":source_revision, "cache":cache_facts(&cache)
+        }),
+        Ok(RefreshResult::AlreadyRunning) => json!({"status":"running"}),
+        Ok(RefreshResult::NeedsReview {
+            reviewed_revision,
+            collector_revision,
+        }) => {
+            json!({"status":"needs-review", "reviewedInventoryRevision":reviewed_revision, "collectorInventoryRevision":collector_revision})
+        }
+        Ok(RefreshResult::SourceFailure(cache)) => {
+            json!({"status":"failed", "reason":cache.error.as_ref().map(|e| e.code), "quarantined":held || prior_quarantined == Some(true) || cache.status == crate::storage::CacheState::AccessRevoked, "cache":cache_facts(&cache)})
+        }
+        Err(n::NetworkPublicationError::Network(e)) => {
+            json!({"status":"failed","reason":e.code,"quarantined":quarantine_status(prior_quarantined, held)?})
+        }
+        Err(n::NetworkPublicationError::Storage(e)) => {
+            json!({"status":"failed","reason":e.code,"quarantined":quarantine_status(prior_quarantined, held || e.code == "access-revoked")?})
+        }
+    };
+    Ok(json_response(value))
 }
 
 fn cache_facts(cache: &crate::storage::CacheStatus) -> serde_json::Value {

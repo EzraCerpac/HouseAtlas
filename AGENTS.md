@@ -193,7 +193,7 @@ acceptance is exercised by these cases; no CI run step is added.
 
 ## Named-Editor Network inventory refresh
 
-The default backend-library lane additionally discovers thirteen cases under
+The default backend-library lane additionally discovers fourteen cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
@@ -207,7 +207,8 @@ The default backend-library lane additionally discovers thirteen cases under
 `deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery`,
 `stale_deferred_failure_retires_without_replaying_metadata`,
 `durable_quarantine_recovery_preserves_reviewed_inventory_baseline`,
-and `failed_revalidation_reports_durable_quarantine_after_reopen`.
+`failed_revalidation_reports_durable_quarantine_after_reopen`,
+and `uncaptured_quarantine_after_reopen_is_unavailable_without_a_definite_hold`.
 The existing persistent profile selection also discovers
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 They use a test-only fake inventory HTTP leaf, generated Viewer/Editors,
@@ -255,6 +256,11 @@ withheld A data and the existing authentication/release path.
 The durable-reopen case checks Network and Storage failure responses against
 both a quarantined and a fresh baseline, with no new RAM hold,
 then verifies the successful fresh publication receipt.
+The uncaptured-baseline case then refuses initial Store preparation under Core
+contention, before any GET, both with a definite RAM hold and after durable reopen.
+The shared HTTP response path preserves the definite hold but reports HTTP 503
+when the baseline is unknown; a mounted registration failure also returns 503.
+Cache facts, archive custody and collector call counts remain unchanged.
 The existing root-router TLS fixture keeps its one-GET contract and deadlines.
 The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
 typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
