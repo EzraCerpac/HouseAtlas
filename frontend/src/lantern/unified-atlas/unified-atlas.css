@@ -2219,6 +2219,20 @@
   gap: 8px;
 }
 
+/* The host's lens openers under a state, while the stage is not shown. */
+.lantern-host .ua-state:has(+ .ua-lens-openers) { margin-bottom: 12px; }
+.lantern-host .ua-lens-openers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto clamp(32px, 12vh, 120px);
+}
+
+@media (max-width: 759px), (pointer: coarse) {
+  .lantern-host .ua-lens-openers > .chip-btn { min-width: 44px; min-height: 44px; }
+}
+
 .lantern-host .ua-spinner {
   width: 18px;
   height: 18px;

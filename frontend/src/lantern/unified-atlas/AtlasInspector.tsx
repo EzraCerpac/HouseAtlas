@@ -84,9 +84,9 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
   const press = useRef<{ y: number; swiped: boolean } | null>(null);
   // Shown only while the panel is a sheet. A whole-head opener spans the head
   // under its grabber: a tap opens or closes it, a swipe up opens and down closes.
-  // The Rooms sheet's opener is where focus returns from a lens opened by the folded sheet.
+  // The sheet's opener is where focus returns from a lens whose opener is no longer shown.
   const toggle = (noun: string, whole = false) => <button type="button" className={`ua-sheet-toggle${whole ? ' is-whole' : ''}`}
-    aria-expanded={open} aria-controls={bodyId} data-lens-return={whole ? '' : undefined}
+    aria-expanded={open} aria-controls={bodyId} data-lens-return=""
     onPointerDown={whole ? event => { event.currentTarget.setPointerCapture(event.pointerId); press.current = { y: event.clientY, swiped: false }; } : undefined}
     onPointerUp={whole ? event => {
       const dy = press.current ? event.clientY - press.current.y : 0;

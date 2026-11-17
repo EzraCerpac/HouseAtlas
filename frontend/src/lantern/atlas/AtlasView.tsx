@@ -164,8 +164,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // on return without the record that began it.
   useEffect(() => () => { const claim = byRecord.current; if (claim) releaseReading(claim); }, []);
   // Opening a lens, or changing it, takes focus to its heading; closing it
-  // returns focus to what opened it when that is still shown, else (a phone's
-  // folded Rooms sheet) to the map's own return control.
+  // returns focus to what opened it when that is still shown, else (on a
+  // phone) to the room sheet's opener.
   const shownBefore = useRef<string | null>(null);
   useLayoutEffect(() => {
     const before = shownBefore.current; shownBefore.current = kindOpen;
@@ -208,7 +208,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // The sheet is always this one element: its width, the room the Atlas has
   // beside the details column, decides the arrangement below.
   return <div ref={sheet} className="atlas-sheet">
-    {/* Without a house model there is no Rooms list or Network layer to open a lens from. */}
+    {/* Without a house model there is no Rooms list or Network layer to open a lens from;
+        a model not yet shown has its own openers in the Atlas's state. */}
     {(kind === 'document' || sources) && <div className="atlas-bar">
       {kind === 'document' && <>
         <button type="button" className="chip-btn" onClick={() => choose('places')}><Icon name="rooms" size={15} />Place records</button>

@@ -201,6 +201,16 @@ function useRoomBelongings(records: AtlasProps['buildingRecords'], projection: R
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
   return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
+/** Until the stage mounts with its own openers (Place records in the Rooms
+ * list, the graph opener in the Network key), the host's lenses open here. */
+function LensOpeners({ lens }: { readonly lens: AtlasLensHost | undefined }) {
+  if (!lens) return null;
+  const open = (kind: 'places' | 'network') => { if (lens.value?.kind !== kind) lens.set({ kind, reading: false }); };
+  return <div className="ua-lens-openers">
+    <button type="button" className="chip-btn" onClick={() => open('places')}><Icon name="rooms" size={15} />Place records</button>
+    <button type="button" className="chip-btn" onClick={() => open('network')}><Icon name="network" size={15} />Network</button>
+  </div>;
+}
 function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
   const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
@@ -375,12 +385,14 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   const keepLight = useCallback(() => setDetail(value => value && { ...value, model: null, failed: true }), []);
 
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
+    <LensOpeners lens={environment.lens} />
     <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
   // A retry keeps a stored copy on screen while it runs.
   const outcome = loaded && loaded.selection === selection && (loaded.attempt === attempt
     || loaded.outcome.status === 'ready' && loaded.outcome.stored) ? loaded.outcome : null;
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
+    <LensOpeners lens={environment.lens} />
     <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
   </section>;
   if (outcome.status === 'held') return <section className="ua-shell" aria-label="Atlas">
@@ -389,6 +401,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
       <p>The room map is not on this device yet.</p>
       <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>Download room map</button></div>
     </div>
+    <LensOpeners lens={environment.lens} />
   </section>;
   if (outcome.status === 'failed') {
     const failure = FAILURE[outcome.reason];
@@ -398,6 +411,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         <p>{failure.text}</p>
         {failure.retry && <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button></div>}
       </div>
+      <LensOpeners lens={environment.lens} />
     </section>;
   }
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
