@@ -142,7 +142,6 @@ header authority refusals, command bounds/cleanup and cross-hour sample indexing
 no real command, listener, private inventory or G1–G5 acceptance is exercised.
 The measurements contract and explicit limits live in the tool README.
 
-
 The default backend-library selection additionally discovers the six
 `providers::network::collector::tests::healthy_collector_*` cases.
 They use generated documents, a loopback-free injected GET peer and pure

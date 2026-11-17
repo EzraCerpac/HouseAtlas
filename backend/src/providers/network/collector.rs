@@ -333,9 +333,6 @@ impl Snapshot {
                 .hourly7d
                 .iter()
                 .filter(|h| stamp(&h.hour).is_ok_and(|at| at <= now_ms))
-                .rev()
-                .take(48)
-                .rev()
                 .map(|h| json!({"hour":h.hour,"latencyMs":h.mean_ms,"loss":h.loss}))
                 .collect::<Vec<_>>()
         } else {
@@ -500,7 +497,7 @@ mod tests {
         s.apply("device-a", AT, &mut f).unwrap();
         assert_eq!(f["status"], "available");
         assert_eq!(f["latencyMs"], 2.5);
-        assert_eq!(f["loss"], 0);
+        assert_eq!(f["loss"].as_f64(), Some(0.));
         assert_eq!(f["lastSeenAt"], AT);
         assert_eq!(f["retrievedAt"], AT);
         assert_eq!(f["recentSeries"][0]["latencyMs"], 2.5);
@@ -535,7 +532,7 @@ mod tests {
         assert_eq!(f["status"], "available");
         assert_eq!(f["observedState"][0]["value"]["state"], "no-reply");
         assert_eq!(f["lastSeenAt"], Value::Null);
-        assert_eq!(f["loss"], 1);
+        assert_eq!(f["loss"].as_f64(), Some(1.));
         for health in [None,Some(b"{}".as_slice()),Some(b"{\"version\":1,\"ok\":false,\"collector\":{\"lastCycleAt\":null,\"guardOutcome\":\"unknown\",\"schemaVersion\":1}}".as_slice())] {
             snapshot(&b,health).unwrap().apply("device-a",AT,&mut f).unwrap(); assert_eq!(f["status"],"unknown"); assert_eq!(f["observedState"],Value::Null); assert_eq!(f["loss"],Value::Null);
         }
@@ -570,9 +567,11 @@ mod tests {
                 .map(|i| {
                     let mut h = b["devices"]["device-a"]["hourly90d"][0].clone();
                     h["hour"] = json!(
-                        chrono::DateTime::from_timestamp_millis(stamp(AT).unwrap() + i * 3_600_000)
-                            .unwrap()
-                            .to_rfc3339()
+                        chrono::DateTime::from_timestamp_millis(
+                            stamp(AT).unwrap() + (i - 59) * 3_600_000
+                        )
+                        .unwrap()
+                        .to_rfc3339()
                     );
                     h
                 })

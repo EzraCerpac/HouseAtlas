@@ -286,6 +286,19 @@ impl HostNetworkRuntime {
                 // Contention must not strand a row under the sidecar quota.
                 // Keep this same borrow through publication; HTTPS has ended,
                 // and no access/authority lock spans the sidecar filesystem I/O.
+                // Reserve the optional snapshot slot before committing; a busy
+                // slot must never turn an already committed publication into an error.
+                let mut collector_slot = if self.settings.collector_measurements() {
+                    match self.collector.try_lock() {
+                        Ok(slot) => Some(slot),
+                        Err(_) => {
+                            self.cancel_archive_reservation(reservation)?;
+                            return Err(unavailable().into());
+                        }
+                    }
+                } else {
+                    None
+                };
                 let published = with_core_store(core, &lease.access, |store| {
                     let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
                     let projected = n::stage_complete_generation(
@@ -322,9 +335,8 @@ impl HostNetworkRuntime {
                         .publish(store, staged, &mut references)
                         .map_err(n::NetworkPublicationError::Storage)
                 })?;
-                if self.settings.collector_measurements() {
-                    *self.collector.try_lock().map_err(|_| unavailable())? =
-                        Some(Arc::new((generation_id, collector)));
+                if let Some(slot) = collector_slot.as_mut() {
+                    **slot = Some(Arc::new((generation_id, collector)));
                 }
                 RefreshResult::Published(published)
             }
