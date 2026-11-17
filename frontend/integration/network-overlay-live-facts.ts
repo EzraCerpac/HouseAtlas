@@ -22,8 +22,14 @@ function observationValue(value: LosslessJson): NetworkObservationValue {
   if (value !== null && typeof value === 'object') return Object.freeze(Object.fromEntries(Object.entries(value).map(([k,v])=>[k,observationValue(v)])));
   return value;
 }
+function metric(value: LosslessJson | undefined, loss = false): number | null {
+  if (value === null) return null;
+  const n = isExactDecimal(value) ? Number(value.token) : value;
+  need(typeof n === 'number' && Number.isFinite(n) && n >= 0 && (!loss || n <= 1)); return n;
+}
 function facts(value: LosslessJson): NetworkLiveFacts {
-  const r = row(value, ['status','source','addresses','observedState','lastSeenAt','sourceSnapshotAt','retrievedAt','freshness']);
+  const extended = value !== null && typeof value === 'object' && 'recentSeries' in value;
+  const r = row(value, ['status','source','addresses','observedState','lastSeenAt','sourceSnapshotAt','retrievedAt','freshness', ...(extended ? ['latencyMs','loss','recentSeries'] : [])]);
   need(new TextEncoder().encode(stringifyLosslessJson(value)).length <= 64 * 1024);
   const s = row(r.source, ['workspaceId','homeId','sourceInstanceId','collectionId','sourceKind','externalId']);
   for (const key of ['workspaceId','homeId','sourceInstanceId']) need(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(text(s[key])));
@@ -44,7 +50,12 @@ function facts(value: LosslessJson): NetworkLiveFacts {
   need(status !== 'available' || fresh === 'recent' && observedState !== null && observedState.length > 0);
   need(status !== 'unknown' || fresh === 'unknown' && observedState === null);
   need(status !== 'stale' || fresh === 'stale' || fresh === 'invalidated' || fresh === 'unknown');
-  return Object.freeze({status,source,addresses,observedState,lastSeenAt,sourceSnapshotAt,retrievedAt,freshness:fresh});
+  const measurements = extended ? {latencyMs:metric(r.latencyMs),loss:metric(r.loss,true),recentSeries:Object.freeze(list(r.recentSeries,48).map(item=>{
+    const point = row(item,['hour','latencyMs','loss']); const hour = date(point.hour); need(hour && Date.parse(hour) % 3600000 === 0);
+    return Object.freeze({hour,latencyMs:metric(point.latencyMs),loss:metric(point.loss,true)});
+  }))} : {};
+  if (extended) { const series = measurements.recentSeries!; need(series.every((p,i)=>i === 0 || Date.parse(p.hour) > Date.parse(series[i-1]!.hour))); }
+  return Object.freeze({status,source,addresses,observedState,lastSeenAt,sourceSnapshotAt,retrievedAt,freshness:fresh,...measurements});
 }
 export interface NetworkLiveFactsFrame {
   readonly schema: 'houseatlas.network-overlay-live-facts.v2';

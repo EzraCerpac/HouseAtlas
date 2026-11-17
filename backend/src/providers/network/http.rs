@@ -1,4 +1,4 @@
-//! Concrete passive HTTPS inventory read. Trusted configuration and current
+//! Concrete passive HTTPS or exact-loopback HTTP read. Trusted configuration and current
 //! authority come from host ports; upstream JSON never supplies Atlas scope.
 use super::{InventoryGet, InventoryResponse, InventoryTransport, model::*, projection::*};
 use reqwest::{
@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct ReviewedNetworkOrigin {
     endpoint: Url,
+    literal_origin: Option<String>,
 }
 impl ReviewedNetworkOrigin {
     /// Validate an exact canonical HTTPS origin supplied by trusted host config.
@@ -38,7 +39,50 @@ impl ReviewedNetworkOrigin {
             return Err(NetworkError::new(ErrorCode::WrongScope));
         }
         endpoint.set_path(InventoryGet.path());
-        Ok(Self { endpoint })
+        Ok(Self {
+            endpoint,
+            literal_origin: None,
+        })
+    }
+    /// Trusted origin: HTTPS, or exact literal loopback HTTP with explicit port.
+    pub fn passive(origin: &str) -> Result<Self> {
+        if origin.starts_with("https:") {
+            return Self::https(origin);
+        }
+        let authority = origin
+            .strip_prefix("http://")
+            .ok_or_else(|| NetworkError::new(ErrorCode::WrongScope))?;
+        let port = authority
+            .strip_prefix("127.0.0.1:")
+            .or_else(|| authority.strip_prefix("[::1]:"))
+            .ok_or_else(|| NetworkError::new(ErrorCode::WrongScope))?;
+        guard(
+            !port.is_empty()
+                && port.bytes().all(|b| b.is_ascii_digit())
+                && !port.starts_with('0')
+                && port.parse::<u16>().is_ok_and(|p| p > 0),
+        )?;
+        let mut endpoint =
+            Url::parse(origin).map_err(|_| NetworkError::new(ErrorCode::WrongScope))?;
+        endpoint.set_path(InventoryGet.path());
+        Ok(Self {
+            endpoint,
+            literal_origin: Some(origin.into()),
+        })
+    }
+    pub(super) fn get_request(&self, client: &Client, path: &str) -> reqwest::RequestBuilder {
+        let mut endpoint = self.endpoint.clone();
+        endpoint.set_path(path);
+        let request = client.get(endpoint);
+        // Preserve existing HTTPS request construction; only loopback needs a
+        // literal Host override because URL normalization drops default port 80.
+        match &self.literal_origin {
+            Some(origin) => request.header(reqwest::header::HOST, &origin["http://".len()..]),
+            None => request,
+        }
+    }
+    fn https_only(&self) -> bool {
+        self.endpoint.scheme() == "https"
     }
     pub(crate) fn custody_fingerprint(&self) -> String {
         let mut hash = Sha256::new();
@@ -47,7 +91,9 @@ impl ReviewedNetworkOrigin {
         format!("{:x}", hash.finalize())
     }
     pub fn origin(&self) -> String {
-        self.endpoint.origin().ascii_serialization()
+        self.literal_origin
+            .clone()
+            .unwrap_or_else(|| self.endpoint.origin().ascii_serialization())
     }
 }
 
@@ -235,7 +281,7 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
     ) -> Result<Self> {
         let mut builder = Client::builder()
             .use_rustls_tls()
-            .https_only(true)
+            .https_only(config.origin.https_only())
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
             .http1_only()
@@ -284,11 +330,19 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
             )
         })
     }
-    async fn read_once(&self, limits: Limits, deadline: Instant) -> Result<InventoryResponse> {
+    async fn read_once(
+        &self,
+        path: &str,
+        limits: Limits,
+        deadline: Instant,
+    ) -> Result<InventoryResponse> {
         self.revalidate(deadline)?;
+        let mut endpoint = self.config.origin.endpoint.clone();
+        endpoint.set_path(path);
         let mut request = self
-            .client
-            .get(self.config.origin.endpoint.clone())
+            .config
+            .origin
+            .get_request(&self.client, path)
             .header(ACCEPT, "application/json")
             .header(ACCEPT_ENCODING, "identity")
             .timeout(Duration::from_millis(limits.request_timeout_ms));
@@ -308,7 +362,7 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         if matches!(status, 401 | 403) {
             return Err(NetworkError::new(ErrorCode::Auth));
         }
-        if response.url() != &self.config.origin.endpoint
+        if response.url() != &endpoint
             || response.headers().contains_key(LOCATION)
             || response.status().is_redirection()
         {
@@ -390,7 +444,7 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
             let deadline = Instant::now() + Duration::from_millis(limits.request_timeout_ms);
             let result = tokio::select! { biased;
                 _ = self.cancellation.cancelled() => Err(NetworkError::new(ErrorCode::Timeout)),
-                result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), self.read_once(limits, deadline)) =>
+                result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), self.read_once(InventoryGet.path(), limits, deadline)) =>
                     result.map_err(|_| NetworkError::new(ErrorCode::Timeout))?,
             };
             // A timer cannot interrupt a synchronous callback in a poll. Reject
@@ -411,4 +465,24 @@ fn transport_error(error: reqwest::Error) -> NetworkError {
     } else {
         ErrorCode::Transport
     })
+}
+
+impl<A: NetworkReadAuthority> super::collector::CollectorGetPeer for HttpInventoryTransport<A> {
+    fn get(
+        &self,
+        route: super::collector::CollectorRoute,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>>> + Send + '_>> {
+        Box::pin(async move {
+            let limits = self.config.limits;
+            let deadline = Instant::now() + Duration::from_millis(limits.request_timeout_ms);
+            let response = tokio::select! { biased;
+                _ = self.cancellation.cancelled() => return Err(NetworkError::new(ErrorCode::Timeout)),
+                result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), self.read_once(route.path(), limits, deadline)) =>
+                    result.map_err(|_| NetworkError::new(ErrorCode::Timeout))??,
+            };
+            self.check_deadline(deadline)?;
+            guard(response.status == 200)?;
+            Ok(response.body)
+        })
+    }
 }

@@ -21,6 +21,7 @@ pub struct NetworkSettings {
     stale_after_ms: i64,
     sidecar_path: PathBuf,
     existing_cached_storage: bool,
+    collector_measurements: bool,
 }
 impl NetworkSettings {
     #[allow(clippy::too_many_arguments)]
@@ -64,7 +65,7 @@ impl NetworkSettings {
         .map_err(|_| n::NetworkError::new(n::ErrorCode::InvalidSchema))?;
         let transport = n::NetworkHttpConfig::new(
             source,
-            n::ReviewedNetworkOrigin::https(origin)?,
+            n::ReviewedNetworkOrigin::passive(origin)?,
             limits,
             connect_timeout_ms,
             idle_timeout_ms,
@@ -80,7 +81,15 @@ impl NetworkSettings {
             stale_after_ms,
             sidecar_path: private_directory.join(sidecar_name),
             existing_cached_storage: false,
+            collector_measurements: false,
         })
+    }
+    pub fn with_collector_measurements(mut self, enabled: bool) -> Self {
+        self.collector_measurements = enabled;
+        self
+    }
+    pub fn collector_measurements(&self) -> bool {
+        self.collector_measurements
     }
     /// Adds a reviewed trust root while retaining certificate/hostname checks.
     pub fn with_reviewed_ca_pem(mut self, pem: &[u8]) -> Result<Self, n::NetworkError> {

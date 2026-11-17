@@ -207,6 +207,8 @@ impl HomeBoxLimits {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Network {
+    #[serde(default)]
+    collector_measurements: bool,
     registration: s::SourceRegistration,
     origin: String,
     review: n::LinkReview,
@@ -382,6 +384,7 @@ impl ProviderReadMounts {
                 value.stale_after_ms,
                 &value.private_directory,
             )?
+            .with_collector_measurements(value.collector_measurements)
             .for_existing_cached_storage();
             network.push(NetworkBinding::from_trusted_configuration(
                 core,

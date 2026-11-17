@@ -325,6 +325,13 @@ fn network_mount_reuses_explicit_existing_custody_without_source_enrollment() {
     let v = network_packet(&f, &directory);
     let parsed: Packet = serde_json::from_value(v.clone()).unwrap();
     let selected = parsed.network_cached.into_iter().next().unwrap();
+    assert!(!selected.collector_measurements);
+    let mut enabled = v.clone();
+    enabled["networkCached"][0]["collectorMeasurements"] = serde_json::json!(true);
+    enabled["networkCached"][0]["origin"] = serde_json::json!("http://127.0.0.1:42001");
+    let enabled: Packet = serde_json::from_value(enabled).unwrap();
+    assert!(enabled.network_cached[0].collector_measurements);
+    assert!(n::ReviewedNetworkOrigin::passive(&enabled.network_cached[0].origin).is_ok());
     let registry =
         ProviderRegistry::from_trusted_configuration(vec![selected.registration]).unwrap();
     let settings = NetworkSettings::new(

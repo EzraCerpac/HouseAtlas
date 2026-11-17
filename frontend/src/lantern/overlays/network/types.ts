@@ -56,6 +56,11 @@ export interface NetworkPackagePlaceSelection {
 }
 export type NetworkObservationValue = null | boolean | number | string | readonly NetworkObservationValue[] | { readonly [key:string]:NetworkObservationValue };
 export interface NetworkLiveFacts {
+  /** Optional collector extension: RTT milliseconds and measured loss [0,1]. Null means unmeasured. */
+  readonly latencyMs?: number | null;
+  readonly loss?: number | null;
+  /** At most 48 retained hourly means; missing hours are gaps, never zero loss. */
+  readonly recentSeries?: readonly Readonly<{hour:string;latencyMs:number|null;loss:number|null}>[];
   readonly status: 'available' | 'absent' | 'unknown' | 'stale';
   readonly source: Readonly<{workspaceId:string;homeId:string;sourceInstanceId:string;collectionId:string;sourceKind:'network-device';externalId:string}>;
   readonly addresses: readonly string[] | null;
