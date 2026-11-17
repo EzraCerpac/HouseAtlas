@@ -160,8 +160,16 @@ impl HostNetworkRuntime {
         cancellation: CancellationToken,
         clock: C,
     ) -> Result<RefreshResult> {
-        self.refresh_inner(core, authority, lease, cancellation, clock, false)
-            .await
+        let mut prior_quarantined = false;
+        self.refresh_inner(
+            core,
+            authority,
+            lease,
+            cancellation,
+            clock,
+            (false, &mut prior_quarantined),
+        )
+        .await
     }
     /// Editor entry: reject a changed review before durable archive admission.
     /// The native refresh contract retains its original single inventory GET.
@@ -172,9 +180,22 @@ impl HostNetworkRuntime {
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
         clock: C,
-    ) -> Result<RefreshResult> {
-        self.refresh_inner(core, authority, lease, cancellation, clock, true)
-            .await
+    ) -> (Result<RefreshResult>, bool) {
+        // Carry the actual captured baseline through failed attempts. A caller
+        // must not infer durable quarantine from requesting recovery or perform
+        // a fallible read after a definite publication receipt.
+        let mut prior_quarantined = false;
+        let outcome = self
+            .refresh_inner(
+                core,
+                authority,
+                lease,
+                cancellation,
+                clock,
+                (true, &mut prior_quarantined),
+            )
+            .await;
+        (outcome, prior_quarantined)
     }
     async fn refresh_inner<C: FnMut() -> String>(
         &self,
@@ -183,7 +204,7 @@ impl HostNetworkRuntime {
         lease: Arc<OriginalNetworkLease>,
         cancellation: CancellationToken,
         mut clock: C,
-        review_preflight: bool,
+        (review_preflight, prior_quarantined): (bool, &mut bool),
     ) -> Result<RefreshResult> {
         cancelled(&cancellation)?;
         if lease.source().registration() != self.settings.configured_source().registration() {
@@ -206,6 +227,11 @@ impl HostNetworkRuntime {
         let prepared = Arc::new(with_store(core, &lease.access, |store| {
             PreparedPublication::prepare(store, lease.clone(), self.settings.source())
         })?);
+        *prior_quarantined = prepared
+            .baseline()
+            .cache
+            .as_ref()
+            .is_some_and(cache_quarantined);
         *self.read_hold.lock().map_err(|_| unavailable())? = Some(prepared.read_hold());
         *self.pending.lock().map_err(|_| unavailable())? = Some(PendingPublication {
             prepared: prepared.clone(),
@@ -248,12 +274,7 @@ impl HostNetworkRuntime {
         // construction, credentials and sidecar stage. Native CAS stays closed.
         if !lease.is_revalidation()
             && (prepared.read_hold().is_held()
-                || baseline.cache.as_ref().is_some_and(|cache| {
-                    cache.status == n::CacheStatus::AccessRevoked
-                        || cache.error.as_ref().is_some_and(|e| {
-                            matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
-                        })
-                }))
+                || baseline.cache.as_ref().is_some_and(cache_quarantined))
         {
             return Err(n::NetworkPublicationError::Storage(s::Error::new(
                 "access-revoked",
@@ -813,4 +834,11 @@ fn cancelled(token: &CancellationToken) -> std::result::Result<(), n::NetworkErr
 fn terminal_failure_record(error: &n::NetworkPublicationError<s::Error>) -> bool {
     matches!(error, n::NetworkPublicationError::Storage(error)
         if matches!(error.code, "unauthenticated" | "forbidden" | "not-found" | "guard-conflict"))
+}
+
+fn cache_quarantined(cache: &n::CacheMetadata) -> bool {
+    cache.status == n::CacheStatus::AccessRevoked
+        || cache.error.as_ref().is_some_and(|error| {
+            matches!(error.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+        })
 }

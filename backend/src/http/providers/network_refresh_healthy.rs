@@ -1031,6 +1031,7 @@ async fn deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_
             .1["status"],
             "refreshed"
         );
+        mounted_reads_withhold_a_keep_b(&f, &other_cookie).await?;
         // Mismatch and ordinary failed recovery preserve the original hold.
         peer.revision(43);
         assert_eq!(
@@ -1184,5 +1185,195 @@ async fn durable_quarantine_recovery_preserves_reviewed_inventory_baseline() -> 
     let recovered = revalidate(&f, &f.cookie, &f.csrf).await?;
     assert_eq!(recovered["status"], "unchanged", "{recovered}");
     assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
+    Ok(())
+}
+
+async fn mounted_reads_withhold_a_keep_b(f: &Fixture, cookie: &str) -> Result<()> {
+    let list_path = format!(
+        "/api/atlas/v1/workspaces/{}/homes/{}/network/relations",
+        id(1),
+        id(2)
+    );
+    let (status, list) =
+        request_path(f, false, Value::Null, None, &list_path, Some(cookie)).await?;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    let only_b = |rows: &Value| {
+        let rows = rows.as_array().unwrap();
+        assert_eq!(
+            rows.len(),
+            4,
+            "Every qualified B relation must remain available"
+        );
+        assert!(
+            rows.iter().all(|row| row["sourceInstanceId"] == id(13)),
+            "{rows:?}"
+        );
+    };
+    let statuses = |rows: &Value| {
+        let rows = rows.as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            rows.iter()
+                .find(|row| row["sourceInstanceId"] == id(12))
+                .unwrap()["status"],
+            "access-revoked"
+        );
+        assert_eq!(
+            rows.iter()
+                .find(|row| row["sourceInstanceId"] == id(13))
+                .unwrap()["status"],
+            "fresh"
+        );
+    };
+    only_b(&list["items"]);
+    statuses(&list["sourceStatuses"]);
+    let manifest_path = format!(
+        "/api/atlas/offline/v1/workspaces/{}/homes/{}/manifest",
+        id(1),
+        id(2)
+    );
+    let (status, manifest) =
+        request_path(f, false, Value::Null, None, &manifest_path, Some(cookie)).await?;
+    assert_eq!(status, StatusCode::OK, "{manifest}");
+    assert_eq!(manifest["sections"]["network"]["state"], "partial");
+    let hash = manifest["sections"]["network"]["resourceSha256"]
+        .as_str()
+        .unwrap();
+    let resource = manifest["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["sha256"] == hash)
+        .unwrap();
+    let (status, network) = request_path(
+        f,
+        false,
+        Value::Null,
+        None,
+        resource["href"].as_str().unwrap(),
+        Some(cookie),
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK, "{network}");
+    only_b(&network["relations"]);
+    statuses(&network["caches"]);
+    // Mounted authentication and retained-pack release remain required.
+    assert_eq!(
+        request_path(f, false, Value::Null, None, &list_path, None)
+            .await?
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request_path(
+            f,
+            false,
+            Value::Null,
+            None,
+            resource["href"].as_str().unwrap(),
+            None
+        )
+        .await?
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failed_revalidation_reports_durable_quarantine_after_reopen() -> Result<()> {
+    for durable in [false, true] {
+        let f = fixture_setup(
+            false,
+            true,
+            false,
+            FixtureSetup {
+                revalidation: true,
+                ..Default::default()
+            },
+        )
+        .await?;
+        editor(&f, a::Role::Editor)?;
+        assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+        let f = if durable {
+            f.inventory
+                .as_ref()
+                .unwrap()
+                .mode
+                .store(3, Ordering::SeqCst);
+            assert_eq!(refresh(&f).await?.1["quarantined"], true);
+            reopen_with_review(f, 42).await?
+        } else {
+            f
+        };
+        let f = Arc::new(f);
+        let before = cache(&f)?;
+        assert!(!f.host.network_bindings[0].runtime().cache_reads_held());
+        // A sidecar refusal exercises the Network error branch; contention
+        // after admission exercises the Storage error branch. Neither observes
+        // an upstream auth refusal or arms a new RAM hold.
+        for core_busy in [false, true] {
+            let peer = f.inventory.as_ref().unwrap();
+            if core_busy {
+                peer.mode.store(6, Ordering::SeqCst);
+            }
+            let first = if core_busy {
+                let f = f.clone();
+                let first = tokio::spawn(async move { revalidate(&f, &f.cookie, &f.csrf).await });
+                tokio::time::timeout(std::time::Duration::from_secs(5), peer.admitted.notified())
+                    .await?;
+                Some(first)
+            } else {
+                None
+            };
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+            let (release_tx, release_rx) = std::sync::mpsc::channel();
+            let holder = {
+                let f = f.clone();
+                std::thread::spawn(move || {
+                    let wait = || {
+                        ready_tx.send(()).unwrap();
+                        release_rx
+                            .recv_timeout(std::time::Duration::from_secs(20))
+                            .unwrap();
+                    };
+                    if core_busy {
+                        let _guard = f.host.core.lock().unwrap();
+                        wait();
+                    } else {
+                        f.host.network_bindings[0]
+                            .runtime()
+                            .with_test_sidecar_lock(wait);
+                    }
+                })
+            };
+            ready_rx.recv_timeout(std::time::Duration::from_secs(5))?;
+            let failed = if let Some(first) = first {
+                peer.release.notify_one();
+                tokio::time::timeout(std::time::Duration::from_secs(10), first).await???
+            } else {
+                revalidate(&f, &f.cookie, &f.csrf).await?
+            };
+            release_tx.send(())?;
+            holder.join().map_err(|_| "Contention holder panicked")?;
+            assert_eq!(failed["status"], "failed", "{failed}");
+            assert_eq!(failed["quarantined"], durable, "{failed}");
+            assert_eq!(
+                failed["reason"],
+                if core_busy {
+                    "upstream-unavailable"
+                } else {
+                    "upstream"
+                }
+            );
+            assert!(!f.host.network_bindings[0].runtime().cache_reads_held());
+            assert_eq!(cache(&f)?, before);
+        }
+        let recovered = revalidate(&f, &f.cookie, &f.csrf).await?;
+        assert_eq!(recovered["status"], "unchanged", "{recovered}");
+        assert_eq!(recovered["cache"]["status"], "fresh");
+        assert_eq!(recovered["cache"]["errorCode"], Value::Null);
+        assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
+    }
     Ok(())
 }

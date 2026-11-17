@@ -6563,7 +6563,7 @@ nor inventory provisioning or G1–G5 acceptance.
 
 ### Named-Editor Network inventory refresh
 
-The default backend-library selection adds twelve cases under
+The default backend-library selection adds thirteen cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
@@ -6576,7 +6576,8 @@ The default backend-library selection adds twelve cases under
 `two_partitions_refresh_independently_with_retained_disclosure`,
 `deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery`,
 `stale_deferred_failure_retires_without_replaying_metadata`,
-and `durable_quarantine_recovery_preserves_reviewed_inventory_baseline`.
+`durable_quarantine_recovery_preserves_reviewed_inventory_baseline`,
+and `failed_revalidation_reports_durable_quarantine_after_reopen`.
 The existing persistent profile selection adds
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 These exercise genuine native Access/Store/sidecar/archive owners
@@ -6644,6 +6645,20 @@ The default library selection also discovers
 `providers::network::http::refusal_tests::inventory_refusal_preserves_observation_before_caller_recheck`
 and `providers::network::failure_contract::verified_body_wrong_scope_is_a_source_refusal`.
 They use constructed HTTP responses and generated inventory without a listener.
+The transport refusal module also adds
+`observed_inventory_refusal_survives_outer_cancellation_into_adapter`
+and `inventory_completion_preserves_observed_denial_only_after_deadline`.
+They deterministically cancel inside a fake GET and supply an expired completion
+deadline, preserving only observed 401/403 denials with no response bytes or
+origin witness; pre-cancelled, positive and status-less outcomes remain timed out.
+The adapter receives Auth/source-refusal/AccessRevoked without a positive proposal.
+
+The deferred-auth case also reads the mounted relation list and offline pack
+with A held and B readable, checking every qualified B relation,
+withheld A data and the existing authentication/release path.
+The durable-reopen case checks Network and Storage failure responses against
+both a quarantined and a fresh baseline, with no new RAM hold,
+then verifies the successful fresh publication receipt.
 The existing root-router TLS loopback selection retains its original one-GET
 contract, deadlines and assertions; only the Editor entry performs preflight.
 

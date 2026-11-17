@@ -427,12 +427,19 @@ and permit proven-empty disposition without giving the next Editor its authority
 
 An observed collector `auth` or `wrong-scope` refusal also arms a Store-owned,
 per-registration read hold without acquiring Core.
+A concrete 401/403 remains a denial if the outer deadline or cancellation fires
+before adapter classification, with no response body or origin witness returned.
+Other expired/cancelled outcomes remain timeouts and cannot publish inventory.
 It survives empty-candidate disposal and blocks affected Snapshot/pack/cache reads
 and disclosures retained before the refusal.
 Unrelated partitions and authorized internal publication baselines remain usable.
 This hold lasts only for the same open Store in RAM.
 If the original authorized failure transaction commits,
 its existing durable quarantine survives reopen.
+Failed recovery responses retain the captured durable quarantine fact,
+even after reopen when there is no new RAM hold.
+Mounted relation lists and offline packs withhold only the held partition
+while qualifying other partitions and retaining their final release checks.
 If expiry/revocation or contention prevents that transaction,
 closing/reopening the Store before it commits loses the RAM hold;
 this change supplies no principal-free durable quarantine write.

@@ -387,6 +387,27 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         .await?;
         Ok(self.response(status, body))
     }
+    fn finish_inventory_response(
+        &self,
+        result: Result<InventoryResponse>,
+        deadline: Instant,
+    ) -> Result<CustodiedInventoryResponse> {
+        if let Ok(response) = &result
+            && matches!(response.status, 401 | 403)
+        {
+            // Preserve only an already-observed denial across expiry. No body,
+            // upstream metadata or positive origin witness survives this path.
+            return Ok(CustodiedInventoryResponse::unattested(
+                self.response(response.status, Vec::new()),
+            ));
+        }
+        // A timer cannot interrupt a synchronous callback in a poll. Every
+        // non-refusal still requires the original deadline and cancellation.
+        self.check_deadline(deadline)?;
+        let response = CustodiedInventoryResponse::verified(&self.config, result?);
+        self.check_deadline(deadline)?;
+        Ok(response)
+    }
     fn response(&self, status: u16, body: Vec<u8>) -> InventoryResponse {
         InventoryResponse {
             status,
@@ -445,16 +466,7 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
                 result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), self.read_once(InventoryGet.path(), limits, deadline)) =>
                     result.map_err(|_| NetworkError::new(ErrorCode::Timeout))?,
             };
-            // A timer cannot interrupt a synchronous callback in a poll. Reject
-            // any result that finishes after the original absolute deadline.
-            self.check_deadline(deadline)?;
-            // The concrete client alone issues custody after verified HTTPS or
-            // exact-loopback HTTP,
-            // exact endpoint, full bounded body and final original authority
-            // checks. Hashing is bounded and remains inside the same deadline.
-            let response = CustodiedInventoryResponse::verified(&self.config, result?);
-            self.check_deadline(deadline)?;
-            Ok(response)
+            self.finish_inventory_response(result, deadline)
         })
     }
 }
@@ -664,5 +676,172 @@ mod refusal_tests {
             .code,
             ErrorCode::Auth
         );
+    }
+    struct Authority;
+    impl NetworkReadAuthority for Authority {
+        type Lease = ();
+        fn authorize_inventory(
+            &self,
+            _: &SourceRegistration,
+            _: &ReviewedNetworkOrigin,
+        ) -> Result<()> {
+            Ok(())
+        }
+        fn revalidate_inventory(
+            &self,
+            _: &(),
+            _: &SourceRegistration,
+            _: &ReviewedNetworkOrigin,
+        ) -> Result<()> {
+            Ok(())
+        }
+        fn existing_session(&self, _: &()) -> Result<Option<ExistingNetworkSession>> {
+            Ok(None)
+        }
+        fn authorize_generation(
+            &self,
+            _: &(),
+            _: &SourceRegistration,
+            _: &super::super::NetworkGeneration,
+        ) -> Result<()> {
+            panic!("Expired inventory cannot publish")
+        }
+    }
+    struct Peer {
+        status: u16,
+        cancellation: CancellationToken,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+    impl TestInventoryPeer for Peer {
+        fn get<'a>(
+            &'a self,
+            path: &'a str,
+        ) -> Pin<Box<dyn Future<Output = Result<InventoryResponse>> + Send + 'a>> {
+            Box::pin(async move {
+                assert_eq!(path, "/api/inventory");
+                self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                self.cancellation.cancel();
+                Ok(InventoryResponse {
+                    status: self.status,
+                    source: Some(super::super::healthy::source().scope),
+                    body: include_bytes!(
+                        "../../../../adapters/network/fixtures/inventory.wire.json"
+                    )
+                    .to_vec(),
+                    source_snapshot_at: Some("2026-01-02T12:00:00Z".into()),
+                    redirected: false,
+                    location: None,
+                    url: None,
+                })
+            })
+        }
+    }
+    fn transport(status: u16) -> (HttpInventoryTransport<Authority>, Arc<Peer>) {
+        let cancellation = CancellationToken::new();
+        let peer = Arc::new(Peer {
+            status,
+            cancellation: cancellation.clone(),
+            calls: Default::default(),
+        });
+        let mut config = NetworkHttpConfig::new(
+            super::super::healthy::source(),
+            ReviewedNetworkOrigin::passive("https://collector.invalid").unwrap(),
+            Limits::default(),
+            2000,
+            2000,
+        )
+        .unwrap();
+        config.test_peer = Some(peer.clone());
+        (
+            HttpInventoryTransport::new(config, Arc::new(Authority), Arc::new(()), cancellation)
+                .unwrap(),
+            peer,
+        )
+    }
+    #[tokio::test]
+    async fn observed_inventory_refusal_survives_outer_cancellation_into_adapter() {
+        for status in [401, 403, 200] {
+            for already_cancelled in [false, true] {
+                let (transport, peer) = transport(status);
+                if already_cancelled {
+                    transport.cancellation.cancel();
+                }
+                let source = super::super::healthy::source();
+                let mut provider = super::super::NetworkProvider::new(
+                    source.clone(),
+                    super::super::healthy::review(),
+                    Limits::default(),
+                )
+                .unwrap();
+                let super::super::RefreshOutcome::Failed(failure) = provider
+                    .prepare_refresh(
+                        &super::super::RetainedState::empty(source.scope),
+                        0,
+                        "00000000-0000-4000-8000-000000000901",
+                        &transport,
+                        || "2026-01-02T12:00:00Z".into(),
+                    )
+                    .await
+                    .unwrap()
+                else {
+                    panic!("Expired inventory cannot produce a positive proposal");
+                };
+                let observed = !already_cancelled && status != 200;
+                assert_eq!(failure.source_refusal, observed);
+                assert_eq!(
+                    failure.error.code,
+                    if observed {
+                        ErrorCode::Auth
+                    } else {
+                        ErrorCode::Timeout
+                    }
+                );
+                assert_eq!(
+                    failure.state.cache.status,
+                    if observed {
+                        super::super::CacheStatus::AccessRevoked
+                    } else {
+                        super::super::CacheStatus::Error
+                    }
+                );
+                assert!(failure.state.generation.is_none());
+                assert_eq!(
+                    peer.calls.load(std::sync::atomic::Ordering::SeqCst),
+                    usize::from(!already_cancelled)
+                );
+            }
+        }
+    }
+    #[test]
+    fn inventory_completion_preserves_observed_denial_only_after_deadline() {
+        let (transport, _) = transport(401);
+        let expired = Instant::now() - Duration::from_secs(1);
+        for status in [401, 403] {
+            let mut response =
+                transport.response(status, b"Discarded synthetic response bytes".to_vec());
+            response.source_snapshot_at = Some("2026-01-02T12:00:00Z".into());
+            let (denied, origin) = transport
+                .finish_inventory_response(Ok(response), expired)
+                .unwrap()
+                .into_parts();
+            assert_eq!(denied.status, status);
+            assert!(denied.body.is_empty());
+            assert!(denied.source_snapshot_at.is_none());
+            assert!(origin.is_none());
+        }
+        for result in [
+            Ok(transport.response(200, Vec::new())),
+            Err(NetworkError::new(ErrorCode::Transport)),
+            Err(NetworkError::new(ErrorCode::Auth)),
+        ] {
+            assert_eq!(
+                transport
+                    .finish_inventory_response(result, expired)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::Timeout
+            );
+        }
     }
 }
