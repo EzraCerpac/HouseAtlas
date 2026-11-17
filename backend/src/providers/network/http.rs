@@ -354,6 +354,11 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         #[cfg(test)]
         if let Some(peer) = &self.config.test_peer {
             let response = peer.get(path).await?;
+            // Preserve an observed source refusal even if the caller expired
+            // during the read. No source bytes are disclosed on this path.
+            if matches!(response.status, 401 | 403) {
+                return Ok(response);
+            }
             self.revalidate(deadline)?;
             guard(response.body.len() <= limits.max_response_bytes)?;
             return Ok(response);
@@ -410,7 +415,13 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
         limits: Limits,
     ) -> Pin<Box<dyn Future<Output = Result<InventoryResponse>> + Send + '_>> {
         let response = self.get_inventory_with_custody(_request, limits);
-        Box::pin(async move { Ok(response.await?.into_parts().0) })
+        Box::pin(async move {
+            let response = response.await?.into_parts().0;
+            if matches!(response.status, 401 | 403) {
+                return Err(NetworkError::new(ErrorCode::Auth));
+            }
+            Ok(response)
+        })
     }
     fn get_inventory_with_custody(
         &self,
@@ -484,13 +495,13 @@ async fn read_response(
     error_body: bool,
     check: impl Fn() -> Result<()>,
 ) -> Result<(u16, Vec<u8>)> {
-    check()?;
     let status = response.status().as_u16();
     // An inventory authorization failure remains Auth even when a provider
     // supplies a login Location header. No redirect is followed.
     if !error_body && matches!(status, 401 | 403) {
-        return Err(NetworkError::new(ErrorCode::Auth));
+        return Ok((status, Vec::new()));
     }
+    check()?;
     if response.url() != endpoint
         || response.headers().contains_key(LOCATION)
         || response.status().is_redirection()
@@ -612,5 +623,46 @@ impl super::collector::CollectorGetPeer for CollectorHttpPeer {
 impl super::observations::Peer for CollectorHttpPeer {
     fn post(&self, body: Vec<u8>) -> super::observations::ResponseFuture<'_> {
         Box::pin(self.exchange("/api/actions", Some(body)))
+    }
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::*;
+    #[tokio::test]
+    async fn inventory_refusal_preserves_observation_before_caller_recheck() {
+        let endpoint = Url::parse("https://collector.invalid/api/inventory").unwrap();
+        for status in [401, 403] {
+            let response = reqwest::Response::from(
+                axum::http::Response::builder()
+                    .status(status)
+                    .header(LOCATION, "/synthetic-login")
+                    .body(Vec::new())
+                    .unwrap(),
+            );
+            let (observed, body) =
+                read_response(response, &endpoint, Limits::default(), false, || {
+                    Err(NetworkError::new(ErrorCode::Auth))
+                })
+                .await
+                .unwrap();
+            assert_eq!(observed, status);
+            assert!(body.is_empty());
+        }
+        let response = reqwest::Response::from(
+            axum::http::Response::builder()
+                .status(200)
+                .body(Vec::new())
+                .unwrap(),
+        );
+        assert_eq!(
+            read_response(response, &endpoint, Limits::default(), false, || Err(
+                NetworkError::new(ErrorCode::Auth)
+            ))
+            .await
+            .unwrap_err()
+            .code,
+            ErrorCode::Auth
+        );
     }
 }

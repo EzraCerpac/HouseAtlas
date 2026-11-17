@@ -55,10 +55,15 @@ impl n::TestInventoryPeer for InventoryPeer {
                         4 => self.mode.store(1, Ordering::SeqCst),
                         6 => self.mode.store(7, Ordering::SeqCst),
                         8 => self.mode.store(9, Ordering::SeqCst),
-                        7 | 9 => {
-                            let auth_failure = self.mode.swap(0, Ordering::SeqCst) == 9;
+                        12 => self.mode.store(13, Ordering::SeqCst),
+                        7 | 9 | 13 => {
+                            let mode = self.mode.swap(0, Ordering::SeqCst);
+                            let auth_failure = mode == 9;
                             self.admitted.notify_one();
                             self.release.notified().await;
+                            if mode == 13 {
+                                return Err(n::NetworkError::new(n::ErrorCode::Transport));
+                            }
                             if auth_failure {
                                 return Ok(n::InventoryResponse {
                                     status: 403,
@@ -622,11 +627,7 @@ async fn post_reservation_contention_retains_custody_and_auth_failure_metadata()
             .await???
             .1;
         assert_eq!(failed["status"], "failed", "{failed}");
-        assert_eq!(
-            failed["quarantined"],
-            auth_failure && !core_busy,
-            "{failed}"
-        );
+        assert_eq!(failed["quarantined"], auth_failure, "{failed}");
         release_tx.send(())?;
         holder.join().map_err(|_| "Contention holder panicked")?;
         let after = cache(&f)?;
@@ -737,5 +738,451 @@ async fn interrupted_pre_stage_future_recovers_on_same_store() -> Result<()> {
             .active_reservation_count,
         0
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn two_partitions_refresh_independently_with_retained_disclosure() -> Result<()> {
+    let f = fixture_setup(
+        false,
+        true,
+        false,
+        FixtureSetup {
+            second_partition: true,
+            ..Default::default()
+        },
+    )
+    .await?;
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let retained = read_cached_for_test(&f)?;
+    let before = serde_json::to_value(&retained.facet)?;
+    let archive = f.host.network_bindings[0].runtime().test_archive_custody();
+    let source_a_cache = cache(&f)?["caches"][0].clone();
+    let path_b = path().replace(&id(12), &id(13));
+    for expected in ["refreshed", "unchanged"] {
+        let answer = request_path(
+            &f,
+            true,
+            Value::Null,
+            Some(&f.csrf),
+            &path_b,
+            Some(&f.cookie),
+        )
+        .await?
+        .1;
+        assert_eq!(answer["status"], expected, "{answer}");
+        retained
+            .revalidate()
+            .map_err(|e| format!("A disclosure refused: {}", e.status))?;
+        let mut current = serde_json::to_value(&read_cached_for_test(&f)?.facet)?;
+        // Only elapsed age changes while B refreshes; A's captured generation,
+        // cache facts and every retained inventory member must remain identical.
+        assert!(current["ageMs"].as_u64().unwrap() >= before["ageMs"].as_u64().unwrap());
+        current["ageMs"] = before["ageMs"].clone();
+        assert_eq!(current, before);
+        assert_eq!(
+            f.host.network_bindings[0].runtime().test_archive_custody(),
+            archive
+        );
+        let caches = cache(&f)?;
+        assert_eq!(
+            caches["caches"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["sourceInstanceId"] == id(12)),
+            Some(&source_a_cache)
+        );
+        let read_b = read_cached_principal(
+            &f.host,
+            read_principal(&f)?,
+            &d::Scope {
+                workspace_id: id(1),
+                home_id: id(2),
+            },
+            &id(13),
+            "inventory",
+        )
+        .map_err(|e| format!("B read refused: {}", e.status))?;
+        assert_eq!(read_b.facet.source_revision, Some(42));
+        read_b
+            .revalidate()
+            .map_err(|e| format!("B disclosure refused: {}", e.status))?;
+    }
+    Ok(())
+}
+
+fn login_editor(f: &Fixture, second: bool) -> Result<(String, String)> {
+    let access = f.host.core.lock().unwrap().access.clone();
+    let mut access = access.lock().unwrap();
+    let user = a::CanonicalId::parse(&id(if second { 8 } else { 4 }))?;
+    if second {
+        access.provision_user(
+            &user,
+            &a::CanonicalId::parse(&id(9))?,
+            "synthetic-second",
+            &a::hash_password("Generated-only-fixture-password")?,
+            None,
+        )?;
+        access.set_membership(
+            &user,
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(&id(1))?,
+                home_id: a::CanonicalId::parse(&id(2))?,
+            },
+            a::Role::Editor,
+            true,
+        )?;
+    }
+    let login = access.login(&a::RequestEvidence { method:a::Method::Post,
+        url:&format!("{ORIGIN}/api/atlas/auth/login"), origin:Some(ORIGIN), sec_fetch_site:Some("same-origin"),
+        referer:None, cookie:None, authorization:None, csrf:None },
+        &serde_json::to_vec(&json!({"username":if second {"synthetic-second"} else {"synthetic-viewer"},"password":"Generated-only-fixture-password"}))?, "synthetic-test")?;
+    Ok((
+        login.set_cookie().split(';').next().unwrap().into(),
+        login.info().csrf_token().into(),
+    ))
+}
+async fn revalidate(f: &Fixture, cookie: &str, csrf: &str) -> Result<Value> {
+    Ok(request_path(
+        f,
+        true,
+        Value::Null,
+        Some(csrf),
+        &format!("{}&revalidate=true", path()),
+        Some(cookie),
+    )
+    .await?
+    .1)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery()
+-> Result<()> {
+    for (expire, auth_failure) in [(false, true), (true, true), (true, false)] {
+        let clock = Arc::new(std::sync::atomic::AtomicI64::new(1_800_000_000_000));
+        let f = Arc::new(
+            fixture_setup(
+                false,
+                true,
+                false,
+                FixtureSetup {
+                    revalidation: true,
+                    second_editor: true,
+                    second_partition: true,
+                    clock: Some(clock.clone()),
+                },
+            )
+            .await?,
+        );
+        editor(&f, a::Role::Editor)?;
+        assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+        let old = read_cached_for_test(&f)?.original.clone();
+        let before = cache(&f)?;
+        let access = f.host.core.lock().unwrap().access.clone();
+        let peer = f.inventory.as_ref().unwrap();
+        peer.mode
+            .store(if auth_failure { 8 } else { 12 }, Ordering::SeqCst);
+        let first = {
+            let f = f.clone();
+            tokio::spawn(async move { refresh(&f).await })
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), peer.admitted.notified()).await?;
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let holder = {
+            let f = f.clone();
+            std::thread::spawn(move || {
+                let _guard = f.host.core.lock().unwrap();
+                ready_tx.send(()).unwrap();
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(20))
+                    .unwrap();
+            })
+        };
+        ready_rx.recv_timeout(std::time::Duration::from_secs(5))?;
+        peer.release.notify_one();
+        let failed = tokio::time::timeout(std::time::Duration::from_secs(10), first)
+            .await???
+            .1;
+        assert_eq!(failed["quarantined"], auth_failure, "{failed}");
+        release_tx.send(())?;
+        holder.join().map_err(|_| "Core holder panicked")?;
+        // The original session is still valid: this refusal proves the Store
+        // hold, rather than expired authority, blocks retained disclosure.
+        assert_eq!(old.revalidate().is_err(), auth_failure);
+        let held = cache(&f)?;
+        assert_eq!(
+            held["caches"][0]["status"],
+            if auth_failure {
+                "access-revoked"
+            } else {
+                "fresh"
+            }
+        );
+        assert_eq!(
+            held["networkRelations"].as_array().unwrap().is_empty(),
+            auth_failure
+        );
+        assert_eq!(
+            held["caches"][0]["lastAttemptAt"],
+            before["caches"][0]["lastAttemptAt"]
+        );
+        if expire {
+            clock.fetch_add(32_000_000_000, Ordering::SeqCst);
+        } else {
+            access
+                .lock()
+                .unwrap()
+                .revoke_user_sessions(&a::CanonicalId::parse(&id(4))?)?;
+        }
+        let (other_cookie, other_csrf) = login_editor(&f, true)?;
+        let calls = peer.calls.lock().unwrap().len();
+        let refused = request_path(
+            &f,
+            true,
+            Value::Null,
+            Some(&other_csrf),
+            &path(),
+            Some(&other_cookie),
+        )
+        .await?
+        .1;
+        if !auth_failure {
+            assert_eq!(refused["status"], "unchanged", "{refused}");
+            assert_eq!(
+                f.host.network_bindings[0]
+                    .runtime()
+                    .test_archive_custody()
+                    .active_reservation_count,
+                0
+            );
+            continue;
+        }
+        assert_eq!(refused["reason"], "access-revoked", "{refused}");
+        assert_eq!(
+            f.host.network_bindings[0]
+                .runtime()
+                .test_archive_custody()
+                .active_reservation_count,
+            0
+        );
+        // Independent recovery authority is not implied by Configure/Publish.
+        assert_eq!(
+            revalidate(&f, &other_cookie, &other_csrf).await?["reason"],
+            "not-approved"
+        );
+        assert_eq!(peer.calls.lock().unwrap().len(), calls);
+        let (cookie, csrf) = login_editor(&f, false)?;
+        // No old failure write was rebound to either fresh session.
+        let principal = access.lock().unwrap().authorize(
+            &a::RequestEvidence {
+                method: a::Method::Get,
+                url: &format!("{ORIGIN}{}", path()),
+                origin: Some(ORIGIN),
+                sec_fetch_site: Some("same-origin"),
+                referer: None,
+                cookie: Some(&cookie),
+                authorization: None,
+                csrf: None,
+            },
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(&id(1))?,
+                home_id: a::CanonicalId::parse(&id(2))?,
+            },
+            a::Action::Read,
+        )?;
+        let core = f.host.core.lock().unwrap();
+        let mut store = core.store.lock().unwrap();
+        let scope = s::Scope {
+            workspace_id: id(1),
+            home_id: id(2),
+        };
+        let request_principal = crate::app::RequestPrincipal::new(principal);
+        let current = store.read_snapshot_with_authorization(
+            &ReadAuthority(access.clone()),
+            &request_principal,
+            &scope,
+        )?;
+        assert_eq!(
+            current.caches[0]["lastAttemptAt"],
+            before["caches"][0]["lastAttemptAt"]
+        );
+        assert_eq!(current.caches[0]["error"], Value::Null);
+        let (pack, _) =
+            store.read_pack_cut(&ReadAuthority(access.clone()), &request_principal, &scope)?;
+        assert_eq!(pack.caches[0]["status"], "access-revoked");
+        assert!(pack.network_relations.is_empty());
+        drop(store);
+        drop(core);
+        // An unrelated partition remains publishable while A is held.
+        let path_b = path().replace(&id(12), &id(13));
+        assert_eq!(
+            request_path(
+                &f,
+                true,
+                Value::Null,
+                Some(&other_csrf),
+                &path_b,
+                Some(&other_cookie)
+            )
+            .await?
+            .1["status"],
+            "refreshed"
+        );
+        // Mismatch and ordinary failed recovery preserve the original hold.
+        peer.revision(43);
+        assert_eq!(
+            revalidate(&f, &cookie, &csrf).await?["status"],
+            "needs-review"
+        );
+        peer.revision(42);
+        peer.mode.store(1, Ordering::SeqCst);
+        assert_eq!(revalidate(&f, &cookie, &csrf).await?["quarantined"], true);
+        peer.mode.store(0, Ordering::SeqCst);
+        let recovered = revalidate(&f, &cookie, &csrf).await?;
+        assert_eq!(recovered["status"], "unchanged", "{recovered}");
+        let principal = read_principal_cookie(&f, &cookie)?;
+        let fresh = read_cached_principal(
+            &f.host,
+            principal,
+            &d::Scope {
+                workspace_id: id(1),
+                home_id: id(2),
+            },
+            &id(12),
+            "inventory",
+        )
+        .map_err(|e| format!("Recovered read refused: {}", e.status))?;
+        assert_eq!(fresh.facet.source_revision, Some(42));
+        assert_eq!(
+            f.host.network_bindings[0]
+                .runtime()
+                .test_archive_custody()
+                .active_reservation_count,
+            0
+        );
+    }
+    Ok(())
+}
+fn read_principal_cookie(f: &Fixture, cookie: &str) -> Result<a::Principal> {
+    Ok(f.host
+        .core
+        .lock()
+        .unwrap()
+        .access
+        .lock()
+        .unwrap()
+        .authorize(
+            &a::RequestEvidence {
+                method: a::Method::Get,
+                url: &format!("{ORIGIN}{}", path()),
+                origin: Some(ORIGIN),
+                sec_fetch_site: Some("same-origin"),
+                referer: None,
+                cookie: Some(cookie),
+                authorization: None,
+                csrf: None,
+            },
+            &a::Scope {
+                workspace_id: a::CanonicalId::parse(&id(1))?,
+                home_id: a::CanonicalId::parse(&id(2))?,
+            },
+            a::Action::Read,
+        )?)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stale_deferred_failure_retires_without_replaying_metadata() -> Result<()> {
+    let f = Arc::new(
+        fixture_setup(
+            false,
+            true,
+            false,
+            FixtureSetup {
+                revalidation: true,
+                ..Default::default()
+            },
+        )
+        .await?,
+    );
+    editor(&f, a::Role::Editor)?;
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let before = cache(&f)?;
+    let peer = f.inventory.as_ref().unwrap();
+    peer.mode.store(8, Ordering::SeqCst);
+    let first = {
+        let f = f.clone();
+        tokio::spawn(async move { refresh(&f).await })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), peer.admitted.notified()).await?;
+    let core = f.host.core.lock().unwrap();
+    peer.release.notify_one();
+    let failed = tokio::time::timeout(std::time::Duration::from_secs(10), first)
+        .await???
+        .1;
+    assert_eq!(failed["quarantined"], true);
+    drop(core);
+    // A separately committed transaction supersedes the original metadata CAS.
+    let db = rusqlite::Connection::open(f._root.path().join("atlas.sqlite"))?;
+    assert_eq!(db.execute("UPDATE cache_epochs SET epoch=epoch+1", [])?, 1);
+    drop(db);
+    assert_eq!(refresh(&f).await?.1["reason"], "access-revoked");
+    assert_eq!(
+        f.host.network_bindings[0]
+            .runtime()
+            .test_archive_custody()
+            .active_reservation_count,
+        0
+    );
+    let after = cache(&f)?;
+    assert_eq!(after["caches"][0]["error"], Value::Null);
+    assert_eq!(
+        after["caches"][0]["lastAttemptAt"],
+        before["caches"][0]["lastAttemptAt"]
+    );
+    assert_eq!(
+        revalidate(&f, &f.cookie, &f.csrf).await?["status"],
+        "unchanged"
+    );
+    assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
+    Ok(())
+}
+
+#[tokio::test]
+async fn durable_quarantine_recovery_preserves_reviewed_inventory_baseline() -> Result<()> {
+    let f = fixture_setup(
+        false,
+        true,
+        false,
+        FixtureSetup {
+            revalidation: true,
+            ..Default::default()
+        },
+    )
+    .await?;
+    editor(&f, a::Role::Editor)?;
+    let unregistered = cache(&f)?;
+    assert_eq!(
+        revalidate(&f, &f.cookie, &f.csrf).await?["reason"],
+        "not-approved"
+    );
+    assert_eq!(cache(&f)?, unregistered); // recovery never enrolls a source
+    assert_eq!(refresh(&f).await?.1["status"], "refreshed");
+    let peer = f.inventory.as_ref().unwrap();
+    let original = peer.wire.lock().unwrap().clone();
+    peer.mode.store(3, Ordering::SeqCst);
+    assert_eq!(refresh(&f).await?.1["quarantined"], true);
+    peer.mode.store(0, Ordering::SeqCst);
+    peer.wire.lock().unwrap()["inventory"]["devices"][0]["name"] = json!("Invented changed device");
+    let refused = revalidate(&f, &f.cookie, &f.csrf).await?;
+    assert_eq!(refused["status"], "failed", "{refused}");
+    assert_eq!(refused["reason"], "invalid-schema"); // same revision, changed inventory
+    assert_eq!(refused["quarantined"], true);
+    *peer.wire.lock().unwrap() = original;
+    let recovered = revalidate(&f, &f.cookie, &f.csrf).await?;
+    assert_eq!(recovered["status"], "unchanged", "{recovered}");
+    assert_eq!(read_cached_for_test(&f)?.facet.source_revision, Some(42));
     Ok(())
 }

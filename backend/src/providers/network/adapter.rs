@@ -189,6 +189,9 @@ impl OriginalNetworkCapture {
 }
 #[derive(Clone, Debug)]
 pub struct RefreshFailure {
+    // A reviewed peer actually refused or attested the wrong source, rather
+    // than an expired caller failing a transport authority callback.
+    pub(crate) source_refusal: bool,
     pub error: NetworkError,
     /// Internal state: keep the validated previous generation for revision
     /// comparison/recovery. Expose it only through provider.read/public_read or
@@ -205,12 +208,26 @@ pub enum RefreshOutcome {
     },
 }
 enum FetchError {
-    Network(NetworkError),
+    Network {
+        error: NetworkError,
+        source_refusal: bool,
+    },
     NeedsReview(u64),
+}
+impl FetchError {
+    fn observed(error: NetworkError) -> Self {
+        Self::Network {
+            source_refusal: matches!(error.code, ErrorCode::Auth | ErrorCode::WrongScope),
+            error,
+        }
+    }
 }
 impl From<NetworkError> for FetchError {
     fn from(error: NetworkError) -> Self {
-        Self::Network(error)
+        Self::Network {
+            error,
+            source_refusal: false,
+        }
     }
 }
 #[derive(Clone, Debug)]
@@ -283,7 +300,10 @@ impl NetworkProvider {
                 reviewed_revision: self.review.revision,
                 collector_revision,
             },
-            Err(FetchError::Network(error)) => {
+            Err(FetchError::Network {
+                error,
+                source_refusal,
+            }) => {
                 let mut state = prior.clone();
                 state.cache.status = if error.code == ErrorCode::Auth
                     || prior.cache.status == CacheStatus::AccessRevoked
@@ -298,7 +318,11 @@ impl NetworkProvider {
                     at: attempted_at,
                     message: error.message().into(),
                 });
-                RefreshOutcome::Failed(Box::new(RefreshFailure { error, state }))
+                RefreshOutcome::Failed(Box::new(RefreshFailure {
+                    error,
+                    state,
+                    source_refusal,
+                }))
             }
         })
     }
@@ -322,7 +346,10 @@ impl NetworkProvider {
         .map_err(|_| NetworkError::new(ErrorCode::Timeout))??;
         let (response, origin) = response.into_parts();
         if matches!(response.status, 401 | 403) {
-            return Err(NetworkError::new(ErrorCode::Auth).into());
+            return Err(FetchError::Network {
+                error: NetworkError::new(ErrorCode::Auth),
+                source_refusal: true,
+            });
         }
         if response.status != 200
             || response.redirected
@@ -334,8 +361,14 @@ impl NetworkProvider {
         let source = response
             .source
             .as_ref()
-            .ok_or_else(|| NetworkError::new(ErrorCode::WrongScope))?;
-        same_scope(&self.registration, source)?;
+            .ok_or_else(|| FetchError::Network {
+                error: NetworkError::new(ErrorCode::WrongScope),
+                source_refusal: true,
+            })?;
+        same_scope(&self.registration, source).map_err(|error| FetchError::Network {
+            error,
+            source_refusal: true,
+        })?;
         let fetched_at = clock();
         guard(stamp(&fetched_at)? >= stamp(attempted_at)?)?;
         // Hash and retain the actual native response bytes before projection
@@ -355,7 +388,8 @@ impl NetworkProvider {
             origin,
         )?;
         let collector_revision =
-            inventory_revision(&self.registration, original_capture.body(), self.limits)?;
+            inventory_revision(&self.registration, original_capture.body(), self.limits)
+                .map_err(FetchError::observed)?;
         if collector_revision != self.review.revision {
             return Err(FetchError::NeedsReview(collector_revision));
         }
@@ -369,7 +403,8 @@ impl NetworkProvider {
             },
             &self.review,
             self.limits,
-        )?;
+        )
+        .map_err(FetchError::observed)?;
         if let Some(previous) = &prior.generation {
             guard(generation.source_revision >= previous.source_revision)?;
             if generation.source_revision == previous.source_revision {

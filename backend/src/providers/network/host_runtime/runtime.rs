@@ -44,6 +44,7 @@ pub struct HostNetworkRuntime {
     sidecar: Mutex<n::SqliteNetworkSidecar>,
     collector: Mutex<n::collector::Cached>,
     pending: Mutex<Option<PendingPublication>>,
+    read_hold: Mutex<Option<s::CacheReadHold>>,
 }
 struct PendingPublication {
     prepared: Arc<PreparedPublication>,
@@ -127,6 +128,7 @@ impl HostNetworkRuntime {
             settings,
             collector: Mutex::new(None),
             pending: Mutex::new(None),
+            read_hold: Mutex::new(None),
         })
     }
     pub fn settings(&self) -> &NetworkSettings {
@@ -204,6 +206,7 @@ impl HostNetworkRuntime {
         let prepared = Arc::new(with_store(core, &lease.access, |store| {
             PreparedPublication::prepare(store, lease.clone(), self.settings.source())
         })?);
+        *self.read_hold.lock().map_err(|_| unavailable())? = Some(prepared.read_hold());
         *self.pending.lock().map_err(|_| unavailable())? = Some(PendingPublication {
             prepared: prepared.clone(),
             admission: None,
@@ -243,12 +246,15 @@ impl HostNetworkRuntime {
         }
         // Exact PR36 ordering: quarantine blocks retained loading, transport
         // construction, credentials and sidecar stage. Native CAS stays closed.
-        if baseline.cache.as_ref().is_some_and(|cache| {
-            cache.status == n::CacheStatus::AccessRevoked
-                || cache.error.as_ref().is_some_and(|e| {
-                    matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
-                })
-        }) {
+        if !lease.is_revalidation()
+            && (prepared.read_hold().is_held()
+                || baseline.cache.as_ref().is_some_and(|cache| {
+                    cache.status == n::CacheStatus::AccessRevoked
+                        || cache.error.as_ref().is_some_and(|e| {
+                            matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+                        })
+                }))
+        {
             return Err(n::NetworkPublicationError::Storage(s::Error::new(
                 "access-revoked",
                 "Network cache is quarantined",
@@ -258,7 +264,7 @@ impl HostNetworkRuntime {
             .cache
             .clone()
             .unwrap_or_else(|| n::RetainedState::empty(self.settings.source().scope.clone()).cache);
-        let prior = self.retained(&cache, &baseline.network_relations)?;
+        let prior = self.retained_for_publication(&cache, &baseline.network_relations)?;
         cancelled(cancellation)?;
         authority.revalidate_inventory(lease, self.settings.source(), config.reviewed_origin())?;
         // Retire previous health before a new attempt; failed reads remain unknown.
@@ -284,6 +290,7 @@ impl HostNetworkRuntime {
                     &mut *clock,
                 )
                 .await?;
+            prepared.observe(&preflight);
             cancelled(cancellation)?;
             authority.revalidate_inventory(
                 lease,
@@ -339,6 +346,7 @@ impl HostNetworkRuntime {
                 return Err(error.into());
             }
         };
+        prepared.observe(&outcome);
         if let Err(error) = cancelled(cancellation).and_then(|_| {
             authority.revalidate_inventory(lease, self.settings.source(), config.reviewed_origin())
         }) {
@@ -501,18 +509,30 @@ impl HostNetworkRuntime {
         core: &Arc<Mutex<Core>>,
         failure: n::RefreshFailure,
     ) -> Result<s::CacheStatus> {
+        // Caller-authority refusal is not an observed collector failure and
+        // cannot quarantine the source under a later valid callback.
+        if !failure.source_refusal
+            && matches!(
+                failure.error.code,
+                n::ErrorCode::Auth | n::ErrorCode::WrongScope
+            )
+        {
+            return Err(failure.error.into());
+        }
         let mut slot = self.pending.lock().map_err(|_| unavailable())?;
         let pending = slot.as_mut().ok_or_else(unavailable)?;
         pending.failure = Some(failure);
-        // Only a definite authorized CAS receipt clears the pending fact.
-        // Disposition retries never replay a committed failure or its time.
+        // A definite CAS receipt or terminal rejection retires the old write;
+        // contention retains its original grant/time. Never replay a commit.
         let cache = with_store(core, &pending.prepared.lease().access, |store| {
             pending
                 .prepared
                 .failure(store, pending.failure.as_ref().unwrap())
-        })?;
-        pending.failure = None;
-        Ok(cache)
+        });
+        if cache.is_ok() || cache.as_ref().is_err_and(terminal_failure_record) {
+            pending.failure = None;
+        }
+        cache
     }
     fn dispose_pending(&self, core: &Arc<Mutex<Core>>) -> Result<()> {
         let mut slot = self.pending.lock().map_err(|_| unavailable())?;
@@ -523,10 +543,13 @@ impl HostNetworkRuntime {
         if let Some(failure) = pending.failure.as_ref() {
             // Core contention may have prevented the original transaction.
             // Retain its original grant/time; a different caller cannot replace it.
-            with_store(core, &access, |store| {
+            match with_store(core, &access, |store| {
                 pending.prepared.failure(store, failure)
-            })?;
-            pending.failure = None;
+            }) {
+                Ok(_) => pending.failure = None,
+                Err(error) if terminal_failure_record(&error) => pending.failure = None,
+                Err(error) => return Err(error),
+            }
         }
 
         with_store(core, &access, |store| {
@@ -564,6 +587,12 @@ impl HostNetworkRuntime {
                 })
         })
     }
+    /// A failed old write can be retired, but its Store-owned auth hold remains.
+    pub(crate) fn cache_reads_held(&self) -> bool {
+        self.read_hold.lock().map_or(true, |hold| {
+            hold.as_ref().is_some_and(s::CacheReadHold::is_held)
+        })
+    }
     #[cfg(test)]
     pub(crate) fn with_test_sidecar_lock<T>(&self, operation: impl FnOnce() -> T) -> T {
         let _guard = self.sidecar.lock().unwrap();
@@ -582,12 +611,28 @@ impl HostNetworkRuntime {
         cache: &n::CacheMetadata,
         relations: &[n::NetworkRelation],
     ) -> std::result::Result<n::RetainedState, n::NetworkError> {
-        let state = if cache.status == n::CacheStatus::AccessRevoked {
-            n::RetainedState {
+        if cache.status == n::CacheStatus::AccessRevoked {
+            let retained = n::RetainedState {
                 cache: cache.clone(),
                 generation: None,
-            }
-        } else if let Some(id) = &cache.generation_id {
+            };
+            n::validate_state(
+                self.settings.source(),
+                &retained,
+                Some(self.settings.review()),
+            )?;
+            return Ok(retained);
+        }
+        self.retained_for_publication(cache, relations)
+    }
+    // Publication may inspect quarantined original bytes without disclosing them.
+    // Recovery still enforces monotonic revisions and same-revision identity.
+    fn retained_for_publication(
+        &self,
+        cache: &n::CacheMetadata,
+        relations: &[n::NetworkRelation],
+    ) -> std::result::Result<n::RetainedState, n::NetworkError> {
+        let state = if let Some(id) = &cache.generation_id {
             let sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
             let original = sidecar.reopen_original_capture(self.settings.source(), id)?;
             if !original.is_from_reviewed_origin(self.settings.transport().reviewed_origin()) {
@@ -760,4 +805,12 @@ fn cancelled(token: &CancellationToken) -> std::result::Result<(), n::NetworkErr
     } else {
         Ok(())
     }
+}
+
+// Contention/I/O remain retryable. The original actor cannot ever commit an
+// expired/revoked grant or an obsolete CAS; retiring that write grants nobody
+// authority to replay it, and never clears its independently retained read hold.
+fn terminal_failure_record(error: &n::NetworkPublicationError<s::Error>) -> bool {
+    matches!(error, n::NetworkPublicationError::Storage(error)
+        if matches!(error.code, "unauthenticated" | "forbidden" | "not-found" | "guard-conflict"))
 }

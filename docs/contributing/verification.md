@@ -6563,7 +6563,7 @@ nor inventory provisioning or G1–G5 acceptance.
 
 ### Named-Editor Network inventory refresh
 
-The default backend-library selection adds eight cases under
+The default backend-library selection adds twelve cases under
 `http::providers::network::tests::refresh::`:
 `refresh_auth_absence_and_named_editor`,
 `first_refresh_registers_publishes_and_unchanged_renews_capture`,
@@ -6572,7 +6572,11 @@ The default backend-library selection adds eight cases under
 `concurrent_refresh_returns_running_without_second_get`,
 `failure_after_archive_reservation_keeps_previous_generation_readable`,
 `post_reservation_contention_retains_custody_and_auth_failure_metadata`,
-and `interrupted_pre_stage_future_recovers_on_same_store`.
+`interrupted_pre_stage_future_recovers_on_same_store`,
+`two_partitions_refresh_independently_with_retained_disclosure`,
+`deferred_auth_expiry_and_revocation_keep_reads_closed_until_authorized_recovery`,
+`stale_deferred_failure_retires_without_replaying_metadata`,
+and `durable_quarantine_recovery_preserves_reviewed_inventory_baseline`.
 The existing persistent profile selection adds
 `network_refresh_profile_opens_writable_custody_only_for_named_editors`.
 These exercise genuine native Access/Store/sidecar/archive owners
@@ -6593,21 +6597,38 @@ Preflight transport failure also recovers on the same Store.
 Controlled post-reservation Core and sidecar contention retain original custody
 and allow the next explicit refresh to succeed without changing the previous cache.
 The sidecar-contention auth variant records quarantine before cleanup can complete.
-The Core-contention auth variant retains the observed failure and original grant/time
-until the metadata transaction can run, then checks quarantine without transport.
+The Core-contention auth variant arms a Store-owned read hold immediately
+and retains the original failure grant/time for a later metadata attempt.
+Expiry/revocation and stale CAS stop that old write without rebinding it,
+while proven-empty custody can be retired and reads stay closed.
+A deferred transport failure with an expired original Editor also permits
+ordinary refresh by a fresh approved Editor without setting a read hold.
+Fresh recovery independently requires PublishCache and RevalidateSource,
+keeps review mismatch and failed recovery closed,
+then publishes an equal reviewed inventory and reopens reads.
+Generic Snapshot/pack reads and old retained disclosures are checked,
+as are two partitions sharing a Store and durable-quarantine inventory equality.
 Both check that committed failure metadata is not recorded again,
 that capacity reservations are released and permanent IDs remain burned.
 
-The same lane additionally discovers three generated cases under
+The same lane additionally discovers six generated cases under
 `storage::store::cache_custody::pre_stage_tests::`:
 `pre_stage_disposition_returns_custody_on_wrong_store_or_native_refusal`,
 `pre_stage_disposition_protects_bound_sql_and_native_references`,
-and `pre_stage_pin_only_disposition_preserves_previous_cache_and_other_pin`.
+`pre_stage_pin_only_disposition_preserves_previous_cache_and_other_pin`,
+`read_hold_survives_empty_candidate_disposal_and_covers_store_readers`,
+`read_hold_version_and_same_store_fence_prevent_stale_release`,
+and `read_hold_arms_during_authorization_before_snapshot_or_cache_release`.
 They use generated Store principals, disposable SQLite and a synthetic native proof owner.
 They verify original-handle return and successful checked retry,
 foreign-Store refusal, bound and SQL current/history protection,
 native staged/recovery/disclosure/ambiguous refusal,
 and removal of only the selected unbound pin without changing cache facts.
+Read-hold controls cover foreign Store issuance, retired/bound activation refusal,
+stale-version release, all three common Snapshot readers, ReadCache and old pins,
+while the internal publication baseline stays available.
+The RAM-only hold disappears on Store reopen before any durable quarantine commit;
+this is an explicit lifetime limit, not durable deny recovery.
 The default lane also discovers
 `providers::network::archive::pre_stage_tests::pre_stage_archive_cancellation_requires_original_token_and_keeps_burned_id`,
 checking native issuer/registration/generation, same-token cancellation retry,
@@ -6615,13 +6636,21 @@ capacity release and permanent ID reuse refusal in disposable native archives.
 The interrupted-future case drops an admitted refresh before staging,
 then checks unchanged cache and successful same-Store refresh.
 These are synthetic owner-lifetime checks, not process-crash or installed recovery.
+Store hold controls cover all three Snapshot/pack readers, ReadCache and
+retained pins, previous internal publication baselines, same-Store disposal,
+RAM-only reopen and durable quarantine reopen, stale hold-version release,
+and a hold activated during read authorization before release.
+The default library selection also discovers
+`providers::network::http::refusal_tests::inventory_refusal_preserves_observation_before_caller_recheck`
+and `providers::network::failure_contract::verified_body_wrong_scope_is_a_source_refusal`.
+They use constructed HTTP responses and generated inventory without a listener.
 The existing root-router TLS loopback selection retains its original one-GET
 contract, deadlines and assertions; only the Editor entry performs preflight.
 
 The existing `network-live-facts-healthy.mjs` entry adds `mayRefresh`,
 reviewed/collector revisions, `needsReview` and the `needs-review` outcome,
 all typed refresh outcomes, exact safe revisions, strict decode refusals,
-and one explicit CSRF POST through fake fetch, without a retry.
+and explicit refresh/revalidation CSRF POSTs through fake fetch, without retries.
 No CI run step changes, so `tools/ci/lanes.json` is unchanged.
 Focused commands use installed Rust 1.99.0, Node 26.10.0
 and an existing Cargo target outside the checkout:
@@ -6632,13 +6661,20 @@ node tools/rust-integration/format.mjs --check
 cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -j 2 -- -D warnings
 cargo test --offline --locked -p houseatlas-backend --lib http::providers::network::tests:: -j 2 -- --test-threads=1
 cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::provider_reads::tests:: -j 2 -- --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib pre_stage_ -j 2 -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::cache_custody::pre_stage_tests:: -j 2 -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::cache_custody::pre_stage_tests:: -j 2 -- --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib providers::network:: -j 2 -- --skip http::providers::network:: --test-threads=1
 cargo build --offline --locked -p houseatlas-backend --example healthy-network-root-router -j 2
 python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
 node frontend/lantern-tests/network-live-facts-healthy.mjs
 node tools/publication/refresh-manifest.mjs --check
 npm run verify:publication
 ```
+
+For the existing Network TLS staging fixture on macOS,
+the provider-only command uses command-local `TMPDIR=/private/tmp`
+so its existing-only custody owner receives a canonical private directory.
+The fixture's assertions, deadlines and production guards are unchanged.
 
 These checks establish synthetic implementation behavior only.
 They release no G1–G5, installation or live-provider acceptance.

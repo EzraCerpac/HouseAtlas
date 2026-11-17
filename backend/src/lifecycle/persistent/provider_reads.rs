@@ -121,7 +121,13 @@ impl ProviderReadSelection {
                 for capability in [
                     a::LifecycleCapability::ConfigureSource,
                     a::LifecycleCapability::PublishCache,
-                ] {
+                ]
+                .into_iter()
+                .chain(
+                    value
+                        .revalidate_source
+                        .then_some(a::LifecycleCapability::RevalidateSource),
+                ) {
                     rules.push(a::LifecycleRule::new(
                         editor.user_id.clone(),
                         editor.actor_id.clone(),
@@ -227,6 +233,9 @@ impl HomeBoxLimits {
 struct Network {
     #[serde(default)]
     refresh_editors: Vec<RefreshEditor>,
+    /// Separate schema-2 owner approval for explicit source revalidation.
+    #[serde(default)]
+    revalidate_source: bool,
     #[serde(default)]
     collector_measurements: bool,
     #[serde(default, deserialize_with = "n::present")]
@@ -248,16 +257,16 @@ impl Packet {
         let extended = self
             .network_cached
             .iter()
-            .any(|v| !v.refresh_editors.is_empty())
+            .any(|v| !v.refresh_editors.is_empty() || v.revalidate_source)
             || self.homebox_cached.iter().any(|v| {
                 v.credential_file.is_some() || v.refresh_editors.is_some() || v.revalidate_source
             });
         if !matches!(self.schema_version, 1 | 2)
             || (self.schema_version == 1 && extended)
-            || self
-                .network_cached
-                .iter()
-                .any(|v| v.refresh_editors.len() > MAX_REFRESH_EDITORS)
+            || self.network_cached.iter().any(|v| {
+                v.refresh_editors.len() > MAX_REFRESH_EDITORS
+                    || (v.revalidate_source && v.refresh_editors.is_empty())
+            })
             || self.homebox_cached.iter().any(|v| {
                 v.credential_file
                     .as_deref()

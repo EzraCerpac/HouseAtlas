@@ -213,3 +213,26 @@ async fn wrong_scope_response_keeps_existing_network_error_semantics() {
 async fn auth_failure_retains_internal_generation_but_withholds_public_records() {
     failure_case(ErrorCode::Auth).await;
 }
+
+#[tokio::test]
+async fn verified_body_wrong_scope_is_a_source_refusal() {
+    let mut source = healthy::source();
+    source.partition_mode = PartitionMode::ReviewedEntityAllowlist;
+    source.allowed_external_ids = vec!["device-a".into()];
+    let mut provider = provider(&source);
+    let RefreshOutcome::Failed(failed) = provider
+        .prepare_refresh(
+            &RetainedState::empty(source.scope.clone()),
+            0,
+            CANDIDATE,
+            &reply(&source.scope),
+            || ATTEMPT.into(),
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("Out-of-allowlist body must refuse");
+    };
+    assert_eq!(failed.error.code, ErrorCode::WrongScope);
+    assert!(failed.source_refusal);
+}

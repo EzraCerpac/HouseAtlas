@@ -8,7 +8,10 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
-    sync::{Arc, Weak},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
 };
 
 pub const CACHE_PROTECTED_ENTRY_LIMIT: usize = 10_000;
@@ -149,6 +152,7 @@ pub struct ProtectedCacheGeneration {
     native_sha256: Option<String>,
     reason: CacheProtectionReason,
     origin: CacheProtectionOrigin,
+    unbound: Option<Arc<AtomicBool>>,
 }
 impl ProtectedCacheGeneration {
     pub fn registration(&self) -> &SourceRegistration {
@@ -224,6 +228,7 @@ impl CacheProtectionSink<'_> {
                 native_sha256: native_sha256.map(str::to_owned),
                 reason,
                 origin,
+                unbound: None,
             });
             Ok(())
         })();
@@ -238,6 +243,89 @@ impl CacheProtectionSink<'_> {
 pub(super) struct CachePinRegistry {
     entries: Vec<ProtectedCacheGeneration>,
     disclosures: Vec<Weak<CacheDisclosureLease>>,
+    // Strong same-Store ownership: disposing a candidate or replacing its
+    // runtime never silently releases an unresolved read hold. Not persisted.
+    read_holds: Vec<Arc<CacheReadHoldState>>,
+}
+
+struct CacheReadHoldState {
+    issuer: Arc<()>,
+    registration: SourceRegistration,
+    // Odd = held, even = released. Every observation advances the version.
+    version: AtomicU64,
+}
+
+/// Original unbound-fence holder's deny-only handle. No serialization or
+/// constructor; recovery requires the separate guarded publication entry below.
+#[derive(Clone)]
+pub(crate) struct CacheReadHold {
+    state: Arc<CacheReadHoldState>,
+    generation_id: String,
+    captured_version: u64,
+    unbound: Arc<AtomicBool>,
+}
+impl CacheReadHold {
+    pub(crate) fn activate(&self) {
+        if !self.unbound.load(Ordering::SeqCst) {
+            return;
+        }
+        let _ = self
+            .state
+            .version
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |version| {
+                Some(version.checked_add(2).map_or(u64::MAX, |next| next | 1))
+            });
+    }
+    pub(crate) fn is_held(&self) -> bool {
+        self.state.version.load(Ordering::SeqCst) & 1 != 0
+    }
+    fn lift_matching_version(&self) {
+        // Saturation is permanently fail-closed. A completion captured before a
+        // newer auth observation cannot release that newer hold (no ABA).
+        if self.captured_version & 1 != 0 && self.captured_version != u64::MAX {
+            let _ = self.state.version.compare_exchange(
+                self.captured_version,
+                self.captured_version + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            );
+        }
+    }
+}
+
+/// Original owner must independently validate PublishCache and the separately
+/// approved RevalidateSource grant under its same actual authority fence.
+pub(crate) trait CacheReadRecoveryAuthorization: Authorization {
+    fn authorize_cache_recovery(
+        &self,
+        principal: &Self::Principal,
+        registration: &SourceRegistration,
+    ) -> Result<VerifiedActor>;
+}
+struct RecoveryAuthorization<'a, B> {
+    original: &'a B,
+    registration: &'a SourceRegistration,
+}
+impl<B: CacheReadRecoveryAuthorization> Authorization for RecoveryAuthorization<'_, B> {
+    type Principal = B::Principal;
+    fn authorize(
+        &self,
+        principal: &B::Principal,
+        request: AuthorizationRequest<'_>,
+    ) -> Result<VerifiedActor> {
+        if request.capability != Capability::PublishCache {
+            return Err(disclosure_conflict());
+        }
+        let actor = self.original.authorize(principal, request)?;
+        if self
+            .original
+            .authorize_cache_recovery(principal, self.registration)?
+            != actor
+        {
+            return Err(disclosure_conflict());
+        }
+        Ok(actor)
+    }
 }
 
 /// Refused pre-stage disposition returns the original move-only custody.
@@ -293,6 +381,12 @@ fn disclosure_baseline_digest(read: &RegisteredCacheRead) -> Result<[u8; 32]> {
     Ok(Sha256::digest(serde_json::to_vec(&(&read.registration, &read.state))?).into())
 }
 
+pub(super) fn read_hold_error() -> Error {
+    Error::new(
+        "access-revoked",
+        "Cache requires separately authorized source revalidation",
+    )
+}
 fn disclosure_conflict() -> Error {
     Error::new(
         "guard-conflict",
@@ -301,6 +395,24 @@ fn disclosure_conflict() -> Error {
 }
 
 impl CachePinRegistry {
+    pub(super) fn held_partitions(&self, scope: &Scope) -> Vec<SourcePartition> {
+        self.read_holds
+            .iter()
+            .filter(|hold| {
+                hold.registration.scope() == *scope && hold.version.load(Ordering::SeqCst) & 1 != 0
+            })
+            .map(|hold| hold.registration.partition())
+            .collect()
+    }
+    pub(super) fn ensure_readable(&self, partition: &SourcePartition) -> Result<()> {
+        if self.read_holds.iter().any(|hold| {
+            hold.registration.partition() == *partition
+                && hold.version.load(Ordering::SeqCst) & 1 != 0
+        }) {
+            return Err(read_hold_error());
+        }
+        Ok(())
+    }
     fn live_disclosures(&mut self) -> Vec<Arc<CacheDisclosureLease>> {
         self.disclosures.retain(|pin| pin.strong_count() != 0);
         self.disclosures.iter().filter_map(Weak::upgrade).collect()
@@ -321,6 +433,7 @@ impl CachePinRegistry {
             native_sha256: None,
             reason: CacheProtectionReason::InFlightOrAmbiguous,
             origin: CacheProtectionOrigin::StorePin,
+            unbound: Some(Arc::new(AtomicBool::new(true))),
         });
         Ok(())
     }
@@ -343,6 +456,9 @@ impl CachePinRegistry {
                 "guard-conflict",
                 "Native candidate digest changed",
             ));
+        }
+        if let Some(unbound) = &pin.unbound {
+            unbound.store(false, Ordering::SeqCst);
         }
         pin.native_sha256 = Some(digest.into());
         Ok(())
@@ -705,6 +821,7 @@ impl<G: OriginalCacheReferenceGuard> CacheResidencyGuard<'_, G> {
                 native_sha256: entry.native_sha256.clone(),
                 reason: entry.reason,
                 origin: entry.origin,
+                unbound: entry.unbound.clone(),
             })
             .collect::<Vec<_>>();
         let mut sink = CacheProtectionSink {
@@ -823,6 +940,105 @@ impl<G: OriginalCacheReferenceGuard> UnpublishedCacheCandidateGuard<'_, G> {
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Register while the original candidate is unbound, before transport.
+    /// Its deny-only handle can arm without Core/Store contention. Strong Store
+    /// ownership lasts until this Store closes, independently of candidate pins.
+    pub(crate) fn cache_read_hold(
+        &mut self,
+        fence: &CachePublicationFence,
+    ) -> Result<CacheReadHold> {
+        if !Arc::ptr_eq(&self.instance, &fence.issuer)
+            || fence.registration.partition() != fence.partition
+            || repo::source(&self.db, &fence.partition)? != fence.registration
+            || !self
+                .cache_pins
+                .entries
+                .iter()
+                .any(|pin| same_candidate(pin, fence) && pin.native_sha256.is_none())
+        {
+            return Err(disclosure_conflict());
+        }
+        let state = if let Some(state) = self
+            .cache_pins
+            .read_holds
+            .iter()
+            .find(|state| state.registration == fence.registration)
+        {
+            state.clone()
+        } else {
+            if self.cache_pins.read_holds.len() >= CACHE_PROTECTED_ENTRY_LIMIT {
+                return Err(capacity_error());
+            }
+            let state = Arc::new(CacheReadHoldState {
+                issuer: self.instance.clone(),
+                registration: fence.registration.clone(),
+                version: AtomicU64::new(0),
+            });
+            self.cache_pins.read_holds.push(state.clone());
+            state
+        };
+        let unbound = self
+            .cache_pins
+            .entries
+            .iter()
+            .find(|pin| same_candidate(pin, fence))
+            .and_then(|pin| pin.unbound.clone())
+            .ok_or_else(disclosure_conflict)?;
+        Ok(CacheReadHold {
+            captured_version: state.version.load(Ordering::SeqCst),
+            state,
+            generation_id: fence.reserved_generation_id.clone(),
+            unbound,
+        })
+    }
+
+    /// Both independent grants are repeated by the original owner at the
+    /// existing publication precommit. Only its definite fresh receipt may
+    /// lift this exact version; no old failure metadata is replayed.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn publish_revalidated_staged_generation<
+        B: CacheReadRecoveryAuthorization,
+        P: OriginalCacheReferences,
+    >(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: CachePublicationFence,
+        staged: P::Staged,
+        references: &mut P,
+        hold: CacheReadHold,
+    ) -> std::result::Result<
+        PublishedStagedCachePublication<P::Staged>,
+        RejectedStagedCachePublication<P::Staged>,
+    > {
+        if !Arc::ptr_eq(&self.instance, &hold.state.issuer)
+            || hold.state.registration != fence.registration
+            || hold.generation_id != fence.reserved_generation_id
+            || !self
+                .cache_pins
+                .read_holds
+                .iter()
+                .any(|state| Arc::ptr_eq(state, &hold.state))
+        {
+            return staged_outcome(Err(disclosure_conflict()), fence, staged);
+        }
+        let registration = fence.registration.clone();
+        let authorization = RecoveryAuthorization {
+            original: authorization,
+            registration: &registration,
+        };
+        let published = self.publish_staged_generation_with_authorization(
+            &authorization,
+            principal,
+            fence,
+            staged,
+            references,
+        )?;
+        // No fallible work after COMMIT. A newer hold stays armed even though
+        // this definite publication receipt must still be reported honestly.
+        hold.lift_matching_version();
+        Ok(published)
+    }
     /// Dispose only an original, unbound candidate proven never staged. This
     /// does not release history, publication or disclosure custody. Store and
     /// original Native locks remain held through proof and native cancellation;
@@ -930,6 +1146,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             &fence.reserved_generation_id,
             admission,
         )?;
+        if let Some(unbound) = &pins.entries[index].unbound {
+            unbound.store(false, Ordering::SeqCst);
+        }
         pins.entries.remove(index);
         // Read-only Store transaction: rollback on exit changes no SQL.
         Ok(())
@@ -1003,6 +1222,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         {
             return Err(disclosure_conflict());
         }
+        self.cache_pins
+            .ensure_readable(&read.registration.partition())?;
         Ok(())
     }
 
@@ -1611,6 +1832,211 @@ mod pre_stage_tests {
                 .any(|pin| same_candidate(pin, &other))
         );
         assert_eq!(after.cache.as_ref(), Some(&previous));
+        Ok(())
+    }
+    #[test]
+    fn read_hold_survives_empty_candidate_disposal_and_covers_store_readers() -> Check {
+        let (root, mut store, actor, mut refs) = fixture()?;
+        // SQLite's existing-only NOFOLLOW open rejects the macOS /var alias.
+        let database = std::fs::canonicalize(root.path())?.join("store.sqlite");
+        let seed = prepare(&mut store, &actor, &refs);
+        let previous = CacheStatus {
+            schema_version: 1,
+            workspace_id: id(1),
+            home_id: id(2),
+            source_instance_id: id(12),
+            collection_id: "inventory".into(),
+            status: CacheState::Fresh,
+            last_successful_fetch_at: Some("2026-10-07T12:00:00Z".into()),
+            last_attempt_at: Some("2026-10-07T12:00:00Z".into()),
+            generation_id: Some(id(100)),
+            consistency: "non-transactional-offset-pages".into(),
+            error: None,
+        };
+        store.publish_prepared_generation(&actor, seed, &previous, &[], &[])?;
+        let pinned = store.read_cache_partition_pinned_with_authorization(
+            &Authority,
+            &actor,
+            &refs.registration.scope(),
+            &refs.registration.partition(),
+        )?;
+        refs.candidate = id(101);
+        let fence = prepare(&mut store, &actor, &refs);
+        let hold = store.cache_read_hold(&fence)?;
+        hold.activate();
+        store
+            .abandon_pre_stage_cache_candidate(fence, None, &mut refs)
+            .map_err(|e| e.into_parts().0)?;
+        assert!(hold.is_held());
+        // The retired candidate loses even its deny-only activation permit.
+        let version = hold.state.version.load(Ordering::SeqCst);
+        hold.activate();
+        assert_eq!(hold.state.version.load(Ordering::SeqCst), version);
+        let partition = refs.registration.partition();
+        let scope = refs.registration.scope();
+        assert_eq!(
+            store
+                .read_cache_partition_with_authorization(&Authority, &actor, &scope, &partition)
+                .err()
+                .unwrap()
+                .code,
+            "access-revoked"
+        );
+        let (read, pin) = pinned.into_parts();
+        assert_eq!(
+            store
+                .validate_cache_disclosure_pin(&pin.unwrap(), &read)
+                .err()
+                .unwrap()
+                .code,
+            "access-revoked"
+        );
+        for snapshot in [
+            store
+                .read_snapshot(&actor, &scope)
+                .map_err(|e| format!("held snapshot: {e:?}"))?,
+            store
+                .read_snapshot_with_authorization(&Authority, &actor, &scope)
+                .map_err(|e| format!("held borrowed snapshot: {e:?}"))?,
+            store
+                .read_pack_cut(&Authority, &actor, &scope)
+                .map_err(|e| format!("held pack: {e:?}"))?
+                .0,
+        ] {
+            assert_eq!(snapshot.caches[0]["status"], "access-revoked");
+        }
+        assert_eq!(
+            store
+                .read_cache_for_publication(&actor, &scope, &partition)?
+                .cache,
+            Some(previous.clone())
+        );
+        // Holds are explicitly same-Store RAM protection. With no successful
+        // original failure CAS, closing/reopening does not invent a durable denial.
+        store
+            .close()
+            .map_err(|e| format!("close held Store: {e:?}"))?;
+        let mut reopened = AtlasStore::open_existing(
+            &database,
+            NativeContracts,
+            Authority,
+            Clock(Cell::new(200)),
+            StoreOptions::default(),
+        )
+        .map_err(|e| format!("reopen Store: {e:?}"))?;
+        assert_eq!(
+            reopened
+                .read_cache_partition_with_authorization(&Authority, &actor, &scope, &partition)?
+                .state
+                .cache,
+            Some(previous)
+        );
+        let prepared = reopened
+            .prepare_cache_publication(&actor, &scope, &partition)
+            .map_err(|e| format!("prepare durable failure: {e:?}"))?;
+        let (_, fence) = prepared.into_parts();
+        reopened
+            .record_prepared_cache_failure(
+                &actor,
+                fence,
+                &CacheFailure {
+                    code: FailureCode::Auth,
+                    status: None,
+                },
+            )
+            .map_err(|e| format!("durable failure: {e:?}"))?;
+        reopened
+            .close()
+            .map_err(|e| format!("close durable Store: {e:?}"))?;
+        let mut reopened = AtlasStore::open_existing(
+            &database,
+            NativeContracts,
+            Authority,
+            Clock(Cell::new(300)),
+            StoreOptions::default(),
+        )
+        .map_err(|e| format!("reopen Store: {e:?}"))?;
+        assert_eq!(
+            reopened.read_snapshot(&actor, &scope)?.caches[0]["status"],
+            "access-revoked"
+        );
+        Ok(())
+    }
+    #[test]
+    fn read_hold_version_and_same_store_fence_prevent_stale_release() -> Check {
+        let (_root, mut store, actor, refs) = fixture()?;
+        let (_other_root, mut other, _, _) = fixture()?;
+        let fence = prepare(&mut store, &actor, &refs);
+        assert_eq!(
+            other.cache_read_hold(&fence).err().unwrap().code,
+            "guard-conflict"
+        );
+        let first = store.cache_read_hold(&fence)?;
+        first.activate();
+        let old_recovery = store.cache_read_hold(&fence)?;
+        first.activate();
+        old_recovery.lift_matching_version();
+        assert!(first.is_held());
+        let matching = store.cache_read_hold(&fence)?;
+        matching.lift_matching_version();
+        assert!(!first.is_held());
+        store.cache_pins.bind(&fence, &"a".repeat(64))?;
+        first.activate();
+        assert!(!first.is_held());
+        Ok(())
+    }
+    #[test]
+    fn read_hold_arms_during_authorization_before_snapshot_or_cache_release() -> Check {
+        struct Arm<'a> {
+            hold: &'a CacheReadHold,
+            calls: Cell<usize>,
+            at: usize,
+        }
+        impl Authorization for Arm<'_> {
+            type Principal = VerifiedActor;
+            fn authorize(
+                &self,
+                actor: &VerifiedActor,
+                request: AuthorizationRequest<'_>,
+            ) -> Result<VerifiedActor> {
+                if request.capability == Capability::ReadCache {
+                    self.calls.set(self.calls.get() + 1);
+                    if self.calls.get() == self.at {
+                        self.hold.activate();
+                    }
+                }
+                Ok(actor.clone())
+            }
+        }
+        let (_root, mut store, actor, refs) = fixture()?;
+        let fence = prepare(&mut store, &actor, &refs);
+        let hold = store.cache_read_hold(&fence)?;
+        let scope = refs.registration.scope();
+        let partition = refs.registration.partition();
+        for mode in 0..3 {
+            let authority = Arm {
+                hold: &hold,
+                calls: Cell::new(0),
+                at: if mode == 2 { 2 } else { 1 },
+            };
+            let error = match mode {
+                0 => store
+                    .read_snapshot_with_authorization(&authority, &actor, &scope)
+                    .err()
+                    .unwrap(),
+                1 => store
+                    .read_pack_cut(&authority, &actor, &scope)
+                    .err()
+                    .unwrap(),
+                _ => store
+                    .read_cache_partition_with_authorization(&authority, &actor, &scope, &partition)
+                    .err()
+                    .unwrap(),
+            };
+            assert_eq!(error.code, "access-revoked");
+            store.cache_read_hold(&fence)?.lift_matching_version();
+            assert!(!hold.is_held());
+        }
         Ok(())
     }
 }

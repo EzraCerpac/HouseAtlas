@@ -281,6 +281,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             authorize(self.contract, self.authorization, principal, request)
         };
         let actor = check()?;
+        self.pins.ensure_readable(partition)?;
         let state = cache_repo::publication_state(&tx, partition)?;
         if let Some(cache) = &state.cache {
             shape(self.contract, "cacheStatus", cache)?;
@@ -313,6 +314,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
                     "Cache read principal changed",
                 ));
             }
+            self.pins.ensure_readable(partition)?;
             Ok(())
         };
         recheck()?;

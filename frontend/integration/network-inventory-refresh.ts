@@ -55,9 +55,18 @@ export function decodeNetworkInventoryRefresh(v: LosslessJson): NetworkInventory
 }
 /** Supply current session CSRF. A lost response may follow a committed publish;
  * reconcile cached inventory/results and never automatically retry this POST. */
-export async function requestNetworkInventoryRefresh(scope: CollectorScope, csrf: string, transport: typeof fetch = fetch, signal?: AbortSignal): Promise<NetworkInventoryRefreshResult> {
-  const path = `/api/atlas/providers/network/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/sources/${encodeURIComponent(scope.sourceInstanceId)}/refresh?collection=${encodeURIComponent(scope.collectionId)}`;
+async function requestInventory(scope: CollectorScope, csrf: string, transport: typeof fetch, signal: AbortSignal | undefined, revalidate: boolean): Promise<NetworkInventoryRefreshResult> {
+  const path = `/api/atlas/providers/network/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/sources/${encodeURIComponent(scope.sourceInstanceId)}/refresh?collection=${encodeURIComponent(scope.collectionId)}${revalidate ? '&revalidate=true' : ''}`;
   const response = await transport(path, { method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers: { Accept: 'application/json', 'X-Atlas-CSRF': csrf }, signal: signal ?? AbortSignal.timeout(300_000) });
   if (!response.ok) throw new Error('Network refresh refused or outcome unknown');
   return decodeNetworkInventoryRefresh(parseLosslessJson(await response.text()));
+}
+
+export function requestNetworkInventoryRefresh(scope: CollectorScope, csrf: string, transport: typeof fetch = fetch, signal?: AbortSignal): Promise<NetworkInventoryRefreshResult> {
+  return requestInventory(scope, csrf, transport, signal, false);
+}
+/** Explicit fresh recheck; requires the owner's independent RevalidateSource
+ * approval. It never replays a previous Editor's failure write. */
+export function requestNetworkInventoryRevalidation(scope: CollectorScope, csrf: string, transport: typeof fetch = fetch, signal?: AbortSignal): Promise<NetworkInventoryRefreshResult> {
+  return requestInventory(scope, csrf, transport, signal, true);
 }

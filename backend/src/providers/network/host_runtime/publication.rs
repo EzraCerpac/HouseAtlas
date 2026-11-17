@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 pub struct PreparedPublication {
     lease: Arc<OriginalNetworkLease>,
     prepared: n::PreparedNetworkCache<s::CachePublicationFence>,
+    read_hold: s::CacheReadHold,
 }
 impl PreparedPublication {
     pub(super) fn prepare(
@@ -38,7 +39,21 @@ impl PreparedPublication {
         {
             return Err(conflict());
         }
-        Ok(Self { lease, prepared })
+        let read_hold = store.cache_read_hold(&prepared.fence)?;
+        Ok(Self {
+            lease,
+            prepared,
+            read_hold,
+        })
+    }
+    pub(super) fn read_hold(&self) -> s::CacheReadHold {
+        self.read_hold.clone()
+    }
+    pub(super) fn observe(&self, outcome: &n::RefreshOutcome) {
+        if matches!(outcome, n::RefreshOutcome::Failed(failure) if failure.source_refusal && matches!(failure.error.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope))
+        {
+            self.read_hold.activate();
+        }
     }
     pub fn baseline(&self) -> &n::NetworkCacheBaseline {
         &self.prepared.baseline
@@ -68,7 +83,11 @@ impl PreparedPublication {
         admission: Option<n::NetworkArchiveReservation>,
         references: &mut n::NetworkCacheReferences<'_>,
     ) -> std::result::Result<(), Box<(s::Error, Self, Option<n::NetworkArchiveReservation>)>> {
-        let Self { lease, prepared } = self;
+        let Self {
+            lease,
+            prepared,
+            read_hold,
+        } = self;
         let n::PreparedNetworkCache { fence, baseline } = prepared;
         store
             .abandon_pre_stage_cache_candidate(fence, admission, references)
@@ -79,6 +98,7 @@ impl PreparedPublication {
                     Self {
                         lease,
                         prepared: n::PreparedNetworkCache { fence, baseline },
+                        read_hold,
                     },
                     admission,
                 ))
@@ -90,12 +110,15 @@ impl PreparedPublication {
         staged: n::StagedNetworkPublication<n::NetworkStagingReceipt<n::DurableNetworkReceipt>>,
         references: &mut n::NetworkCacheReferences<'_>,
     ) -> s::Result<s::CacheStatus> {
-        if self.prepared.baseline.cache.as_ref().is_some_and(|cache| {
-            cache.status == n::CacheStatus::AccessRevoked
-                || cache.error.as_ref().is_some_and(|e| {
-                    matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
-                })
-        }) {
+        if !self.lease.is_revalidation()
+            && (self.read_hold.is_held()
+                || self.prepared.baseline.cache.as_ref().is_some_and(|cache| {
+                    cache.status == n::CacheStatus::AccessRevoked
+                        || cache.error.as_ref().is_some_and(|e| {
+                            matches!(e.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+                        })
+                }))
+        {
             return Err(conflict());
         }
         let source: n::SourceRegistration =
@@ -109,16 +132,27 @@ impl PreparedPublication {
         }
         let lease = self.lease;
         held_consuming(&lease, |authorization| {
-            n::NativeNetworkPublisher::new(store)
-                .with_authorization(authorization)
-                .publish_staged_generation_with_custody(
+            let publisher = n::NativeNetworkPublisher::new(store);
+            let mut publisher = publisher.with_authorization(authorization);
+            if lease.is_revalidation() {
+                publisher.publish_revalidated_staged_generation(
+                    self.prepared.fence,
+                    staged,
+                    lease.as_ref(),
+                    references,
+                    self.read_hold,
+                )
+            } else {
+                publisher.publish_staged_generation_with_custody(
                     self.prepared.fence,
                     staged,
                     lease.as_ref(),
                     references,
                 )
+            }
         })
     }
+
     pub(super) fn failure(
         &self,
         store: &mut Store,
@@ -161,6 +195,22 @@ impl s::Authorization for CallAuthorization<'_> {
             return Err(conflict());
         }
         check_request(&lease.source, &request)?;
+        lease.check_guard(self.guard).map_err(storage_access)?;
+        Ok(actor(&lease.principal))
+    }
+}
+impl s::CacheReadRecoveryAuthorization for CallAuthorization<'_> {
+    fn authorize_cache_recovery(
+        &self,
+        lease: &OriginalNetworkLease,
+        registration: &s::SourceRegistration,
+    ) -> s::Result<s::VerifiedActor> {
+        if !std::ptr::eq(lease, self.lease)
+            || !lease.is_revalidation()
+            || registration != lease.source.registration()
+        {
+            return Err(conflict());
+        }
         lease.check_guard(self.guard).map_err(storage_access)?;
         Ok(actor(&lease.principal))
     }

@@ -328,6 +328,9 @@ fn network_refresh_profile_opens_writable_custody_only_for_named_editors() {
         if empty {
             value["networkCached"][0]["refreshEditors"] = json!([]);
         }
+        value["networkCached"][0]["revalidateSource"] = json!(true);
+        assert!(f.selection(&value).capture(&f.config).is_err());
+        value["networkCached"][0]["revalidateSource"] = json!(false);
         let before = counts(&f.config);
         let selection = f.selection(&value);
         selection.lifecycle_policy(&f.config).unwrap();
@@ -338,6 +341,7 @@ fn network_refresh_profile_opens_writable_custody_only_for_named_editors() {
         value["networkCached"][0]["refreshEditors"] = json!([{
             "userId":"00000000-0000-4000-8000-000000000006", "actorId":"00000000-0000-4000-8000-000000000007"
         }]);
+        value["networkCached"][0]["revalidateSource"] = json!(true);
         let selection = f.selection(&value);
         selection.lifecycle_policy(&f.config).unwrap();
         let mounts =

@@ -15,7 +15,7 @@ stable-inode startup reader. Its exact bytes must match the selected SHA256.
 Its required top-level fields are:
 
 - `schemaVersion: 1` or `2`. Schema 2 adds optional Network `refreshEditors`
-  and the HomeBox fields
+  and `revalidateSource`, and the HomeBox fields
   described under [Schema 2](#schema-2-homebox-open-file-and-editor-refresh).
 - `serverConfigurationDigest`: the existing ServerConfig.state_digest() value.
 - `homeboxCached`: an array of registration/origin/limits entries.
@@ -305,6 +305,9 @@ Absent or empty keeps the existing-only, read-only mount and exposes no refresh.
 Nonempty selects the original writable sidecar/archive opener
 and adds owner-approved `ConfigureSource` and `PublishCache` rules
 for each exact user/actor, registration and CSRF-checked Mutate principal.
+An optional `revalidateSource:true` independently adds `RevalidateSource`
+for those same named Editors; it requires nonempty `refreshEditors`.
+Absent or false grants no recovery authority.
 Startup still registers and publishes nothing.
 The existing canonical private `provider-cache` directory is required;
 the writable owner may create its own custody files there.
@@ -353,7 +356,7 @@ Structured outcomes are HTTP 200:
   Transport failure retains the previous generation;
   upstream authorization failure quarantines it.
   An already quarantined cache returns `reason:"access-revoked"`
-  before transport; this route cannot lift quarantine.
+  before transport unless separately authorized revalidation was explicitly requested.
 
 HTTP authentication, role, CSRF and malformed selector failures remain errors.
 Results retain `servedInventoryRevision`, collector `inventoryRevision`
@@ -417,21 +420,46 @@ A burned identifier alone does not block later unrelated admission.
 Contention acquiring Core or the sidecar before staging retains these move-only handles.
 The next explicit refresh retries disposition before preparing another candidate;
 there is no background worker or automatic transport retry.
-Dropping an in-flight request future also leaves custody in the runtime.
-Failure metadata uses the original authorized Store CAS once,
-independently of disposition, preserving the producer’s captured attempt time.
-In particular, an auth refusal quarantines the source even when sidecar cleanup must wait.
-If Core contention prevents the metadata transaction itself,
-the original failure, grant and attempt time remain pending until that transaction can run;
-a new caller cannot replace that authority.
-A definite committed failure receipt is cleared and never replayed during disposition.
-Once staging starts, bound, staged or ambiguous candidates remain protected;
-this API supplies no general archive reclamation or ambiguous-publication recovery.
+Failure metadata uses only the original Editor lease and original attempt time.
+Contention remains retryable;
+expired/revoked grants or a definitively stale CAS end that old write
+and permit proven-empty disposition without giving the next Editor its authority.
+
+An observed collector `auth` or `wrong-scope` refusal also arms a Store-owned,
+per-registration read hold without acquiring Core.
+It survives empty-candidate disposal and blocks affected Snapshot/pack/cache reads
+and disclosures retained before the refusal.
+Unrelated partitions and authorized internal publication baselines remain usable.
+This hold lasts only for the same open Store in RAM.
+If the original authorized failure transaction commits,
+its existing durable quarantine survives reopen.
+If expiry/revocation or contention prevents that transaction,
+closing/reopening the Store before it commits loses the RAM hold;
+this change supplies no principal-free durable quarantine write.
+
+Explicit recovery appends `&revalidate=true` to the same bodyless Editor POST.
+It requires independently captured `PublishCache` and `RevalidateSource`
+from the current request and never enrolls a missing source.
+The UI-stage `requestNetworkInventoryRevalidation` client sends that one POST
+with the current session CSRF and uses the existing refresh result decoder.
+The normal preflight and final inventory checks remain in place.
+Recovery verifies the retained original inventory internally,
+including same-revision equality,
+without making quarantined rows readable first.
+Only a successful guarded fresh publication may lift the matching hold;
+a completion captured before a newer refusal cannot clear that newer hold.
+A refusal, source failure, review mismatch or failed commit leaves reads closed.
+No old failure write is replayed under the recovery Editor.
+
+Once staging starts, bound/SQL/native/ambiguous references remain protected.
+This supplies no ambiguous-publication recovery.
 A process crash after archive admission can still leave a durable reservation
 without its in-memory original token; this change does not claim crash recovery.
 
 Synthetic cases cover same-Store recovery after preflight failure,
 a final review mismatch, admitted transport failure and Core/sidecar contention,
+expired/revoked original leases, stale metadata CAS, separately authorized recovery
+and two partitions sharing one Store,
 while retaining previous inventory and the final guarded revision check.
 Separate Store controls refuse foreign issuers, bound pins, SQL current/history
 and native staged/recovery/disclosure/ambiguous references.

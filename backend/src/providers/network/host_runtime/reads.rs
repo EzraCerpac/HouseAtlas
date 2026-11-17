@@ -69,7 +69,9 @@ impl OriginalNetworkDisclosure {
             .map_err(|_| a::AccessError::Forbidden)?;
         self.access
             .lock()?
-            .with_read_authorization(&self.principal, |guard| self.check_guard(guard))
+            .with_read_authorization(&self.principal, |guard| self.check_guard(guard))?;
+        self.check_pin(&store)
+            .map_err(|_| a::AccessError::Forbidden)
     }
     pub(super) fn check_guard(
         &self,
@@ -331,6 +333,7 @@ pub(super) fn release(
             Ok(())
         })
         .map_err(|e: PhaseError| e.0)?;
+    lease.check_pin(store)?;
     output.ok_or_else(conflict)
 }
 

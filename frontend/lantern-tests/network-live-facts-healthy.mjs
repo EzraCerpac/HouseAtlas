@@ -59,7 +59,7 @@ try {
   assert.throws(()=>resultDecode({...result,inventoryRevision:43,reviewedInventoryRevision:42,needsReview:false}));
   assert.throws(()=>resultDecode({...result,reviewedInventoryRevision:null}));
   assert.throws(()=>resultDecode({...result,mayRefresh:'yes'}));
-  const {decodeNetworkInventoryRefresh,requestNetworkInventoryRefresh}=await import(pathToFileURL(modulePath).href);
+  const {decodeNetworkInventoryRefresh,requestNetworkInventoryRefresh,requestNetworkInventoryRevalidation}=await import(pathToFileURL(modulePath).href);
   const refreshCache={status:'fresh',lastSuccessfulFetchAt:at,lastAttemptAt:at,errorCode:null};
   const refreshed={status:'refreshed',inventoryRevision:43,cache:refreshCache};
   const refreshDecode=v=>decodeNetworkInventoryRefresh(parseLosslessJson(JSON.stringify(v)));
@@ -81,6 +81,10 @@ try {
   assert.equal(refreshedResult.status,'refreshed');assert.equal(refreshCalls.length,1);
   assert.equal(refreshCalls[0][0],`/api/atlas/providers/network/workspaces/${U(1)}/homes/${U(2)}/sources/${U(3)}/refresh?collection=inventory%20%2F%20%3F`);
   assert.equal(refreshCalls[0][1].method,'POST');assert.equal(refreshCalls[0][1].headers['X-Atlas-CSRF'],'synthetic-csrf');assert.equal(refreshCalls[0][1].credentials,'same-origin');assert.equal(refreshCalls[0][1].body,undefined);
+  const recoveryCalls=[];
+  assert.equal((await requestNetworkInventoryRevalidation(refreshScope,'synthetic-csrf',async (url,init)=>{recoveryCalls.push([url,init]);return new Response(JSON.stringify(refreshed));})).status,'refreshed');
+  assert.equal(recoveryCalls.length,1);assert.equal(recoveryCalls[0][0],refreshCalls[0][0]+'&revalidate=true');
+  assert.equal(recoveryCalls[0][1].method,'POST');assert.equal(recoveryCalls[0][1].headers['X-Atlas-CSRF'],'synthetic-csrf');assert.equal(recoveryCalls[0][1].body,undefined);
   let refusedCalls=0;
   await assert.rejects(()=>requestNetworkInventoryRefresh(refreshScope,'synthetic-csrf',async()=>{refusedCalls++;return new Response('',{status:403});}));assert.equal(refusedCalls,1);
   for(const field of ['inventoryRevision','servedInventoryRevision']) {

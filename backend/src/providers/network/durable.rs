@@ -594,13 +594,20 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
             .sidecar
             .protected_archive_references()
             .map_err(storage_network_error)?;
-        // Do not let a projected-only or otherwise untracked Network pointer
-        // disappear from capacity accounting. Every Network Store pin must map
-        // to an immutable/reserved catalog generation with its exact digest.
-        for pin in protected
-            .iter()
-            .filter(|p| p.registration().owner == crate::storage::SourceOwner::Network)
-        {
+        // Store enumerates every partition, while this original archive owns
+        // only its configured partitions. Reconcile all references IN that
+        // domain, including conflicting full registrations; another archive's
+        // retained generations are not missing rows in this one.
+        for pin in protected.iter().filter(|pin| {
+            let registration = pin.registration();
+            registration.owner == crate::storage::SourceOwner::Network
+                && self.sidecar.sources.iter().any(|source| {
+                    source.scope.workspace_id == registration.workspace_id
+                        && source.scope.home_id == registration.home_id
+                        && source.scope.source_instance_id == registration.source_instance_id
+                        && source.scope.collection_id == registration.collection_id
+                })
+        }) {
             let source = self
                 .sidecar
                 .sources

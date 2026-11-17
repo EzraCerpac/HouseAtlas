@@ -96,6 +96,26 @@ impl NetworkAccess {
         partition: a::PartitionGrant,
         sources: Vec<a::SourceGrant>,
     ) -> a::AccessResult<Arc<OriginalNetworkLease>> {
+        self.retain_publication(principal, source, partition, sources, false)
+    }
+    /// Explicit current request plus independently owner-approved recovery.
+    pub(crate) fn retain_revalidation(
+        self: &Arc<Self>,
+        principal: a::Principal,
+        source: Arc<ConfiguredSource>,
+        partition: a::PartitionGrant,
+        sources: Vec<a::SourceGrant>,
+    ) -> a::AccessResult<Arc<OriginalNetworkLease>> {
+        self.retain_publication(principal, source, partition, sources, true)
+    }
+    fn retain_publication(
+        self: &Arc<Self>,
+        principal: a::Principal,
+        source: Arc<ConfiguredSource>,
+        partition: a::PartitionGrant,
+        sources: Vec<a::SourceGrant>,
+        revalidate: bool,
+    ) -> a::AccessResult<Arc<OriginalNetworkLease>> {
         if source.registration().allowed_external_ids.len() > MAX_GRANTS
             || sources.len() > MAX_GRANTS
             || partition.partition() != &source.partition()
@@ -110,11 +130,21 @@ impl NetworkAccess {
             source.access_registration(),
             a::LifecycleCapability::PublishCache,
         )?;
+        let revalidation = revalidate
+            .then(|| {
+                boundary.capture_lifecycle(
+                    &principal,
+                    source.access_registration(),
+                    a::LifecycleCapability::RevalidateSource,
+                )
+            })
+            .transpose()?;
         let lease = Arc::new(OriginalNetworkLease {
             access: self.clone(),
             principal,
             source,
             lifecycle,
+            revalidation,
             partition,
             source_index: GrantIndex::new(&sources),
             sources,
@@ -131,11 +161,15 @@ pub struct OriginalNetworkLease {
     pub(super) principal: a::Principal,
     pub(super) source: Arc<ConfiguredSource>,
     pub(super) lifecycle: a::LifecycleGrant,
+    pub(super) revalidation: Option<a::LifecycleGrant>,
     partition: a::PartitionGrant,
     sources: Vec<a::SourceGrant>,
     source_index: GrantIndex,
 }
 impl OriginalNetworkLease {
+    pub(crate) fn is_revalidation(&self) -> bool {
+        self.revalidation.is_some()
+    }
     pub(super) fn check(&self, boundary: &mut a::AccessBoundary) -> a::AccessResult<()> {
         // The supplied guard binds EACH retained resource to this exact original
         // principal before any exported transport callback can use the lease.
@@ -160,6 +194,13 @@ impl OriginalNetworkLease {
             self.source.access_registration(),
             a::LifecycleCapability::PublishCache,
         )?;
+        if let Some(grant) = &self.revalidation {
+            guard.revalidate_lifecycle(
+                grant,
+                self.source.access_registration(),
+                a::LifecycleCapability::RevalidateSource,
+            )?;
+        }
         guard.revalidate_source_partition(&self.partition)?;
         for grant in &self.sources {
             guard.revalidate_source(grant)?;
