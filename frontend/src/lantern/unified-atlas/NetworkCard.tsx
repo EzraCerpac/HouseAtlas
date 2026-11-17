@@ -28,7 +28,8 @@ export const linkTouches = (row: NetworkConnection, nodeKey: string) => endDevic
 const Stamp = ({ value }: { readonly value: string | null }) => value ? <InlineTime value={value} /> : <>Not supplied</>;
 function SourceFacts({ source, qualification }: { readonly source: NetworkOverlaySource; readonly qualification: string }) {
   return <dl className="ua-facts ua-net-source">
-    <div><dt>Source</dt><dd>{source.label}<span className="ua-note">{qualification}</span></dd></div>
+    <div><dt>Source</dt><dd>{source.label}{source.status === 'stale' && ' · stale'}<span className="ua-note">{qualification}</span>
+      {source.notes && <span className="ua-note">{source.notes}</span>}</dd></div>
     <div><dt>Source date</dt><dd><Stamp value={source.recordedAt} /></dd></div>
     <div><dt>Retrieved</dt><dd><Stamp value={source.retrievedAt} /></dd></div>
   </dl>;
@@ -58,7 +59,8 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
       <li key={item.id} className={item.freshness === 'recent' ? undefined : 'is-old'}>
         <span className="ua-belonging-name">{item.kind}: {observed(item.value)}</span>
         <span className="ua-belonging-detail">{FRESHNESS[item.freshness]} · observed <InlineTime value={item.factAt} /> from {item.vantage}
-          {item.invalidatedAt && <> · invalidated <InlineTime value={item.invalidatedAt} /></>}</span></li>)}</ul>}
+          {item.invalidatedAt && <> · invalidated <InlineTime value={item.invalidatedAt} /></>}
+          {' · snapshot '}<Stamp value={item.sourceSnapshotAt} />{' · retrieved '}<InlineTime value={item.retrievedAt} /></span></li>)}</ul>}
   </section>;
 }
 

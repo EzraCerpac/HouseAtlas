@@ -10,12 +10,12 @@ const WIRED = /ethernet|\bcable|wired|fib(?:re|er)|coax|copper|powerline|\bplc\b
 const WIRELESS = /wi-?fi|wireless|\bwlan\b|802\.11|radio|bluetooth|zigbee|z-?wave|\bthread\b|\blte\b|\b[345]g\b|cellular/i;
 
 /** Wired solid, wireless dashed; an unknown medium, an unresolved end or
- * a hypothesis takes the third style, labelled in the Network key. */
+ * a hypothesis takes the third style, labelled in the Network key. An
+ * explicit wireless word wins over a generic one ("wireless LAN"). */
 export function networkLinkStyle(link: Pick<NetworkOverlayLink, 'kind' | 'medium' | 'temporalStatus' | 'basis' | 'notes'>,
   ends: readonly Pick<NetworkConnectionEnd, 'nodeKey'>[] = []): NetworkLinkStyle {
   if (link.kind === 'unresolved-path' || isHypothesisLink(link as NetworkOverlayLink) || ends.some(end => end.nodeKey === null)) return 'unknown';
-  const wireless = WIRELESS.test(link.medium), wired = WIRED.test(link.medium);
-  return wired === wireless ? 'unknown' : wired ? 'wired' : 'wireless';
+  return WIRELESS.test(link.medium) ? 'wireless' : WIRED.test(link.medium) ? 'wired' : 'unknown';
 }
 /** Anything short of a recorded or accepted link is drawn fainter. */
 export const uncertainLink = (link: Pick<NetworkOverlayLink, 'confidence'>): boolean =>

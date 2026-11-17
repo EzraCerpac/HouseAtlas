@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { TONE_COLOR } from '../canonical-ifc/tones';
 import { projectNetworkConnections, type NetworkConnectionEnd, type NetworkConnections } from './network-connections';
 import { networkLinkStyle, uncertainLink, type NetworkLinkStyle } from './network-map';
+import { isHypothesisLink } from './network-trace';
 import type { StageTrace } from './NetworkGraph';
 import type { RuntimeRecords } from './runtime-overlays';
 
@@ -71,7 +72,8 @@ export function NetworkStageConnections({ connections, selected, focusNode = nul
     // A shared medium is on the route when the route passes through its segment
     // between the two devices it associates.
     ...connections.sharedMediumAssociations.map(row => ({ ...row, tappable: false,
-      style: networkLinkStyle({ kind: 'connection', medium: row.medium, temporalStatus: '', basis: '', notes: '' }),
+      // A membership the source words as a hypothesis keeps the association in the hypothesis style.
+      style: networkLinkStyle({ kind: row.memberships.some(isHypothesisLink) ? 'hypothesis' : 'connection', medium: row.medium, temporalStatus: '', basis: '', notes: '' }),
       uncertain: row.memberships.some(uncertainLink),
       hop: order && row.graphKey === trace!.graphKey && trace!.segmentIds.has(row.segment.id)
         && trace!.deviceOrder.has(row.from.sourceId) && trace!.deviceOrder.has(row.to.sourceId)

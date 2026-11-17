@@ -1113,36 +1113,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     const row = focusLink === null ? undefined : networkConnections.connections.find(item => item.key === focusLink);
     return new Set(row ? networkConnections.nodes.filter(node => node.device && linkTouches(row, node.key)).map(node => node.key) : []);
   }, [focusNode, focusLink, networkConnections]);
-  // In a plan, a link to another floor ends in a stub with that floor's badge.
-  const floorBadges = useMemo(() => {
-    if (!networkOn || planBlend < .5) return [];
-    const badges = new Map<string, { key: string; x: number; y: number; levelId: string; name: string; names: string[]; box: { l: number; r: number; t: number; b: number } }>();
-    for (const row of networkConnections.connections) for (const placement of row.placements) {
-      const fromShown = onStage(placement.from.occurrenceId), toShown = onStage(placement.to.occurrenceId);
-      if (fromShown === toShown) continue;
-      const [near, far] = fromShown ? [placement.from, placement.to] : [placement.to, placement.from];
-      const levelId = model.occurrencesById.get(far.occurrenceId)!.levelId, [x, y] = networkStubEnd(near.point, far.point, networkStubLength(coarse));
-      const key = `${Math.round(near.point[0])},${Math.round(near.point[1])}\n${levelId}`;
-      if (!badges.has(key)) {
-        // Only where the whole badge is in view and clear of panels, glyphs and other badges;
-        // otherwise its link stays in the device's card and the graph.
-        // Named within the near end's building; another building's floor keeps its building.
-        const name = atlasScopedLevelName(model, levelId, model.occurrencesById.get(near.occurrenceId)!.buildingId);
-        const half = Math.max(coarse ? 22 : 11, (name.length * 6.5 + 20) / 2), tall = coarse ? 22 : 11;
-        const box = { l: x - half, r: x + half, t: y - tall, b: y + tall };
-        const hit = (other: { l: number; r: number; t: number; b: number }) => box.l < other.r && box.r > other.l && box.t < other.b && box.b > other.t;
-        if (box.l < 0 || box.t < 0 || box.r > size.width || box.b > size.height || cover.some(hit) || counts.some(row => hit(countMarkerTarget(row)))
-          || [...badges.values()].some(other => hit(other.box))) continue;
-        badges.set(key, { key, x, y, levelId, name, names: [], box });
-      }
-      const badge = badges.get(key)!;
-      const farEnd = far === placement.to ? row.to : row.from, farKey = farEnd.ownerDeviceKey ?? farEnd.nodeKey;
-      const farName = networkConnections.nodes.find(node => node.key === farKey)?.label ?? farEnd.label;
-      if (!badge.names.includes(farName)) badge.names.push(farName);
-    }
-    return [...badges.values()];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [networkOn, planBlend, networkConnections, planned, model, size, cover, counts, coarse]);
 
   // The selected room's tag stands on a leader in 3D and folds onto its floor
   // as the camera reaches Plan: one landmark through every view.
@@ -1323,6 +1293,37 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
   // Touch targets are computed at the 44 px they are drawn at (coarse, above); the pointer can change (a docked tablet).
   const hitBoxes = useMemo(() => labelHitBoxes(labels, size, cover, counts, row => planTextMetrics.get(row.id)?.advance, coarse), [labels, size, cover, counts, planTextMetrics, coarse]);
   const hits = useMemo(() => labels.filter(row => hitBoxes.has(row)), [labels, hitBoxes]);
+  // In a plan, a link to another floor ends in a stub with that floor's badge.
+  const floorBadges = useMemo(() => {
+    if (!networkOn || planBlend < .5) return [];
+    const badges = new Map<string, { key: string; x: number; y: number; levelId: string; name: string; names: string[]; box: { l: number; r: number; t: number; b: number } }>();
+    for (const row of networkConnections.connections) for (const placement of row.placements) {
+      const fromShown = onStage(placement.from.occurrenceId), toShown = onStage(placement.to.occurrenceId);
+      if (fromShown === toShown) continue;
+      const [near, far] = fromShown ? [placement.from, placement.to] : [placement.to, placement.from];
+      const levelId = model.occurrencesById.get(far.occurrenceId)!.levelId, [x, y] = networkStubEnd(near.point, far.point, networkStubLength(coarse));
+      const key = `${Math.round(near.point[0])},${Math.round(near.point[1])}\n${levelId}`;
+      if (!badges.has(key)) {
+        // Only where the whole badge is in view and clear of panels, glyphs, room names and other badges;
+        // otherwise its link stays in the device's card and the graph.
+        // Named within the near end's building; another building's floor keeps its building.
+        const name = atlasScopedLevelName(model, levelId, model.occurrencesById.get(near.occurrenceId)!.buildingId);
+        const half = Math.max(coarse ? 22 : 11, (name.length * 6.5 + 20) / 2), tall = coarse ? 22 : 11;
+        const box = { l: x - half, r: x + half, t: y - tall, b: y + tall };
+        const hit = (other: { l: number; r: number; t: number; b: number }) => box.l < other.r && box.r > other.l && box.t < other.b && box.b > other.t;
+        if (box.l < 0 || box.t < 0 || box.r > size.width || box.b > size.height || cover.some(hit) || counts.some(row => hit(countMarkerTarget(row)))
+          || [...hitBoxes.values()].some(hit)
+          || [...badges.values()].some(other => hit(other.box))) continue;
+        badges.set(key, { key, x, y, levelId, name, names: [], box });
+      }
+      const badge = badges.get(key)!;
+      const farEnd = far === placement.to ? row.to : row.from, farKey = farEnd.ownerDeviceKey ?? farEnd.nodeKey;
+      const farName = networkConnections.nodes.find(node => node.key === farKey)?.label ?? farEnd.label;
+      if (!badge.names.includes(farName)) badge.names.push(farName);
+    }
+    return [...badges.values()];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [networkOn, planBlend, networkConnections, planned, model, size, cover, counts, coarse, hitBoxes]);
   // On touch a drawn name promises a tap: names without a target are not drawn
   // (an open sheet sets every target aside), and with a room selected the other
   // rooms named on its floor step back to a quiet pill of the same size.

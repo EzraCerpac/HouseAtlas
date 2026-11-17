@@ -86,6 +86,8 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
   const unplaced = records?.unplaced[layer.kind] ?? [];
   // Topology stays separate from physical points: connections are logical only.
   const others = layer.kind === 'network' ? unplaced.filter(record => record.category !== 'Recorded connection') : unplaced;
+  // Links and endpoints are topology, never placed in a room; with devices drawn they keep their own list.
+  const topology = network ? unplaced.filter(record => record.category !== 'Recorded device') : [];
   const groups = (['no-reviewed-room', 'moves-around'] as const).map(reason => ({ reason, rows: network?.unplaced.filter(row => row.reason === reason) ?? [] }))
     .filter(group => group.rows.length > 0);
   // Closed, the head keeps the layer's state in view; the explanation and
@@ -133,6 +135,10 @@ export function OverlayKey({ layer, availability, records, stored, buildings, op
                 <span className="ua-net-dot" aria-hidden="true" /><span><span className="ua-belonging-name">{row.label}</span>
                   {row.kind && <span className="ua-belonging-detail">{row.kind}</span>}</span></button></li>)}</ul>
           </section>)}
+        </details>}
+        {topology.length > 0 && <details className="ua-net-unplaced">
+          <summary>Links and endpoints ({topology.length.toLocaleString()})</summary>
+          <DocumentaryRecords records={topology} openDocuments={openDocuments} />
         </details>}
         <button type="button" className="ua-graph-open" aria-expanded={network.graph.open} aria-controls={network.graph.id} onClick={network.graph.toggle}>
           <span className="ua-logical-swatch" aria-hidden="true" /><span>Graph</span><Icon name="network" size={16} />

@@ -77,6 +77,9 @@ const links = new Map(frame.network.data.links.map(row => [row.id, row]));
 assert.deepEqual(['example-link', 'example-link-speaker', 'example-link-printer', 'example-link-camera', 'example-link-box'].map(id => api.networkLinkStyle(links.get(id))),
   ['wired', 'wireless', 'unknown', 'unknown', 'wireless']);
 assert.equal(api.networkLinkStyle(links.get('example-link'), [{ nodeKey: null }]), 'unknown', 'an unresolved end takes the unknown style');
+// An explicit wireless word wins over a generic one.
+assert.deepEqual(['wireless LAN', '802.11 LAN', 'LAN', 'powerline'].map(medium => api.networkLinkStyle({ ...links.get('example-link'), medium })),
+  ['wireless', 'wireless', 'wired', 'wired']);
 assert.deepEqual(['example-link-box', 'example-link'].map(id => api.uncertainLink(links.get(id))), [true, false]);
 const devicesById = new Map(frame.network.data.devices.map(row => [row.id, row]));
 assert.deepEqual(['example-tablet', 'example-garden-camera'].map(id => api.networkUnplacedReason(devicesById.get(id))), ['moves-around', 'no-reviewed-room']);
