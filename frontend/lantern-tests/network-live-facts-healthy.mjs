@@ -13,7 +13,7 @@ try {
   writeFileSync(entry,`export * from ${JSON.stringify(join(root,'frontend/integration/network-overlay-live-facts.ts'))};\nexport {parseLosslessJson} from ${JSON.stringify(join(root,'frontend/src/numeric/lossless-json.ts'))};\nexport * from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/network-reachability.ts'))};`);
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,(Array.isArray(built)?built[0]:built).output.find(o=>o.type==='chunk'&&o.isEntry).code);
-  const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,reachability,sparkline,REACHABILITY_KIND}=await import(pathToFileURL(modulePath).href);
+  const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND}=await import(pathToFileURL(modulePath).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,sha='a'.repeat(64),at='2026-01-01T00:00:00Z';
   const source={workspaceId:U(1),homeId:U(2),sourceInstanceId:U(3),collectionId:'synthetic',sourceKind:'network-device',externalId:'source-a'};
   const live={status:'available',source,addresses:['','192.0.2.1'],observedState:[{id:'observation',kind:'state',value:{state:'observed',count:7},factAt:at,sourceSnapshotAt:at,retrievedAt:at,vantage:'synthetic',invalidatedAt:null,freshness:'recent'}],lastSeenAt:null,sourceSnapshotAt:at,retrievedAt:at,freshness:'recent'};
@@ -66,6 +66,15 @@ try {
   assert.deepEqual(spark.ticks.map(t=>t[1]<24),[true,true],'loss ticks for hours 1 and 6 only');
   assert.match(spark.label,/^Hourly latency, 1 Jan 2026, 00:00 UTC to 1 Jan 2026, 11:00 UTC: 8 of 12 hours measured, 2 with loss$/);
   assert.equal(sparkline([]),null);
+  // A measured state without the collector trio still shows the row, with no series to draw.
+  const stateOnly=structuredClone(raw);stateOnly.devices[0].liveFacts.observedState.push({id:'reach',kind:REACHABILITY_KIND,value:{state:'no-reply'},factAt:at,sourceSnapshotAt:at,retrievedAt:at,vantage:'synthetic',invalidatedAt:null,freshness:'recent'});
+  const lone=reachability(decode(stateOnly).devices[0].liveFacts);
+  assert.equal(lone.state,'No reply');assert.deepEqual(lone.metrics,[]);assert.equal(sparkline(lone.series),null);
+  // Worded observation lines: reachability in words, any other observation unchanged.
+  const [other,measuredObs]=decode(stateOnly).devices[0].liveFacts.observedState;
+  assert.equal(reachabilityObservation(measuredObs),'Reachability: No reply');assert.equal(reachabilityObservation(other),null);
+  // One measured hour is one dot, never a line.
+  const one=sparkline([{hour:at,latencyMs:3,loss:0}]);assert.equal(one.line,'');assert.equal(one.dots.length,1);assert.equal(one.ticks.length,0);
   assert.match(sparkline([{hour:at,latencyMs:null,loss:null}]).label,/: 0 of 1 hour measured$/);
   console.log('PASS Network live-facts v2: joined, unjoined/legacy, stale, absent, ambiguity, digest/scope and bounds; reachability wording, nulls, freshness and series gaps');
 } finally {rmSync(scratch,{recursive:true,force:true});}

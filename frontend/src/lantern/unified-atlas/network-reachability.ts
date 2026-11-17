@@ -25,17 +25,23 @@ const measuredState = (item: Observation) => {
   const state = (value as { readonly state?: unknown }).state;
   return state === 'reachable' || state === 'no-reply' ? state : null;
 };
+/** A reachability observation in words ("Reachability: No reply"), or null
+ * for any other observation, so the card never prints its raw key and value. */
+export const reachabilityObservation = (item: Observation) => {
+  const state = measuredState(item);
+  return state === null ? null : `Reachability: ${STATE[state]}`;
+};
 export const latencyText = (ms: number) => `${ms < 10 ? ms.toFixed(1) : Math.round(ms).toLocaleString()} ms`;
 export const lossText = (loss: number) =>
   `${loss > 0 && loss < 0.01 ? '<1' : loss < 1 && loss > 0.99 ? '>99' : Math.round(loss * 100)}% loss`;
 
 /** The measured reachability joined to a device, or null when the frame
- * carries none (an old frame or a source without the collector). A missing
- * latest fact is "Not measured": an unknown, never a failure or a reply. */
+ * carries none of its fields (an old frame or a source without the collector).
+ * A missing latest fact is "Not measured": an unknown, never a failure or a reply. */
 export function reachability(facts: NetworkLiveFacts): Reachability | null {
-  if (facts.recentSeries === undefined) return null;
   const latest = (facts.observedState ?? []).filter(item => measuredState(item) !== null)
     .sort((a, b) => Date.parse(b.factAt) - Date.parse(a.factAt))[0];
+  if (latest === undefined && facts.recentSeries === undefined && facts.latencyMs === undefined && facts.loss === undefined) return null;
   const freshness = latest === undefined ? 'recent' : latest.freshness !== 'recent' ? latest.freshness : facts.freshness;
   const qualifier = freshness === 'recent' ? null : QUALIFIER[freshness];
   return {
@@ -44,7 +50,7 @@ export function reachability(facts: NetworkLiveFacts): Reachability | null {
     metrics: [facts.latencyMs == null ? null : latencyText(facts.latencyMs), facts.loss == null ? null : lossText(facts.loss)]
       .filter((text): text is string => text !== null),
     measuredAt: latest?.factAt ?? null,
-    series: facts.recentSeries,
+    series: facts.recentSeries ?? [],
   };
 }
 

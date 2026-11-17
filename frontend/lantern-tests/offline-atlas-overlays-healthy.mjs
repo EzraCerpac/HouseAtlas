@@ -244,8 +244,9 @@ for (const variant of ['historical', 'tuples']) {
   assert.deepEqual(placedDevices(automatic), [['ap', room.roomId]]);
   const automaticCard = deviceCard(automatic);
   for (const text of ['Network source facts', '192.0.2.10', 'Stored on this device', STORED_NETWORK_QUALIFICATION, 'reviewed room mapping',
-    '<dt>Reachability</dt>', 'Reachable', '2.5 ms · 0% loss', 'of 3 hours measured'])
+    '<dt>Reachability</dt>', 'Reachable', '2.5 ms · 0% loss', 'of 3 hours measured', 'Reachability: Reachable', 'from generated collector'])
     assert(automaticCard.includes(text), `automatic copy device card shows ${text}`);
+  assert(!automaticCard.includes('measured-reachability'), 'the reachability observation is worded, not its raw key and value');
   for (const at of ['2026-11-01T10:00:00Z', '2026-11-01T10:05:00Z', '2026-11-01T10:06:00Z', '2026-10-30T00:00:00Z', storedAt])
     assert(automaticCard.includes(`dateTime="${at}"`) || automaticCard.includes(`datetime="${at}"`), `automatic copy device card dates ${at}`);
   // Manually saved copy holding those bytes: the map network replaces the saved relations.

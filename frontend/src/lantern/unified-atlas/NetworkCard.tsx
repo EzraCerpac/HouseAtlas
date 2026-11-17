@@ -5,7 +5,7 @@ import type { NetworkLiveFacts, NetworkObservationValue, NetworkOverlaySource } 
 import type { NetworkConnection, NetworkConnectionEnd, NetworkConnectionNode, NetworkConnections } from './network-connections';
 import { NETWORK_UNPLACED_LABEL, networkLinkStyle, networkUnplacedReason, type NetworkLinkStyle } from './network-map';
 import { plural } from './atlas-text';
-import { reachability, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
+import { reachability, reachabilityObservation, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
@@ -77,7 +77,7 @@ function LiveFacts({ facts }: { readonly facts: NetworkLiveFacts }) {
     </dl>
     {facts.observedState && facts.observedState.length > 0 && <ul className="ua-net-observed">{facts.observedState.map(item =>
       <li key={item.id} className={item.freshness === 'recent' ? undefined : 'is-old'}>
-        <span className="ua-belonging-name">{item.kind}: {observed(item.value)}</span>
+        <span className="ua-belonging-name">{reachabilityObservation(item) ?? `${item.kind}: ${observed(item.value)}`}</span>
         <span className="ua-belonging-detail">{FRESHNESS[item.freshness]} · observed <InlineTime value={item.factAt} /> from {item.vantage}
           {item.invalidatedAt && <> · invalidated <InlineTime value={item.invalidatedAt} /></>}
           {' · snapshot '}<Stamp value={item.sourceSnapshotAt} />{' · retrieved '}<InlineTime value={item.retrievedAt} /></span></li>)}</ul>}
