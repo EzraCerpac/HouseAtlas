@@ -66,15 +66,18 @@ export class Store {
     this.transaction(() => {
       this.db.prepare('INSERT INTO collector VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET last_cycle=excluded.last_cycle,guard=excluded.guard').run(new Date(at).toISOString(), guard);
       for (const [device, fact] of facts) {
-        // A backwards wall clock must not overwrite or double-count a cycle.
-        const inserted = this.db.prepare('INSERT OR IGNORE INTO ping_samples VALUES(?,?,?)').run(device, at, JSON.stringify(fact));
+        // Index by this fact's observation time, not the cycle start.
+        // Repeated observation timestamps must not overwrite or double-count.
+        const observedAt = Date.parse(fact.recordedAt);
+        need(Number.isFinite(observedAt), 'Invalid sample observation timestamp');
+        const inserted = this.db.prepare('INSERT OR IGNORE INTO ping_samples VALUES(?,?,?)').run(device, observedAt, JSON.stringify(fact));
         if (!inserted.changes) continue;
         const n = fact.state === 'reachable' ? 1 : 0;
         this.db.prepare(`INSERT INTO ping_hourly VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(device,hour) DO UPDATE SET
           reachable=reachable+excluded.reachable,no_reply=no_reply+excluded.no_reply,not_measured=not_measured+excluded.not_measured,
           sum=sum+excluded.sum,min=CASE WHEN min IS NULL THEN excluded.min WHEN excluded.min IS NULL THEN min ELSE MIN(min,excluded.min) END,
           max=CASE WHEN max IS NULL THEN excluded.max WHEN excluded.max IS NULL THEN max ELSE MAX(max,excluded.max) END,loss_sum=loss_sum+excluded.loss_sum`).run(
-          device, Math.floor(at / HOUR) * HOUR, n, fact.state === 'no-reply' ? 1 : 0, fact.state === 'not-measured' ? 1 : 0,
+          device, Math.floor(observedAt / HOUR) * HOUR, n, fact.state === 'no-reply' ? 1 : 0, fact.state === 'not-measured' ? 1 : 0,
           fact.latencyMs ?? 0, fact.latencyMs, fact.latencyMs, fact.loss ?? 0);
       }
       this.db.prepare('DELETE FROM ping_samples WHERE at<?').run(at - config.rawDays * DAY);

@@ -217,6 +217,9 @@ History follows stable device IDs across inventory edits;
 removed IDs are withheld, and IDs must not be reused for another physical device.
 Inventory revisions do not assert historical target equivalence.
 
+Raw sample indexes and hourly buckets use each fact's `recordedAt`,
+including when a cycle crosses an hour boundary;
+`lastCycleAt` separately retains the cycle-start timestamp.
 Hourly aggregates are updated transactionally with every raw sample,
 so recent rollups do not wait for raw expiry.
 Every committed cycle prunes raw samples older than `rawDays`
@@ -237,6 +240,13 @@ Inventory responses are at most 1 MiB; all responses are capped at 64 MiB.
 There are at most 16 connections and 16 requests per socket,
 8 KiB headers, 5-second request/header/socket timeouts and 1-second keepalive.
 Both local and peer socket addresses must equal the configured loopback address.
+Before any store access, `Host` must exactly equal the configured literal
+loopback authority with its port (`127.0.0.1:42001` or `[::1]:42001`).
+An absent `Origin` is allowed for ordinary clients;
+a present `Origin` must exactly equal `http://` plus that same authority.
+Missing/foreign Host or foreign Origin receives 403 with the fixed body
+`{"error":"request-refused"}`.
+Hostnames, alternate ports, opaque origins and trailing slashes are refused.
 There is no forwarded-header trust, proxy feature, CORS, SSE or write API.
 
 The existing backend's HTTPS-only `ReviewedNetworkOrigin` cannot consume this
@@ -269,7 +279,7 @@ node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfi
 
 The typecheck uses the repository's existing frontend TypeScript/Node declarations;
 no new runtime or development dependency is added.
-The 14 node:test cases use fake runners, disposable private SQLite files,
+The 22 node:test cases use fake runners/children, disposable private SQLite files,
 controlled clocks and direct handler calls only.
 No listener, real command, live source, credential, private fixture, deployment,
 performance measurement or installed acceptance is exercised.

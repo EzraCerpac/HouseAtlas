@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { mkdtempSync, chmodSync, writeFileSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validateConfig, readPrivate, loadConfig, parseJson } from './config.ts';
 import { canonical, validateInventory, targets } from './inventory.ts';
 import { Store } from './store.ts';
-import { collect, parsePing, homeGuard, unmeasured } from './collect.ts';
+import { collect, parsePing, homeGuard, unmeasured, createRunner } from './collect.ts';
 import type { Runner } from './collect.ts';
-import { reply } from './http.ts';
+import { reply, requestReply } from './http.ts';
 import { Scheduler } from './scheduler.ts';
 
 const config = () => validateConfig({ listen: { address: '127.0.0.1', port: 42001 }, home: { gateway: '192.0.2.1', routerMac: '02:00:00:00:00:01', interface: 'en0', subnet: '192.0.2.0/24' }, storePath: '/example/store.sqlite', inventoryPath: '/example/inventory.json' });
@@ -125,7 +126,7 @@ test('hourly aggregates preserve unknown counts, numeric statistics and retentio
   const f = fixture();
   try {
     f.store.accept(inventory());
-    for (const [offset, fact] of [[0, parsePing(success(2), at)], [60_000, parsePing(success(4), at)], [120_000, parsePing({ stdout: '1 packets transmitted, 0 received', code: 1 }, at)], [180_000, unmeasured(at, 'not-at-home')]] as const) f.store.record(at + offset, 'home', new Map([['device', fact]]), config());
+    for (const [offset, fact] of [[0, parsePing(success(2), at)], [60_000, parsePing(success(4), at + 60_000)], [120_000, parsePing({ stdout: '1 packets transmitted, 0 received', code: 1 }, at + 120_000)], [180_000, unmeasured(at + 180_000, 'not-at-home')]] as const) f.store.record(at + offset, 'home', new Map([['device', fact]]), config());
     const r = f.store.measurements(at + 200_000, inventory()).devices.device.hourly7d[0];
     assert.equal(r.minMs, 2); assert.equal(r.meanMs, 3); assert.equal(r.maxMs, 4); assert.equal(r.loss, 1 / 3); assert.equal(r.notMeasured, 1);
     f.store.record(at + 31 * 86400_000, 'unknown', new Map(), config());
@@ -172,4 +173,125 @@ test('scheduler uses monotonic slots, skips missed cycles and restarts without c
 test('strict private JSON refuses duplicate keys, excess depth and nonfinite numbers', () => {
   for (const input of ['{"a":1,"a":2}', '{"a":1,"\\u0061":2}', '[1,]', '1e999', '[true] false', '['.repeat(102) + '0' + ']'.repeat(102)]) assert.throws(() => parseJson(input));
   assert.deepEqual(parseJson('{"a":[1,true,null,"example"]}'), { a: [1, true, null, 'example'] });
+});
+
+
+const request = (host = '127.0.0.1:42001', origin?: string) => ({
+  method: 'GET', url: '/api/inventory', headers: { host, ...(origin === undefined ? {} : { origin }) },
+  socket: { localAddress: '127.0.0.1', remoteAddress: '127.0.0.1' },
+});
+const unreadable = new Proxy({} as Store, { get() { throw new Error('Refused request touched the store'); } });
+
+test('foreign or absent Host is refused before store access', () => {
+  assert.equal(requestReply(unreadable, config().listen, { ...request(), headers: {} }).status, 403);
+  for (const host of ['example.test:42001', 'localhost:42001', '127.0.0.1', '127.0.0.1:42002', '']) {
+    assert.deepEqual(requestReply(unreadable, config().listen, request(host)), { status: 403, body: '{"error":"request-refused"}' });
+  }
+});
+
+test('foreign Origin is refused before store access', () => {
+  for (const origin of ['https://example.test', 'null', 'http://localhost:42001', 'http://127.0.0.1:42002', '']) {
+    assert.equal(requestReply(unreadable, config().listen, request('127.0.0.1:42001', origin)).status, 403);
+  }
+});
+
+test('literal loopback authority accepts absent or matching Origin including IPv6', () => {
+  const f = fixture();
+  try {
+    f.store.accept(inventory());
+    for (const origin of [undefined, 'http://127.0.0.1:42001']) assert.equal(requestReply(f.store, config().listen, request('127.0.0.1:42001', origin)).body, canonical(inventory()));
+    const ipv6 = { ...request('[::1]:42001', 'http://[::1]:42001'), socket: { localAddress: '::1', remoteAddress: '::1' } };
+    assert.equal(requestReply(f.store, { address: '::1', port: 42001 }, ipv6).status, 200);
+    assert.equal(requestReply(unreadable, config().listen, { ...request(), socket: { localAddress: '127.0.0.1', remoteAddress: '192.0.2.10' } }).status, 403);
+  } finally { f.close(); }
+});
+
+class FakeChild extends EventEmitter {
+  stdout = new EventEmitter();
+  stderr = new EventEmitter();
+  kills: NodeJS.Signals[] = [];
+  kill(signal: NodeJS.Signals) { this.kills.push(signal); return true; }
+}
+function assertClean(child: FakeChild) {
+  assert.equal(child.stdout.listenerCount('data'), 0);
+  assert.equal(child.stderr.listenerCount('data'), 0);
+  assert.equal(child.listenerCount('close'), 0);
+  assert.equal(child.listenerCount('error'), 0);
+}
+
+test('runner forwards exact executable arguments and controlled spawn options, then cleans up', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = new FakeChild();
+  const signal = new AbortController();
+  const runner = createRunner((file, args, options) => {
+    assert.equal(file, '/example/ping'); assert.deepEqual(args, ['-n', '192.0.2.10']);
+    assert.deepEqual(options, { shell: false, stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'C', LC_ALL: 'C' } });
+    return child;
+  });
+  const pending = runner('/example/ping', ['-n', '192.0.2.10'], 2500, signal.signal);
+  child.stdout.emit('data', Buffer.from('reply')); child.emit('close', 0);
+  assert.deepEqual(await pending, { stdout: 'reply', code: 0, interrupted: false });
+  signal.abort(); t.mock.timers.tick(3000); assert.deepEqual(child.kills, []); assertClean(child);
+});
+
+test('runner bounds combined output, escalates once and drains the fake child', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const child = new FakeChild(); const signal = new AbortController();
+  const pending = createRunner(() => child)('/example/ping', [], 2500, signal.signal);
+  let settled = false; void pending.then(() => { settled = true; });
+  child.stdout.emit('data', Buffer.alloc(65_536, 'x')); child.stderr.emit('data', Buffer.from('overflow'));
+  child.stdout.emit('data', Buffer.from('discard')); signal.abort();
+  assert.deepEqual(child.kills, ['SIGTERM']);
+  t.mock.timers.tick(249); assert.deepEqual(child.kills, ['SIGTERM']);
+  t.mock.timers.tick(1); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']);
+  await Promise.resolve(); assert.equal(settled, false);
+  child.emit('close', null); const result = await pending;
+  assert.equal(result.stdout.length, 65_536); assert.equal(result.interrupted, true);
+  t.mock.timers.tick(3000); assert.deepEqual(child.kills, ['SIGTERM', 'SIGKILL']); assertClean(child);
+});
+
+test('runner deadline sends TERM then KILL and cancels escalation on early close', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const earlyClose of [false, true]) {
+    const child = new FakeChild();
+    const pending = createRunner(() => child)('/example/ping', [], 2500, new AbortController().signal);
+    t.mock.timers.tick(2499); assert.deepEqual(child.kills, []);
+    t.mock.timers.tick(1); assert.deepEqual(child.kills, ['SIGTERM']);
+    if (earlyClose) child.emit('close', null);
+    t.mock.timers.tick(250);
+    assert.deepEqual(child.kills, earlyClose ? ['SIGTERM'] : ['SIGTERM', 'SIGKILL']);
+    if (!earlyClose) child.emit('close', null);
+    assert.equal((await pending).interrupted, true); assertClean(child);
+  }
+});
+
+test('runner skips pre-aborted spawn and cleans up spawn error and active abort', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const stopped = AbortSignal.abort();
+  assert.equal((await createRunner(() => { throw new Error('Unexpected spawn'); })('/example/ping', [], 2500, stopped)).interrupted, true);
+  for (const failure of ['error', 'abort']) {
+    const child = new FakeChild(); const signal = new AbortController();
+    const pending = createRunner(() => child)('/example/ping', [], 2500, signal.signal);
+    if (failure === 'error') child.emit('error', new Error('Synthetic spawn failure'));
+    else { signal.abort(); child.emit('close', null); }
+    const result = await pending; assert.equal(result.code, null);
+    t.mock.timers.tick(3000); assert.deepEqual(child.kills, failure === 'error' ? [] : ['SIGTERM']); assertClean(child);
+  }
+});
+
+test('cross-hour cycle indexes facts by observation time for hourly and 24-hour reads', () => {
+  const f = fixture();
+  try {
+    f.store.accept(inventory());
+    const cycleAt = at + 3_599_000, observedAt = at + 3_601_000;
+    const fact = parsePing(success(2), observedAt);
+    f.store.record(cycleAt, 'home', new Map([['device', fact]]), config());
+    assert.equal(f.store.status().lastCycleAt, new Date(cycleAt).toISOString());
+    assert.equal(f.store.db.prepare('SELECT at FROM ping_samples').get()!.at, observedAt);
+    const current = f.store.measurements(observedAt, inventory()).devices.device;
+    assert.equal(current.hourly7d.length, 1); assert.equal(current.hourly7d[0].hour, '2026-01-01T01:00:00.000Z');
+    assert.deepEqual(current.series24h, [fact]);
+    assert.deepEqual(f.store.measurements(observedAt + 86_400_000, inventory()).devices.device.series24h, [fact]);
+    assert.deepEqual(f.store.measurements(observedAt + 86_400_001, inventory()).devices.device.series24h, []);
+  } finally { f.close(); }
 });
