@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { collectorResults, outcomeKey, outcomeText, runningText, scopeKey, speedSparkline, speedText, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, outcomeKey, outcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTest, latestSpeed, runStateText, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -20,10 +20,13 @@ function useCollector(collector: NetworkCollector, scope: CollectorScope) {
 }
 
 /** The answer line: running, or the latest answer with its time. One live region, kept mounted. */
-function Answer({ collector, scope, action, own }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly action: CollectorAction; readonly own: (running: CollectorAction) => boolean }) {
+function Answer({ collector, scope, action, own, brief = false }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly action: CollectorAction; readonly own: (running: CollectorAction) => boolean;
+  /** The completed run's values show elsewhere (as Latest): say only that it completed. */
+  readonly brief?: boolean }) {
   const snapshot = useSyncExternalStore(collector.store.subscribe, collector.store.snapshot, collector.store.snapshot);
   const running = snapshot.running, outcome = snapshot.outcomes.get(outcomeKey(scope, action));
-  const answer = outcome ? outcomeText(outcome) : null;
+  const full = outcome ? outcomeText(outcome) : null;
+  const answer = full && brief && full.recorded ? { ...full, text: `${actionLabel(action)}: Completed` } : full;
   return <p className="ua-net-test-answer" role="status">
     {running ? running.scope === scopeKey(scope) && own(running.action) ? runningText(running.action) : 'Another test is running'
       : answer && <>{answer.text}<span className="ua-note">{answer.recorded ? 'recorded' : 'answered'} <InlineTime value={answer.at} /></span></>}
@@ -58,12 +61,14 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
   const snapshot = useCollector(collector, scope);
   const read = collectorResults(snapshot, scope);
   if (!read?.results) return null;
-  const { speed, wifi } = read.results, spark = speedSparkline(speed.recent), busy = snapshot.running !== null;
+  const { wifi } = read.results, speed = speedWithTest(read.results.speed, snapshot.outcomes.get(outcomeKey(scope, { kind: 'speed' })));
+  const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
   return <section className="ua-net-speed" aria-label={label ? `Internet speed, ${label}` : 'Internet speed'}>
     <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>
     <dl className="ua-facts">
-      <div><dt>Latest</dt><dd>{speed.latest ? <>{speedText(speed.latest)}<span className="ua-note">recorded <InlineTime value={speed.latest.recordedAt} /></span></>
-        : 'No speed run supplied'}
+      <div><dt>Last measured</dt><dd>{shown.measured ? <>{speedText(shown.measured)}<span className="ua-note">recorded <InlineTime value={shown.measured.recordedAt} /></span></>
+        : shown.unmeasured ? 'No measured run supplied' : 'No speed run supplied'}
+        {shown.unmeasured && <span className="ua-note">Newest run: {runStateText(shown.unmeasured)} · recorded <InlineTime value={shown.unmeasured.recordedAt} /></span>}
         {spark && <svg className="ua-net-spark" role="img" aria-label={spark.label} width={SPARK_WIDTH} height={SPARK_HEIGHT} viewBox={`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`}>
           {spark.line && <path className="ua-net-spark-line" d={spark.line} />}
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
@@ -72,7 +77,7 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
-      <Answer collector={collector} scope={scope} action={{ kind: 'speed' }} own={action => action.kind === 'speed'} />
+      <Answer collector={collector} scope={scope} action={{ kind: 'speed' }} own={action => action.kind === 'speed'} brief={speed.tested} />
     </>}
     {wifi.latest && <p className="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>}
   </section>;

@@ -17,7 +17,7 @@ try {
     .replaceAll(JSON.stringify('react'),JSON.stringify(new URL('../node_modules/react/index.js',import.meta.url).href))
     .replaceAll(JSON.stringify('react/jsx-runtime'),JSON.stringify(new URL('../node_modules/react/jsx-runtime.js',import.meta.url).href)));
   const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND,
-    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,InternetSpeed,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
+    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,speedWithTest,latestSpeed,InternetSpeed,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
   const {createElement}=await import(new URL('../node_modules/react/index.js',import.meta.url).href);
   const {renderToStaticMarkup}=await import(new URL('../node_modules/react-dom/server.node.js',import.meta.url).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,sha='a'.repeat(64),at='2026-01-01T00:00:00Z';
@@ -201,16 +201,50 @@ try {
   assert.equal(runs.dots.length,2,'nights 3 and 5 stand alone');
   assert.match(runs.label,/^Download per run, 1 Jan 2026, 00:00 UTC to 6 Jan 2026, 00:00 UTC: 4 of 5 runs measured$/);
   assert.equal(speedSparkline([]),null);
+  // A failed or unknown run that kept a parsed download is still a gap, counted in M but not in N.
+  const kept=(i,state,reason)=>({...night(i),state,reason});
+  const unsure=speedSparkline([night(0),kept(1,'failed','tool-error'),night(2),kept(3,'unknown','missing-fields'),night(4)]);
+  assert.equal(unsure.line,'','no two measured runs are adjacent, so nothing joins');assert.equal(unsure.dots.length,3);
+  assert.match(unsure.label,/: 3 of 5 runs measured$/);
+  // Latest is the newest measured run; a newer failed run is said in words, its value not shown as good.
+  const failedNewest=kept(2,'failed','tool-error'),olderGood=night(1,250e6);
+  assert.deepEqual(latestSpeed(failedNewest,[night(0),olderGood,failedNewest]),{measured:olderGood,unmeasured:failedNewest});
+  assert.deepEqual(latestSpeed(olderGood,[night(0),olderGood]),{measured:olderGood,unmeasured:null});
+  assert.deepEqual(latestSpeed(failedNewest,[failedNewest]),{measured:null,unmeasured:failedNewest});
+  const failedBody=structuredClone(result);failedBody.results.speed={latest:failedNewest,recent:[night(0),olderGood,failedNewest]};
+  const failedPort=fakePort(resultDecode(failedBody)),failedStore=createCollectorStore(failedPort);failedStore.ensure(scopeOf);await tick();await tick();
+  const failedBlock=renderToStaticMarkup(createElement(InternetSpeed,{collector:{port:failedPort,store:failedStore},scope:scopeOf,label:null}));
+  assert(failedBlock.includes('<dt>Last measured</dt><dd>250 Mbit/s down')&&failedBlock.includes('Newest run: Failed, the speed tool reported an error · recorded <time'),'last measured run, and the failed newest run in words');
+  assert(!failedBlock.includes('300 Mbit/s'),'the failed run\'s retained value is not shown');failedStore.dispose();
   // The key's speed block: latest with its recorded time, retrieval, the Wi-Fi line, and the test for Editors only.
   const block=()=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null}));
   const editorBlock=block();
   for(const text of ['aria-label="Internet speed"','12 Mbit/s down · 3.0 Mbit/s up · 4.0 ms','recorded <time','<dt>Retrieved</dt>','>Test speed now</button>','<p class="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>','role="img"']) assert(editorBlock.includes(text),`speed block shows ${text}`);
+  // A completed measured speed test is the latest run, from its own answer: no second GET.
+  assert.equal(store.run(scopeOf,{kind:'speed'}),true);
+  const fresh={...speed,recordedAt:'2026-01-02T00:00:00Z',downloadBitsPerSecond:1.04e9};
+  port.pending[2].resolve(actionDecode({...complete,result:{...complete.result,recordedAt:fresh.recordedAt,result:fresh}}));await tick();await tick();
+  const testedBlock=block();
+  assert(testedBlock.includes('1.04 Gbit/s down · 3.0 Mbit/s up · 4.0 ms')&&!testedBlock.includes('12 Mbit/s down'),'Latest shows the tested run');
+  assert(testedBlock.includes('Speed test: Completed<span')&&testedBlock.match(/Gbit\/s/g).length===1,'the answer line does not repeat the values');
+  assert.equal(port.reads,1,'no second results GET');
+  const stored={latest:speed,recent:[speed]},tested=speedWithTest(stored,{action:{kind:'speed'},response:actionDecode({...complete,result:{...complete.result,result:fresh}}),answeredAt:at});
+  assert.deepEqual([tested.latest,tested.recent.at(-1),tested.recent.length,tested.tested],[tested.recent[1],fresh,2,true],'the tested run is the newest sparkline point');
+  for(const response of [failedSpeed,partial,{status:'busy',collectorStatus:409,reason:'busy'},{status:'refused',reason:'observations-expired'},{status:'timeout',reason:'outcome-unknown'},{status:'unavailable'},null]) {
+    const kept=speedWithTest(stored,{action:{kind:'speed'},response:response&&actionDecode(response),answeredAt:at});
+    assert.equal(kept.latest,speed,`${response?.status ?? 'no answer'} ${response?.result?.result?.state ?? ''} leaves Latest untouched`);assert.equal(kept.recent,stored.recent);
+  }
   role.editor=false;const viewerBlock=block();
   assert(!viewerBlock.includes('Test speed now')&&!viewerBlock.includes('role="status"')&&viewerBlock.includes('Wi-Fi scan unavailable on this collector'),'a viewer reads speed without the test');
   const noWifi=structuredClone(result);noWifi.results.wifi.latest=null;noWifi.results.speed={latest:null,recent:[]};
   const quiet=fakePort(resultDecode(noWifi)),quietStore=createCollectorStore(quiet);quietStore.ensure(scopeOf);await tick();await tick();
   const quietBlock=renderToStaticMarkup(createElement(InternetSpeed,{collector:{port:quiet,store:quietStore},scope:scopeOf,label:null}));
   assert(quietBlock.includes('No speed run supplied')&&!quietBlock.includes('Wi-Fi')&&!quietBlock.includes('<svg'),'no runs supplied: said, no chart or Wi-Fi frame');
-  store.dispose();assert.equal(store.run(scopeOf,{kind:'speed'}),false,'a dropped store sends nothing');assert.equal(port.posts.length,2);
-  console.log('PASS Network tests and internet speed: viewer and absent collector show nothing, one GET per scope, one POST per press, every answer in words with its time, Mbit/Gbit and run gaps, Wi-Fi line, withheld wording');
+  store.dispose();assert.equal(store.run(scopeOf,{kind:'speed'}),false,'a dropped store sends nothing');assert.equal(port.posts.length,3);
+  // A viewer's card says why reachability is withheld (from the frame's own facts) and reads no collector results.
+  const viewerPort=fakePort(resultDecode(result),{editor:false}),viewerStore=createCollectorStore(viewerPort);
+  const viewerCard=deviceCard(decode(withheld).devices[0].liveFacts,{port:viewerPort,store:viewerStore});
+  assert(viewerCard.includes(NOT_MEASURED_MISMATCH)&&!viewerCard.includes('<dt>Test</dt>'),'viewer: withheld wording, no controls');
+  assert.equal(viewerPort.reads,0,'viewer card: no collector GET needed for the wording');viewerStore.dispose();
+  console.log('PASS Network tests and internet speed: viewer and absent collector show nothing, one GET per scope, one POST per press, every answer in words with its time, Mbit/Gbit and run gaps, Wi-Fi line, withheld wording for viewers too, a tested speed run as Latest');
 } finally {rmSync(scratch,{recursive:true,force:true});}

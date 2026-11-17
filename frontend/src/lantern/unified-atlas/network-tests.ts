@@ -147,6 +147,28 @@ export function outcomeText(outcome: ActionOutcome): { readonly text: string; re
   }
 }
 
+/** The stored runs, with a measured run from this browser's completed speed
+ * test as the latest (the action's own answer; no further read). Any other
+ * answer, failed or unknown runs included, leaves the runs as read. */
+export function speedWithTest(speed: { readonly latest: SpeedResult | null; readonly recent: readonly SpeedResult[] }, outcome: ActionOutcome | undefined) {
+  const response = outcome?.response;
+  const run = response?.status === 'completed' && response.result.kind === 'speed' && response.result.result.state === 'measured' ? response.result.result : null;
+  if (!run || (speed.latest && Date.parse(speed.latest.recordedAt) > Date.parse(run.recordedAt))) return { latest: speed.latest, recent: speed.recent, tested: false };
+  return { latest: run, recent: [...speed.recent, run].slice(-30), tested: true };
+}
+
+/** A run's download only when the run was measured: a failed or unknown run
+ * can keep a parsed value, but it is a gap, never a good point. */
+const downloadOf = (run: SpeedResult) => run.state === 'measured' ? run.downloadBitsPerSecond : null;
+/** A run's state in words, without values: "Failed, the speed tool reported an error". */
+export const runStateText = (run: SpeedResult) => run.state === 'measured' ? 'Measured' : withReason(run.state === 'unknown' ? 'Unknown' : 'Failed', run.reason);
+/** The newest measured run, and the newest run when it was not measured. */
+export function latestSpeed(latest: SpeedResult | null, recent: readonly SpeedResult[]) {
+  const runs = [...recent, ...(latest ? [latest] : [])].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt));
+  const newest = runs.at(-1) ?? null;
+  return { measured: runs.findLast(run => run.state === 'measured') ?? null, unmeasured: newest && newest.state !== 'measured' ? newest : null };
+}
+
 /** The collector's nightly schedule: a longer wait between runs is a missed night. */
 const MISSED_RUN_MS = 36 * 3_600_000;
 const PAD = 2, LINE_TOP = 2, LINE_BOTTOM = SPARK_HEIGHT - 2;
@@ -157,7 +179,7 @@ export function speedSparkline(runs: readonly SpeedResult[]) {
   const sorted = [...runs].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt));
   const start = Date.parse(sorted[0]!.recordedAt), end = Date.parse(sorted[sorted.length - 1]!.recordedAt);
   const x = (at: number) => end === start ? SPARK_WIDTH / 2 : PAD + (at - start) / (end - start) * (SPARK_WIDTH - 2 * PAD);
-  const hi = Math.max(0, ...sorted.flatMap(run => run.downloadBitsPerSecond === null ? [] : [run.downloadBitsPerSecond]));
+  const hi = Math.max(0, ...sorted.flatMap(run => downloadOf(run) === null ? [] : [downloadOf(run)!]));
   const y = (v: number) => hi === 0 ? LINE_BOTTOM : LINE_BOTTOM - v / hi * (LINE_BOTTOM - LINE_TOP);
   const segments: (readonly [number, number])[][] = [];
   let previous: number | null = null, joined = false;
@@ -165,12 +187,13 @@ export function speedSparkline(runs: readonly SpeedResult[]) {
     const at = Date.parse(run.recordedAt);
     const near = previous !== null && at - previous <= MISSED_RUN_MS;
     previous = at;
-    if (run.downloadBitsPerSecond === null) { joined = false; continue; }
-    const point = [x(at), y(run.downloadBitsPerSecond)] as const;
+    const download = downloadOf(run);
+    if (download === null) { joined = false; continue; }
+    const point = [x(at), y(download)] as const;
     if (joined && near) segments[segments.length - 1]!.push(point); else segments.push([point]);
     joined = true;
   }
-  const measured = sorted.filter(run => run.downloadBitsPerSecond !== null).length;
+  const measured = sorted.filter(run => downloadOf(run) !== null).length;
   const first = fmtDateTimeReadable(sorted[0]!.recordedAt), last = fmtDateTimeReadable(sorted[sorted.length - 1]!.recordedAt);
   return { ...sparkPaths(segments),
     label: `Download per run, ${start === end ? first : `${first} to ${last}`}: ${measured.toLocaleString()} of ${plural(sorted.length, 'run')} measured` };
