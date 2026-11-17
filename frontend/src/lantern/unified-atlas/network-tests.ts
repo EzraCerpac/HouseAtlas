@@ -156,7 +156,10 @@ export function outcomeText(outcome: ActionOutcome): { readonly text: string; re
  * own answers; no further read), in time order, keeping the 30 newest. A test
  * without a run (busy, refused, timed out) adds nothing and removes nothing. */
 export function speedWithTests(speed: { readonly latest: SpeedResult | null; readonly recent: readonly SpeedResult[] }, tested: readonly SpeedResult[]) {
-  return { latest: speed.latest, recent: [...speed.recent, ...tested].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)).slice(-30) };
+  const all = [...speed.recent, ...tested].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)), recent = all.slice(-30);
+  // The newest measured run stays the one shown even when later failed runs push it out of the chart's window.
+  const measured = all.findLast(run => run.state === 'measured');
+  return { latest: measured && !recent.includes(measured) ? measured : speed.latest, recent };
 }
 
 /** A run's download only when the run was measured: a failed or unknown run

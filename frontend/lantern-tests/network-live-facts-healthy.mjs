@@ -248,6 +248,11 @@ try {
   assert.equal(merged.length,30);assert.equal(merged.at(-1),added);assert.equal(merged.at(-2),full[0],'the newest stored run is kept');
   assert(!merged.includes(full[29]),'the oldest stored run is dropped');assert.deepEqual(merged.map(run=>run.recordedAt),[...merged.map(run=>run.recordedAt)].sort());
   assert.equal(speedWithTests({latest:speed,recent:[speed]},[]).recent.length,1,'no tested runs: the stored runs as read');
+  // A measured run followed by 30 failed ones leaves the chart's window but stays the last measured run.
+  { const good=night(0),fails=Array.from({length:30},(_,i)=>night(i+1,null)),after=speedWithTests({latest:good,recent:[good]},fails);
+    assert.equal(after.recent.length,30);assert(!after.recent.includes(good));
+    assert.deepEqual(latestSpeed(after.latest,after.recent),{measured:good,unmeasured:fails[29]});
+    assert.match(speedSparkline(after.recent).label,/0 of 30 runs measured/); }
   // Several collector sources stay told apart, by collection where their source names repeat; one answering source needs no name.
   const otherScope={...scopeOf,collectionId:'second'},blocks=answers=>{const two={canTest:()=>false,read:async scope=>answers[scope.collectionId],act:()=>new Promise(()=>{})},owned=createCollectorStore(two);
     owned.ensure(scopeOf);owned.ensure(otherScope);return tick().then(tick).then(()=>renderToStaticMarkup(createElement(InternetSpeeds,{collector:{port:two,store:owned},rows:[{scope:scopeOf,label:'Generated network'},{scope:otherScope,label:'Generated network'}]})));};
