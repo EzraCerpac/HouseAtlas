@@ -1,17 +1,16 @@
 {
   "format": "houseatlas-synthetic-readme-media/1",
   "synthetic": true,
-  "sourceHead": "1d0169f51006a63c8d421f4ec9fec189835d304a",
-  "sourceDirty": true,
+  "sourceHead": "fb01da64a8b85c68443ac8a328fb45efbffe936a",
+  "sourceDirty": false,
   "sourceTree": {
     "algorithm": "SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF",
-    "fileCount": 1793,
+    "fileCount": 2021,
     "exclusions": [
       "docs/demo/capture.json",
       "docs/publication/source-manifest.json",
       "docs/demo/synthetic-building.png",
       "docs/demo/synthetic-room.png",
-      "docs/demo/synthetic-network.png",
       "docs/demo/synthetic-collage.png",
       "docs/demo/synthetic-unified-3d.png",
       "docs/demo/synthetic-unified-collapsed.png",
@@ -21,16 +20,16 @@
       "docs/demo/synthetic-unified-phone-hall.png",
       "docs/demo/synthetic-unified-stacked.png"
     ],
-    "sha256": "bf5cb9e95cd38c5e63f394c69f8b1ebd8b5a48e78adec12949b71a7d2b1572eb"
+    "sha256": "bf61e5eb0bf58127979ce004758f77abe13dcf129f6530bb671f857bdbfa5681"
   },
   "node": "v26.10.0",
-  "browser": "153.0.8010.12",
+  "browser": "156.0.8078.4",
   "viewport": [
     1440,
     1000
   ],
   "collage": [
-    1800,
+    1210,
     520
   ],
   "transport": "Checked-in synthetic Responses; browser assets from owned loopback only",
@@ -39,21 +38,18 @@
     "reviewed Alpha membership",
     "explicit unknown elevation",
     "Lower room heading",
-    "saved synthetic-link with exact revision token",
     "zero external browser requests and renderer errors"
   ],
   "hashes": {
-    "frontend/lantern-tests/core-read-visual/main.tsx": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
+    "frontend/lantern-tests/core-read-visual/main.tsx": "13d8f6d19002cbf88912e391658d3e512da6774f6ba2bac5c9da6dd4354b8052",
     "frontend/lantern-tests/core-read-visual/fixture.json": "8288f3404fd0e2579797c692b6dd1befb2e19b1989e365ed87d5be1cef93a65d",
-    "tools/readme-media/capture.mjs": "96d8e53e494794ec903e25e462fa3aa209648359befeb41e7908f7b4e09a129c",
-    "frontend/src/lantern/atlas/AtlasView.tsx": "0da2b832e8947db6ee6f449bf545d15ca6e55acd54a8328b65662aba99b8b49e",
-    "frontend/src/lantern/Host.tsx": "d9cc87d4a85f9930cdb920c0b2ead32ba9388f73e5310e00a6bb616b1a7bf519",
-    "frontend/src/api/topology-client.ts": "de73e4dc2cc4ab75827c57f2b2e85eb6866ae1400954a4353e63708b683c0104",
-    "frontend/src/api/network-relations-client.ts": "d962557f2911ef15f43a64af123201b759bbfa01bac3274308249d1f66c618f2",
-    "docs/demo/synthetic-building.png": "8c9822e694eba4eceebf4107f5b7b96840e5d7aa37bde97b36c9dd36925d4acb",
-    "docs/demo/synthetic-room.png": "f41977de0aaafc553c046b682e71786f902fd74ab80f305e4f9a5590a3c0a769",
-    "docs/demo/synthetic-network.png": "f1ae9c8cde3cacbe720e8a61dcc35f371edee2409857a803bbfcf74e63cd9c44",
-    "docs/demo/synthetic-collage.png": "49128405461857a8c90ade2d307f4cb62271adabe39e4f340721fc68a1e8e8ff"
+    "tools/readme-media/capture.mjs": "b573486f0e3ef3d978374ec469285aa8a55068be296e99e28ef1eb4c516cd9f2",
+    "frontend/src/lantern/atlas/AtlasView.tsx": "422e90676744bee7b26e6df895b6f8cfe8bf1aa2d5a750a915be58309866676c",
+    "frontend/src/lantern/Host.tsx": "6ecbabe0b0f0b7aa5dad189144c76a945dffcbc912d5f364a8e8ec270ebac3bd",
+    "frontend/src/api/topology-client.ts": "8809b37481fe94b11073efe4e46734a373cfe6050e52dd511e3a71fe679b3904",
+    "docs/demo/synthetic-building.png": "47e296732946f7a88b9ef52866b8df773f4fa5a205371fba82e5a63853e36f51",
+    "docs/demo/synthetic-room.png": "fb4d7edca4ac6bf9a32e05b972685f663b00adac1de2ff6b792592e673b71d43",
+    "docs/demo/synthetic-collage.png": "f5b90b0dd5285ca416693ed0fea5e48fb7a3c19c122a231de8d7aa9dba1f676c"
   },
   "unifiedAtlas": {
     "entry": "/lantern-tests/source-host-visual/?atlas=generated",
@@ -70,10 +66,10 @@
       "Split level",
       "Ground floor"
     ],
-    "planSvgSHA256": "20c3de2da308dd0003dc7cd90443db441cf3882857fae9746b2b00511ad3e96b",
+    "planSvgSHA256": "96b46408a76d47955ecd8bcc85386ac4cbc0eff0bbd5c20e4510e147df64232f",
     "sourceDisclosure": {
       "desktop": {
-        "control": "source-summary",
+        "control": "view-and-sources",
         "closedAfterTab": true,
         "closedAfterEscape": true,
         "focusReturned": true
@@ -124,7 +120,7 @@
         "overlay": [],
         "key": null,
         "selectedRoom": "Living room",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "relative",
@@ -133,7 +129,7 @@
         "labels": [
           "Select room: Living room",
           "Select room: Hall",
-          "Select room: Stairs"
+          "Select room: Stairs · Ground floor"
         ],
         "markers": [],
         "markerKeys": [],
@@ -143,14 +139,14 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 9,
+          "drawCalls": 2,
           "pixels": [
             890,
-            877
+            930
           ],
           "cssPixels": [
             890,
-            877
+            930
           ]
         }
       },
@@ -184,7 +180,7 @@
         "overlay": [],
         "key": null,
         "selectedRoom": "Living room",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "relative",
@@ -206,11 +202,11 @@
           "drawCalls": 17,
           "pixels": [
             890,
-            877
+            930
           ],
           "cssPixels": [
             890,
-            877
+            930
           ]
         }
       },
@@ -246,7 +242,7 @@
         ],
         "key": "Electrical4 records",
         "selectedRoom": "Living room",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "relative",
@@ -302,7 +298,7 @@
         ],
         "key": "Electrical4 records",
         "selectedRoom": "Living room",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "absolute",
@@ -329,11 +325,11 @@
           "drawCalls": 40,
           "pixels": [
             390,
-            732
+            692
           ],
           "cssPixels": [
             390,
-            732
+            692
           ]
         }
       },
@@ -369,7 +365,7 @@
         ],
         "key": "Electrical4 records",
         "selectedRoom": "Living room",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "absolute",
@@ -394,11 +390,11 @@
           "drawCalls": 6,
           "pixels": [
             390,
-            732
+            692
           ],
           "cssPixels": [
             390,
-            732
+            692
           ]
         },
         "focusRecoveredWithoutScroll": true
@@ -435,7 +431,7 @@
         ],
         "key": "Electrical4 records",
         "selectedRoom": "Hall",
-        "selectedFloor": "Ground floor, Synthetic house",
+        "selectedFloor": "Ground floor",
         "inspector": {
           "label": "Selected room",
           "position": "absolute",
@@ -457,14 +453,14 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 15,
+          "drawCalls": 14,
           "pixels": [
             390,
-            732
+            692
           ],
           "cssPixels": [
             390,
-            732
+            692
           ]
         },
         "recordReferences": [
@@ -511,7 +507,10 @@
           "position": "relative",
           "open": false
         },
-        "labels": [],
+        "labels": [
+          "Select room: Bedroom",
+          "Select room: Bathroom"
+        ],
         "markers": [
           "Stairs: 1 network record, Ground floor, Synthetic house"
         ],
@@ -524,14 +523,14 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 55,
+          "drawCalls": 82,
           "pixels": [
             890,
-            877
+            930
           ],
           "cssPixels": [
             890,
-            877
+            930
           ]
         }
       }
@@ -559,42 +558,263 @@
       "Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance"
     ],
     "sourceHashes": {
-      "tools/readme-media/capture.mjs": "96d8e53e494794ec903e25e462fa3aa209648359befeb41e7908f7b4e09a129c",
+      "tools/readme-media/capture.mjs": "b573486f0e3ef3d978374ec469285aa8a55068be296e99e28ef1eb4c516cd9f2",
       "frontend/lantern-tests/source-host-visual/index.html": "80616c96da23fa1c5c729cf1ec8ba62ea5d915b91284c6f2b1bf7939a59eb0d3",
-      "frontend/lantern-tests/source-host-visual/main.tsx": "147134d21aacf8900e5d558ed954af53b97775ccc74439368297c6de50982f06",
+      "frontend/lantern-tests/source-host-visual/main.tsx": "fc81d174296c3f71919fc153776f3e8ecff9595ced59fdb06a88c8912b9f9335",
       "frontend/lantern-tests/source-host-visual/synthetic-site.ts": "d275bebb4bb0bf250c95203565a674da0ff761082a7e3ee922fbea6c41c18155",
-      "frontend/lantern-tests/source-host-visual/synthetic-documents.ts": "30b5daedd10f9e76d7875e1cafe94a013fac39e4261742e431ad7363b649c1b7",
-      "frontend/lantern-tests/unified-atlas/synthetic-atlas.ts": "f413ca56df54267f49af161be5ed85439a652691b448db3b3197dc360b587408",
-      "frontend/integration/unified-atlas-reader.ts": "254b3e2b7d20ae7b0cadf2b010413f1919c4f3a237490cb1b1020d2e55180c4b",
-      "frontend/src/lantern/Host.tsx": "d9cc87d4a85f9930cdb920c0b2ead32ba9388f73e5310e00a6bb616b1a7bf519",
-      "frontend/src/lantern/atlas/AtlasView.tsx": "0da2b832e8947db6ee6f449bf545d15ca6e55acd54a8328b65662aba99b8b49e",
-      "frontend/src/lantern/atlas/useCamera.ts": "07e47d1dd4b7f105500d2eb010e52fb42bb2be38494f633a7c7b1d347d1afeb0",
-      "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx": "115963209037f6eeef43582e0c04313ac1008d06e893c5bb4b2166937c5ce432",
-      "frontend/src/lantern/unified-atlas/scene.ts": "e1de1bcd7ac6ec5b2c92927e3fa387b6d1e17033ea6506e87fe50a6b1b49687a",
-      "frontend/src/lantern/unified-atlas/runtime-overlays.ts": "a3b3b3987219656dd89f44fe8f655a3ac30ed58527386862386b0988d6533d01",
-      "frontend/src/lantern/unified-atlas/unified-atlas.css": "4c6d1224aefddf0e48965c84b12bf2f8263397a4ea8241caf7ff40fa77aa525c",
+      "frontend/lantern-tests/source-host-visual/synthetic-documents.ts": "6451b634b9ffed3d6d72d3d9eef180b5145a355d1c65a5ce7e8f364988c6643c",
+      "frontend/lantern-tests/unified-atlas/synthetic-atlas.ts": "d7afe67fcdc9f1f791af10d65b276bc2e9bcbe73645e147c815f42ba6b4c6545",
+      "frontend/integration/unified-atlas-reader.ts": "933c1b0d17adecfc59a4f7f43c759f829591500440ed7692db3dbbe135b3240b",
+      "frontend/src/lantern/Host.tsx": "6ecbabe0b0f0b7aa5dad189144c76a945dffcbc912d5f364a8e8ec270ebac3bd",
+      "frontend/src/lantern/atlas/AtlasView.tsx": "422e90676744bee7b26e6df895b6f8cfe8bf1aa2d5a750a915be58309866676c",
+      "frontend/src/lantern/atlas/useCamera.ts": "6c5a648a89475ced502f336994390b66c0de6c86c96e744741c250c17e258761",
+      "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx": "62ecfc632b35fe13b886737f5d4a16ccaa9d5fc686c68ca739ae9932f567b9ff",
+      "frontend/src/lantern/unified-atlas/atlas-text.ts": "36b5a1f912e1b7b777155f80201ddc03bdeeac75b0b4c2a48a9b9eda1ac278c1",
+      "frontend/src/lantern/unified-atlas/FloorStack.tsx": "c19b8ea0dc355d54c3a9281c47cbd04151b298c436bcae6b969bef988ab5b02d",
+      "frontend/src/lantern/unified-atlas/AtlasInspector.tsx": "f188c84b3ada90c2bfb6de905adb3321d1a7511b9a83263acf7e21c0487c2ba4",
+      "frontend/src/lantern/unified-atlas/AtlasKeys.tsx": "86efc1e5b85cc162f16d69dc61f3025f2bb466cb71c4722231ebbb2797fa34b6",
+      "frontend/src/lantern/unified-atlas/scene.ts": "471494e034088f6ee9318a360942499f58e256bb1b299ef243c27da9620a632e",
+      "frontend/src/lantern/unified-atlas/runtime-overlays.ts": "a6a493f842143740bd19aaa98c0a6a336dc5adab368c2f3b6196fa2964595620",
+      "frontend/src/lantern/unified-atlas/unified-atlas.css": "5266e55717f384572abf397c53a28ac58222dce614f8e2dcea6c892d1cecc165",
       "frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx": "4112550208c124ad7112bd59cbc155c1e1412cc435f1b833675cd9c40c9c00cd",
-      "frontend/src/lantern/unified-atlas/labels.ts": "1a0cc1264c43dd1b5d6f1822ace88ef0325a7349057e1c5dc79c46ffc89ae3c6",
-      "frontend/src/lantern/unified-atlas/types.ts": "b9d4097cbf9fc1f2bbb2b64a13f7fcb7be9c23b54a64e9d83d9d7fd2fc7af4dd",
-      "frontend/src/lantern/canonical-ifc/MeshLayer.tsx": "84fae3b3fff85ff3df17fb5d5e34163a26334c0f73f1a995602d1cede81e6982",
-      "frontend/src/lantern/canonical-ifc/mesh-scene.ts": "98433672ae97a802bdaf485b28c74053ba9e350746391d33ee8b36776f364659",
-      "frontend/src/lantern/canonical-ifc/mesh-appearance.ts": "cc61dae46bcf1f42461f2884e86212634b69235425e6fd030df4a58c24a984ef",
-      "frontend/src/lantern/canonical-ifc/gpu-budget.ts": "e4a0c65b21026d4da67abbe0f5c205c5522114ab77f3bbd48ffe405ff56d81ca",
-      "frontend/src/lantern/canonical-ifc/geometry.ts": "bff874aa3c003b53b9a08e4482818d054fe6508cec530b7efbb959257788b062",
-      "frontend/src/lantern/canonical-ifc/useStageCamera.ts": "0cb677cbe54ab5c24e8646e7bffc284fea433b5724cc46a9b622e1e648a20463",
+      "frontend/src/lantern/unified-atlas/labels.ts": "942b0bc334cd0abca75d9df5edcd7d7d8e32ae7637fcba6018f5009be6f10d8e",
+      "frontend/src/lantern/unified-atlas/types.ts": "bfe8c0f99db07e9b35c60a14b113cd2525b05196b279ed6bb4849bd1b7edfc68",
+      "frontend/src/lantern/canonical-ifc/MeshLayer.tsx": "94088c5edf63b1d2a6e8596579dd36bb10c0e765dd795d3b21e021b11888ac1d",
+      "frontend/src/lantern/canonical-ifc/mesh-scene.ts": "79c49ea6a3ae4a42f98c3e88a188324fd57bd71a7ecfc3a01c370935f7fbb2da",
+      "frontend/src/lantern/canonical-ifc/mesh-appearance.ts": "b560cb8cfb35523e367389b5c39543c05bc0889beeeb0084c9ab071eeada24b0",
+      "frontend/src/lantern/canonical-ifc/gpu-budget.ts": "dd4aef7ca2542adf42c16e7edd86005016e865f4813903288aa7c806186eda23",
+      "frontend/src/lantern/canonical-ifc/geometry.ts": "52a205f3f45dc0d92332e33c18d783e32bd500f7ac513ef020ce49fba78c2402",
+      "frontend/src/lantern/canonical-ifc/useStageCamera.ts": "16ae172b4a45de05fac1665443be9fd59e82a17923ab3261fa88e9d0d7b273e6",
       "frontend/src/lantern/canonical-ifc/stage-pointers.ts": "955e1784690a4241c7b339cd2e66a678e800446f4dbe8b0c0109c61c99206197",
-      "frontend/src/lantern/canonical-ifc/standard-glb.ts": "11aa9e17175029c9dd8093fa501ab9bb3b32fa8ee5cf30c8a0d74565826b9077",
-      "frontend/src/lantern/canonical-ifc/glb-preflight.ts": "b40f33a2fc8feb7ecb2ebf565f8794d6354b178e1bc18233f6dbc2716bd8b5cb",
-      "frontend/src/lantern/canonical-ifc/canonical-ifc.css": "51211b130f918dbbbf6c64c72ca7d3d329a648ea6531c0698596c7ad5470cd48"
+      "frontend/src/lantern/canonical-ifc/standard-glb.ts": "4da3c1ce0d3a51d2289175db17ea871f0fc1aa945153d29316b821bf0d8821a7",
+      "frontend/src/lantern/canonical-ifc/glb-preflight.ts": "49c99e5c2264e0c0c774a0c3efbb194234ec02c51ff3a4970a550a5609989fe1",
+      "frontend/src/lantern/canonical-ifc/canonical-ifc.css": "9abdf75a3689e236669027a5d9fa0a68e43e05398ed23d53804aefb3210e766d"
     },
     "artifactHashes": {
-      "docs/demo/synthetic-unified-3d.png": "495164c550d581cf2de108a131654b056c23ac2d32d3378617fc839d8591c68b",
-      "docs/demo/synthetic-unified-collapsed.png": "3e766dffe08276001d5a0006763e02345b4f4243bb1e48a6ed634f9b08471639",
-      "docs/demo/synthetic-unified-plan.png": "fb8f1094835c65ee7fa4a3e2a95835a33a946903e553a96891f723f894353523",
-      "docs/demo/synthetic-unified-phone.png": "46be38502d3e141359601bc562d80d294085388ff099ca8b98fe7dac5864f796",
-      "docs/demo/synthetic-unified-phone-crowded.png": "79eaf5bfc7b95b519f1cb15e106be35c03daf5a31e74d65adacad159c07956bc",
-      "docs/demo/synthetic-unified-phone-hall.png": "73d13f059b95f0d49b20968cb95880b893643f5403f087a0f5bed3aa45299a41",
-      "docs/demo/synthetic-unified-stacked.png": "67b4b856e0c81deba860fe6ec0399babf429c870bd67ba0ece2e873de27716e8"
+      "docs/demo/synthetic-unified-3d.png": "786184a37957d654113a5c4ab51e8a47d2351ebad12053db50d1924d4f172fcf",
+      "docs/demo/synthetic-unified-collapsed.png": "74b8eeea7cd5800b6e8f1d82769466d5669b487ed0b0c1d4f476c610abbad20b",
+      "docs/demo/synthetic-unified-plan.png": "c655f72f251150177b22217899b6544c9d9316e452305a1accfb5cab1cec56e4",
+      "docs/demo/synthetic-unified-phone.png": "350d2bd5042ba38cc60639b8ee78bd180a5d84e27bcea27f54f8d79a95216f3f",
+      "docs/demo/synthetic-unified-phone-crowded.png": "c82b6bd509361053342b83ef66a778fed2c29f8490bf04b30f6721d0ef3e35cb",
+      "docs/demo/synthetic-unified-phone-hall.png": "cd806879ca1cc0235c2a272ec0b0d3d0b63fc07bc029549396903085a7a36346",
+      "docs/demo/synthetic-unified-stacked.png": "b1210d4e642569730e7fc28929a2d3148d9369dc26d07630b44501984c11d9b4"
+    }
+  },
+  "exampleHouse": {
+    "entry": "/example/index.html?building=syn-building-house",
+    "renderer": "frontend/example page: production LanternHost and UnifiedAtlas over the generated publication",
+    "viewport": [
+      1280,
+      800
+    ],
+    "screenshot": "example-house.png",
+    "video": "example-house-tour.webm",
+    "tour": [
+      "open on Synthetic house through ?building=",
+      "select Living room",
+      "spread floors",
+      "Plan with Electrical layer",
+      "back to 3D"
+    ],
+    "states": {
+      "direct": {
+        "entry": "/example/index.html?building=syn-building-house&floor=syn-level-upper&room=syn-room-stairs&view=plan",
+        "screenshot": "example-house-state.png",
+        "building": [
+          "Synthetic house"
+        ],
+        "floor": [
+          "Upper floor"
+        ],
+        "view": [
+          "Plan"
+        ],
+        "plan": true,
+        "room": "Stairs",
+        "roomFloor": "Upper floor"
+      },
+      "reopened": {
+        "after": [
+          "3D chosen",
+          "Upkeep",
+          "Atlas"
+        ],
+        "building": [
+          "Synthetic house"
+        ],
+        "floor": [
+          "Upper floor"
+        ],
+        "view": [
+          "3D"
+        ],
+        "plan": false,
+        "room": "Stairs",
+        "roomFloor": "Upper floor"
+      },
+      "ignored": {
+        "entry": "/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways",
+        "building": [
+          "Synthetic house"
+        ],
+        "floor": [
+          "All floors"
+        ],
+        "view": [
+          "3D"
+        ],
+        "plan": false,
+        "room": null,
+        "roomFloor": null
+      },
+      "home": {
+        "places": [
+          "Synthetic house",
+          "Living room",
+          "Hall",
+          "Bathroom",
+          "Synthetic house",
+          "Synthetic studio",
+          "Upper floor",
+          "Ground floor",
+          "Split level",
+          "Studio floor",
+          "Hall",
+          "Living room",
+          "Stairs",
+          "Bedroom",
+          "Study",
+          "Bedroom",
+          "Bathroom",
+          "Studio",
+          "Gallery"
+        ],
+        "flags": [
+          "Atlas name",
+          "HomeBox source: present; cache: stale"
+        ]
+      },
+      "rememberedOverride": "not reachable by a link: the remembered view is per document, so every link load starts without one",
+      "storedFirst": "not exercised: the example has no stored-copy route"
+    },
+    "production": {
+      "build": "npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example",
+      "preIsolationUse": [],
+      "served": "all of frontend/dist from an owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host",
+      "files": 173,
+      "exampleFiles": 70,
+      "startup": [
+        {
+          "path": "/assets/live-C_EXVMQV.js",
+          "bytes": 384884,
+          "gzip": 96756
+        },
+        {
+          "path": "/assets/rolldown-runtime-iC0nZHf4.js",
+          "bytes": 902,
+          "gzip": 513
+        },
+        {
+          "path": "/assets/react-BiO5X5Zr.js",
+          "bytes": 218841,
+          "gzip": 67528
+        },
+        {
+          "path": "/assets/session-BaD-3cXG.js",
+          "bytes": 76214,
+          "gzip": 25620
+        },
+        {
+          "path": "/assets/schema-validator-DP-NshpZ.js",
+          "bytes": 416472,
+          "gzip": 22641
+        },
+        {
+          "path": "/assets/read-BP2yQLtw.js",
+          "bytes": 4589,
+          "gzip": 1979
+        },
+        {
+          "path": "/assets/model-DcKwYd8x.js",
+          "bytes": 4539,
+          "gzip": 1656
+        },
+        {
+          "path": "/assets/evidence-client-CRDeTXfb.js",
+          "bytes": 161647,
+          "gzip": 47261
+        },
+        {
+          "path": "/assets/source-ports-Dtr1OgQ_.js",
+          "bytes": 125,
+          "gzip": 126
+        },
+        {
+          "path": "/assets/model-CDoierEN.js",
+          "bytes": 2909,
+          "gzip": 1015
+        },
+        {
+          "path": "/assets/adapter-BLnLFZBr.js",
+          "bytes": 503933,
+          "gzip": 25208
+        }
+      ],
+      "linkChunk": "/assets/live-C_EXVMQV.js",
+      "exampleInOfflineShell": false,
+      "typecheck": {
+        "config": "frontend/example/tsconfig.json",
+        "failedOutsideLanternTests": 0,
+        "lanternTestsDiagnostics": []
+      },
+      "storage": {
+        "seeded": [
+          "localStorage",
+          "sessionStorage",
+          "script-visible cookie",
+          "houseatlas-outbox-v1 row"
+        ],
+        "exampleRealm": {
+          "local": null,
+          "session": null,
+          "cookie": "",
+          "indexedDB": "undefined",
+          "caches": "undefined",
+          "broadcastChannel": "undefined",
+          "locks": "undefined"
+        },
+        "unchangedAfterLeaving": true,
+        "unchangedAfterBack": true
+      },
+      "back": {
+        "entry": "/example/index.html?building=syn-building-house&floor=syn-level-studio&room=syn-room-gallery&view=sideways",
+        "path": "back navigation reload",
+        "pageshows": [
+          false
+        ],
+        "navigationType": "back_forward"
+      }
+    },
+    "durationsMs": {
+      "typecheckAndBuild": 4184,
+      "tour": 24975,
+      "navigation": 21408
+    },
+    "scope": [
+      "Generated fictional data only",
+      "Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile",
+      "Video is a review aid: browser timing varies; no pixel or timing evidence",
+      "Durations are informational"
+    ],
+    "artifactHashes": {
+      "example-house.png": "5f545bdab9801aae3c05a86dd9199cc24d1d7f9c36a5e8e8dded7a0cfb6db4e0",
+      "example-house-state.png": "dd9e2f679f164f0df056060017e238893283528f86f466973c255211607f1c5e",
+      "example-house-tour.webm": "ceb786c667357ec513ec2fb8a060fbaa8e21753b23b8a9dccadfffec8662205d",
+      "example-inventory-list.png": "faabcc0ba789d688a711e7ef7b613e27f5967ba15926c408cd130787b21a6eab",
+      "example-inventory-detail.png": "7f1ef95751ba99a22dd65918a84c38febde9aea529c6341b357620005ac17c17",
+      "example-documents-list.png": "df499d6bd0ac47d85f2698dc06d934f60ce5b4078a56f651cfb34608f515d67b",
+      "example-documents-detail.png": "5ea65fd0cd1ccb0030d6dddbcf52b83d2a4cc1d4e58ad241ba11076d6a9c7798",
+      "example-network-trace.png": "db7038f8356c7df4e73d757529348fe3bbc69d03585061182279aa8585bc27c9"
     }
   }
 }

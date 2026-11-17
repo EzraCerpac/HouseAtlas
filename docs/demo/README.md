@@ -1,8 +1,8 @@
 # Synthetic interface demo
 
-The building, room and Network images show the actual Lantern React UI and
+The building and room images show the actual Lantern React UI and
 existing checked-in `frontend/lantern-tests/core-read-visual` fixture.
-All records, scope IDs and session metadata are synthetic. Topology and Network clients consume fake
+All records, scope IDs and session metadata are synthetic. The topology client consumes fake
 Responses; other application reads return unavailable. Only frontend assets
 are loaded from the owned numeric-loopback Vite server. No native server,
 provider, household file, account, credential or upstream write is involved.
@@ -11,8 +11,7 @@ provider, household file, account, credential or upstream write is involved.
 | --- | --- |
 | [Building](synthetic-building.png) | Alpha's reviewed membership, recorded level ordering, distinct elevation datums and explicit unknowns. |
 | [Room](synthetic-room.png) | Lower room selection with source facts and unavailable shape/document information. |
-| [Network](synthetic-network.png) | One explicitly loaded saved relation with original dates and exact revision token. |
-| [Collage](synthetic-collage.png) | The three unmodified screen captures, labeled SYNTHETIC. |
+| [Collage](synthetic-collage.png) | The two unmodified screen captures, labeled SYNTHETIC. |
 
 The capture also produces seven unified Atlas review images. The README shows
 `synthetic-unified-3d.png`; the others are workflow artifacts only:
@@ -25,7 +24,7 @@ The capture also produces seven unified Atlas review images. The README shows
 | `synthetic-unified-phone.png` | Living room in 3D at 390 × 844, fitted with both Hall and Living electrical counts clear. |
 | `synthetic-unified-phone-crowded.png` | Normal modified-wheel zoom creates a count-target collision. Selected Living wins while the layer retains four records. |
 | `synthetic-unified-phone-hall.png` | Hall selected through the room list at the same phone width, retaining its three records and original references. |
-| `synthetic-unified-stacked.png` | Stacked whole-building Network view, tilted and zoomed out through normal keyboard controls. One Stairs count survives without duplicating its source record. |
+| `synthetic-unified-stacked.png` | Stacked whole-building view with the Network layer, tilted and zoomed out through normal keyboard controls. One Stairs count survives without duplicating its source record. |
 
 They mount the actual `UnifiedAtlas` through `LanternHost` at
 `/lantern-tests/source-host-visual/?atlas=generated`. The production scene
@@ -80,7 +79,7 @@ label in their heading (`ExampleLabelContext`, provided only by the example).
 | Room belongings | **Atlas**, select *Living room*: **Belongings** lists the reading lamp from its reviewed HomeBox place link; *Hall* has a link and none listed; *Bathroom* has no reviewed link. Selecting the first such room reads the in-page building records once. |
 | Documents | **Library** › **Source documents** and **Electrical drawings**; the lamp manual from **Library** › **File details** (below). |
 | Electrical groups | Hall link below, **Electrical** layer, open *Fictional symbol 1* › **Show drawing group**: the historic group and its fictional circuits A1 and A2 (below). |
-| Network trace | **Atlas** › **Network**; select the access point, switch or streaming box (below). |
+| Network | **Atlas**, **Network** layer: device glyphs and links on the map; tap one for its card. **Graph** in the layer key traces the access point, switch or streaming box (below). |
 | Offline | Load `/example/` or `/example/index.html` once online; both then open with the network off (below). |
 
 No belonging has a reviewed room placement: the HomeBox projection always
