@@ -6447,8 +6447,9 @@ Stage 1 adds strict POST fences/body limits and busy ownership, fake speed parsi
 local civil-time nightly claims/restart/rollback, explicit unavailable Wi-Fi intervals,
 forward store migration, target/port restrictions and bounded result histories.
 The follow-up cases cover speed/ping exclusion in both start orders,
-controlled-timezone skipped/repeated DST hours, detached-upload response cleanup
-and persisted speed metric renaming.
+controlled-timezone skipped/repeated DST hours, detached-upload response cleanup,
+persisted speed metric renaming and bounded missing-close teardown/recovery
+for deadline, output overflow and abort, including resumed pings and actions.
 The added cases check Host/Origin refusal before store access,
 fake-child argument forwarding, bounded output, deadline escalation/cleanup,
 and observation-time sample indexing across an hour boundary.
