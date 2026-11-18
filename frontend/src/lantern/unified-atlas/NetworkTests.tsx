@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
@@ -77,18 +77,19 @@ export function InternetSpeeds({ collector, rows }: { readonly collector: Networ
 export function InternetSpeed({ collector, scope, label, mismatches = [] }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly label: string | null;
   /** Retrieval times of current-frame facts that report a changed device list. */
   readonly mismatches?: readonly (string | null)[] }) {
-  const snapshot = useCollector(collector, scope);
+  const snapshot = useCollector(collector, scope), head = useRef<HTMLHeadingElement>(null);
   const read = collectorResults(snapshot, scope);
-  const heading = <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
+  // The heading takes focus only when a focused refresh control leaves with its whole row.
+  const heading = <h4 tabIndex={-1} ref={head}>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
   // A refresh reported quarantine, or its re-read failed and retired the results: only its answer shows.
   if (refreshWithheld(snapshot, scope) || refreshRetired(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
-    <dl className="ua-facts"><DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} /></dl></section>;
+    <dl className="ua-facts"><DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} /></dl></section>;
   if (!read?.results) return null;
   const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
-  // The answer line repeats nothing when its run is the one shown as Last measured.
+  // The answer line repeats nothing when its run (by recorded time, as in the history) is the one shown as Last measured.
   const answer = snapshot.outcomes.get(outcomeKey(scope, { kind: 'speed' }))?.response;
-  const shownAbove = answer?.status === 'completed' && answer.result.kind === 'speed' && answer.result.result === shown.measured;
+  const shownAbove = answer?.status === 'completed' && answer.result.kind === 'speed' && answer.result.result.recordedAt === shown.measured?.recordedAt;
   return <section className="ua-net-speed" aria-label={name}>
     {heading}
     <dl className="ua-facts">
@@ -100,7 +101,7 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
         </svg>}</dd></div>
       {read.retrievedAt && <div><dt>Retrieved</dt><dd><InlineTime value={read.retrievedAt} /></dd></div>}
-      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} />
+      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} />
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
@@ -116,23 +117,26 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
  * browser's latest answer in view. A changed list that needs review first
  * offers no control. One POST per press; a refreshed answer re-reads the
  * results once, and the control goes when they say the lists agree. */
-function DeviceListRefresh({ collector, scope, snapshot, mismatches }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot; readonly mismatches: readonly (string | null)[] }) {
+function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot;
+  readonly mismatches: readonly (string | null)[]; readonly fallback: RefObject<HTMLHeadingElement | null> }) {
   const read = collectorResults(snapshot, scope), key = scopeKey(scope), outcome = snapshot.refreshes.get(key);
   // After an agreeing refresh, a later frame that reports a changed list again brings the control back.
   const again = refreshedListsAgree(snapshot, scope) && mismatches.some(at => !refreshReconciled(snapshot, scope, at));
   // After a quarantine the earlier results are withheld: no state or control from them.
   const pending = snapshot.refreshing === key, differ = read !== null && !refreshWithheld(snapshot, scope) && (listsDiffer(read) || again);
   const review = differ && (read.needsReview || outcome?.response?.status === 'needs-review');
-  const offered = differ && !review;
+  // A retired read leaves only the answer to the press it followed.
+  const shown = !!collector.port.refresh && !!(read?.mayRefresh || refreshRetired(snapshot, scope)) && (differ || !!outcome || pending);
+  const offered = shown && differ && !review;
   const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered), focused = useRef(false);
-  // The control leaves when the lists agree or need review; only focus the button itself held moves to the answer.
+  // The control leaves when the lists agree or need review; only focus the button itself held moves to the answer,
+  // or to the block's heading when permission is withdrawn and the whole row leaves.
   useEffect(() => {
-    if (wasOffered.current && !offered && focused.current && (document.activeElement === document.body || document.activeElement === null)) status.current?.focus();
+    if (wasOffered.current && !offered && focused.current && (document.activeElement === document.body || document.activeElement === null)) (status.current ?? fallback.current)?.focus();
     if (!offered) focused.current = false;
     wasOffered.current = offered;
   }, [offered]);
-  // A retired read leaves only the answer to the press it followed.
-  if (!collector.port.refresh || !(read?.mayRefresh || refreshRetired(snapshot, scope)) || !differ && !outcome && !pending) return null;
+  if (!shown) return null;
   const answer = outcome && refreshOutcomeText(outcome);
   return <div className="ua-net-refresh"><dt>Device list</dt><dd>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}

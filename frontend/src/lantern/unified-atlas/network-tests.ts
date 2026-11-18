@@ -118,7 +118,11 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
           if (outcome.reread === null || disposed) return;
           send(() => port.read(scope, controller.signal)).then(
             value => {
-              if (!(value.status === 'available' && value.results)) return record({ ...outcome, reread: 'unconfirmed' });
+              const prior = state.reads.get(key);
+              // A result-less reply still says who may refresh and whether review is needed; earlier measurements stay.
+              if (!(value.status === 'available' && value.results)) return record({ ...outcome, reread: 'unconfirmed' },
+                value.status === 'unknown' && prior?.status === 'read' && prior.value.status !== 'unavailable' ? { reads: new Map(state.reads).set(key, { status: 'read',
+                  value: { ...prior.value, mayRefresh: value.mayRefresh, needsReview: value.needsReview, reviewedInventoryRevision: value.reviewedInventoryRevision } }) } : {});
               const agreed = new Map(state.agreed), fetched = response?.status === 'refreshed' || response?.status === 'unchanged' ? response.cache.lastSuccessfulFetchAt : null;
               if (affirmsAgreement(value)) agreed.set(key, fetched); else agreed.delete(key);
               record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }), agreed });

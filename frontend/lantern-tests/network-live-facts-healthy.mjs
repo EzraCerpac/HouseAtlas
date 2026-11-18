@@ -414,6 +414,23 @@ try {
       assert(two.includes('aria-label="Internet speed, Generated network · synthetic"')&&two.includes('aria-label="Internet speed, Generated network · second"'),'both sources stay named');
       assert(two.includes('Refreshed, state not confirmed<span')&&two.match(/Last measured/g).length===1&&two.match(/Test speed now/g).length===1,'only the other source shows data and a test');
       store.dispose(); }
+    // A result-less re-read still carries review and permission: they apply, while the earlier measurements and the unconfirmed answer stay.
+    for(const [flags,expect] of [[{needsReview:true,reviewedInventoryRevision:1},'review'],[{mayRefresh:false},'no permission']]) {
+      const k=mount([differ,{...differ,status:'unknown',retrievedAt:null,results:null,...flags}]);k.store.ensure(scopeOf);await settle();k.store.refresh(scopeOf);
+      k.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      const out=k.block();assert(out.includes('Last measured')&&!out.includes(BUTTON),`${expect}: measurements stay, no control`);
+      if(expect==='review')assert(out.includes('Changed; it needs review before it can be refreshed')&&out.includes('Refreshed, state not confirmed<span'),'review applies beside the unconfirmed answer');
+      else assert(!out.includes('<dt>Device list</dt>'),'no refresh row without permission');
+      assert(out.includes('<h4 tabindex="-1">'),'the heading can take focus from a removed control');
+      assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1]);k.store.dispose();
+    }
+    // A tested speed run that the re-read history also holds stays the brief "Completed" answer: same recorded time, not the same object.
+    { const ran={...speed,recordedAt:'2026-01-01T03:00:00Z',downloadBitsPerSecond:2e9},held=structuredClone(agreed);held.results.speed={latest:ran,recent:[speed,ran]};
+      const k=mount([differ,held]);k.port.act=async()=>actionDecode({...complete,result:{...complete.result,recordedAt:ran.recordedAt,result:ran}});
+      k.store.ensure(scopeOf);await settle();k.store.run(scopeOf,{kind:'speed'});await settle();
+      assert(k.block().includes('Speed test: Completed<span'),'brief before the re-read');k.store.refresh(scopeOf);
+      k.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      const out=k.block();assert(out.includes('Speed test: Completed<span')&&out.match(/2\.00 Gbit\/s/g).length===1,'still brief after the re-read holds the same run');k.store.dispose(); }
     // Needs review: from the results, no control at all; from an answer, the control goes and nothing is re-read.
     { const r=mount([{...differ,reviewedInventoryRevision:1,needsReview:true}]);r.store.ensure(scopeOf);await settle();const out=r.block();
       assert(out.includes('Changed; it needs review before it can be refreshed')&&!out.includes('<button type="button" class="btn btn-small" aria-disabled="false">Refresh'),'review needed: said, no dead control');

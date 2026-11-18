@@ -6446,6 +6446,8 @@ a result-less re-read keeps the answer and earlier results as unconfirmed,
 a failed re-read (including 401 and 403) retires the results and keeps only that answer,
 also through the key's source selection with one or two sources,
 a newer mismatching frame keeps the control after a busy, failed or unreadable press,
+a result-less re-read applies its review and permission flags,
+and a re-read holding a tested speed run keeps its brief answer,
 a quarantined failure withholds the earlier results beside its answer,
 a tested speed run already in the re-read history counts once,
 needs-review without a control and every refresh answer in words with its time.
