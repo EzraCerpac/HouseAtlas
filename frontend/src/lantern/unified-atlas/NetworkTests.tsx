@@ -83,7 +83,7 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
   const heading = <h4 tabIndex={-1} ref={head}>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
   // A refresh reported quarantine, or its re-read failed and retired the results: only its answer shows.
   if (refreshWithheld(snapshot, scope) || refreshRetired(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
-    <dl className="ua-facts"><DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} /></dl></section>;
+    <dl className="ua-facts"><DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} /></dl></section>;
   if (!read?.results) return null;
   const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
@@ -101,7 +101,8 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
         </svg>}</dd></div>
       {read.retrievedAt && <div><dt>Retrieved</dt><dd><InlineTime value={read.retrievedAt} /></dd></div>}
-      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} />
+      {/* The same key in both branches keeps this row (and its focus state) when the other rows are withheld. */}
+      <DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} />
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
