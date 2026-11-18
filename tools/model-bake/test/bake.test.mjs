@@ -4,12 +4,13 @@ import test from 'node:test';
 import { admitInViewer, bindInViewer, expandInViewer } from '../src/admission.mjs';
 import { bakeDetail, bakeOverview } from '../src/bake.mjs';
 import { COMPRESS_DEFAULTS, compressGlb, MESHOPT } from '../src/compress.mjs';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
+import { decodeJpeg } from '../src/jpeg.mjs';
 import { decodePng, encodePng, shrinkImage } from '../src/png.mjs';
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
@@ -608,7 +609,47 @@ test('the Full tier admits what the overview refuses', async () => {
   assert.equal((await admitInViewer(glb, 'detail')).triangles, triangles);
 });
 
-test('the command line writes the detail beside the overview', async () => {
+// Generated 64 × 32 baseline JFIF. Fill a PNG with the four RGB swatches
+// below, encode it with sips -s format jpeg -s formatOptions best, and
+// remove APP1 and APP13. The swatches are ordered from top-left by row.
+const jpegSwatches = [[224, 33, 54], [31, 198, 80], [27, 73, 224], [224, 176, 35]];
+const jpeg = Buffer.from([
+  '/9j/4AAQSkZJRgABAQAASABIAAD/wAARCAAgAEADAREAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL',
+  '/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0',
+  'NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5',
+  'usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL',
+  '/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygp',
+  'KjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3',
+  'uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB',
+  'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB/9sAQwEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB',
+  'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB/90ABAAI/9oADAMBAAIRAxEAPwD856/k8/68AoAKACgD9UK/Nz/y',
+  'vwoAKACgD//Q/Oev5PP+vAKACgAoA/VCvzc/8r8KACgAoA//0fxfr/qYP85woAKACgD+xCv/AC7z/owCgAoAKAP/0vxfr/qY',
+  'P85woAKACgD+xCv/AC7z/owCgAoAKAP/2Q==',
+].join(''), 'base64');
+
+const withEoiFill = (image, count) => Buffer.concat([image.subarray(0, -2), Buffer.alloc(count, 0xff), image.subarray(-2)]);
+
+function atlasWithJpeg(glb, bytes) {
+  const { json, bin } = readGlb(glb), primitive = json.meshes[0].primitives[0];
+  const { count } = json.accessors[primitive.attributes.POSITION];
+  const uvs = Float32Array.from({ length: count * 2 }, (_, i) => i / 4 - 0.5);
+  const normals = Float32Array.from({ length: count * 3 }, (_, i) => i % 3 === 2 ? 1 : 0);
+  const addView = (byteOffset, byteLength) => json.bufferViews.push({ buffer: 0, byteOffset, byteLength }) - 1;
+  const uvView = addView(bin.byteLength, uvs.byteLength);
+  primitive.attributes.TEXCOORD_0 = json.accessors.push({ bufferView: uvView, type: 'VEC2', componentType: 5126, count }) - 1;
+  const normalView = addView(bin.byteLength + uvs.byteLength, normals.byteLength);
+  primitive.attributes.NORMAL = json.accessors.push({ bufferView: normalView, type: 'VEC3', componentType: 5126, count }) - 1;
+  primitive.material = 0;
+  json.materials = [{ alphaMode: 'OPAQUE', pbrMetallicRoughness: { baseColorTexture: { index: 0, texCoord: 0 }, baseColorFactor: [0.8, 0.7, 0.6, 1] } }];
+  json.textures = [{ source: 0, sampler: 0 }];
+  json.samplers = [{ wrapS: 10497, wrapT: 10497, magFilter: 9729, minFilter: 9987 }];
+  json.images = [{ mimeType: 'image/jpeg', bufferView: addView(bin.byteLength + uvs.byteLength + normals.byteLength, bytes.byteLength) }];
+  const packed = Buffer.concat([bin, new Uint8Array(uvs.buffer), new Uint8Array(normals.buffer), bytes]);
+  json.buffers[0].byteLength = packed.byteLength;
+  return writeGlb(json, packed);
+}
+
+test('the command line writes the detail beside the overview', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'model-bake-'));
   try {
     const atlas = await syntheticAtlas(), glb = densify(atlas.glb, 2);
@@ -636,6 +677,88 @@ test('the command line writes the detail beside the overview', async () => {
     assert.ok(report.compression.bytes < report.compression.plainBytes && report.detail.compression.bytes < report.detail.compression.plainBytes);
     assert.ok(report.viewerAdmission.decodedBytes > model.byteLength);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+  await t.test('embedded JPEG base colour binds in both CLI tiers', async () => {
+    const atlas = await syntheticAtlas(), glb = atlasWithJpeg(atlas.glb, jpeg);
+    const dir = mkdtempSync(join(tmpdir(), 'model-bake-jpeg-'));
+    try {
+      const master = join(dir, 'master.glb'), companion = join(dir, 'master.json'), out = join(dir, 'out');
+      writeFileSync(master, glb);
+      writeFileSync(companion, JSON.stringify({ ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } }));
+      const cli = new URL('../bake.mjs', import.meta.url).pathname;
+      execFileSync(process.execPath, [cli, '--model', master, '--companion', companion, '--out', out, '--detail', '--texture-size', '32'], { stdio: 'pipe' });
+      const light = readFileSync(join(out, 'model.glb')), full = readFileSync(join(out, 'detail.glb'));
+      const baked = JSON.parse(readFileSync(join(out, 'atlas-scene.json'), 'utf8'));
+      const report = JSON.parse(readFileSync(join(out, 'bake-report.json'), 'utf8'));
+      assert.deepEqual(baked.meshBindings, atlas.companion.meshBindings);
+      assert.deepEqual(baked.original, { sha256: sha256(light), bytes: light.byteLength });
+      assert.equal(report.detail.sha256, sha256(full));
+      assert.equal(report.detail.bytes, full.byteLength);
+      assert.equal(report.textures[0].convertedFrom, 'image/jpeg');
+      assert.deepEqual([report.textures[0].from, report.textures[0].to], [[64, 32], [32, 16]]);
+      assert.deepEqual(report.viewerBinding, report.detail.viewerBinding);
+      const source = readGlb(glb);
+      const uvTriangles = ({ json, bin }) => {
+        const primitive = json.meshes[0].primitives[0], uvs = readAccessor(json, bin, primitive.attributes.TEXCOORD_0);
+        const indices = readAccessor(json, bin, primitive.indices), triangles = [];
+        for (let i = 0; i < indices.length; i += 3) {
+          const corners = [...indices.subarray(i, i + 3)].map(vertex => `${uvs[vertex * 2]}/${uvs[vertex * 2 + 1]}`);
+          const first = corners.indexOf(corners.slice().sort()[0]);
+          triangles.push([...corners.slice(first), ...corners.slice(0, first)].join(','));
+        }
+        return triangles.sort();
+      };
+      for (const [tier, file, width, height] of [['overview', light, 32, 16], ['detail', full, 64, 32]]) {
+        const decoded = readGlb(await expandInViewer(file, tier)), { json } = decoded;
+        assert.equal(json.images[0].mimeType, 'image/png');
+        for (const key of ['materials', 'textures', 'samplers', 'nodes']) assert.deepEqual(json[key], source.json[key], key);
+        assert.deepEqual(uvTriangles(decoded), uvTriangles(source));
+        const bound = await bindInViewer(light, baked, tier === 'detail' ? full : null);
+        const { baseColorTexture } = bound.meshes.find(mesh => mesh.sourceMaterial?.baseColorTexture).sourceMaterial;
+        const { image } = baseColorTexture;
+        assert.equal(baseColorTexture.colorRole, 'srgb');
+        assert.deepEqual([image.width, image.height], [width, height]);
+        for (const [i, channels] of jpegSwatches.entries()) {
+          const x = (i % 2 * 2 + 1) * width / 4, y = (Math.floor(i / 2) * 2 + 1) * height / 4;
+          const pixel = image.rgba.subarray((y * width + x) * 4, (y * width + x) * 4 + 4);
+          assert.equal(pixel[3], 255);
+          assert.ok(channels.every((expected, c) => Math.abs(pixel[c] - expected) <= 3), `${tier} swatch ${i}: ${pixel}`);
+        }
+        const { gpuBytes, triangles, instances } = (tier === 'detail' ? report.detail : report).viewerAdmission;
+        const indexCount = json.accessors[json.meshes[0].primitives[0].indices].count;
+        assert.equal(gpuBytes, triangles * 72 + Math.ceil(instances / 128) * 18_432 + indexCount * 36 + image.mipBytes);
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  await t.test('JPEG fill before EOI preserves every decoded pixel', async () => {
+    const ordinary = await decodeJpeg(jpeg);
+    for (const count of [1, 4]) assert.deepEqual(await decodeJpeg(withEoiFill(jpeg, count)), ordinary);
+  });
+  await t.test('malformed and oversized JPEG publish no CLI outputs', async () => {
+    const atlas = await syntheticAtlas();
+    const oversized = Buffer.from(jpeg), frame = jpeg.indexOf(Buffer.from([0xff, 0xc0]));
+    oversized.writeUInt16BE(1025, frame + 7);
+    const scan = jpeg.indexOf(Buffer.from([0xff, 0xda]));
+    const earlyEnd = Buffer.concat([jpeg.subarray(0, scan + 2 + jpeg.readUInt16BE(scan + 2) + 3), Buffer.from([0xff, 0xd9])]);
+    const restart = jpeg.indexOf(Buffer.from([0xff, 0xdd]));
+    earlyEnd.writeUInt16BE(0, restart + 4);
+    const dir = mkdtempSync(join(tmpdir(), 'model-bake-jpeg-refusal-'));
+    try {
+      const master = join(dir, 'master.glb'), out = join(dir, 'out'), cli = new URL('../bake.mjs', import.meta.url).pathname;
+      for (const [image, error] of [
+        [jpeg.subarray(0, -2), /Incomplete JPEG framing/],
+        [earlyEnd, /Malformed embedded JPEG/],
+        [withEoiFill(earlyEnd, 4), /Malformed embedded JPEG/],
+        [oversized, /JPEG dimensions outside the texture profile/],
+        [Buffer.alloc(2_097_153), /JPEG encoded size outside the texture profile/],
+      ]) {
+        writeFileSync(master, atlasWithJpeg(atlas.glb, image));
+        const attempt = spawnSync(process.execPath, [cli, '--model', master, '--out', out, '--detail'], { encoding: 'utf8' });
+        assert.equal(attempt.status, 1, attempt.error?.message);
+        assert.match(attempt.stderr, error);
+        assert.equal(existsSync(out), false);
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });
 
 /** Each primitive's triangles as a sorted list, corners rotated to start at the

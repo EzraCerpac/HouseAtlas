@@ -1148,6 +1148,11 @@ npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
+The existing CLI detail case also converts an asymmetric generated baseline JPEG to RGB8 PNG
+and loads both tiers through the viewer's in-process admission and bound model path.
+It checks colour and row order, UVs, sampler and material identity, GPU accounting, selectors and pins.
+Malformed and over-limit embedded JPEG inputs are refused before the CLI creates any outputs.
+
 ## Electrical Library healthy read
 
 The existing frontend SOURCE list invokes these four exact selections, one
