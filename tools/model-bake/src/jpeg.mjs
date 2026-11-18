@@ -59,19 +59,22 @@ function baselineFrame(bytes) {
       }
       need(bytes[end - 3] === 0 && bytes[end - 2] === 63 && bytes[end - 1] === 0, 'Invalid baseline JPEG scan parameters');
       const expected = restartInterval ? Math.floor((frame.mcus - 1) / restartInterval) : 0;
-      let restarts = 0;
+      let restarts = 0, eoiFillStart = bytes.length - 2;
       for (let i = end; i < bytes.length - 2; i++) {
         if (bytes[i] !== 0xff) continue;
         const start = i;
         while (bytes[i + 1] === 0xff) i++;
         const code = bytes[++i];
         if (code === 0 && i === start + 1) continue; // Entropy byte stuffing.
-        if (code === 0xd9 && i === bytes.length - 1) break; // Fill before EOI.
+        if (code === 0xd9 && i === bytes.length - 1) {
+          eoiFillStart = start;
+          break;
+        }
         need(restarts < expected && code === 0xd0 + restarts % 8, 'Unexpected JPEG scan marker');
         restarts++;
       }
       need(end < bytes.length - 2 && restarts === expected, 'Incomplete JPEG scan');
-      return frame;
+      return { ...frame, eoiFillStart };
     } else {
       need(marker >= 0xe0 && marker <= 0xef || marker === 0xfe, 'Unsupported JPEG marker (expected baseline JPEG)');
     }
@@ -80,7 +83,11 @@ function baselineFrame(bytes) {
 }
 
 export async function decodeJpeg(bytes) {
-  const { width, height, ids } = baselineFrame(bytes);
+  const { width, height, ids, eoiFillStart } = baselineFrame(bytes);
+  const eoi = bytes.length - 2;
+  // PDF.js reports permitted terminal fill as a scan warning. Strip only
+  // the fill identified by the scanner and keep the strict warning hook.
+  const input = eoiFillStart === eoi ? bytes : Buffer.concat([bytes.subarray(0, eoiFillStart), bytes.subarray(eoi)]);
   // The standalone decoder is already pinned by the frontend npm lock.
   const { JpegImage, VerbosityLevel, getVerbosityLevel, setVerbosityLevel } =
     await import(new URL('../../../frontend/node_modules/pdfjs-dist/image_decoders/pdf.image_decoders.mjs', import.meta.url));
@@ -91,7 +98,7 @@ export async function decodeJpeg(bytes) {
     // the warning hook and decoder are synchronous and restored before yielding.
     console.warn = message => { throw new Error(message); };
     setVerbosityLevel(VerbosityLevel.WARNINGS);
-    decoder.parse(bytes);
+    decoder.parse(input);
     need(decoder.width === width && decoder.height === height && decoder.numComponents === ids.size, 'JPEG decode disagrees with frame');
     rgb = decoder.getData({ width, height, forceRGB: true });
     need(rgb.length === width * height * 3, 'Invalid JPEG RGB output');

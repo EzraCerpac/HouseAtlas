@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
+import { decodeJpeg } from '../src/jpeg.mjs';
 import { decodePng, encodePng, shrinkImage } from '../src/png.mjs';
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
@@ -626,6 +627,8 @@ const jpeg = Buffer.from([
   'P85woAKACgD+xCv/AC7z/owCgAoAKAP/2Q==',
 ].join(''), 'base64');
 
+const withEoiFill = (image, count) => Buffer.concat([image.subarray(0, -2), Buffer.alloc(count, 0xff), image.subarray(-2)]);
+
 function atlasWithJpeg(glb, bytes) {
   const { json, bin } = readGlb(glb), primitive = json.meshes[0].primitives[0];
   const { count } = json.accessors[primitive.attributes.POSITION];
@@ -726,6 +729,10 @@ test('the command line writes the detail beside the overview', async t => {
       }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  await t.test('JPEG fill before EOI preserves every decoded pixel', async () => {
+    const ordinary = await decodeJpeg(jpeg);
+    for (const count of [1, 4]) assert.deepEqual(await decodeJpeg(withEoiFill(jpeg, count)), ordinary);
+  });
   await t.test('malformed and oversized JPEG publish no CLI outputs', async () => {
     const atlas = await syntheticAtlas();
     const oversized = Buffer.from(jpeg), frame = jpeg.indexOf(Buffer.from([0xff, 0xc0]));
@@ -740,6 +747,7 @@ test('the command line writes the detail beside the overview', async t => {
       for (const [image, error] of [
         [jpeg.subarray(0, -2), /Incomplete JPEG framing/],
         [earlyEnd, /Malformed embedded JPEG/],
+        [withEoiFill(earlyEnd, 4), /Malformed embedded JPEG/],
         [oversized, /JPEG dimensions outside the texture profile/],
         [Buffer.alloc(2_097_153), /JPEG encoded size outside the texture profile/],
       ]) {
