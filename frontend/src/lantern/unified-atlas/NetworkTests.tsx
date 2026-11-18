@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { actionLabel, collectorResults, listsDiffer, refreshedListsAgree, refreshReconciled, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, listsDiffer, refreshedListsAgree, refreshReconciled, refreshWithheld, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -38,7 +38,7 @@ function Answer({ collector, scope, action, own, brief = false }: { readonly col
 export function DeviceTestRow({ collector, target }: { readonly collector: NetworkCollector; readonly target: CollectorTarget }) {
   const snapshot = useCollector(collector, target.scope);
   const [port, setPort] = useState<number>(443);
-  if (!collectorResults(snapshot, target.scope)) return null;
+  if (!collectorResults(snapshot, target.scope) || refreshWithheld(snapshot, target.scope)) return null;
   const busy = snapshot.running !== null;
   const press = (action: CollectorAction) => { if (!busy) collector.store.run(target.scope, action); };
   return <div className="ua-net-test"><dt>Test</dt><dd>
@@ -79,13 +79,17 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
   const snapshot = useCollector(collector, scope);
   const read = collectorResults(snapshot, scope);
   if (!read?.results) return null;
+  const heading = <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
+  // A refresh reported quarantine: the results read earlier are withheld, so only its answer shows.
+  if (refreshWithheld(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
+    <dl className="ua-facts"><DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} /></dl></section>;
   const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
   // The answer line repeats nothing when its run is the one shown as Last measured.
   const answer = snapshot.outcomes.get(outcomeKey(scope, { kind: 'speed' }))?.response;
   const shownAbove = answer?.status === 'completed' && answer.result.kind === 'speed' && answer.result.result === shown.measured;
-  return <section className="ua-net-speed" aria-label={label ? `Internet speed, ${label}` : 'Internet speed'}>
-    <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>
+  return <section className="ua-net-speed" aria-label={name}>
+    {heading}
     <dl className="ua-facts">
       <div><dt>Last measured</dt><dd>{shown.measured ? <>{speedText(shown.measured)}<span className="ua-note">recorded <InlineTime value={shown.measured.recordedAt} /></span></>
         : shown.unmeasured ? 'No measured run supplied' : 'No speed run supplied'}
@@ -115,13 +119,15 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches }: { readonl
   const read = collectorResults(snapshot, scope), key = scopeKey(scope), outcome = snapshot.refreshes.get(key);
   // After an agreeing refresh, a later frame that reports a changed list again brings the control back.
   const again = refreshedListsAgree(snapshot, scope) && mismatches.some(at => !refreshReconciled(snapshot, scope, at));
-  const pending = snapshot.refreshing === key, differ = read !== null && (listsDiffer(read) || again);
+  // After a quarantine the earlier results are withheld: no state or control from them.
+  const pending = snapshot.refreshing === key, differ = read !== null && !refreshWithheld(snapshot, scope) && (listsDiffer(read) || again);
   const review = differ && (read.needsReview || outcome?.response?.status === 'needs-review');
   const offered = differ && !review;
-  const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered);
-  // The control leaves when the lists agree or need review; focus it held moves to the answer.
+  const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered), focused = useRef(false);
+  // The control leaves when the lists agree or need review; only focus the button itself held moves to the answer.
   useEffect(() => {
-    if (wasOffered.current && !offered && document.activeElement === document.body) status.current?.focus();
+    if (wasOffered.current && !offered && focused.current && (document.activeElement === document.body || document.activeElement === null)) status.current?.focus();
+    if (!offered) focused.current = false;
     wasOffered.current = offered;
   }, [offered]);
   if (!collector.port.refresh || !read?.mayRefresh || !differ && !outcome && !pending) return null;
@@ -129,6 +135,7 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches }: { readonl
   return <div className="ua-net-refresh"><dt>Device list</dt><dd>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
     {offered && <button type="button" className="btn btn-small" aria-disabled={snapshot.refreshing !== null}
+      onFocus={() => { focused.current = true; }} onBlur={() => { focused.current = false; }}
       onClick={() => { if (snapshot.refreshing === null) collector.store.refresh(scope); }}>{pending ? 'Refreshing device list…' : 'Refresh device list'}</button>}
     <p className="ua-net-test-answer" role="status" tabIndex={-1} ref={status}>
       {answer && <>{answer.text}<span className="ua-note">{answer.recorded ? 'recorded' : 'answered'} <InlineTime value={answer.at} /></span></>}

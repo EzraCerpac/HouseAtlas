@@ -6439,10 +6439,12 @@ No case, run step or browser is added.
 It also renders the key's device-list refresh over that fake port:
 shown only for a results-named refresh Editor while the lists differ,
 no request on browsing, one POST per press with pending blocking a second,
-one results re-read after a refreshed answer that clears the control and the
+one results re-read after a `refreshed` or `unchanged` answer that clears the control and the
 card's changed-list wording only when the lists then agree,
 and only for facts read before that refresh (a later mismatch returns both);
 a failed or result-less re-read keeps the answer as unconfirmed,
+a quarantined failure withholds the earlier results beside its answer,
+a tested speed run already in the re-read history counts once,
 needs-review without a control and every refresh answer in words with its time.
 The new healthy-list entry makes 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
 The single candidate-helper method also checks separate digest-pinned hardware

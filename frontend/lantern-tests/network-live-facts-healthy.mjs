@@ -286,6 +286,8 @@ try {
   assert.equal(merged.length,30);assert.equal(merged.at(-1),added);assert.equal(merged.at(-2),full[0],'the newest stored run is kept');
   assert(!merged.includes(full[29]),'the oldest stored run is dropped');assert.deepEqual(merged.map(run=>run.recordedAt),[...merged.map(run=>run.recordedAt)].sort());
   assert.equal(speedWithTests({latest:speed,recent:[speed]},[]).recent.length,1,'no tested runs: the stored runs as read');
+  { const testedRun={...speed,recordedAt:'2026-01-05T00:00:00Z'},both=speedWithTests({latest:testedRun,recent:[speed,testedRun]},[{...testedRun}]);
+    assert.equal(both.recent.length,2,'a tested run the re-read history already holds counts once');assert(both.recent.includes(testedRun),'the stored copy is kept'); }
   // A measured run followed by 30 failed ones leaves the chart's window but stays the last measured run.
   { const old=night(-1,200e6),good=night(0),fails=Array.from({length:30},(_,i)=>night(i+1,null)),after=speedWithTests({latest:old,recent:[old]},[good,...fails]);
     assert.equal(after.recent.length,30);assert(!after.recent.includes(good)&&!after.recent.includes(old));
@@ -374,7 +376,7 @@ try {
       k.port.pending[0].resolve(refreshDecode({status:'unchanged',inventoryRevision:1,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
       const out=k.block();assert(out.includes(BUTTON)&&out.includes('Changed, needs a refresh')&&out.includes(`${text}<span`),`${text}: control stays`);
       assert(!out.includes('aria-disabled="true">Refresh'),'available again after the re-read settles');
-      assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1]);k.store.dispose();
+      assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1],'exactly one re-read after unchanged, and no retry');k.store.dispose();
     }
     // Needs review: from the results, no control at all; from an answer, the control goes and nothing is re-read.
     { const r=mount([{...differ,reviewedInventoryRevision:1,needsReview:true}]);r.store.ensure(scopeOf);await settle();const out=r.block();
@@ -384,6 +386,18 @@ try {
       r.port.pending[0].resolve(refreshDecode({status:'needs-review',reviewedInventoryRevision:2,collectorInventoryRevision:3}));await settle();const out=r.block();
       assert(out.includes('Changed; it needs review before it can be refreshed')&&out.includes('Not refreshed, needs review<span class="ua-note">answered <time')&&!out.includes(BUTTON),'a needs-review answer removes the control');
       assert.deepEqual([r.port.reads,r.port.posts],[1,1],'no re-read for an answer that published nothing');assert(r.card().includes(NOT_MEASURED_MISMATCH));r.store.dispose(); }
+    // Agreement needs positive evidence: results with equal known revisions, not only a missing reason.
+    { const u=mount([differ,{...differ,inventoryRevision:3,servedInventoryRevision:2,reviewedInventoryRevision:3,measurementReason:null}]);u.store.ensure(scopeOf);await settle();u.store.refresh(scopeOf);
+      u.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      assert(u.card().includes(NOT_MEASURED_MISMATCH),'unequal revisions without a reason do not clear the wording');u.store.dispose(); }
+    // A quarantined failure withholds the results read earlier: only its answer shows, with no speed, state, control or device test from them.
+    { const q=mount([differ]);q.store.ensure(scopeOf);await settle();const plainTest=q.card().includes('<dt>Test</dt>');q.store.refresh(scopeOf);
+      q.port.pending[0].resolve(refreshDecode({status:'failed',reason:'auth',quarantined:true,cache:{status:'access-revoked',lastSuccessfulFetchAt:'2026-01-01T01:00:00Z',lastAttemptAt:fetched,errorCode:'auth'}}));await settle();
+      const out=q.block();
+      assert(out.includes('<dt>Device list</dt>')&&out.includes('Failed, the collector refused the credential; stored Network data is withheld<span class="ua-note">recorded <time'),'the quarantine answer stays');
+      for(const text of ['Last measured','<dt>Retrieved</dt>','Changed',BUTTON,'Test speed now','Wi-Fi']) assert(!out.includes(text),`nothing beside it reads as current: ${text}`);
+      assert(plainTest&&!q.card().includes('<dt>Test</dt>'),'the device card offers no test from withheld results');
+      assert.deepEqual([q.port.reads,q.port.posts],[1,1]);q.store.dispose(); }
     // Failures stay failures: the control stays, nothing is retried or re-read, and the wording keeps the mismatch.
     for(const [answer,text] of [[new Error('Network refresh refused or outcome unknown'),'Outcome unknown, no readable answer'],[new DOMException('slow','TimeoutError'),'Timed out, outcome unknown'],
       [{status:'running'},'Busy, a refresh is already running'],[{status:'failed',reason:'transport',quarantined:false},'Failed, the collector could not be reached; the previous device list is kept']]) {
@@ -412,5 +426,5 @@ try {
     assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh','#718 wording unchanged');
     const dropped=mount([differ]);dropped.store.dispose();assert.equal(dropped.store.refresh(scopeOf),false,'a dropped store sends nothing');assert.equal(dropped.port.posts,0);
   }
-  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree and only for facts read before the refresh, an unconfirmed re-read keeps the answer, needs-review offers no control, every answer in words with its time');
+  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree and only for facts read before the refresh, an unconfirmed re-read keeps the answer, a quarantine withholds the earlier results, needs-review offers no control, every answer in words with its time');
 } finally {rmSync(scratch,{recursive:true,force:true});}

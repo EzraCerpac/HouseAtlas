@@ -156,7 +156,14 @@ export const listsDiffer = (results: CollectorResults) => results.status !== 'un
 /** After this store's own refresh and its one re-read, the results no longer say the lists differ. */
 export function refreshedListsAgree(snapshot: CollectorSnapshot, scope: CollectorScope) {
   const key = scopeKey(scope), read = snapshot.reads.get(key);
-  return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status !== 'unavailable' && !listsDiffer(read.value);
+  // Only usable results that affirm agreement: equal known revisions and no changed-list reason.
+  return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status === 'available' && read.value.results !== null
+    && read.value.inventoryRevision !== null && read.value.inventoryRevision === read.value.servedInventoryRevision && !listsDiffer(read.value);
+}
+/** This browser's latest refresh reported quarantine: the results read earlier are withheld. */
+export function refreshWithheld(snapshot: CollectorSnapshot, scope: CollectorScope) {
+  const response = snapshot.refreshes.get(scopeKey(scope))?.response;
+  return response?.status === 'failed' && response.quarantined;
 }
 /** Whether that refresh reconciled a frame's changed-list reason: the re-read
  * agreed and the frame's facts come from a source read retrieved before the
@@ -245,7 +252,9 @@ export function outcomeText(outcome: ActionOutcome): { readonly text: string; re
  * own answers; no further read), in time order, keeping the 30 newest. A test
  * without a run (busy, refused, timed out) adds nothing and removes nothing. */
 export function speedWithTests(speed: { readonly latest: SpeedResult | null; readonly recent: readonly SpeedResult[] }, tested: readonly SpeedResult[]) {
-  const all = [...speed.recent, ...tested].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)), recent = all.slice(-30);
+  // A tested run the stored history already holds (after a re-read) counts once, as stored.
+  const stored = new Set(speed.recent.map(run => run.recordedAt));
+  const all = [...speed.recent, ...tested.filter(run => !stored.has(run.recordedAt))].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)), recent = all.slice(-30);
   // The newest measured run stays the one shown even when later failed runs push it out of the chart's window.
   const measured = all.findLast(run => run.state === 'measured');
   return { latest: measured && !recent.includes(measured) ? measured : speed.latest, recent };

@@ -5,7 +5,8 @@
  * The collector's device list (revision 4) differs from the one served (3).
  * Refresh device list fails on the first press (the collector could not be
  * reached) and refreshes on the next; the re-read results then agree. With
- * `?refresh=review` every press answers that the list needs review first.
+ * `?refresh=review` the results say the changed list needs review first, so no
+ * refresh is offered.
  *
  * Presses answer by target: Ping on the printer times out, any test on the
  * streaming box is refused until a refresh (its device list changed), Port 22 answers busy,
@@ -39,7 +40,8 @@ export function createExampleCollector(params: URLSearchParams): NetworkCollecto
     async read(scope, signal) {
       await wait(150); signal.throwIfAborted();
       return scope.collectionId !== COLLECTION ? { status: 'unavailable' }
-        : { ...RESULTS, mayRefresh: !viewer, servedInventoryRevision: served, measurementReason: served === 4 ? null : RESULTS.measurementReason };
+        : { ...RESULTS, mayRefresh: !viewer, servedInventoryRevision: served, measurementReason: served === 4 ? null : RESULTS.measurementReason,
+          ...(review ? { reviewedInventoryRevision: 3, needsReview: true } : {}) };
     },
     async refresh(scope): Promise<NetworkInventoryRefreshResult> {
       await wait(1500);
