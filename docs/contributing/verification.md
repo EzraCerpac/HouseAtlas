@@ -6741,3 +6741,109 @@ The fixture's assertions, deadlines and production guards are unchanged.
 
 These checks establish synthetic implementation behavior only.
 They release no G1–G5, installation or live-provider acceptance.
+
+## Opt-in Network refresh through the production binary
+
+`tools/rust-integration/network-binary-loopback.py` executes an explicitly
+selected `houseatlas` executable with generated disposable settings only.
+It uses the production `initialize --server-config --provisioning-file`
+and `serve --server-config --provider-reads-profile --provider-reads-sha256`
+commands, followed by ordinary public HTTPS session and Network routes.
+It does not read an installed service's settings or contact its listener.
+The executable may be an existing installed binary;
+the invocation below instead builds the normal release target from this tree.
+Prerequisites are an existing `uv`, Python 3.11 or newer and OpenSSL on Unix.
+The runner uses a main-thread `SIGALRM` elapsed deadline.
+Building also requires the pinned Rust toolchain and cached Cargo dependencies
+for the offline build.
+The NAS variant additionally requires `mise` and its preconfigured
+`nas:build` pool task.
+No packages are installed by the runner.
+
+```sh
+(
+set -eu
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:?Export an existing external Cargo target directory in the calling shell}"
+UV_PYTHON_DOWNLOADS=never uv run --offline --no-project --python python3 python - <<'PY'
+import os
+from pathlib import Path
+target = Path(os.environ["CARGO_TARGET_DIR"])
+if not target.is_absolute() or not target.is_dir() or target.resolve().is_relative_to(Path.cwd().resolve()):
+    raise SystemExit("CARGO_TARGET_DIR must be an existing absolute directory outside this checkout")
+PY
+mise run nas:build -- cargo build --release --offline --locked -p houseatlas-backend --bin houseatlas
+UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 tools/rust-integration/network-binary-loopback.py --executable "$CARGO_TARGET_DIR/release/houseatlas"
+)
+```
+
+Use the repository's pinned Rust toolchain.
+Export an existing external `CARGO_TARGET_DIR` in the calling shell before
+both commands;
+the binary path expands there, outside the `mise` task.
+The block retains and validates that selection before the build or binary-path
+expansion, and stops on any error without changing the caller's shell options.
+On hosts without the NAS build pool, run the same commands without
+`mise run nas:build --`.
+To qualify another executable, replace the `--executable` value with its
+absolute path and skip the build and target-directory validation.
+The runner owns and stops only its child backend and fake collector.
+It attempts cleanup on completion or error and reports cleanup failures;
+a primary failure is preserved if cleanup also fails.
+The cleanup PASS is emitted only after the collector has stopped and the
+canonical private temporary directory has been removed.
+
+Production initialization provisions generated Editor and Viewer accounts,
+their exact home memberships, Access and an empty Store.
+The profile copies the configuration digest from the owner-issued receipt.
+A new `0700` `provider-cache` directory starts empty;
+the schema-2 named-Editor mount uses the existing native owner to create
+sidecar/archive custody.
+The Editor's explicit refresh then registers the source and publishes its
+first generation through the existing authority and publication owners.
+No fixture adapter, SQL edits, synthetic Store bootstrap or production hook
+is needed.
+
+The qualification checks:
+
+- Startup, login, refused POSTs and ordinary reads perform no inventory GET.
+- The reviewed Editor's session/CSRF POST publishes revision 42 with the
+  expected preflight and final reviewed inventory GETs.
+- An ordinary Viewer cached read returns the generated endpoint and revision,
+  while stored collector results have matching served/reviewed/collector
+  revisions and no measurement withholding reason.
+- The mounted results route reports `mayRefresh: true` for that Editor
+  and `false` for the Viewer.
+  Viewer refresh POSTs return HTTP 403 before and after publication;
+  an Editor POST without CSRF also returns HTTP 403.
+- Refusal and browsing preserve the published generation and inventory.
+  The collector receives only GETs for the four explicitly generated
+  inventory/health/measurements/results documents.
+  Its invented ping history is stored JSON;
+  the fake collector receives no diagnostic request.
+  The runner does not monitor backend process execution.
+- The production backend drains on SIGTERM,
+  and its initialization receipt stays unchanged.
+  An early clean exit fails the drain check.
+  The exact inventory GET count is checked again after backend shutdown.
+
+Each full HTTP exchange has a ten-second elapsed limit,
+including incremental headers/body reads and TLS setup.
+Startup readiness and the initial results wait pass their remaining
+45-second and 15-second budgets into those exchanges and reject late success.
+The separate opt-in runner checks exercise trickle headers/body,
+readiness expiry, early exit, failed drain, post-shutdown traffic auditing,
+cleanup ordering and preservation of primary errors:
+
+```sh
+UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 tools/rust-integration/test_network_binary_loopback.py
+```
+
+This is executable-level HTTP acceptance with disposable TLS and native state.
+The minimal generated frontend asset only satisfies production startup;
+no browser UI or renderer is exercised.
+It qualifies neither an installed service's configuration nor real devices,
+household data, credentials, collector commands, deployment or G1–G5.
+The existing one-GET/17-request root-router example, deadlines and assertions
+remain unchanged.
+This runner is opt-in only;
+no workflow, default test selection or CI run step is added.

@@ -267,3 +267,14 @@ The existing `network-live-facts-healthy.mjs` selection checks `mayRefresh`,
 typed refresh outcomes, exact revisions and the one-POST client with fake fetch.
 No run step, real service, credential, private profile, household data,
 installation or G1–G5 acceptance is added.
+
+The separate opt-in `tools/rust-integration/network-binary-loopback.py` runner
+qualifies an explicitly selected production backend executable with generated
+temporary accounts, profile, native cache and loopback collector JSON.
+It uses production initialize/serve and public HTTPS routes;
+the [verification guide](docs/contributing/verification.md#opt-in-network-refresh-through-the-production-binary)
+records its invocation and HTTP-only boundary.
+The companion opt-in `test_network_binary_loopback.py` checks elapsed bounds,
+shutdown auditing and cleanup ordering with generated peers and fake processes.
+It adds no default selection, workflow, installed configuration or live-device
+acceptance.
