@@ -40,13 +40,13 @@ source composition. They are not the result of a current admission query.
 | --- | --- | --- |
 | R: borrowed MCP | 34 baseline reads; up to 36 with history | `bind_read` / `StockService` / `stock_dispatch`: 30 Atlas reads, four cached HomeBox reads; two mediated-history reads only with profile-6 Store |
 | L: local Atlas | 67 | `bind_local_atlas` obtains actual Editor POST issuance and filters the existing host map to Atlas authority, excluding download: 30 reads, 31 direct writes, five derived writes and ordered batch |
-| M: default mounted MCP | 35 baseline reads; up to 45 | `OwnedStockService` adds actual download issuer/redemption, two conditional histories, three matching-bound saved Network reads and five matching-bound native HomeBox reads |
-| E: explicit mounted Editor | 72 baseline operations; up to 82 | Trusted `ExistingEditorCommands` Host startup setting plus genuine Editor issuance adds the same 31 direct/five derived writes and batch; clients cannot select this profile |
+| M: default mounted MCP | 35 baseline reads; up to 45 | `read-only` requires Editor POST with current session, Origin and CSRF at initialization. `OwnedStockService` adds download issuance/redemption, two conditional histories, three matching-bound saved Network reads and five matching-bound native HomeBox reads |
+| E: explicit mounted Editor | 72 baseline operations; up to 82 | Server `mcpCommands: "existing-editor-commands"` selects the profile at MCP initialization for an original authenticated Editor. Adds 31 direct writes, five derived writes and ordered batch. An initialized persistent server changes this receipt-bound setting through [offline `rebind-commands`](../operations/persistent-server.md#explicit-offline-mcp-command-policy-rebind) |
 | HTTP: stock admission/invocation | Editor maximum 82; Viewer receives the read subset | Same native admission and domain owners; actual current source/partition authorization and HTTP read/write checks remain independent |
 | D: dedicated native HTTP | Two Editor metadata IDs, separate from generic sets | `nativeCommandIds` names staged `atlas.asset.create` and qualified `atlas.scene-association.create`; actual Media custody and original-principal mutation checks still apply |
 | W: stock WebMCP | Seven helper families, no automatic per-operation qualification | `StockApplication` / `bindAtlasService` / `bindCommandFamilies` intersects current scoped admission with supplied executable service IDs; `mountStockWebMcp` preserves canonical envelopes and visible commit ordering |
 | G: gateway WebMCP | No canonical operation binding supplied by the component | Injected actual catalog/service/download owners intersect current admitted tool names; the generic gateway does not provide missing owners for the other three stock helper families |
-| B: stdio bridge | Fresh native-admitted read effect, or finite Atlas writes/batch | Existing HTTP read/command owner; narrower page/envelope/result budgets, exact approval requirement for remap, and durable unknown-outcome write hold |
+| B: stdio bridge | Fresh native-admitted read effect, or finite Atlas writes/batch | Existing HTTP read/command owners with narrower budgets. Remap stays held pending an exact approval owner. After a held-session `401`, fresh issuance is available on the next independent operation under the same actor and scope fences. An `UNKNOWN` journal entry blocks further writes pending native reconciliation |
 
 The JSON `hostProfiles.HTTP` column describes the Editor source ceiling; its
 profile condition preserves the Viewer read subset. `source-admitted` means an
@@ -61,8 +61,8 @@ dispatch is `http/agents/stock_dispatch.rs`, native stock read/mutation owners,
 configured `homebox_native` and saved `stock_network_reads`. `NativeCatalog`
 filters input arms and recursively checks every batch child; `OperationMapping`
 joins the published/domain catalogs without enabling an operation. The matrix
-pins its 67 reviewed inputs by SHA-256. Exact source
-links can be formed from its baseline commit and source paths.
+pins its 67 reviewed inputs by SHA-256.
+The reinspection notes identify the commits for refreshed inputs.
 
 ## Concrete findings and disposition
 
@@ -181,6 +181,43 @@ import formatting from `903ad712`. The CI helper is isolated from native MCP
 operation/profile/admission and authority. All other 65 pins, historical evidence,
 operation rows and execution/browser/installed states are unchanged. This source
 reinspection qualifies no new runtime or operational boundary.
+
+## Source reinspection at `bd1873bf`
+
+All nine stale pins were matched to exact reviewed bytes in public main history
+and compared with `bd1873bfe8b766d492d3f03cdeb66126cef9cebd`.
+
+- `.github/workflows/ordinary-core.yml` (`3b86a3db`) adds the 42 synthetic
+  Network collector cases and reflects them in the job summary.
+  The bridge exception still selects its original three read cases.
+- `http/agents/mod.rs` (`65ed4e1b`) registers the mounted evidence module
+  and adds a borrowed Viewer identity-read fixture, all under test compilation.
+  `healthy_identity.rs` and `healthy_local_atlas.rs` (`780700d4`) add borrowed
+  principal and strict Store reopen helpers and register the evidence read
+  controls.
+- The v4 ledger (`98c52650`) changes the E profile description.
+  The server config, persistent rebind and mounted transport confirm that
+  `mcpCommands` is receipt-bound and that an initialized server changes it
+  through offline `rebind-commands`.
+  Mounted initialization still requires an authenticated Editor in either
+  profile. The operation sets and their ceilings match the existing matrix.
+- `run-healthy.mjs` (`49ec2fc7`) expands the explicit frontend selection
+  to 99 source, one build and 11 browser cases and preserves full failure
+  output. These are suite registrations and diagnostics.
+- `bridge.py` and `test_bridge.py` (`164fd096`) add held-session `401` handling
+  and four separate fake-transport regression selections.
+  The owner drops the rejected cookie/CSRF pair and returns the failure.
+  At most one fresh session issuance is attempted on the next independent
+  operation. The bridge checks the issued and current actor, current CSRF,
+  scope and journal binding as before, and a dispatched write stays `UNKNOWN`
+  pending native reconciliation.
+- `healthy_network_host.rs` (`3462286c`) matches the revised publication
+  result shape and treats `NeedsReview` as a fixture failure.
+  The three mounted saved-query operations still use the retained generation
+  and current matching source binding.
+
+This reinspection records source behavior and test selection.
+The historical execution references still point to their original source and jobs.
 
 ## Mounted Editor ordered evidence batch
 
