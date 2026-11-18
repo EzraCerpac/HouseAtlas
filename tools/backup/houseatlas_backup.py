@@ -103,6 +103,8 @@ def run(step: str, command: list[str], timeout: float = 600) -> str:
         )
     except subprocess.TimeoutExpired:
         raise StepFailed(step, f"timed out after {timeout:.0f}s") from None
+    except OSError as error:  # the command could not be started at all
+        raise StepFailed(step, f"cannot start: {error}") from None
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
         raise StepFailed(step, f"exit {result.returncode}: {detail[-1] if detail else ''}")
@@ -367,55 +369,81 @@ def unpack(archive: Path, destination: Path) -> None:
 ICLOUD_TIMEOUT = 600
 
 
-def icloud(config: Config, action: str, path: Path) -> dict:
-    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], ICLOUD_TIMEOUT))
+def icloud(config: Config, action: str, path: Path, timeout: float = ICLOUD_TIMEOUT) -> dict:
+    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], timeout))
 
 
 def icloud_ready(config: Config) -> None:
     """Ask iCloud Drive about the destination before the service is stopped,
     so an unresponsive iCloud fails the run without restarting the service."""
-    config.icloud_directory.mkdir(exist_ok=True)
     try:
+        config.icloud_directory.mkdir(exist_ok=True)
         state = icloud(config, "status", config.icloud_directory)
     except StepFailed as error:
         raise StepFailed("iCloud preflight", error.detail) from None
+    except OSError as error:
+        raise StepFailed("iCloud preflight", str(error)) from None
     if not state.get("ubiquitous"):
         raise StepFailed("iCloud preflight", "destination is not in iCloud Drive")
 
 
-def wait_for(config: Config, path: Path, step: str, done) -> dict:
-    deadline = time.monotonic() + config.upload_timeout
-    while True:
-        state = icloud(config, "status", path)
+# Pause between status queries while waiting for iCloud Drive.
+POLL_SECONDS = 15
+
+
+def wait_for(config: Config, path: Path, step: str, done, deadline: float | None = None) -> dict:
+    """Query the helper until `done(state)`, by the deadline (default
+    uploadTimeoutSeconds from now). Every status query and pause is cut to
+    the time left, so the wait never runs past the deadline; a query still
+    unanswered at the deadline is stopped and counts as not done."""
+    if deadline is None:
+        deadline = time.monotonic() + config.upload_timeout
+    error = "no status before the deadline"
+    while (left := deadline - time.monotonic()) > 0:
+        try:
+            state = icloud(config, "status", path, min(ICLOUD_TIMEOUT, left))
+        except StepFailed as failure:
+            if time.monotonic() < deadline:
+                raise
+            error = failure.detail
+            break
         if not state.get("ubiquitous"):
             raise StepFailed(step, "destination is not in iCloud Drive")
         if done(state):
             return state
-        if time.monotonic() > deadline:
-            error = state.get("uploadingError") or state.get("downloadingError") or "no error reported"
-            raise StepFailed(step, f"not done after {config.upload_timeout:.0f}s ({error})")
-        time.sleep(15)
+        error = state.get("uploadingError") or state.get("downloadingError") or "no error reported"
+        time.sleep(max(0.0, min(POLL_SECONDS, deadline - time.monotonic())))
+    raise StepFailed(step, f"not done after {config.upload_timeout:.0f}s ({error})")
 
 
 # Pause between refused evictions while iCloud Drive catches up.
 EVICT_RETRY_SECONDS = 30
+# How the helper reports the one refusal worth retrying: the item is not
+# evictable yet (File Provider error -2008), printed as the underlying NSError.
+EVICT_NOT_YET = "NSFileProviderErrorDomain Code=-2008"
 
 
 def evict(config: Config, path: Path) -> None:
     """Evict this Mac's copy so the next read comes from iCloud. A busy iCloud
-    Drive can refuse to evict a file it already reports as uploaded (File
-    Provider error -2008, not evictable) until it has caught up, so a refused
-    eviction is retried until the upload deadline."""
+    Drive can refuse to evict a file it already reports as uploaded until it
+    has caught up, so that refusal alone is retried; any other failure stops
+    the run at once. One deadline (uploadTimeoutSeconds from now) bounds every
+    attempt, pause and the status wait that follows."""
     deadline = time.monotonic() + config.upload_timeout
-    while True:
+    refusal = "no attempt before the deadline"
+    while (left := deadline - time.monotonic()) > 0:
         try:
-            icloud(config, "evict", path)
+            icloud(config, "evict", path, min(ICLOUD_TIMEOUT, left))
             break
         except StepFailed as error:
-            if time.monotonic() > deadline:
+            if EVICT_NOT_YET not in error.detail:
                 raise StepFailed("iCloud evict", error.detail) from None
-            time.sleep(EVICT_RETRY_SECONDS)
-    wait_for(config, path, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+            refusal = error.detail
+        time.sleep(max(0.0, min(EVICT_RETRY_SECONDS, deadline - time.monotonic())))
+    else:
+        raise StepFailed("iCloud evict", f"still refused after {config.upload_timeout:.0f}s: {refusal}")
+    wait_for(config, path, "iCloud evict",
+             lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent", deadline)
 
 
 def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Path) -> Path:
