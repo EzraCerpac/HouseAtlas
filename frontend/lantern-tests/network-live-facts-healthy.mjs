@@ -404,6 +404,12 @@ try {
       assert(keyed.includes('aria-label="Internet speed"')&&keyed.includes('Refreshed, state not confirmed<span')&&!keyed.includes('Last measured')&&!keyed.includes(BUTTON)&&!keyed.includes('Test speed now'),`${why}: one source through InternetSpeeds`);
       k.store.dispose();
     }
+    // An initial failed read with no refresh answer keeps the source hidden in the key's selection, with no retry.
+    for(const first of [{httpStatus:403},{httpStatus:503},new Error('lost')]) {
+      const f=mount([first]);f.store.ensure(scopeOf);f.store.ensure({...scopeOf});await settle();
+      assert.equal(renderToStaticMarkup(createElement(InternetSpeeds,{collector:f.collector,rows:[{scope:scopeOf,label:'Generated network',mismatches:[withheldFacts.retrievedAt]}]})),'',`${first.httpStatus??'a lost read'}: no block for a failed first read`);
+      await settle();assert.deepEqual([f.port.reads,f.port.posts],[1,0],'one read, no retry and no POST');f.store.dispose();
+    }
     // Two sources, one retired after its refresh: both stay named, the retired one with only its answer.
     { const second={...scopeOf,collectionId:'second'},port={reads:0,pending:[],canTest:()=>true,act:()=>new Promise(()=>{}),
         read:async scope=>{if(scope.collectionId==='second')return resultDecode(result);if(port.reads++===0)return resultDecode(differ);throw new Error('lost');},
