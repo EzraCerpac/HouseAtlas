@@ -2041,6 +2041,7 @@
     {"path":"tools/rust-integration/healthy-stock-loopback.mjs","mode":"100644","owner":"core-integration"},
     {"path":"tools/rust-integration/healthy-stock-write-loopback.mjs","mode":"100644","owner":"core-integration"},
     {"path":"tools/rust-integration/healthy-upload-loopback.mjs","mode":"100644","owner":"core-integration"},
+    {"path":"tools/rust-integration/network-binary-loopback.py","mode":"100644","owner":"network"},
     {"path":"tools/rust-integration/refresh-availability-wait.mjs","mode":"100644","owner":"core-integration"},
     {"path":"web/.gitignore","mode":"100644","owner":"web"},
     {"path":"web/AGENTS.md","mode":"100644","owner":"web"},

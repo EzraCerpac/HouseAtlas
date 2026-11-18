@@ -6714,3 +6714,71 @@ The fixture's assertions, deadlines and production guards are unchanged.
 
 These checks establish synthetic implementation behavior only.
 They release no G1–G5, installation or live-provider acceptance.
+
+## Opt-in Network refresh through the production binary
+
+`tools/rust-integration/network-binary-loopback.py` executes an explicitly
+selected `houseatlas` executable with generated disposable settings only.
+It uses the production `initialize --server-config --provisioning-file`
+and `serve --server-config --provider-reads-profile --provider-reads-sha256`
+commands, followed by ordinary public HTTPS session and Network routes.
+It does not read an installed service's settings or contact its listener.
+The executable may be an existing installed binary;
+the invocation below instead builds the normal release target from this tree.
+Prerequisites are the pinned Rust toolchain for building, Python 3 and OpenSSL.
+No packages are installed by the runner.
+
+```sh
+mise run nas:build -- cargo build --release --offline --locked -p houseatlas-backend --bin houseatlas
+UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 tools/rust-integration/network-binary-loopback.py --executable "$CARGO_TARGET_DIR/release/houseatlas"
+```
+
+Use the repository's pinned Rust toolchain and an existing external
+`CARGO_TARGET_DIR` for the build.
+On hosts without the NAS build pool, run the same commands without
+`mise run nas:build --`.
+To qualify another executable, replace the `--executable` value with its
+absolute path and skip the build.
+The runner owns and stops only its child backend and fake collector.
+It removes its canonical private temporary directory on completion or error.
+
+Production initialization provisions generated Editor and Viewer accounts,
+their exact home memberships, Access and an empty Store.
+The profile copies the configuration digest from the owner-issued receipt.
+A new `0700` `provider-cache` directory starts empty;
+the schema-2 named-Editor mount uses the existing native owner to create
+sidecar/archive custody.
+The Editor's explicit refresh then registers the source and publishes its
+first generation through the existing authority and publication owners.
+No fixture adapter, SQL edits, synthetic Store bootstrap or production hook
+is needed.
+
+The qualification checks:
+
+- Startup, login, refused POSTs and ordinary reads perform no inventory GET.
+- The reviewed Editor's session/CSRF POST publishes revision 42 with the
+  expected preflight and final reviewed inventory GETs.
+- An ordinary Viewer cached read returns the generated endpoint and revision,
+  while stored collector results have matching served/reviewed/collector
+  revisions and no measurement withholding reason.
+- The mounted results route reports `mayRefresh: true` for that Editor
+  and `false` for the Viewer.
+  Viewer refresh POSTs return HTTP 403 before and after publication;
+  an Editor POST without CSRF also returns HTTP 403.
+- Refusal and browsing preserve the published generation and inventory.
+  The collector receives only GETs for the four explicitly generated
+  inventory/health/measurements/results documents.
+  Its invented ping history is stored JSON;
+  no ping, diagnostics action or other command is executed.
+- The production backend drains on SIGTERM,
+  and its initialization receipt stays unchanged.
+
+This is executable-level HTTP acceptance with disposable TLS and native state.
+The minimal generated frontend asset only satisfies production startup;
+no browser UI or renderer is exercised.
+It qualifies neither an installed service's configuration nor real devices,
+household data, credentials, collector commands, deployment or G1–G5.
+The existing one-GET/17-request root-router example, deadlines and assertions
+remain unchanged.
+This runner is opt-in only;
+no workflow, default test selection or CI run step is added.

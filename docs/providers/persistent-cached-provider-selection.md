@@ -123,6 +123,14 @@ publication path; two-database registration retains its ordered/non-atomic
 semantics and quarantine rules.
 Only the explicit refresh POST calls those APIs in serve.
 
+For a disposable qualification of these paths through an explicitly selected
+production backend executable, use the
+[opt-in binary loopback runner](../contributing/verification.md#opt-in-network-refresh-through-the-production-binary).
+It provisions generated accounts with `initialize`,
+opens empty native cache custody through the named-Editor mount,
+and checks the Editor refresh and ordinary Viewer reads over public HTTPS.
+It does not use installed settings or qualify browser UI or real devices.
+
 Backup/restore custody of selected provider stores must be reconciled with the
 existing recovery owner before operational use. This source increment does not
 change backup/restore scope, private configuration, services, grants or providers.
