@@ -762,10 +762,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     return () => store.dispose();
   }, [networkOn, collectorPort]);
   // Each Network source with collector facts in a current frame; a stored copy has no collector.
+  // Each also keeps the retrieval times of its facts that report a changed device list.
   const collectorScopes = useMemo(() => {
-    const scopes = new Map<string, { readonly scope: NonNullable<NetworkOverlayDevice['liveFacts']>['source']; readonly label: string }>();
-    for (const graph of graphs) if (!graph.storedAt) for (const device of graph.data.devices) if (device.liveFacts && !scopes.has(scopeKey(device.liveFacts.source)))
-      scopes.set(scopeKey(device.liveFacts.source), { scope: device.liveFacts.source, label: graph.data.source.label });
+    const scopes = new Map<string, { readonly scope: NonNullable<NetworkOverlayDevice['liveFacts']>['source']; readonly label: string; readonly mismatches: (string | null)[] }>();
+    for (const graph of graphs) if (!graph.storedAt) for (const device of graph.data.devices) if (device.liveFacts) {
+      const key = scopeKey(device.liveFacts.source);
+      if (!scopes.has(key)) scopes.set(key, { scope: device.liveFacts.source, label: graph.data.source.label, mismatches: [] });
+      if (device.liveFacts.measurementReason === 'inventory-revision-mismatch') scopes.get(key)!.mismatches.push(device.liveFacts.retrievedAt);
+    }
     return [...scopes.values()];
   }, [graphs]);
   const hostLens = environment.lens;

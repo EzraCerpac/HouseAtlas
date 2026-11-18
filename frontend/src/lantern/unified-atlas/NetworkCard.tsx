@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import { Icon } from '../components/Icon';
 import { InlineTime } from '../components/ui';
 import type { NetworkLiveFacts, NetworkObservationValue, NetworkOverlaySource } from '../overlays/network/types';
@@ -8,6 +8,7 @@ import { plural } from './atlas-text';
 import { reachability, reachabilityObservation, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 import { DeviceTestRow, type NetworkCollector } from './NetworkTests';
+import { refreshReconciled } from './network-tests';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
  * one room's devices (its +n chip). Choosing never moves the camera. */
@@ -45,8 +46,12 @@ const STATUS: Record<NetworkLiveFacts['status'], string> = {
 };
 /** The collector's latest reachability, its latest values and date, and the
  * hourly series; absent when the frame carries no measurements. */
-function ReachabilityRow({ facts }: { readonly facts: NetworkLiveFacts }) {
-  const view = reachability(facts);
+const NO_STORE = () => () => undefined;
+function ReachabilityRow({ facts, collector }: { readonly facts: NetworkLiveFacts; readonly collector: NetworkCollector | null }) {
+  // Only this browser's own refresh, re-read, clears the changed-list wording, and only for
+  // facts from before that refresh; the row reads nothing itself.
+  const agreed = () => collector !== null && refreshReconciled(collector.store.snapshot(), facts.source, facts.retrievedAt);
+  const view = reachability(facts, useSyncExternalStore(collector?.store.subscribe ?? NO_STORE, agreed, agreed));
   if (!view) return null;
   const spark = sparkline(view.series);
   return <div className={`ua-net-reach${view.old ? ' is-old' : ''}`}><dt>Reachability</dt><dd>
@@ -63,12 +68,12 @@ function ReachabilityRow({ facts }: { readonly facts: NetworkLiveFacts }) {
 const observed = (value: NetworkObservationValue): string => value === null ? 'null' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 /** What the Network source reports for this device now, with its own dates
  * and freshness. Shown only when the server joined such facts to the device. */
-function LiveFacts({ facts, test }: { readonly facts: NetworkLiveFacts; readonly test?: ReactNode }) {
+function LiveFacts({ facts, test, collector }: { readonly facts: NetworkLiveFacts; readonly test?: ReactNode; readonly collector: NetworkCollector | null }) {
   return <section className="ua-records ua-net-live" aria-label="Network source facts">
     <h3 className="ua-records-head"><Icon name="wifi" size={16} />Network source facts</h3>
     <dl className="ua-facts">
       <div><dt>Status</dt><dd>{STATUS[facts.status]}</dd></div>
-      <ReachabilityRow facts={facts} />
+      <ReachabilityRow facts={facts} collector={collector} />
       {test}
       {facts.status !== 'absent' && <div><dt>Addresses</dt><dd>{facts.addresses === null ? 'Not supplied'
         : facts.addresses.length === 0 ? 'No addresses supplied' : <ul className="ua-net-addresses">{facts.addresses.map(address => <li key={address}><code>{address}</code></li>)}</ul>}</dd></div>}
@@ -151,7 +156,7 @@ export function networkCardContent({ focus, connections, graphs, roomName, choos
               </button></li>;
           })}</ul>
         </section>}
-        {facts && <LiveFacts facts={facts} test={test} />}
+        {facts && <LiveFacts facts={facts} test={test} collector={collector && source && !source.storedAt ? collector : null} />}
         {source && <SourceFacts source={source.data.source} qualification={source.qualification} storedAt={source.storedAt} />}
         <button type="button" className="text-btn ua-net-graph-link" onClick={() => showInGraph(node.graphKey, { kind: 'device', id: device.id })}>
           <Icon name="network" size={16} />Show in graph</button>

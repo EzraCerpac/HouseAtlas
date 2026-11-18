@@ -509,6 +509,8 @@
 .lantern-host .ua-net-speed > .btn { justify-self: start; }
 .lantern-host .ua-net-speed .ua-net-test-answer { margin: 0; }
 .lantern-host .ua-net-wifi { margin: 0; color: var(--ink-2); font-size: var(--fs-xs); }
+/* The device-list refresh: its state, control and answer stacked in the key's narrow column. */
+.lantern-host .ua-net-refresh dd { display: grid; gap: 4px; justify-items: start; }
 @media (max-width: 759px), (pointer: coarse) {
   .lantern-host :is(.ua-net-test-actions, .ua-net-speed) .btn,
   .lantern-host .ua-net-test-port select { min-width: 44px; min-height: 44px; }
