@@ -24,13 +24,13 @@
     "M": {
       "entry": "http::agents::mcp::bind_owned_lifecycle",
       "transport": "mounted MCP, default read profile",
-      "condition": "Actual Editor POST/session/Origin/CSRF. Optional current matching Network/native HomeBox binding and profile-6 history.",
+      "condition": "Default read-only mounted profile. Editor POST with current session, Origin and CSRF is required at initialization. Optional current matching Network/native HomeBox binding and profile-6 history.",
       "maximumOperations": 45
     },
     "E": {
       "entry": "http::agents::mcp::bind_owned_editor_lifecycle",
       "transport": "mounted MCP, explicit existing-Editor-command startup profile",
-      "condition": "Trusted Host ExistingEditorCommands setting and genuine Editor issuance; same binding/role/scope fences. Browser/client metadata cannot select this profile.",
+      "condition": "Persistent mcpCommands=existing-editor-commands selects this profile at initialization for the original authenticated Editor. An initialized persistent server changes the receipt-bound setting through offline rebind-commands. Current session, Origin, CSRF and scope checks apply.",
       "maximumOperations": 82
     },
     "HTTP": {
@@ -52,7 +52,7 @@
     "B": {
       "entry": "Bridge.read / Bridge.write",
       "transport": "stdio MCP -> existing native HTTP owners",
-      "condition": "Fresh native admission; read effect or finite Atlas write forms/batch. Exact approval owner separately required for remap, which native admission holds. Unknown journal blocks writes."
+      "condition": "Fresh native admission for a read effect or finite Atlas write forms/batch. Remap requires a separate exact approval owner and remains held by native admission. A native 401 on a request that used the held cookie fails the operation and clears the owner's cookie/CSRF pair. The next independent operation may issue one fresh session through the same gateway with actor, scope, current CSRF and journal binding checked. A dispatched write stays UNKNOWN until native reconciliation."
     },
     "D": {
       "entry": "capabilities::native_admitted and dedicated Media HTTP owners",
@@ -227,7 +227,7 @@
         "stdioMessageBytes": 8388608,
         "stdioOutputBytes": 8388608
       },
-      "boundary": "Finite native HTTP profile, no generic upload/scene create. Native envelope/result/domain limits still apply; unknown write outcome never authorizes retry"
+      "boundary": "Finite native HTTP profile with native envelope, result and domain limits. Dedicated upload and scene creation stay with their native HTTP owners. After a held-session 401, fresh issuance is bounded to one attempt at the start of the next independent operation. An UNKNOWN journal entry blocks further writes pending native reconciliation."
     }
   },
   "historicalEvidence": {
@@ -625,7 +625,7 @@
   "sourcePins": [
     {
       "path": ".github/workflows/ordinary-core.yml",
-      "sha256": "5286a741036d068c58f15f6e7a241a9a97b1fd2d85bc24ee5ba99ce15bf2c6ec"
+      "sha256": "e9093d5fafd5f1f5efcf59ece0cda5d68aff06d54cee6496e3166abbffc3191c"
     },
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
@@ -685,7 +685,7 @@
     },
     {
       "path": "backend/src/http/agents/mod.rs",
-      "sha256": "6fd1883bc32a4c13795fcc9c8f6ac79129f8154285dd15c719a3fa2297290aa3"
+      "sha256": "315754b1f94f8ba42665dfec57844179756a66c8ee618c9ad6346198ef36da8d"
     },
     {
       "path": "backend/src/http/agents/stock_dispatch.rs",
@@ -761,7 +761,7 @@
     },
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
-      "sha256": "474109a15c4d7f5c65ce47425aaf96362c19ae3b4479b70a18d0d9be59234208"
+      "sha256": "961f49abc59dd238e0f5f4dd433c3497aae8a12881a3cf29574b3f82e36afe5d"
     },
     {
       "path": "backend/src/transports/mcp/healthy_infrastructure.rs",
@@ -769,7 +769,7 @@
     },
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
-      "sha256": "e22b05dc44b8c48741ea41165fa10791da0b098d8eba27b76de3fb920bc321d8"
+      "sha256": "b8bf879832f4812f2a89621bcee7570726f8b4e72aee7298174edd330248405b"
     },
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
@@ -825,11 +825,11 @@
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
-      "sha256": "2abbd3a82733d7adf9ebf2d63562d72b544b74761a16889401a5547b37e976ce"
+      "sha256": "8462906d6d05c5091a1e228ee800c26ef68cc4788fe5dc206bc474a04815281c"
     },
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
-      "sha256": "b32a642ad828fb47e57eefb27fe45e92721c129985973247e7a9c0f3c7c41697"
+      "sha256": "d6384faf6b97d59e8b15dcb11e1d98fd2f253b2ca308d5f440fd2026072f9d8e"
     },
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",
@@ -881,15 +881,15 @@
     },
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
-      "sha256": "2c3f8f78787461e336cbf350e927079a50fc669e678dc1b1ad3ddcfbe55cc8f8"
+      "sha256": "e3b726b2a0659dce12a479ef987e8c84d9505bcb8490e62e4c4abc4265f6e072"
     },
     {
       "path": "tools/houseatlas-mcp-bridge/test_bridge.py",
-      "sha256": "8c481cc6080a753652db115cafa70853d8cf163c593e890b7fdba19777061040"
+      "sha256": "d6cf9468969ac2cc57e5b1b66ead885e31650b54d82838741b7490ad9184e9b5"
     },
     {
       "path": "tools/rust-integration/examples/healthy_network_host.rs",
-      "sha256": "9d840d8eb2c57693880627bbe0358a36e4142ae69ef4f1b7458e430e2d2d5fff"
+      "sha256": "3faae714ba0092782c12264b785801d377be191d161b8e2d2efc8cfe2a1ac4a0"
     }
   ],
   "operations": [
