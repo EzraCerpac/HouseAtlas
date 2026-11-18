@@ -1,8 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { actionLabel, collectorResults, outcomeKey, outcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, listsDiffer, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -92,6 +92,7 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
         </svg>}</dd></div>
       {read.retrievedAt && <div><dt>Retrieved</dt><dd><InlineTime value={read.retrievedAt} /></dd></div>}
+      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} />
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
@@ -99,4 +100,33 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
     </>}
     {wifi.latest && <p className="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>}
   </section>;
+}
+
+/** The device-list refresh, beside the collector's retrieval: only for a
+ * caller the results name as a refresh Editor (`mayRefresh`), and only while
+ * the collector's device list differs from the one served, or to keep this
+ * browser's latest answer in view. A changed list that needs review first
+ * offers no control. One POST per press; a refreshed answer re-reads the
+ * results once, and the control goes when they say the lists agree. */
+function DeviceListRefresh({ collector, scope, snapshot }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot }) {
+  const read = collectorResults(snapshot, scope), key = scopeKey(scope), outcome = snapshot.refreshes.get(key);
+  const pending = snapshot.refreshing === key, differ = read !== null && listsDiffer(read);
+  const review = differ && (read.needsReview || outcome?.response?.status === 'needs-review');
+  const offered = differ && !review;
+  const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered);
+  // The control leaves when the lists agree or need review; focus it held moves to the answer.
+  useEffect(() => {
+    if (wasOffered.current && !offered && document.activeElement === document.body) status.current?.focus();
+    wasOffered.current = offered;
+  }, [offered]);
+  if (!collector.port.refresh || !read?.mayRefresh || !differ && !outcome && !pending) return null;
+  const answer = outcome && refreshOutcomeText(outcome);
+  return <div className="ua-net-refresh"><dt>Device list</dt><dd>
+    {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
+    {offered && <button type="button" className="btn btn-small" aria-disabled={snapshot.refreshing !== null}
+      onClick={() => { if (snapshot.refreshing === null) collector.store.refresh(scope); }}>{pending ? 'Refreshing device list…' : 'Refresh device list'}</button>}
+    <p className="ua-net-test-answer" role="status" tabIndex={-1} ref={status}>
+      {answer && <>{answer.text}<span className="ua-note">{answer.recorded ? 'recorded' : 'answered'} <InlineTime value={answer.at} /></span></>}
+    </p>
+  </dd></div>;
 }

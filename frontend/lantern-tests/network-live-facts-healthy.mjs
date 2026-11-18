@@ -18,7 +18,7 @@ try {
     .replaceAll(JSON.stringify('react'),JSON.stringify(new URL('../node_modules/react/index.js',import.meta.url).href))
     .replaceAll(JSON.stringify('react/jsx-runtime'),JSON.stringify(new URL('../node_modules/react/jsx-runtime.js',import.meta.url).href)));
   const {decodeNetworkLiveFacts,applyNetworkLiveFacts,parseLosslessJson,decodeNetworkCollectorResults,decodeNetworkCollectorAction,readNetworkCollectorResults,requestNetworkCollectorAction,reachability,reachabilityObservation,sparkline,REACHABILITY_KIND,
-    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,speedWithTests,latestSpeed,InternetSpeed,InternetSpeeds,networkCardContent,NOT_MEASURED_MISMATCH}=await import(pathToFileURL(modulePath).href);
+    createCollectorStore,outcomeText,rateText,speedText,speedSparkline,speedWithTests,latestSpeed,InternetSpeed,InternetSpeeds,networkCardContent,NOT_MEASURED_MISMATCH,refreshOutcomeText}=await import(pathToFileURL(modulePath).href);
   const {createElement}=await import(new URL('../node_modules/react/index.js',import.meta.url).href);
   const {renderToStaticMarkup}=await import(new URL('../node_modules/react-dom/server.node.js',import.meta.url).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`,sha='a'.repeat(64),at='2026-01-01T00:00:00Z';
@@ -318,4 +318,91 @@ try {
   assert(viewerCard.includes(NOT_MEASURED_MISMATCH)&&!viewerCard.includes('<dt>Test</dt>'),'viewer: withheld wording, no controls');
   assert.equal(viewerPort.reads,0,'viewer card: no collector GET needed for the wording');viewerStore.dispose();
   console.log('PASS Network tests and internet speed: viewer and absent collector show nothing, one GET per scope, one POST per press, every answer in words with its time, Mbit/Gbit and run gaps, Wi-Fi line, withheld wording for viewers too, a tested speed run as Latest');
+
+  // Device-list refresh in the key's collector block: a fake port only, no browser or route.
+  { const differ={...result,inventoryRevision:2,servedInventoryRevision:1,measurementReason:'inventory-revision-mismatch',mayRefresh:true,reviewedInventoryRevision:2,needsReview:false};
+    const agreed={...differ,servedInventoryRevision:2,measurementReason:null},withheldFacts=decode(withheld).devices[0].liveFacts;
+    const T0='2026-01-01T05:00:00Z',fetched='2026-01-01T04:59:00Z';
+    // Results answer in turn (the last repeats); a read that is an Error fails.
+    const mount=(reads,{refresh=true,editor=true}={})=>{
+      const port={reads:0,posts:0,pending:[],canTest:()=>editor,act:()=>new Promise(()=>{}),
+        read:async()=>{const v=reads[Math.min(port.reads++,reads.length-1)];if(v instanceof Error)throw v;return resultDecode(v);},
+        ...(refresh?{refresh:()=>{port.posts++;return new Promise((resolve,reject)=>port.pending.push({resolve,reject}));}}:{})};
+      const store=createCollectorStore(port,()=>T0),collector={port,store};
+      return {port,store,collector,block:()=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null})),card:storedAt=>deviceCard(withheldFacts,collector,storedAt)};
+    };
+    const settle=async()=>{for(let i=0;i<4;i++)await tick();};
+    const BUTTON='>Refresh device list</button>';
+    // Who and when: only a refresh Editor named by the results, only while the lists differ, only with the route.
+    for(const [reads,options,why] of [[[{...differ,mayRefresh:false}],{},'not a named refresh Editor (an ordinary Editor)'],[[{...differ,mayRefresh:false}],{editor:false},'a viewer'],
+      [[{...result,mayRefresh:true}],{},'lists agree'],[[differ],{refresh:false},'no refresh route (stored or saved copy)']]) {
+      const m=mount(reads,options);m.store.ensure(scopeOf);await settle();const html=m.block();
+      assert(html.includes('<dt>Retrieved</dt>')&&!html.includes('Device list')&&!html.includes('Refresh device list'),`no refresh row: ${why}`);
+      assert.equal(m.port.posts,0);m.store.dispose();
+    }
+    // Plain browsing sends nothing: the store, card and block read at most the existing one results GET.
+    const m=mount([differ,agreed]);
+    assert.equal(m.card().includes(NOT_MEASURED_MISMATCH),true);assert.deepEqual([m.port.reads,m.port.posts],[0,0],'a card sends no request');
+    m.store.ensure(scopeOf);await settle();
+    let html=m.block();
+    for(const text of ['<dt>Device list</dt>','Changed, needs a refresh',BUTTON,'<dt>Retrieved</dt>','>Test speed now</button>','Wi-Fi scan unavailable on this collector']) assert(html.includes(text),`mismatch block shows ${text}`);
+    assert(html.indexOf('<dt>Retrieved</dt>')<html.indexOf('<dt>Device list</dt>'),'beside the retrieval it refreshes');
+    assert.deepEqual([m.port.reads,m.port.posts],[1,0],'rendering the control sends nothing');
+    // One POST per press; pending says so and blocks a second press.
+    assert.equal(m.store.refresh(scopeOf),true);assert.equal(m.store.refresh(scopeOf),false,'a second press while pending sends nothing');
+    assert.equal(m.port.posts,1);html=m.block();
+    assert(html.includes('>Refreshing device list…</button>')&&html.includes('aria-disabled="true">Refreshing'),'pending: said, and the control stays mounted but unavailable');
+    // A refreshed answer re-reads once; the lists agree, so the control and the card's changed-list wording go.
+    m.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+    assert.deepEqual([m.port.reads,m.port.posts],[2,1],'exactly one re-read after the success, and no retry');
+    html=m.block();
+    assert(!html.includes(BUTTON)&&!html.includes('Changed')&&html.includes('<dt>Device list</dt>')&&html.includes(`Refreshed<span class="ua-note">recorded <time`)&&html.includes(fetched),'after agreement: the answer with its recorded time, no control');
+    const cleared=m.card();assert(!cleared.includes(NOT_MEASURED_MISMATCH)&&cleared.includes('<span class="ua-net-reach-state">Not measured</span>'),'the card drops the changed-list wording once the re-read agrees');
+    assert(m.card('2026-01-01T00:05:00Z').includes(NOT_MEASURED_MISMATCH),'a stored copy keeps its own wording');
+    await settle();assert.deepEqual([m.port.reads,m.port.posts],[2,1],'no timer, poll or further read');m.store.dispose();
+    // The re-read still differs (the list changed again) or fails: the control and the wording stay.
+    for(const [reread,text] of [[differ,'Refreshed, unchanged'],[new Error('lost'),'Refreshed, unchanged, results not re-read']]) {
+      const k=mount([differ,reread]);k.store.ensure(scopeOf);await settle();k.store.refresh(scopeOf);
+      k.port.pending[0].resolve(refreshDecode({status:'unchanged',inventoryRevision:1,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      const out=k.block();assert(out.includes(BUTTON)&&out.includes('Changed, needs a refresh')&&out.includes(`${text}<span`),`${text}: control stays`);
+      assert(!out.includes('aria-disabled="true">Refresh'),'available again after the re-read settles');
+      assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1]);k.store.dispose();
+    }
+    // Needs review: from the results, no control at all; from an answer, the control goes and nothing is re-read.
+    { const r=mount([{...differ,reviewedInventoryRevision:1,needsReview:true}]);r.store.ensure(scopeOf);await settle();const out=r.block();
+      assert(out.includes('Changed; it needs review before it can be refreshed')&&!out.includes('<button type="button" class="btn btn-small" aria-disabled="false">Refresh'),'review needed: said, no dead control');
+      assert(!out.includes(BUTTON));r.store.dispose(); }
+    { const r=mount([differ]);r.store.ensure(scopeOf);await settle();r.store.refresh(scopeOf);
+      r.port.pending[0].resolve(refreshDecode({status:'needs-review',reviewedInventoryRevision:2,collectorInventoryRevision:3}));await settle();const out=r.block();
+      assert(out.includes('Changed; it needs review before it can be refreshed')&&out.includes('Not refreshed, needs review<span class="ua-note">answered <time')&&!out.includes(BUTTON),'a needs-review answer removes the control');
+      assert.deepEqual([r.port.reads,r.port.posts],[1,1],'no re-read for an answer that published nothing');assert(r.card().includes(NOT_MEASURED_MISMATCH));r.store.dispose(); }
+    // Failures stay failures: the control stays, nothing is retried or re-read, and the wording keeps the mismatch.
+    for(const [answer,text] of [[new Error('Network refresh refused or outcome unknown'),'Outcome unknown, no readable answer'],[new DOMException('slow','TimeoutError'),'Timed out, outcome unknown'],
+      [{status:'running'},'Busy, a refresh is already running'],[{status:'failed',reason:'transport',quarantined:false},'Failed, the collector could not be reached; the previous device list is kept']]) {
+      const f=mount([differ]);f.store.ensure(scopeOf);await settle();f.store.refresh(scopeOf);
+      if(answer instanceof Error)f.port.pending[0].reject(answer);else f.port.pending[0].resolve(refreshDecode(answer));await settle();
+      const out=f.block();assert(out.includes(`${text}<span class="ua-note">answered <time`)&&out.includes(BUTTON)&&!out.includes('aria-disabled="true"'),`${text}: stated with its time, control available`);
+      assert.deepEqual([f.port.reads,f.port.posts],[1,1]);assert(f.card().includes(NOT_MEASURED_MISMATCH));f.store.dispose();
+    }
+    // Every answer in words, with the server's recorded time where it gives one.
+    const said=(response,lost=null,reread=null)=>refreshOutcomeText({response:response&&refreshDecode(response),lost,answeredAt:T0,reread});
+    const cache=(status,errorCode)=>({status,lastSuccessfulFetchAt:'2026-01-01T01:00:00Z',lastAttemptAt:fetched,errorCode});
+    for(const [response,lost,reread,expected] of [
+      [{status:'refreshed',inventoryRevision:2,cache:cache('fresh',null)},null,'read',{text:'Refreshed',at:'2026-01-01T01:00:00Z',recorded:true}],
+      [{status:'unchanged',inventoryRevision:2,cache:{...cache('fresh',null),lastSuccessfulFetchAt:null}},null,'read',{text:'Refreshed, unchanged',at:T0,recorded:false}],
+      [{status:'refreshed',inventoryRevision:2,cache:cache('fresh',null)},null,'failed',{text:'Refreshed, results not re-read',at:'2026-01-01T01:00:00Z',recorded:true}],
+      [{status:'needs-review',reviewedInventoryRevision:2,collectorInventoryRevision:3},null,null,{text:'Not refreshed, needs review',at:T0,recorded:false}],
+      [{status:'running'},null,null,{text:'Busy, a refresh is already running',at:T0,recorded:false}],
+      [{status:'not-configured'},null,null,{text:'Not refreshed, refresh is not set up for this source',at:T0,recorded:false}],
+      [{status:'refused',reason:'not-approved'},null,null,{text:'Refused, this account is not approved to refresh this source',at:T0,recorded:false}],
+      [{status:'refused',reason:'some-new-reason'},null,null,{text:'Refused, some new reason',at:T0,recorded:false}],
+      [{status:'failed',reason:'transport',quarantined:false,cache:cache('stale','transport')},null,null,{text:'Failed, the collector could not be reached; the previous device list is kept',at:fetched,recorded:true}],
+      [{status:'failed',reason:'auth',quarantined:true},null,null,{text:'Failed, the collector refused the credential; stored Network data is withheld',at:T0,recorded:false}],
+      [{status:'failed',reason:'access-revoked',quarantined:true,cache:cache('access-revoked','auth')},null,null,{text:'Failed, access to this source is revoked; stored Network data is withheld',at:fetched,recorded:true}],
+      [null,'timeout',null,{text:'Timed out, outcome unknown',at:T0,recorded:false}],[null,'unknown',null,{text:'Outcome unknown, no readable answer',at:T0,recorded:false}],
+    ]) assert.deepEqual(said(response,lost,reread),expected,`${response?.status??lost} in words`);
+    assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh','#718 wording unchanged');
+    const dropped=mount([differ]);dropped.store.dispose();assert.equal(dropped.store.refresh(scopeOf),false,'a dropped store sends nothing');assert.equal(dropped.port.posts,0);
+  }
+  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree, needs-review offers no control, every answer in words with its time');
 } finally {rmSync(scratch,{recursive:true,force:true});}

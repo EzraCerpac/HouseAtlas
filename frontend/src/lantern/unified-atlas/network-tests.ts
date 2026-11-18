@@ -1,4 +1,5 @@
 import type { CollectorAction, CollectorActionResponse, CollectorResults, CollectorScope, SpeedResult } from '../../../integration/network-collector';
+import type { NetworkInventoryRefreshResult } from '../../../integration/network-inventory-refresh';
 import { fmtDateTimeReadable } from '../data/time';
 import { plural } from './atlas-text';
 import { latencyText, sparkPaths, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
@@ -12,6 +13,8 @@ export interface NetworkCollectorPort {
   readonly read: (scope: CollectorScope, signal: AbortSignal) => Promise<CollectorResults>;
   /** One POST, sent only on a press and never retried. */
   readonly act: (scope: CollectorScope, action: CollectorAction) => Promise<CollectorActionResponse>;
+  /** One device-list refresh POST, sent only on a named Editor's press and never retried; absent without the route. */
+  readonly refresh?: (scope: CollectorScope) => Promise<NetworkInventoryRefreshResult>;
 }
 
 export type ResultsRead = { readonly status: 'loading' | 'failed' } | { readonly status: 'read'; readonly value: CollectorResults };
@@ -22,6 +25,15 @@ export interface ActionOutcome {
   /** When this browser received the answer. */
   readonly answeredAt: string;
 }
+export interface RefreshOutcome {
+  /** Null: no readable answer; `lost` says whether the request timed out. */
+  readonly response: NetworkInventoryRefreshResult | null;
+  readonly lost: 'timeout' | 'unknown' | null;
+  /** When this browser received the answer. */
+  readonly answeredAt: string;
+  /** The one results re-read a refreshed answer sends; null when none was sent. */
+  readonly reread: 'pending' | 'read' | 'failed' | null;
+}
 export interface CollectorSnapshot {
   readonly reads: ReadonlyMap<string, ResultsRead>;
   /** The one test in flight, for every device and the speed test. */
@@ -30,6 +42,10 @@ export interface CollectorSnapshot {
   readonly outcomes: ReadonlyMap<string, ActionOutcome>;
   /** Every run this browser's completed speed tests returned, per scope, whatever its state. */
   readonly speedRuns: ReadonlyMap<string, readonly SpeedResult[]>;
+  /** The one device-list refresh in flight (with its re-read), by scope key. */
+  readonly refreshing: string | null;
+  /** The latest device-list refresh answer per scope. */
+  readonly refreshes: ReadonlyMap<string, RefreshOutcome>;
 }
 export interface CollectorStore {
   readonly snapshot: () => CollectorSnapshot;
@@ -38,6 +54,9 @@ export interface CollectorStore {
   readonly ensure: (scope: CollectorScope) => void;
   /** Sends one action unless one is already in flight; true when sent. */
   readonly run: (scope: CollectorScope, action: CollectorAction) => boolean;
+  /** Sends one device-list refresh unless one is in flight; a refreshed answer
+   * re-reads that scope's results once. True when sent. */
+  readonly refresh: (scope: CollectorScope) => boolean;
   readonly dispose: () => void;
 }
 
@@ -53,7 +72,7 @@ export function collectorResults(snapshot: CollectorSnapshot, scope: CollectorSc
 /** One store per Network layer showing: at most one results GET per scope,
  * and one action at a time. Nothing is read until a card or the key asks. */
 export function createCollectorStore(port: NetworkCollectorPort, now: () => string = () => new Date().toISOString()): CollectorStore {
-  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map(), speedRuns: new Map() };
+  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map(), speedRuns: new Map(), refreshing: null, refreshes: new Map() };
   let disposed = false;
   const listeners = new Set<() => void>(), controller = new AbortController();
   const set = (next: CollectorSnapshot) => { if (disposed) return; state = next; for (const changed of [...listeners]) changed(); };
@@ -78,6 +97,25 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
         set({ ...state, running: null, outcomes: new Map(state.outcomes).set(outcomeKey(scope, action), { action, response, answeredAt: now() }),
           speedRuns: run ? new Map(state.speedRuns).set(key, [...state.speedRuns.get(key) ?? [], run]) : state.speedRuns });
       });
+      return true;
+    },
+    refresh(scope) {
+      const key = scopeKey(scope), request = port.refresh;
+      if (disposed || state.refreshing || !request) return false;
+      set({ ...state, refreshing: key });
+      const record = (outcome: RefreshOutcome, extra: Partial<CollectorSnapshot> = {}) =>
+        set({ ...state, ...extra, refreshing: outcome.reread === 'pending' ? key : null, refreshes: new Map(state.refreshes).set(key, outcome) });
+      send(() => request(scope)).then(response => ({ response, lost: null }),
+        (error: unknown) => ({ response: null, lost: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' as const : 'unknown' as const }))
+        .then(({ response, lost }) => {
+          // Only a published refresh changes what the results say; that answer re-reads them once.
+          const outcome: RefreshOutcome = { response, lost, answeredAt: now(), reread: response?.status === 'refreshed' || response?.status === 'unchanged' ? 'pending' : null };
+          record(outcome);
+          if (outcome.reread === null || disposed) return;
+          send(() => port.read(scope, controller.signal)).then(
+            value => record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }) }),
+            () => record({ ...outcome, reread: 'failed' }));
+        });
       return true;
     },
     dispose() { disposed = true; listeners.clear(); controller.abort(); },
@@ -109,6 +147,44 @@ const ANSWER_REASON: Readonly<Record<string, string>> = {
 const reasonText = (table: Readonly<Record<string, string>>, reason: string | null) =>
   reason === null ? null : Object.prototype.hasOwnProperty.call(table, reason) ? table[reason]! : reason.replaceAll('-', ' ');
 const withReason = (state: string, reason: string | null) => [state, reasonText({ ...TEST_REASON, ...ANSWER_REASON }, reason)].filter(Boolean).join(', ');
+
+/** The collector's results say its device list differs from the one served. */
+export const listsDiffer = (results: CollectorResults) => results.status !== 'unavailable' && results.measurementReason === 'inventory-revision-mismatch';
+/** After this store's own refresh and its one re-read, the results no longer say the lists differ. */
+export function refreshedListsAgree(snapshot: CollectorSnapshot, scope: CollectorScope) {
+  const key = scopeKey(scope), read = snapshot.reads.get(key);
+  return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status !== 'unavailable' && !listsDiffer(read.value);
+}
+const REFRESH_REASON: Readonly<Record<string, string>> = {
+  'not-approved': 'this account is not approved to refresh this source',
+  'access-revoked': 'access to this source is revoked',
+  'registration-unavailable': 'the source could not be registered here',
+  transport: 'the collector could not be reached',
+  timeout: 'the collector did not answer in time',
+  auth: 'the collector refused the credential',
+};
+/** A refresh answer in words, and its time: the server's recorded time where
+ * it gives one, otherwise when this browser received the answer. */
+export function refreshOutcomeText(outcome: RefreshOutcome): { readonly text: string; readonly at: string; readonly recorded: boolean } {
+  const response = outcome.response, answered = (text: string) => ({ text, at: outcome.answeredAt, recorded: false });
+  if (response === null) return answered(outcome.lost === 'timeout' ? 'Timed out, outcome unknown' : 'Outcome unknown, no readable answer');
+  switch (response.status) {
+    case 'refreshed': case 'unchanged': {
+      const at = response.cache.lastSuccessfulFetchAt;
+      const text = [response.status === 'unchanged' ? 'Refreshed, unchanged' : 'Refreshed', outcome.reread === 'failed' ? 'results not re-read' : null].filter(Boolean).join(', ');
+      return at ? { text, at, recorded: true } : answered(text);
+    }
+    case 'needs-review': return answered('Not refreshed, needs review');
+    case 'running': return answered('Busy, a refresh is already running');
+    case 'not-configured': return answered('Not refreshed, refresh is not set up for this source');
+    case 'refused': return answered(`Refused, ${reasonText(REFRESH_REASON, response.reason)}`);
+    case 'failed': {
+      const text = `Failed, ${reasonText(REFRESH_REASON, response.reason)}; ${response.quarantined ? 'stored Network data is withheld' : 'the previous device list is kept'}`;
+      const at = response.cache?.lastAttemptAt ?? null;
+      return at ? { text, at, recorded: true } : answered(text);
+    }
+  }
+}
 
 /** Bits per second as Mbit/s, or Gbit/s from 1000 Mbit/s. */
 export function rateText(bitsPerSecond: number) {

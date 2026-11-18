@@ -40,7 +40,9 @@ export const NOT_MEASURED_MISMATCH = 'Not measured: the device list changed and 
 /** The measured reachability joined to a device, or null when the frame
  * carries none of its fields (an old frame or a source without the collector).
  * A missing latest fact is "Not measured": an unknown, never a failure or a reply. */
-export function reachability(facts: NetworkLiveFacts): Reachability | null {
+export function reachability(facts: NetworkLiveFacts,
+  /** This browser's refresh re-read the collector's results and they no longer say the lists differ. */
+  listsAgree = false): Reachability | null {
   const latest = (facts.observedState ?? []).filter(item => measuredState(item) !== null)
     .sort((a, b) => Date.parse(b.factAt) - Date.parse(a.factAt))[0];
   // A withholding reason alone still makes the row: it is the only place that says why nothing was measured.
@@ -49,7 +51,7 @@ export function reachability(facts: NetworkLiveFacts): Reachability | null {
   const qualifier = freshness === 'recent' ? null : QUALIFIER[freshness];
   return {
     state: latest !== undefined ? [STATE[measuredState(latest)!], qualifier].filter(Boolean).join(' · ')
-      : facts.measurementReason === 'inventory-revision-mismatch' ? NOT_MEASURED_MISMATCH : 'Not measured',
+      : facts.measurementReason === 'inventory-revision-mismatch' && !listsAgree ? NOT_MEASURED_MISMATCH : 'Not measured',
     old: latest === undefined || qualifier !== null,
     metrics: [facts.latencyMs == null ? null : latencyText(facts.latencyMs), facts.loss == null ? null : lossText(facts.loss)]
       .filter((text): text is string => text !== null),

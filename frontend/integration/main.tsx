@@ -631,6 +631,12 @@ const sourceModels: SourceModelPort = {
         const { requestNetworkCollectorAction } = await import('./network-collector');
         return requestNetworkCollectorAction(scope, action, session.csrfToken);
       },
+      async refresh(scope) {
+        const session = currentSession;
+        if (!session) throw new Error('Signed out');
+        const { requestNetworkInventoryRefresh } = await import('./network-inventory-refresh');
+        return requestNetworkInventoryRefresh(scope, session.csrfToken);
+      },
     },
     // Overlay records last projected on this device for the same scene; the
     // Atlas shows them only where no current frame is held.

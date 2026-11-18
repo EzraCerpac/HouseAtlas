@@ -6436,6 +6436,12 @@ one results GET per scope and one POST per press, never retried;
 every action answer in words with its own time;
 Mbit/s and Gbit/s, run gaps, the Wi-Fi line and the withheld-revision wording.
 No case, run step or browser is added.
+It also renders the key's device-list refresh over that fake port:
+shown only for a results-named refresh Editor while the lists differ,
+no request on browsing, one POST per press with pending blocking a second,
+one results re-read after a refreshed answer that clears the control and the
+card's changed-list wording only when the lists then agree,
+needs-review without a control and every refresh answer in words with its time.
 The new healthy-list entry makes 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
 The single candidate-helper method also checks separate digest-pinned hardware
 evidence without adding unsupported fields to the source snapshot.
