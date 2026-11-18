@@ -216,14 +216,15 @@ is added, so the runner inventory is unchanged.
   or account reading nothing; sign-out and clearing.
 - `offline-launch-browser.mjs --case live-launch` checks the mounted lens,
   including no record-selection or evidence-read controls and the evidence
-  not-held sentence for a generated evidence ID. The online leg now uses fake
+  not-held sentence for a generated evidence ID. The online leg uses generated
   session/view/topology GETs on disposable loopback TLS, opens Rooms & places,
   waits for current records and a 20-second warm, then checks the actual
-  retention row before offline tab close/reopen. Building records are not seeded
-  into storage; unrelated Atlas, queue and file fixtures still are.
+  retention row before offline tab close/reopen.
+  The live app also fills the native and electrical libraries during this leg.
+  The Atlas, waiting edit and HomeBox attachment remain separately seeded fixtures.
 
 Generated sizes: 25,631 bytes for the topology-read fixture (one building
-membership), 5,305 bytes for the live-launch home and 1,403 bytes for the
+membership), 5,381 bytes for the live-launch home and 1,403 bytes for the
 two-location policy home. The row uses the existing 8 MiB view bound and the
 shared budget and eviction. These are synthetic, headless checks; they are not
 real-home sizes or device evidence.
@@ -1065,7 +1066,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 99 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. The existing live-launch case uses fake online session/view/topology GETs on disposable loopback TLS (openssl; trust scoped to the generated certificate key), opens Rooms & places, waits 20 seconds and checks actual topology retention before offline tab close/reopen; building records are not seeded, and no real session or provider is used. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 99 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. The existing live-launch case serves generated session, topology and library reads over disposable loopback TLS (openssl, trust scoped to the generated certificate key). The live app retains building records and fills both libraries. The case checks scoped reads and measures the held native and electrical PDFs by length, MIME type and SHA-256 before cold offline reopen and canvas rendering. The Atlas, outbox and HomeBox fixtures stay separately seeded. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1371,14 +1372,21 @@ worker-script update check (`/offline-entry-worker.js`,
 `/saved/service-worker.js`) during the reopen; any other served path fails the
 case. `live-launch` is `offline-launch` with the live entry `/` opened online
 instead of the Saved entry: the live app registers both workers after every
-launch. This case supplies generated session, view and topology GET responses
+launch. This case supplies generated session, view, topology and library responses
 on disposable loopback HTTPS (openssl required; browser trust is scoped to the
 fresh certificate key). It opens Rooms & places, waits for current records and
 20 seconds, and requires a topology metadata row from the actual live retention
-pass. That case seeds a generated Atlas and one
-waiting edit through the production storage APIs, closes the application tab,
-then opens a new tab offline. It checks the actual cached Atlas and waiting
-count, unchanged full queue record, and absence of write dispatch.
+pass.
+The ordinary live fill reads the native Documents list, record and revision-pinned
+original, plus the electrical association, building evidence, evidence and asset
+records, and original media.
+The case checks the scoped read requests and measures the held originals through
+the storage owner, comparing each PDF's byte length, MIME type and SHA-256.
+It then seeds the generated Atlas, waiting edit and existing HomeBox attachment
+through the production storage APIs, closes the application tab,
+and opens a new tab offline.
+It checks the actual cached Atlas and waiting count, unchanged full queue record,
+absence of write dispatch, all three PDF canvases, and the separate explicit Saved view.
 It checks those online-retained building records in the offline Rooms & places lens (held-copy stamp, retrieval time,
 exact elevation token, explicit unknown elevation, 44 px phone controls,
 no network bytes) and, after the records are removed, the not-held sentence. It does not
@@ -5859,10 +5867,11 @@ and guarded opener restoration without changing the existing healthy case;
 its explicit list, including the `offline-launch`, `hung-network` and
 `live-launch` cases in the pinned Chrome for Testing build against the built public shell
 (generated build output on a loopback listener, no backend; live-launch also
-seeds a generated Atlas and waiting outbox entry through production storage APIs,
+seeds a generated Atlas, waiting outbox entry and HomeBox attachment through production storage APIs,
 closes and reopens the tab, and checks cached content, exact queue retention and
-no write dispatch; since #560 also held Rooms & places building records and the
-not-held sentence), and fake-child/temporary-directory shutdown and bounded
+no write dispatch; since #560 also held Rooms & places building records, the
+not-held sentence, and measured native and electrical originals from ordinary live fill),
+and fake-child/temporary-directory shutdown and bounded
 profile-cleanup and combined-failure diagnostic checks inside the existing offline-root-entry healthy case
 (no browser or real child launch), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of

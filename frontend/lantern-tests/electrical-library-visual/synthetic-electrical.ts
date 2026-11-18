@@ -163,5 +163,8 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
     },
     async buildingMembers(_binding, _buildingId, signal) { signal.throwIfAborted(); return { status: 'ready', sourceStatus: 'current', snapshotSha256: 'c'.repeat(64), records: [] }; },
   };
-  return { scope, session, view, buildingId, pdfEvidenceId, pdfAssetId, pdf, pdfSha, sheets, options, port, topology, counts };
+  const originals = [...pins].map(([evidenceId, pin]) => ({ evidenceId, ...pin, bytes: bytes.get(evidenceId)!,
+    contentType: evidenceId === pdfEvidenceId ? 'application/pdf' : 'text/plain' }));
+  return { scope, session, view, buildingId, pdfEvidenceId, pdfAssetId, pdf, pdfSha, sheets, options, port, topology, counts,
+    association: record, head, originals };
 }

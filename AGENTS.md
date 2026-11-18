@@ -55,10 +55,11 @@ Ordinary CI (`ordinary-core.yml` and `rust-react-ordinary.yml`) runs on pushes
 to `main` and on every pull request, including stacked PRs whose base is another
 branch.
 
-The existing `live-launch` browser case now reads generated online building
-records through the live entry before its 20-second warm and offline reopen.
-It uses fake GETs and disposable loopback TLS, with no real session or provider;
-no new runner selection or workflow is added.
+The existing `live-launch` browser case reads generated building records
+and fills the native and electrical libraries through the live entry.
+It measures both held PDF originals before offline reopen
+using generated responses over disposable loopback TLS.
+The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
