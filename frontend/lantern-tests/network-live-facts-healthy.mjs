@@ -447,18 +447,23 @@ try {
       // The same reply after an agreeing refresh that a newer frame reopened: the control stays until an agreeing re-read.
       const later='2026-01-01T06:00:00Z',a=mount([differ,agreed,{...differ,inventoryRevision:3,servedInventoryRevision:2,reviewedInventoryRevision:3,measurementReason:null}]);
       a.store.ensure(scopeOf);await settle();
-      for(let i=0;i<2;i++){a.store.refresh(scopeOf);a.port.pending[i].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();}
+      for(let i=0;i<2;i++){if(i===1)assert(a.block([withheldFacts.retrievedAt,later]).includes(BUTTON),'the newer mismatch offers refresh before the second press');
+        a.store.refresh(scopeOf);a.port.pending[i].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();}
       const reopened=a.block([withheldFacts.retrievedAt,later]);
       assert(reopened.includes('Changed, needs a refresh')&&reopened.includes(BUTTON),'a non-agreeing re-read after a newer frame keeps the control');
       assert(a.card(undefined,{...withheldFacts,retrievedAt:later}).includes(NOT_MEASURED_MISMATCH));assert.deepEqual([a.port.reads,a.port.posts],[3,2]);
-      // A result-less (unknown) re-read that reports known unequal revisions ends the earlier agreement too: the older frame's wording returns.
-      const r=mount([differ,agreed,{...differ,status:'unknown',retrievedAt:null,results:null,inventoryRevision:3,servedInventoryRevision:2,reviewedInventoryRevision:3,measurementReason:null}]);
-      r.store.ensure(scopeOf);await settle();
-      for(let i=0;i<2;i++){r.store.refresh(scopeOf);r.port.pending[i].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
-        if(i===0)assert(!r.card().includes(NOT_MEASURED_MISMATCH),'cleared after the agreeing re-read');}
-      const held=r.block();assert(r.card().includes(NOT_MEASURED_MISMATCH),'the older frame is no longer treated as agreeing');
-      assert(held.includes('Last measured')&&held.includes('Changed, needs a refresh')&&held.includes(BUTTON)&&held.includes('Refreshed, state not confirmed<span'),'the key shows the reply\'s disagreement beside the kept measurements');
-      assert.deepEqual([r.port.reads,r.port.posts],[3,2]);r.store.dispose();
+      // A result-less (unknown) re-read states its own revisions and reason; unless it affirms agreement the earlier agreement ends and the older frame's wording returns.
+      // Unequal known revisions, and a mismatch reason with an unknown served revision.
+      for(const reply of [{inventoryRevision:3,servedInventoryRevision:2,measurementReason:null},{inventoryRevision:3,servedInventoryRevision:null,measurementReason:'inventory-revision-mismatch'}]) {
+        const r=mount([differ,agreed,{...differ,status:'unknown',retrievedAt:null,results:null,reviewedInventoryRevision:3,...reply}]);
+        r.store.ensure(scopeOf);await settle();
+        for(let i=0;i<2;i++){if(i===1)assert(r.block([withheldFacts.retrievedAt,later]).includes(BUTTON),'the newer mismatch offers refresh before the second press');
+          r.store.refresh(scopeOf);r.port.pending[i].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+          if(i===0)assert(!r.card().includes(NOT_MEASURED_MISMATCH),'cleared after the agreeing re-read');}
+        const held=r.block();assert(r.card().includes(NOT_MEASURED_MISMATCH),`${reply.measurementReason??'unequal revisions'}: the older frame is no longer treated as agreeing`);
+        assert(held.includes('12 Mbit/s down · 3.0 Mbit/s up · 4.0 ms')&&held.includes('Changed, needs a refresh')&&held.includes(BUTTON)&&held.includes('Refreshed, state not confirmed<span'),'the key shows the reply\'s disagreement beside the kept measurement');
+        assert.deepEqual([r.port.reads,r.port.posts],[3,2]);r.store.dispose();
+      }
       u.store.dispose();a.store.dispose(); }
     // A quarantined failure withholds the results read earlier: only its answer shows, with no speed, state, control or device test from them.
     { const q=mount([differ]);q.store.ensure(scopeOf);await settle();const plainTest=q.card().includes('<dt>Test</dt>');q.store.refresh(scopeOf);

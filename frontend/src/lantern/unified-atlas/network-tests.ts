@@ -119,15 +119,16 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
           send(() => port.read(scope, controller.signal)).then(
             value => {
               const prior = state.reads.get(key);
-              // A result-less reply still says who may refresh, whether review is needed and, when known, both
-              // revisions; earlier measurements stay, and known unequal revisions end the earlier agreement.
+              // A result-less (unknown) reply still states who may refresh, review, both revisions and the reason, as given;
+              // earlier measurements stay, and only a reply that affirms agreement keeps the earlier agreement.
+              // An unavailable reply states nothing and changes nothing.
               if (!(value.status === 'available' && value.results)) {
                 if (value.status !== 'unknown' || prior?.status !== 'read' || prior.value.status === 'unavailable') return record({ ...outcome, reread: 'unconfirmed' });
-                const known = value.inventoryRevision !== null && value.servedInventoryRevision !== null, agreed = new Map(state.agreed);
-                if (known && value.inventoryRevision !== value.servedInventoryRevision) agreed.delete(key);
+                const agreed = new Map(state.agreed);
+                if (!affirmsAgreement(value)) agreed.delete(key);
                 return record({ ...outcome, reread: 'unconfirmed' }, { agreed, reads: new Map(state.reads).set(key, { status: 'read', value: { ...prior.value,
                   mayRefresh: value.mayRefresh, needsReview: value.needsReview, reviewedInventoryRevision: value.reviewedInventoryRevision,
-                  ...(known ? { inventoryRevision: value.inventoryRevision, servedInventoryRevision: value.servedInventoryRevision } : {}) } }) });
+                  inventoryRevision: value.inventoryRevision, servedInventoryRevision: value.servedInventoryRevision, measurementReason: value.measurementReason } }) });
               }
               const agreed = new Map(state.agreed), fetched = response?.status === 'refreshed' || response?.status === 'unchanged' ? response.cache.lastSuccessfulFetchAt : null;
               if (affirmsAgreement(value)) agreed.set(key, fetched); else agreed.delete(key);
