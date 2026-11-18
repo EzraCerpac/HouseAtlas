@@ -27,7 +27,7 @@ error as a multiple of it, default 4), `--weld` (weld distance in
 metres, default 0.0005), `--texture-size` (largest side, in pixels, of an
 embedded texture in the overview, default 512; larger PNGs are halved until they
 fit, colour maps averaged in linear light, normal maps as renormalized vectors,
-data maps as stored; `detail.glb` keeps them as authored), `--grid` (position snapping grid for compression in
+data maps as stored; `detail.glb` keeps the authored dimensions), `--grid` (position snapping grid for compression in
 metres, default 2^-12, about 0.24 mm) and `--plain` (write uncompressed GLBs).
 
 ## What it keeps
@@ -104,6 +104,16 @@ Plan↔3D, floors and exploded views rely on. A refusal there fails the bake;
 `bake-report.json` records the bound primitives, room picks, selectable rooms,
 levels and buildings under `viewerBinding`. An `--out` that already holds an
 output is refused before any work.
+
+An embedded baseline JPEG used only for opaque base colour is converted to RGB8 PNG in both tiers.
+The bake uses the JPEG decoder pinned by the frontend's PDF.js dependency.
+It checks the retained byte range, single-scan framing, sampling and dimensions before decoding.
+The input must fit 2 MiB, 1024 pixels per side and 1,048,576 total pixels.
+The conversion keeps JPEG row order and RGB samples, with the base colour sampled as sRGB.
+Light uses the same linear-light halving as for PNG input.
+Full keeps the source resolution.
+Both tiers use the existing `TEXCOORD_0`, linear/trilinear REPEAT sampler and PNG admission.
+An invalid JPEG, a converted PNG above 2 MiB or a viewer refusal fails the CLI before it writes outputs.
 
 ## Compression
 
@@ -183,6 +193,12 @@ work, a snapped vertex never leaving a bound the server checks, and the
 viewer refusing damaged or truncated streams, a decoded size over the limit,
 filters, other or optional extensions and plain views in the fallback buffer.
 They do not render anything or touch a real model.
+
+The CLI detail case also bakes an asymmetric generated JPEG in both tiers.
+It checks decoded swatches, opaque alpha, UV triangles, material and sampler identity,
+viewer GPU accounting, selector binding and output pins.
+It also checks malformed framing and scan data, encoded size and dimensions,
+with no output directory created on refusal.
 
 ## Not covered here
 

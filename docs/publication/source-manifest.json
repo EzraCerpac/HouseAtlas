@@ -1902,6 +1902,7 @@
     {"path":"tools/model-bake/src/bake.mjs","mode":"100644","owner":"media"},
     {"path":"tools/model-bake/src/compress.mjs","mode":"100644","owner":"media"},
     {"path":"tools/model-bake/src/glb.mjs","mode":"100644","owner":"media"},
+    {"path":"tools/model-bake/src/jpeg.mjs","mode":"100644","owner":"media"},
     {"path":"tools/model-bake/src/png.mjs","mode":"100644","owner":"media"},
     {"path":"tools/model-bake/test/bake.test.mjs","mode":"100644","owner":"media"},
     {"path":"tools/model-input-disposition/FILESYSTEM-OBSERVATION.md","mode":"100644","owner":"storage"},
