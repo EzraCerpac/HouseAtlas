@@ -1,5 +1,5 @@
 //! Real mounted MCP issuance and same-Host authenticated original redemption.
-//! One generated text upload, no socket/TLS/browser/provider or expiry control.
+//! Generated originals with positive transfer and a controlled handle deadline.
 
 use crate::{
     contracts::stock as wire,
@@ -12,10 +12,18 @@ use axum::{
     body::{Body, to_bytes},
     extract::ConnectInfo,
     http::{Method, Request, StatusCode},
+    response::Response,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs, net::SocketAddr, os::unix::fs::PermissionsExt, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fs,
+    net::SocketAddr,
+    os::unix::fs::PermissionsExt,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 use tower::ServiceExt;
 
 const ORIGIN: &str = "https://127.0.0.1:48743";
@@ -76,6 +84,22 @@ struct Client<'a> {
 }
 
 impl Client<'_> {
+    async fn redeem(&self, path: &str) -> Result<Response, Failure> {
+        Ok(self
+            .app
+            .clone()
+            .oneshot(request(
+                Method::GET,
+                path,
+                vec![],
+                None,
+                Some(&self.cookie),
+                None,
+                None,
+            )?)
+            .await?)
+    }
+
     async fn frame(&mut self, message: Value) -> Result<Option<Value>, Failure> {
         let response = self
             .app
@@ -164,10 +188,15 @@ fn healthy_mounted_mcp_asset_download_redeems_original() -> Result<(), Failure> 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(healthy())
+        .block_on(healthy(None))
 }
 
-async fn healthy() -> Result<(), Failure> {
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_mcp_asset_download_expires_at_issuer_deadline() -> Result<(), Failure> {
+    healthy(Some(Arc::new(Mutex::new(Instant::now())))).await
+}
+
+async fn healthy(clock: Option<Arc<Mutex<Instant>>>) -> Result<(), Failure> {
     let scratch = tempfile::Builder::new()
         .prefix("houseatlas-mcp288-owned-download-")
         .tempdir_in("/tmp")?;
@@ -195,12 +224,13 @@ async fn healthy() -> Result<(), Failure> {
     drop(receipt);
     // Keep the default ReadOnly MCP profile. The same Host allocates both the
     // genuine mounted issuer and the authenticated native redemption manager.
-    let app = router(Host::new(
-        core,
-        ORIGIN.into(),
-        Arc::new(BTreeMap::new()),
-        vec![],
-    )?);
+    let mut host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
+    let expiry = clock.map(|clock| {
+        host.atlas_download_handles =
+            crate::domain::stock::AtlasDownloadHandles::with_test_clock(Arc::clone(&clock));
+        (clock, host.atlas_download_handles.clone())
+    });
+    let app = router(host);
     let response = app
         .clone()
         .oneshot(request(
@@ -358,7 +388,7 @@ async fn healthy() -> Result<(), Failure> {
         .build(&tool["inputSchema"])
         .map_err(|_| "Invalid actual input schema")?;
     assert!(advertised.is_valid(&download));
-    let issued = client.call(download, &validation).await?;
+    let issued = client.call(download.clone(), &validation).await?;
     let token = issued["data"]["downloadToken"]
         .as_str()
         .ok_or("Missing actual opaque handle")?;
@@ -368,23 +398,26 @@ async fn healthy() -> Result<(), Failure> {
         json!({"target":target,"downloadToken":token,"sha256":digest,
         "byteSize":ORIGINAL.len(),"contentType":"text/plain","disposition":"attachment"})
     );
-    let path = format!(
-        "/api/atlas/media/downloads/{}/{}/{token}",
-        context["workspaceId"].as_str().unwrap(),
-        context["homeId"].as_str().unwrap()
-    );
-    let response = app
-        .clone()
-        .oneshot(request(
-            Method::GET,
-            &path,
-            vec![],
-            None,
-            Some(&client.cookie),
-            None,
-            None,
-        )?)
-        .await?;
+    let path = |token: &str| {
+        format!(
+            "/api/atlas/media/downloads/{}/{}/{token}",
+            context["workspaceId"].as_str().unwrap(),
+            context["homeId"].as_str().unwrap()
+        )
+    };
+    let boundary = expiry
+        .map(|(clock, handles)| -> Result<_, Failure> {
+            let deadline = handles
+                .test_deadline(token)
+                .ok_or("Missing issuer deadline")?;
+            let mut now = clock.lock().unwrap();
+            assert_eq!(deadline.duration_since(*now), Duration::from_secs(300));
+            *now = deadline - Duration::from_nanos(1);
+            drop(now);
+            Ok((clock, deadline))
+        })
+        .transpose()?;
+    let response = client.redeem(&path(token)).await?;
     assert_eq!(response.status(), StatusCode::OK);
     for (name, expected) in [
         ("content-type", "text/plain"),
@@ -407,6 +440,32 @@ async fn healthy() -> Result<(), Failure> {
     let bytes = to_bytes(response.into_body(), MAX_RESPONSE).await?;
     assert_eq!(bytes.as_ref(), ORIGINAL.as_bytes());
     assert_eq!(format!("{:x}", Sha256::digest(&bytes)), digest);
+    if let Some((clock, deadline)) = boundary {
+        *clock.lock().unwrap() = deadline;
+        let refused = client.redeem(&path(token)).await?;
+        assert_eq!(refused.status(), StatusCode::FORBIDDEN);
+        assert!(!refused.headers().contains_key("content-disposition"));
+        let error: Value =
+            serde_json::from_slice(&to_bytes(refused.into_body(), MAX_RESPONSE).await?)?;
+        assert_eq!(error["code"], "forbidden");
+
+        // Same authenticated HTTP and MCP sessions, with the issuer clock still
+        // at the old deadline. A fresh request must issue a different handle.
+        let mut renewal = download;
+        renewal["requestId"] = json!(id(25006));
+        let fresh = client.call(renewal, &validation).await?;
+        let fresh_token = fresh["data"]["downloadToken"]
+            .as_str()
+            .ok_or("Missing fresh opaque handle")?;
+        assert_ne!(fresh_token, token);
+        let mut expected = issued["data"].clone();
+        expected["downloadToken"] = json!(fresh_token);
+        assert_eq!(fresh["data"], expected);
+        let response = client.redeem(&path(fresh_token)).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let fresh_bytes = to_bytes(response.into_body(), MAX_RESPONSE).await?;
+        assert_eq!(fresh_bytes, bytes);
+    }
     let after = client.call(read(25005), &validation).await?;
     assert_eq!(after["data"]["records"], before["data"]["records"]);
     drop(client);

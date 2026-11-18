@@ -7,7 +7,7 @@ use super::{
 };
 use crate::media::{
     Cancellation, MediaError, WorkBudget,
-    download_lifetime::{DownloadAvailability, project_issuer_lifetime},
+    download_lifetime::{DownloadAvailability, project_issuer_lifetime_at},
     service::{
         DeliveryMode, MediaAccessPort, MediaResponse, MediaService, MediaStoragePort,
         OwnedDescriptor, ReadMethod, StoredAsset,
@@ -73,7 +73,39 @@ struct DownloadHandle {
 /// with no restart persistence. Unexpired handles remain; existing same-context
 /// handles are reused before checking capacity for a new issuance.
 #[derive(Clone, Default)]
-pub struct AtlasDownloadHandles(Arc<Mutex<VecDeque<DownloadHandle>>>);
+pub struct AtlasDownloadHandles {
+    entries: Arc<Mutex<VecDeque<DownloadHandle>>>,
+    #[cfg(test)]
+    clock: Option<Arc<Mutex<Instant>>>,
+}
+
+impl AtlasDownloadHandles {
+    fn now(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(clock) = &self.clock {
+            return *clock.lock().expect("Fixture download clock is available");
+        }
+        Instant::now()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_test_clock(clock: Arc<Mutex<Instant>>) -> Self {
+        Self {
+            clock: Some(clock),
+            ..Self::default()
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_deadline(&self, token: &str) -> Option<Instant> {
+        self.entries
+            .lock()
+            .expect("Fixture handle registry is available")
+            .iter()
+            .find(|handle| handle.token == token)
+            .map(|handle| handle.expires)
+    }
+}
 
 pub struct UnavailableAtlasDownloads;
 impl<P, W, G> StockQueryPort<P, W, G> for UnavailableAtlasDownloads {
@@ -115,11 +147,11 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
         let session = self.sessions.authenticated_session_binding(principal)?;
         let present = self
             .handles
-            .0
+            .entries
             .lock()
             .map_err(|_| StockError::OwnerUnavailable)?
             .iter()
-            .any(|h| h.token == token && h.session == session && h.expires > Instant::now());
+            .any(|h| h.token == token && h.session == session && h.expires > self.handles.now());
         if !present {
             return Ok(DownloadAvailability::Unavailable);
         }
@@ -136,13 +168,13 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
         }
         let handles = self
             .handles
-            .0
+            .entries
             .lock()
             .map_err(|_| StockError::OwnerUnavailable)?;
         let lifetime = handles
             .iter()
             .find(|h| h.token == token && h.session == session)
-            .and_then(|h| project_issuer_lifetime(h.expires));
+            .and_then(|h| project_issuer_lifetime_at(h.expires, self.handles.now()));
         Ok(
             lifetime.map_or(DownloadAvailability::Unavailable, |lifetime| {
                 DownloadAvailability::Available { lifetime }
@@ -208,7 +240,7 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
             "request":request.raw(),"recordDigest":record_digest}))?;
         let handles = self
             .handles
-            .0
+            .entries
             .lock()
             .map_err(|_| StockError::OwnerUnavailable)?;
         if !handles.iter().any(|h| {
@@ -218,7 +250,7 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
                 && h.asset_id == asset_id
                 && h.record_digest == record_digest
                 && h.data == *data
-                && h.expires > Instant::now()
+                && h.expires > self.handles.now()
         }) {
             return Err(StockError::AuthorityChanged);
         }
@@ -243,10 +275,10 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
         let handle = {
             let mut handles = self
                 .handles
-                .0
+                .entries
                 .lock()
                 .map_err(|_| StockError::OwnerUnavailable)?;
-            handles.retain(|h| h.expires > Instant::now());
+            handles.retain(|h| h.expires > self.handles.now());
             handles
                 .iter()
                 .find(|h| h.token == token && h.session == session)
@@ -274,7 +306,7 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
         let current = self.current(principal, &handle.scope, &handle.asset_id)?;
         if canonical_digest(&json!(current))? != handle.record_digest
             || self.sessions.authenticated_session_binding(principal)? != session
-            || handle.expires <= Instant::now()
+            || handle.expires <= self.handles.now()
         {
             return Err(StockError::AuthorityChanged);
         }
@@ -315,10 +347,10 @@ where
         let saved = {
             let mut handles = self
                 .handles
-                .0
+                .entries
                 .lock()
                 .map_err(|_| StockError::OwnerUnavailable)?;
-            handles.retain(|h| h.expires > Instant::now());
+            handles.retain(|h| h.expires > self.handles.now());
             handles
                 .iter()
                 .find(|h| h.session == session && h.context == context)
@@ -354,21 +386,21 @@ where
                 "contentType":record.payload.content_type,"disposition":"attachment"});
             let mut handles = self
                 .handles
-                .0
+                .entries
                 .lock()
                 .map_err(|_| StockError::OwnerUnavailable)?;
             // The same exact prepared read can be recomputed for disclosure.
             // Concurrent qualification is held; a matching immutable handle is
             // simply reused rather than minting a different result carrier.
             if let Some(saved) = handles.iter().find(|h| {
-                h.session == session && h.context == context && h.expires > Instant::now()
+                h.session == session && h.context == context && h.expires > self.handles.now()
             }) {
                 saved.data.clone()
             } else {
                 if handles.iter().any(|h| h.token == token) {
                     return Err(StockError::OwnerUnavailable);
                 }
-                handles.retain(|h| h.expires > Instant::now());
+                handles.retain(|h| h.expires > self.handles.now());
                 if handles.len() >= 1000
                     || handles.iter().filter(|h| h.session == session).count()
                         >= MAX_HANDLES_PER_SESSION
@@ -383,7 +415,7 @@ where
                     asset_id: asset_id.into(),
                     record_digest,
                     data: data.clone(),
-                    expires: Instant::now() + Duration::from_secs(300),
+                    expires: self.handles.now() + Duration::from_secs(300),
                 });
                 data
             }
