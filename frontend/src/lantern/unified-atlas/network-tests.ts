@@ -117,7 +117,8 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
             value => value.status === 'available' && value.results
               ? record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }) })
               : record({ ...outcome, reread: 'unconfirmed' }),
-            () => record({ ...outcome, reread: 'unconfirmed' }));
+            // The client's rule: a failed read (a denial looks the same as any other) retires the results.
+            () => record({ ...outcome, reread: 'unconfirmed' }, { reads: new Map(state.reads).set(key, { status: 'failed' }) }));
         });
       return true;
     },
@@ -159,6 +160,11 @@ export function refreshedListsAgree(snapshot: CollectorSnapshot, scope: Collecto
   // Only usable results that affirm agreement: equal known revisions and no changed-list reason.
   return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status === 'available' && read.value.results !== null
     && read.value.inventoryRevision !== null && read.value.inventoryRevision === read.value.servedInventoryRevision && !listsDiffer(read.value);
+}
+/** The re-read after this browser's refresh failed, so the results were retired; only the refresh answer remains. */
+export function refreshRetired(snapshot: CollectorSnapshot, scope: CollectorScope) {
+  const key = scopeKey(scope);
+  return snapshot.reads.get(key)?.status === 'failed' && snapshot.refreshes.get(key)?.reread === 'unconfirmed';
 }
 /** This browser's latest refresh reported quarantine: the results read earlier are withheld. */
 export function refreshWithheld(snapshot: CollectorSnapshot, scope: CollectorScope) {

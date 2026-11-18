@@ -328,7 +328,9 @@ try {
     // Results answer in turn (the last repeats); a read that is an Error fails.
     const mount=(reads,{refresh=true,editor=true}={})=>{
       const port={reads:0,posts:0,pending:[],canTest:()=>editor,act:()=>new Promise(()=>{}),
-        read:async()=>{const v=reads[Math.min(port.reads++,reads.length-1)];if(v instanceof Error)throw v;return resultDecode(v);},
+        read:async scope=>{const v=reads[Math.min(port.reads++,reads.length-1)];if(v instanceof Error)throw v;
+          // An HTTP status goes through the real client, which throws one refusal for any non-OK answer.
+          if(v.httpStatus)return readNetworkCollectorResults(scope,async()=>new Response('',{status:v.httpStatus}));return resultDecode(v);},
         ...(refresh?{refresh:()=>{port.posts++;return new Promise((resolve,reject)=>port.pending.push({resolve,reject}));}}:{})};
       const store=createCollectorStore(port,()=>T0),collector={port,store};
       return {port,store,collector,block:mismatches=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null,mismatches})),card:(storedAt,facts=withheldFacts)=>deviceCard(facts,collector,storedAt)};
@@ -370,13 +372,24 @@ try {
     await settle();assert.deepEqual([m.port.reads,m.port.posts],[2,1],'no timer, poll or further read');m.store.dispose();
     // The re-read still differs (the list changed again) or fails: the control and the wording stay.
     // A re-read without results (failed, unknown during a poll, unavailable) keeps the earlier results, the control and the answer, unconfirmed.
-    for(const [reread,text] of [[differ,'Refreshed, unchanged'],[new Error('lost'),'Refreshed, unchanged, state not confirmed'],
+    for(const [reread,text] of [[differ,'Refreshed, unchanged'],
       [{...differ,status:'unknown',retrievedAt:null,results:null},'Refreshed, unchanged, state not confirmed'],[{status:'unavailable'},'Refreshed, unchanged, state not confirmed']]) {
       const k=mount([differ,reread]);k.store.ensure(scopeOf);await settle();k.store.refresh(scopeOf);
       k.port.pending[0].resolve(refreshDecode({status:'unchanged',inventoryRevision:1,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
       const out=k.block();assert(out.includes(BUTTON)&&out.includes('Changed, needs a refresh')&&out.includes(`${text}<span`),`${text}: control stays`);
       assert(!out.includes('aria-disabled="true">Refresh'),'available again after the re-read settles');
       assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1],'exactly one re-read after unchanged, and no retry');k.store.dispose();
+    }
+    // A failed re-read (401, 403 or any other refusal or loss) retires the results, as the client requires: no speed, state or control
+    // in the key and no test on the card; only the refresh answer, unconfirmed. The card keeps the frame's own wording.
+    for(const reread of [{httpStatus:401},{httpStatus:403},{httpStatus:503},new Error('lost')]) {
+      const k=mount([differ,reread]);k.store.ensure(scopeOf);await settle();assert(k.card().includes('<dt>Test</dt>'));k.store.refresh(scopeOf);
+      k.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      const out=k.block(),why=reread.httpStatus??'a lost read';
+      assert(out.includes('<dt>Device list</dt>')&&out.includes('Refreshed, state not confirmed<span class="ua-note">recorded <time'),`${why}: the refresh answer stays, unconfirmed`);
+      for(const gone of ['Last measured','<dt>Retrieved</dt>','Changed',BUTTON,'Test speed now','Wi-Fi']) assert(!out.includes(gone),`${why}: ${gone} is retired`);
+      const card=k.card();assert(!card.includes('<dt>Test</dt>')&&card.includes(NOT_MEASURED_MISMATCH),`${why}: no test from retired results; the frame keeps its wording`);
+      assert.deepEqual([k.port.reads,k.port.posts],[2,1],`${why}: no further read or retry`);k.store.dispose();
     }
     // Needs review: from the results, no control at all; from an answer, the control goes and nothing is re-read.
     { const r=mount([{...differ,reviewedInventoryRevision:1,needsReview:true}]);r.store.ensure(scopeOf);await settle();const out=r.block();
@@ -426,5 +439,5 @@ try {
     assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh','#718 wording unchanged');
     const dropped=mount([differ]);dropped.store.dispose();assert.equal(dropped.store.refresh(scopeOf),false,'a dropped store sends nothing');assert.equal(dropped.port.posts,0);
   }
-  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree and only for facts read before the refresh, an unconfirmed re-read keeps the answer, a quarantine withholds the earlier results, needs-review offers no control, every answer in words with its time');
+  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree and only for facts read before the refresh, an unconfirmed re-read keeps the answer, a quarantine or a failed re-read (401, 403 or other) withholds the earlier results, needs-review offers no control, every answer in words with its time');
 } finally {rmSync(scratch,{recursive:true,force:true});}

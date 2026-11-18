@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { actionLabel, collectorResults, listsDiffer, refreshedListsAgree, refreshReconciled, refreshWithheld, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, listsDiffer, refreshedListsAgree, refreshReconciled, refreshRetired, refreshWithheld, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -78,11 +78,11 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
   readonly mismatches?: readonly (string | null)[] }) {
   const snapshot = useCollector(collector, scope);
   const read = collectorResults(snapshot, scope);
-  if (!read?.results) return null;
   const heading = <h4>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
-  // A refresh reported quarantine: the results read earlier are withheld, so only its answer shows.
-  if (refreshWithheld(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
+  // A refresh reported quarantine, or its re-read failed and retired the results: only its answer shows.
+  if (refreshWithheld(snapshot, scope) || refreshRetired(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
     <dl className="ua-facts"><DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} /></dl></section>;
+  if (!read?.results) return null;
   const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
   // The answer line repeats nothing when its run is the one shown as Last measured.
@@ -130,7 +130,8 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches }: { readonl
     if (!offered) focused.current = false;
     wasOffered.current = offered;
   }, [offered]);
-  if (!collector.port.refresh || !read?.mayRefresh || !differ && !outcome && !pending) return null;
+  // A retired read leaves only the answer to the press it followed.
+  if (!collector.port.refresh || !(read?.mayRefresh || refreshRetired(snapshot, scope)) || !differ && !outcome && !pending) return null;
   const answer = outcome && refreshOutcomeText(outcome);
   return <div className="ua-net-refresh"><dt>Device list</dt><dd>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
