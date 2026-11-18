@@ -641,7 +641,7 @@
     },
     {
       "path": "backend/src/domain/stock/atlas_downloads.rs",
-      "sha256": "5cd08ba3d493b782a4160ff4c883f2cc743b371877543e1fc3f7593ad882d51d"
+      "sha256": "d5986c2574573c8dcd682848626fb9a9fe5e6348685cf75bc08c35f9345f5d11"
     },
     {
       "path": "backend/src/domain/stock/atlas_lists.rs",
@@ -669,7 +669,7 @@
     },
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
-      "sha256": "b60565318e6b124de9dd9f55f482bfeb24e6912f38a9c5261a63aaabe273acd9"
+      "sha256": "100f65f423deb55791ebc4529f8d9e01efb792c040aa48cb2b4e612cfdd9064e"
     },
     {
       "path": "backend/src/http/agents/capabilities.rs",

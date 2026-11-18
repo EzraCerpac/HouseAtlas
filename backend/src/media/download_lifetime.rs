@@ -37,7 +37,13 @@ pub enum DownloadAvailability {
 /// rendering delays; sampling at receipt would extend the actual issuer life.
 /// This pure projection cannot establish that any handle exists/is available.
 pub fn project_issuer_lifetime(deadline: Instant) -> Option<DownloadLifetime> {
-    let remaining_ms =
-        u64::try_from(deadline.checked_duration_since(Instant::now())?.as_millis()).ok()?;
+    project_issuer_lifetime_at(deadline, Instant::now())
+}
+
+pub(crate) fn project_issuer_lifetime_at(
+    deadline: Instant,
+    now: Instant,
+) -> Option<DownloadLifetime> {
+    let remaining_ms = u64::try_from(deadline.checked_duration_since(now)?.as_millis()).ok()?;
     (remaining_ms > 0).then_some(DownloadLifetime { remaining_ms })
 }

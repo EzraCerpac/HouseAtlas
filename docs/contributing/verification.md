@@ -1810,6 +1810,17 @@ existing test selection are retained. This is one positive same-Host lifetime,
 without sockets, TLS, provider calls, browser, expiry/revocation, second-process
 restart, renderer or installed acceptance; no workflow command is added.
 
+The same lane discovers
+`http::agents::asset_download_healthy::mounted_mcp_asset_download_expires_at_issuer_deadline`.
+It reuses the generated text original and mounted Host with a clock scoped
+to the fixture's handle registry.
+Authenticated GET returns the original one nanosecond before the actual stored
+deadline and returns `403` at equality.
+Through the same Editor and MCP sessions, a fresh request issues a distinct
+handle that retrieves the same bytes.
+The [mounted download expiry row](../rust-integration/mcp-operation-qualification-v5.md#mounted-mcp-download-handle-expiry)
+records the exact scope.
+
 The same default-library job also selects the single #296 case
 `http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`.
 It reuses #542's request helper and disposable same-Host construction. Setup

@@ -205,6 +205,28 @@ Other batch shapes, replay, failure outcomes, restart, bridge, WebMCP,
 and configured installation and device acceptance remain outside this case.
 Issue #288 remains open.
 
+## Mounted MCP download handle expiry
+
+| Operation | Profile and fixture | Named case | Scope |
+| --- | --- | --- | --- |
+| `atlas.asset.download` | M, disposable in-process Host with generated Editor and one UTF-8 original | [`mounted_mcp_asset_download_expires_at_issuer_deadline`](../../backend/src/http/agents/asset_download_healthy.rs) | Authenticated GET immediately before and at the issuer's five-minute deadline, plus fresh authorized issuance and GET |
+
+The case extends M34's positive transfer to the exact expiry boundary.
+It obtains the handle through mounted MCP and reads its stored deadline
+from the Host's registry.
+A fixture-local clock supplies monotonic time to the same issuance,
+validation, and redemption decisions used by the Host.
+At deadline minus one nanosecond, authenticated GET returns the exact original.
+At the deadline, GET of that handle returns `403` with no attachment.
+The same HTTP cookie and MCP session can still issue a distinct handle
+for the same asset and retrieve identical bytes.
+
+This case is discovered by the existing default backend-library command.
+The source inventory refreshes the two reviewed issuer and fixture pins.
+The fixture uses one generated asset and tests a request arriving at expiry.
+Expiry during delivery, session expiry/revocation, process restart,
+other formats, browser behavior, and installed acceptance remain open.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor
