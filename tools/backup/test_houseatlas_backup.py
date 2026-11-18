@@ -228,6 +228,26 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
             hb.settle_blobs(config, store, models, [])
         self.assertEqual(failure.exception.step, "iCloud upload")
 
+    def test_a_refused_eviction_is_retried_until_icloud_allows_it(self):
+        helper, evicted = self.fake_icloud_helper()
+        refusals = self.root / "refusals"
+        refusals.write_text("2")
+        real = helper.read_text()
+        helper.write_text(real.replace("#!/bin/sh\n", f"""#!/bin/sh
+if [ "$1" = evict ] && [ "$(cat {refusals})" -gt 0 ]; then
+  echo $(( $(cat {refusals}) - 1 )) > {refusals}; echo 'evict: cannot be evicted' >&2; exit 1
+fi
+""", 1))
+        blob = self.root / "blob"
+        blob.write_bytes(b"x")
+        with mock.patch.object(hb, "EVICT_RETRY_SECONDS", 0):
+            hb.evict(type("C", (), {"icloud_helper": helper, "upload_timeout": 5})(), blob)
+            refusals.write_text("1")
+            with self.assertRaises(hb.StepFailed) as failed:
+                hb.evict(type("C", (), {"icloud_helper": helper, "upload_timeout": -1})(), blob)
+        self.assertTrue((evicted / "blob").exists())
+        self.assertEqual(failed.exception.step, "iCloud evict")
+
     def test_restore_command_refuses_an_existing_destination(self):
         store = self.root / "store"
         listed = hb.list_models(self.release())

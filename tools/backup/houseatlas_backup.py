@@ -397,6 +397,27 @@ def wait_for(config: Config, path: Path, step: str, done) -> dict:
         time.sleep(15)
 
 
+# Pause between refused evictions while iCloud Drive catches up.
+EVICT_RETRY_SECONDS = 30
+
+
+def evict(config: Config, path: Path) -> None:
+    """Evict this Mac's copy so the next read comes from iCloud. A busy iCloud
+    Drive can refuse to evict a file it already reports as uploaded (File
+    Provider error -2008, not evictable) until it has caught up, so a refused
+    eviction is retried until the upload deadline."""
+    deadline = time.monotonic() + config.upload_timeout
+    while True:
+        try:
+            icloud(config, "evict", path)
+            break
+        except StepFailed as error:
+            if time.monotonic() > deadline:
+                raise StepFailed("iCloud evict", error.detail) from None
+            time.sleep(EVICT_RETRY_SECONDS)
+    wait_for(config, path, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+
+
 def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Path) -> Path:
     folder = config.icloud_directory
     folder.mkdir(exist_ok=True)
@@ -414,8 +435,7 @@ def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Pa
 
     wait_for(config, target, "iCloud upload", lambda s: s.get("uploaded"))
     wait_for(config, folder / f"{archive.name}.sha256", "iCloud upload", lambda s: s.get("uploaded"))
-    icloud(config, "evict", target)
-    wait_for(config, target, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+    evict(config, target)
     icloud(config, "download", target)
     wait_for(config, target, "iCloud download", lambda s: s.get("downloadingStatus") == "NSURLUbiquitousItemDownloadingStatusCurrent")
 
@@ -433,8 +453,7 @@ def settle_blobs(config: Config, store: Path, models: list[dict], created: list[
     for blob in dict.fromkeys(store / "blobs" / model["sha256"] for model in models):
         wait_for(config, blob, "iCloud upload", lambda s: s.get("uploaded"))
     for blob in created:
-        icloud(config, "evict", blob)
-        wait_for(config, blob, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+        evict(config, blob)
 
 
 def fetch_from_icloud(config: Config):

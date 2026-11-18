@@ -38,8 +38,10 @@ Network source state; recover those through their own private procedures.
    `.sha256` file, into the configured iCloud Drive folder. The report lists the
    model files and their hashes; the archive does not carry them. Existing files
    are never overwritten.
-6. Waits until iCloud reports the archive uploaded, evicts the local copy,
-   downloads it again from iCloud, compares its hash, unpacks it and repeats the
+6. Waits until iCloud reports the archive uploaded, evicts the local copy
+   (retrying a refused eviction until the upload deadline, since a busy iCloud
+   Drive can refuse it for a while after reporting the upload), downloads it
+   again from iCloud, compares its hash, unpacks it and repeats the
    restore check on the downloaded copy. It then rebuilds the full model
    folders from `models/blobs/`, downloading any evicted blob, and checks every
    file's hash and every manifest's pins again.
