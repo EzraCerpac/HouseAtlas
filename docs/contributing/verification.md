@@ -1706,6 +1706,19 @@ audit/intent rows and native read parity, and a generated Viewer's mounted
 initialization is still refused without changing selected facts. Old-session and
 expiry refusal stay with the existing #533 cases; no installed profile is exercised.
 
+The same default backend-library selection discovers
+`http::agents::mounted_evidence_controls::mounted_editor_ordered_evidence_batch_retains_child_receipts`.
+It sends one `atlas.batch.execute` with two generated evidence creates through
+mounted Editor MCP on a disposable `ExistingEditorCommands` Host.
+The test validates the admitted input schema and canonical root and child
+correlation, including text and structured result parity.
+An authenticated retained-intent lookup preserves the original root response
+and both child receipts in submission order.
+Native record reads agree with mounted readback, and the actual Editor-attributed
+audits follow the receipt order in SQLite.
+The scope and remaining #288 evidence are recorded in the
+[mounted batch qualification row](../rust-integration/mcp-operation-qualification-v5.md#mounted-editor-ordered-evidence-batch).
+
 The default backend-library selection also discovers
 `http::response_layer::directory_index_tests::built_folder_urls_redirect_to_their_exact_entry`.
 Through the actual router of a disposable loopback-local Host with generated

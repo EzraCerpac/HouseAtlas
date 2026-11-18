@@ -2,7 +2,7 @@
 //! Intended test-only home: http::agents::mounted_evidence_controls.
 //! Actual default Host/router/Access/StockService/SQLite; generated evidence only.
 //! No mounted Viewer admission, browser, listener, expiry, reopen or provider proof.
-//! One case selects the explicit Editor command profile for audited MCP writes.
+//! The explicit Editor command profile covers audited MCP singles and an ordered batch.
 
 use super::stock_dispatch;
 use crate::{
@@ -540,7 +540,7 @@ impl<'a> Mounted<'a> {
         Ok(body)
     }
 
-    async fn read(&mut self, request: &Value) -> Result<Value, Failure> {
+    async fn call(&mut self, request: &Value) -> Result<Value, Failure> {
         wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
         let reply = self
             .rpc(
@@ -563,33 +563,20 @@ impl<'a> Mounted<'a> {
             .get("structuredContent")
             .ok_or("Missing actual structured result")?;
         assert_eq!(&text, raw);
-        validate_response(&self.fixture.validation, request, raw, "read")?;
         Ok(raw.clone())
     }
 
+    async fn read(&mut self, request: &Value) -> Result<Value, Failure> {
+        let raw = self.call(request).await?;
+        validate_response(&self.fixture.validation, request, &raw, "read")?;
+        Ok(raw)
+    }
+
     async fn commit(&mut self, request: &Value) -> Result<Value, Failure> {
-        wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
-        let reply = self
-            .rpc(
-                "tools/call",
-                json!({"name":"atlas_records","arguments":request}),
-            )
-            .await?;
-        assert!(reply.get("error").is_none());
-        let result = &reply["result"];
-        assert_eq!(result["isError"], false);
-        let raw = result
-            .get("structuredContent")
-            .ok_or("Missing actual structured result")?;
-        let text: Value = serde_json::from_str(
-            result["content"][0]["text"]
-                .as_str()
-                .ok_or("Missing actual text body")?,
-        )?;
-        assert_eq!(&text, raw);
-        validate_response(&self.fixture.validation, request, raw, "committed")?;
+        let raw = self.call(request).await?;
+        validate_response(&self.fixture.validation, request, &raw, "committed")?;
         assert_eq!(raw["data"]["auditIds"].as_array().unwrap().len(), 1);
-        Ok(raw.clone())
+        Ok(raw)
     }
 
     async fn unadmitted_mutation(&mut self, request: &Value) -> Result<(), Failure> {
@@ -975,5 +962,113 @@ async fn mounted_editor_command_profile_commits_audited_writes_and_refuses_viewe
     fixture.refuse_viewer_initialization(&viewer).await?;
     assert_eq!(fixture.facts()?, before);
     drop(fixture);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_editor_ordered_evidence_batch_retains_child_receipts() -> Result<(), Failure> {
+    let fixture = Fixture::with_profile(McpCommandProfile::ExistingEditorCommands)?;
+    let editor = fixture.login("editorLogin").await?;
+    let principal = fixture.principal(&editor, a::Role::Editor)?;
+    let mut mounted = Mounted::open(&fixture, &editor).await?;
+    // Descending record IDs make input order distinct from record-ID sorting.
+    let numbers = [42_002, 42_001];
+    let children = [
+        mutation(&fixture.context, numbers[0], "create", None, 91_010),
+        mutation(&fixture.context, numbers[1], "create", None, 91_020),
+    ];
+    let batch = json!({"schemaVersion":3,"commandId":"atlas.batch.execute",
+        "requestId":id(91_000),"context":fixture.context,
+        "target":{"authority":"atlas","kind":"batch","batchId":id(91_002)},
+        "payload":{"commands":children},"idempotencyKey":id(91_001),
+        "reason":"Generated mounted ordered evidence batch","approvalReceiptId":null,
+        "preconditions":{"target":null,"guards":[]}});
+    let tools = mounted.rpc("tools/list", json!({})).await?;
+    let records = tools["result"]["tools"]
+        .as_array()
+        .ok_or("Missing actual tools")?
+        .iter()
+        .find(|tool| tool["name"] == "atlas_records")
+        .ok_or("Missing actual record family")?;
+    assert_eq!(records["annotations"]["readOnlyHint"], false);
+    let admitted = jsonschema::options()
+        .with_draft(jsonschema::Draft::Draft202012)
+        .offline()
+        .build(&records["inputSchema"])
+        .map_err(|_| "Invalid actual input schema")?;
+    assert!(admitted.is_valid(&batch));
+
+    let root = mounted.call(&batch).await?;
+    let after_commit = fixture.facts()?;
+    let mut lookup = batch.clone();
+    lookup["requestId"] = json!(id(91_030));
+    let response = fixture
+        .exchange(
+            Method::POST,
+            "/api/atlas/retained-intent",
+            Some(&lookup),
+            Some(&editor),
+            None,
+        )
+        .await?;
+    assert_eq!(response.status, StatusCode::OK);
+    let retained = response.json()?;
+    assert_eq!(retained["format"], "atlas-retained-reconciliation/1");
+    assert_eq!(retained["lookupRequestId"], lookup["requestId"]);
+    let result = &retained["committedResult"];
+    assert_eq!(result["originalRequestId"], batch["requestId"]);
+    assert_eq!(result["wire"], root);
+    let receipts = result["children"]
+        .as_array()
+        .ok_or("Missing retained children")?;
+    let parsed = wire::StockRequest::parse(&fixture.validation, batch.clone())?;
+    wire::StockResponse::parse(&fixture.validation, &parsed, root.clone(), receipts)?;
+    assert_eq!(root["replayed"], false);
+    assert_eq!(
+        retained["inspection"],
+        json!({
+            "format":"atlas-retained-intent-inspection/1", "resolvedScope":fixture.context,
+            "coverage":"retained-atlas-stock-only", "outcome":"retained-commit",
+            "retrySafety":"not-established", "rootOperationId":root["operationId"],
+            "operationId":root["operationId"], "commandId":batch["commandId"],
+            "requestDigest":parsed.intent_digest(),
+        })
+    );
+
+    let mut operation_ids = BTreeSet::from([root["operationId"].as_str().unwrap()]);
+    let mut expected_audits = Vec::new();
+    for (index, (number, receipt)) in numbers.into_iter().zip(receipts).enumerate() {
+        assert!(operation_ids.insert(receipt["operationId"].as_str().unwrap()));
+        let request = get(&fixture.context, number, 91_040 + index as u32);
+        let read = fixture.native_read(&principal, &request)?;
+        assert_eq!(mounted.read(&request).await?, read);
+        assert_eq!(
+            read["data"]["records"],
+            json!([record(number, 1, "active")])
+        );
+        assert_eq!(receipt["data"]["records"], read["data"]["records"]);
+        assert_eq!(receipt["replayed"], false);
+        assert_eq!(receipt["data"]["auditIds"].as_array().unwrap().len(), 1);
+        let events = fixture.committed_events(&[(children[index].clone(), receipt.clone())])?;
+        assert_eq!(events[0]["actorId"], editor.actor);
+        expected_audits.push(events[0]["eventId"].as_str().unwrap().to_owned());
+    }
+
+    let database = Connection::open_with_flags(
+        fixture.directory.join("atlas.sqlite"),
+        OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    let mut query = database.prepare(
+        "SELECT a.audit_id FROM audits a JOIN stock_audit_links l USING (audit_id)
+         WHERE l.root_operation_id=?1 ORDER BY a.seq",
+    )?;
+    let audit_ids = query
+        .query_map([root["operationId"].as_str().unwrap()], |row| {
+            row.get::<_, String>(0)
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(audit_ids, expected_audits);
+    assert_eq!(root["data"]["auditIds"], json!(audit_ids));
+    assert_eq!(fixture.facts()?, after_commit);
     Ok(())
 }
