@@ -62,7 +62,8 @@ export function InternetSpeeds({ collector, rows }: { readonly collector: Networ
   readonly rows: readonly { readonly scope: CollectorScope; readonly label: string; readonly mismatches?: readonly (string | null)[] }[] }) {
   const snapshot = useSyncExternalStore(collector.store.subscribe, collector.store.snapshot, collector.store.snapshot);
   useEffect(() => { for (const row of rows) collector.store.ensure(row.scope); });
-  const shown = rows.filter(row => collectorResults(snapshot, row.scope));
+  // A source whose post-refresh re-read retired its results still shows that refresh's answer.
+  const shown = rows.filter(row => collectorResults(snapshot, row.scope) || refreshRetired(snapshot, row.scope));
   const distinct = new Set(shown.map(row => row.label)).size === shown.length;
   // Sources that share a name and a collection are numbered in the order of their source identity, never by the identity itself.
   const full = (row: (typeof shown)[number]) => distinct ? row.label : `${row.label} · ${row.scope.collectionId}`;

@@ -47,6 +47,9 @@ export interface CollectorSnapshot {
   readonly refreshing: string | null;
   /** The latest device-list refresh answer per scope. */
   readonly refreshes: ReadonlyMap<string, RefreshOutcome>;
+  /** Per scope, the server fetch time (or null) of this browser's latest refresh
+   * whose re-read affirmed agreement; later answers without a re-read keep it. */
+  readonly agreed: ReadonlyMap<string, string | null>;
 }
 export interface CollectorStore {
   readonly snapshot: () => CollectorSnapshot;
@@ -73,7 +76,7 @@ export function collectorResults(snapshot: CollectorSnapshot, scope: CollectorSc
 /** One store per Network layer showing: at most one results GET per scope,
  * and one action at a time. Nothing is read until a card or the key asks. */
 export function createCollectorStore(port: NetworkCollectorPort, now: () => string = () => new Date().toISOString()): CollectorStore {
-  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map(), speedRuns: new Map(), refreshing: null, refreshes: new Map() };
+  let state: CollectorSnapshot = { reads: new Map(), running: null, outcomes: new Map(), speedRuns: new Map(), refreshing: null, refreshes: new Map(), agreed: new Map() };
   let disposed = false;
   const listeners = new Set<() => void>(), controller = new AbortController();
   const set = (next: CollectorSnapshot) => { if (disposed) return; state = next; for (const changed of [...listeners]) changed(); };
@@ -114,9 +117,12 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
           record(outcome);
           if (outcome.reread === null || disposed) return;
           send(() => port.read(scope, controller.signal)).then(
-            value => value.status === 'available' && value.results
-              ? record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }) })
-              : record({ ...outcome, reread: 'unconfirmed' }),
+            value => {
+              if (!(value.status === 'available' && value.results)) return record({ ...outcome, reread: 'unconfirmed' });
+              const agreed = new Map(state.agreed), fetched = response?.status === 'refreshed' || response?.status === 'unchanged' ? response.cache.lastSuccessfulFetchAt : null;
+              if (affirmsAgreement(value)) agreed.set(key, fetched); else agreed.delete(key);
+              record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }), agreed });
+            },
             // The client's rule: a failed read (a denial looks the same as any other) retires the results.
             () => record({ ...outcome, reread: 'unconfirmed' }, { reads: new Map(state.reads).set(key, { status: 'failed' }) }));
         });
@@ -155,11 +161,13 @@ const withReason = (state: string, reason: string | null) => [state, reasonText(
 /** The collector's results say its device list differs from the one served. */
 export const listsDiffer = (results: CollectorResults) => results.status !== 'unavailable' && results.measurementReason === 'inventory-revision-mismatch';
 /** After this store's own refresh and its one re-read, the results no longer say the lists differ. */
+/** Usable results that affirm agreement: equal known revisions and no changed-list reason. */
+const affirmsAgreement = (value: CollectorResults) => value.status === 'available' && value.results !== null
+  && value.inventoryRevision !== null && value.inventoryRevision === value.servedInventoryRevision && !listsDiffer(value);
 export function refreshedListsAgree(snapshot: CollectorSnapshot, scope: CollectorScope) {
   const key = scopeKey(scope), read = snapshot.reads.get(key);
-  // Only usable results that affirm agreement: equal known revisions and no changed-list reason.
-  return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status === 'available' && read.value.results !== null
-    && read.value.inventoryRevision !== null && read.value.inventoryRevision === read.value.servedInventoryRevision && !listsDiffer(read.value);
+  // A later answer without a re-read (busy, failed, unreadable) leaves the agreement and the results it read in place.
+  return snapshot.agreed.has(key) && read?.status === 'read' && affirmsAgreement(read.value);
 }
 /** The re-read after this browser's refresh failed, so the results were retired; only the refresh answer remains. */
 export function refreshRetired(snapshot: CollectorSnapshot, scope: CollectorScope) {
@@ -177,8 +185,7 @@ export function refreshWithheld(snapshot: CollectorSnapshot, scope: CollectorSco
  * without a retrieval time, keeps its own reason. */
 export function refreshReconciled(snapshot: CollectorSnapshot, scope: CollectorScope, retrievedAt: string | null) {
   if (retrievedAt === null || !refreshedListsAgree(snapshot, scope)) return false;
-  const response = snapshot.refreshes.get(scopeKey(scope))?.response;
-  const fetched = response?.status === 'refreshed' || response?.status === 'unchanged' ? response.cache.lastSuccessfulFetchAt : null;
+  const fetched = snapshot.agreed.get(scopeKey(scope)) ?? null;
   return fetched !== null && Date.parse(retrievedAt) < Date.parse(fetched);
 }
 const REFRESH_REASON: Readonly<Record<string, string>> = {

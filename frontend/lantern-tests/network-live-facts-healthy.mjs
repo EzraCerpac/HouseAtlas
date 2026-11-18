@@ -369,7 +369,16 @@ try {
       assert(m.card(undefined,{...withheldFacts,retrievedAt:later}).includes(NOT_MEASURED_MISMATCH),`a frame retrieved ${later??'at an unknown time'} keeps its changed-list wording`);
       const back=m.block([withheldFacts.retrievedAt,later]);assert(back.includes('Changed, needs a refresh')&&back.includes(BUTTON)&&back.includes('Refreshed<span'),'and the control comes back beside the earlier answer');
     }
-    await settle();assert.deepEqual([m.port.reads,m.port.posts],[2,1],'no timer, poll or further read');m.store.dispose();
+    await settle();assert.deepEqual([m.port.reads,m.port.posts],[2,1],'no timer, poll or further read');
+    // A press that newer mismatch brought back may answer busy, a kept failure or nothing readable: the control stays for another explicit press.
+    for(const [answer,text] of [[{status:'running'},'Busy, a refresh is already running'],[{status:'failed',reason:'transport',quarantined:false},'Failed, the collector could not be reached; the previous device list is kept'],[new Error('lost'),'Outcome unknown, no readable answer']]) {
+      assert.equal(m.store.refresh(scopeOf),true);const p=m.port.pending.at(-1);if(answer instanceof Error)p.reject(answer);else p.resolve(refreshDecode(answer));await settle();
+      const out=m.block([withheldFacts.retrievedAt,'2026-01-01T06:00:00Z']);
+      assert(out.includes('Changed, needs a refresh')&&out.includes(BUTTON)&&out.includes(`${text}<span`),`after ${answer.status??'a lost answer'}, the newer frame's mismatch keeps the control`);
+      assert(!m.card().includes(NOT_MEASURED_MISMATCH)&&m.card(undefined,{...withheldFacts,retrievedAt:'2026-01-01T06:00:00Z'}).includes(NOT_MEASURED_MISMATCH),'the earlier agreement still covers only the older frame');
+      assert(!m.block([withheldFacts.retrievedAt]).includes(BUTTON),'without a newer mismatch, no control');
+    }
+    assert.deepEqual([m.port.reads,m.port.posts],[2,4],'one POST per press, no re-read without a published answer');m.store.dispose();
     // The re-read still differs (the list changed again) or fails: the control and the wording stay.
     // A re-read without results (failed, unknown during a poll, unavailable) keeps the earlier results, the control and the answer, unconfirmed.
     for(const [reread,text] of [[differ,'Refreshed, unchanged'],
@@ -389,8 +398,22 @@ try {
       assert(out.includes('<dt>Device list</dt>')&&out.includes('Refreshed, state not confirmed<span class="ua-note">recorded <time'),`${why}: the refresh answer stays, unconfirmed`);
       for(const gone of ['Last measured','<dt>Retrieved</dt>','Changed',BUTTON,'Test speed now','Wi-Fi']) assert(!out.includes(gone),`${why}: ${gone} is retired`);
       const card=k.card();assert(!card.includes('<dt>Test</dt>')&&card.includes(NOT_MEASURED_MISMATCH),`${why}: no test from retired results; the frame keeps its wording`);
-      assert.deepEqual([k.port.reads,k.port.posts],[2,1],`${why}: no further read or retry`);k.store.dispose();
+      assert.deepEqual([k.port.reads,k.port.posts],[2,1],`${why}: no further read or retry`);
+      // The key's parent selection keeps the retired source, so the answer shows there too, still without data or controls.
+      const keyed=renderToStaticMarkup(createElement(InternetSpeeds,{collector:k.collector,rows:[{scope:scopeOf,label:'Generated network',mismatches:[]}]}));
+      assert(keyed.includes('aria-label="Internet speed"')&&keyed.includes('Refreshed, state not confirmed<span')&&!keyed.includes('Last measured')&&!keyed.includes(BUTTON)&&!keyed.includes('Test speed now'),`${why}: one source through InternetSpeeds`);
+      k.store.dispose();
     }
+    // Two sources, one retired after its refresh: both stay named, the retired one with only its answer.
+    { const second={...scopeOf,collectionId:'second'},port={reads:0,pending:[],canTest:()=>true,act:()=>new Promise(()=>{}),
+        read:async scope=>{if(scope.collectionId==='second')return resultDecode(result);if(port.reads++===0)return resultDecode(differ);throw new Error('lost');},
+        refresh:()=>new Promise(resolve=>port.pending.push(resolve))},store=createCollectorStore(port,()=>T0),collector={port,store};
+      store.ensure(scopeOf);store.ensure(second);await settle();store.refresh(scopeOf);
+      port.pending[0](refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
+      const two=renderToStaticMarkup(createElement(InternetSpeeds,{collector,rows:[{scope:scopeOf,label:'Generated network'},{scope:second,label:'Generated network'}]}));
+      assert(two.includes('aria-label="Internet speed, Generated network · synthetic"')&&two.includes('aria-label="Internet speed, Generated network · second"'),'both sources stay named');
+      assert(two.includes('Refreshed, state not confirmed<span')&&two.match(/Last measured/g).length===1&&two.match(/Test speed now/g).length===1,'only the other source shows data and a test');
+      store.dispose(); }
     // Needs review: from the results, no control at all; from an answer, the control goes and nothing is re-read.
     { const r=mount([{...differ,reviewedInventoryRevision:1,needsReview:true}]);r.store.ensure(scopeOf);await settle();const out=r.block();
       assert(out.includes('Changed; it needs review before it can be refreshed')&&!out.includes('<button type="button" class="btn btn-small" aria-disabled="false">Refresh'),'review needed: said, no dead control');
