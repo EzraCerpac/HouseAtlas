@@ -30,6 +30,46 @@ def require(condition, message):
         raise QualificationFailure(message)
 
 
+@contextmanager
+def cleanup_on_exit(action):
+    """Always clean up; retain a primary failure if cleanup also fails."""
+    try:
+        yield
+    except BaseException as primary:
+        try:
+            action()
+        except BaseException as secondary:
+            primary.add_note(f"Cleanup also failed: {type(secondary).__name__}: {secondary}")
+        raise
+    else:
+        action()
+
+
+@contextmanager
+def elapsed_deadline(deadline):
+    """Unix main-thread alarm bounds the entire exchange, including trickle reads."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("HTTP exchange elapsed deadline exceeded")
+    require(threading.current_thread() is threading.main_thread(), "HTTP deadline requires the main thread")
+    require(signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0), "HTTP deadline requires an unused real timer")
+
+    def expired(_signum, _frame):
+        raise TimeoutError("HTTP exchange elapsed deadline exceeded")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+
+    def restore():
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+    with cleanup_on_exit(restore):
+        signal.setitimer(signal.ITIMER_REAL, remaining)
+        yield
+        if time.monotonic() >= deadline:
+            raise TimeoutError("HTTP exchange elapsed deadline exceeded")
+
+
 def document(path, value):
     path.write_text(json.dumps(value, separators=(",", ":")) + "\n")
     path.chmod(0o600)
@@ -130,16 +170,30 @@ def collector_peer():
         with lock:
             return Counter(requests)
 
-    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    with cleanup_on_exit(server.server_close):
         server.daemon_threads = True
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
-        try:
-            yield f"http://127.0.0.1:{server.server_port}", counts
-        finally:
+
+        def stop():
             server.shutdown()
             worker.join(timeout=5)
             require(not worker.is_alive(), "Disposable collector did not stop")
+
+        with cleanup_on_exit(stop):
+            yield f"http://127.0.0.1:{server.server_port}", counts
+
+
+def audit_collector(calls):
+    require(calls["GET", "/api/inventory"] == 2,
+            "Inventory GET count changed during backend shutdown")
+    require(all(method == "GET" and path in (
+        "/api/inventory", "/api/health", "/api/measurements", "/api/results")
+                for method, path in calls), "Collector received demand or an unexpected route")
+    require(all(calls["GET", path] > 0 for path in (
+        "/api/health", "/api/measurements", "/api/results")),
+        "Generated observation/result routes were not read")
 
 
 class Client:
@@ -148,7 +202,8 @@ class Client:
         self.origin = f"https://127.0.0.1:{port}"
         self.context = ssl.create_default_context(cafile=str(ca))
 
-    def request(self, method, path, session=None, body=None, csrf=True):
+    def request(self, method, path, session=None, body=None, csrf=True, deadline=None):
+        deadline = min(time.monotonic() + 10, deadline) if deadline is not None else time.monotonic() + 10
         # Direct literal loopback; no proxy/environment or redirect handling.
         headers = {"Origin": self.origin, "Sec-Fetch-Site": "same-origin"}
         if session:
@@ -160,15 +215,13 @@ class Client:
             headers["Content-Type"] = "application/json"
         connection = http.client.HTTPSConnection(
             "127.0.0.1", self.port, context=self.context, timeout=10)
-        try:
+        with cleanup_on_exit(connection.close), elapsed_deadline(deadline):
             connection.request(method, path, body=body, headers=headers)
             response = connection.getresponse()
             payload = response.read(1024 * 1024 + 1)
             require(len(payload) <= 1024 * 1024, "Backend response exceeded fixture bound")
             return (response.status, {key.lower(): value for key, value in response.getheaders()},
                     json.loads(payload) if payload else None)
-        finally:
-            connection.close()
 
     def login(self, user):
         status, headers, value = self.request("POST", "/api/atlas/auth/login", body={
@@ -178,10 +231,40 @@ class Client:
         value["cookie"] = headers["set-cookie"].split(";", 1)[0]
         return value
 
-    def ok(self, method, path, session):
-        status, _headers, value = self.request(method, path, session)
+    def ok(self, method, path, session, deadline=None):
+        status, _headers, value = self.request(method, path, session, deadline=deadline)
         require(status == 200, f"{method} {path}: HTTP {status}")
         return value
+
+
+def wait_for_startup(process, client, deadline):
+    while True:
+        require(time.monotonic() < deadline, "Production serve readiness timed out")
+        require(process.poll() is None, "Production serve exited before readiness")
+        try:
+            status, _headers, _value = client.request("GET", "/api/atlas/auth/mode", deadline=deadline)
+        except (ConnectionRefusedError, TimeoutError):
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+            continue
+        require(time.monotonic() < deadline, "Production serve readiness timed out")
+        require(status == 200, f"Production readiness: HTTP {status}")
+        return
+
+
+def stop_backend(process):
+    require(process.poll() is None, "Production serve exited before SIGTERM")
+    try:
+        process.terminate()
+    finally:
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            finally:
+                process.wait(timeout=5)
+            raise QualificationFailure("Production serve did not drain on SIGTERM")
+    require(process.returncode == 0, f"Production serve exited {process.returncode}")
 
 
 @contextmanager
@@ -189,31 +272,14 @@ def backend(executable, config, profile, client, log):
     digest = hashlib.sha256(profile.read_bytes()).hexdigest()
     command = [str(executable), "serve", "--server-config", str(config),
                "--provider-reads-profile", str(profile), "--provider-reads-sha256", digest]
-    with log.open("wb") as output:
+    output = log.open("wb")
+    with cleanup_on_exit(output.close):
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
                                    stdout=output, stderr=subprocess.STDOUT)
-        try:
-            deadline = time.monotonic() + 45
-            while True:
-                require(process.poll() is None, "Production serve exited before readiness")
-                try:
-                    status, _headers, _value = client.request("GET", "/api/atlas/auth/mode")
-                    require(status == 200, f"Production readiness: HTTP {status}")
-                    break
-                except (ConnectionRefusedError, TimeoutError):
-                    require(time.monotonic() < deadline, "Production serve readiness timed out")
-                    time.sleep(0.1)
+        with cleanup_on_exit(lambda: stop_backend(process)):
+            wait_for_startup(process, client, time.monotonic() + 45)
             yield
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
-                    raise QualificationFailure("Production serve did not drain on SIGTERM")
-            require(process.returncode == 0, f"Production serve exited {process.returncode}")
+            require(process.poll() is None, "Production serve exited before SIGTERM")
 
 
 def qualify(executable, root):
@@ -302,12 +368,13 @@ def qualify(executable, root):
                 # Poll public read metadata only while the initial passive poll completes.
                 deadline = time.monotonic() + 15
                 while True:
-                    facts = client.ok("GET", results, viewer)
+                    facts = client.ok("GET", results, viewer, deadline=deadline)
+                    require(time.monotonic() < deadline, "Stored collector results timed out")
                     if facts["status"] == "available":
                         break
                     require(facts["status"] == "unknown" and time.monotonic() < deadline,
                             "Stored collector results did not become available")
-                    time.sleep(0.1)
+                    time.sleep(min(0.1, max(0, deadline - time.monotonic())))
                 require(facts["mayRefresh"] is False and facts["needsReview"] is False,
                         "Viewer unexpectedly has refresh capability or review changed")
                 require(facts["servedInventoryRevision"] == facts["inventoryRevision"]
@@ -329,23 +396,20 @@ def qualify(executable, root):
                         "Ordinary reads or Viewer refusal fetched inventory")
             require((data / "server-state.json").read_bytes() == receipt,
                     "Qualification changed the initialization receipt")
-            calls = counts()
-            require(all(method == "GET" and path in (
-                "/api/inventory", "/api/health", "/api/measurements", "/api/results")
-                        for method, path in calls), "Collector received demand or an unexpected route")
-            require(all(calls["GET", path] > 0 for path in (
-                "/api/health", "/api/measurements", "/api/results")),
-                "Generated observation/result routes were not read")
+            audit_collector(counts())
             print("PASS production initialize/serve: generated Editor and Viewer; native empty-cache setup")
             print("PASS Editor CSRF POST: revision 42 published; exactly preflight + reviewed final inventory GET")
             print("PASS ordinary Viewer read: generated device/revision; stored results attached; mayRefresh=false")
             print("PASS Viewer POST: HTTP 403 before/after publication; reads/refusals never fetch inventory")
-            print("PASS collector: stored JSON GETs only; owned backend drained; disposable state removed on exit")
+            print("PASS collector: stored JSON GETs only through backend shutdown; owned backend drained")
             print("HTTP qualification only; browser UI, installed configuration and real devices remain untested")
-        except Exception:
+        except BaseException as primary:
             # Only this harness's generated settings/data can appear here.
-            if log.exists():
-                print(log.read_text()[-8000:])
+            try:
+                if log.exists():
+                    print(log.read_text()[-8000:])
+            except Exception as secondary:
+                primary.add_note(f"Reading backend diagnostics also failed: {secondary}")
             raise
 
 
@@ -360,11 +424,14 @@ def main():
     def interrupted(signum, _frame):
         raise SystemExit(128 + signum)
 
-    signal.signal(signal.SIGTERM, interrupted)
+    previous = signal.signal(signal.SIGTERM, interrupted)
     os.umask(0o077)
     print(f"Backend executable: {executable}", flush=True)
-    with tempfile.TemporaryDirectory(prefix="houseatlas-network-binary-") as directory:
-        qualify(executable, Path(directory).resolve(strict=True))
+    with cleanup_on_exit(lambda: signal.signal(signal.SIGTERM, previous)):
+        directory = tempfile.TemporaryDirectory(prefix="houseatlas-network-binary-")
+        with cleanup_on_exit(directory.cleanup):
+            qualify(executable, Path(directory.name).resolve(strict=True))
+    print("PASS cleanup: owned collector stopped and disposable state removed")
 
 
 if __name__ == "__main__":

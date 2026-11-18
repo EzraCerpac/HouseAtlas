@@ -6738,22 +6738,45 @@ commands, followed by ordinary public HTTPS session and Network routes.
 It does not read an installed service's settings or contact its listener.
 The executable may be an existing installed binary;
 the invocation below instead builds the normal release target from this tree.
-Prerequisites are the pinned Rust toolchain for building, Python 3 and OpenSSL.
+Prerequisites are an existing `uv`, Python 3.11 or newer and OpenSSL on Unix.
+The runner uses a main-thread `SIGALRM` elapsed deadline.
+Building also requires the pinned Rust toolchain and cached Cargo dependencies
+for the offline build.
+The NAS variant additionally requires `mise` and its preconfigured
+`nas:build` pool task.
 No packages are installed by the runner.
 
 ```sh
+(
+set -eu
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:?Export an existing external Cargo target directory in the calling shell}"
+UV_PYTHON_DOWNLOADS=never uv run --offline --no-project --python python3 python - <<'PY'
+import os
+from pathlib import Path
+target = Path(os.environ["CARGO_TARGET_DIR"])
+if not target.is_absolute() or not target.is_dir() or target.resolve().is_relative_to(Path.cwd().resolve()):
+    raise SystemExit("CARGO_TARGET_DIR must be an existing absolute directory outside this checkout")
+PY
 mise run nas:build -- cargo build --release --offline --locked -p houseatlas-backend --bin houseatlas
 UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 tools/rust-integration/network-binary-loopback.py --executable "$CARGO_TARGET_DIR/release/houseatlas"
+)
 ```
 
-Use the repository's pinned Rust toolchain and an existing external
-`CARGO_TARGET_DIR` for the build.
+Use the repository's pinned Rust toolchain.
+Export an existing external `CARGO_TARGET_DIR` in the calling shell before
+both commands;
+the binary path expands there, outside the `mise` task.
+The block retains and validates that selection before the build or binary-path
+expansion, and stops on any error without changing the caller's shell options.
 On hosts without the NAS build pool, run the same commands without
 `mise run nas:build --`.
 To qualify another executable, replace the `--executable` value with its
-absolute path and skip the build.
+absolute path and skip the build and target-directory validation.
 The runner owns and stops only its child backend and fake collector.
-It removes its canonical private temporary directory on completion or error.
+It attempts cleanup on completion or error and reports cleanup failures;
+a primary failure is preserved if cleanup also fails.
+The cleanup PASS is emitted only after the collector has stopped and the
+canonical private temporary directory has been removed.
 
 Production initialization provisions generated Editor and Viewer accounts,
 their exact home memberships, Access and an empty Store.
@@ -6782,9 +6805,24 @@ The qualification checks:
   The collector receives only GETs for the four explicitly generated
   inventory/health/measurements/results documents.
   Its invented ping history is stored JSON;
-  no ping, diagnostics action or other command is executed.
+  the fake collector receives no diagnostic request.
+  The runner does not monitor backend process execution.
 - The production backend drains on SIGTERM,
   and its initialization receipt stays unchanged.
+  An early clean exit fails the drain check.
+  The exact inventory GET count is checked again after backend shutdown.
+
+Each full HTTP exchange has a ten-second elapsed limit,
+including incremental headers/body reads and TLS setup.
+Startup readiness and the initial results wait pass their remaining
+45-second and 15-second budgets into those exchanges and reject late success.
+The separate opt-in runner checks exercise trickle headers/body,
+readiness expiry, early exit, failed drain, post-shutdown traffic auditing,
+cleanup ordering and preservation of primary errors:
+
+```sh
+UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 tools/rust-integration/test_network_binary_loopback.py
+```
 
 This is executable-level HTTP acceptance with disposable TLS and native state.
 The minimal generated frontend asset only satisfies production startup;

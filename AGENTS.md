@@ -273,5 +273,7 @@ temporary accounts, profile, native cache and loopback collector JSON.
 It uses production initialize/serve and public HTTPS routes;
 the [verification guide](docs/contributing/verification.md#opt-in-network-refresh-through-the-production-binary)
 records its invocation and HTTP-only boundary.
+The companion opt-in `test_network_binary_loopback.py` checks elapsed bounds,
+shutdown auditing and cleanup ordering with generated peers and fake processes.
 It adds no default selection, workflow, installed configuration or live-device
 acceptance.
