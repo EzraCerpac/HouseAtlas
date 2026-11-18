@@ -72,8 +72,11 @@ function hookRuntime() {
   };
 }
 let runtime = hookRuntime();
-const RetainedApp = () => null, SavedAtlasHost = () => null, Modal = () => null, SourcePdf = () => null, HeldDownload = () => null;
-const hooks = { ...intent, RetainedApp, SavedAtlasHost, Modal, SourcePdf, HeldDownload,
+let waiting = 0, reachable = false;
+const SavedAtlasHost = () => null, Modal = () => null, SourcePdf = () => null, HeldDownload = () => null;
+const hooks = { ...intent, SavedAtlasHost, Modal, SourcePdf, HeldDownload,
+  Icon: () => null, SectionNavigation: () => null, formatDate: value => value,
+  useLiveHost: () => ({ reachable, checking: false }), useOutbox: () => ({ waiting }), useSyncExternalStore: () => false,
   useState: value => runtime.useState(value), useRef: value => runtime.useRef(value),
   useEffect: (fn, deps) => runtime.useEffect(fn, deps), useLayoutEffect: (fn, deps) => runtime.useLayoutEffect(fn, deps) };
 const token = Symbol.for('houseatlas.offline-presentation.synthetic');
@@ -81,10 +84,12 @@ globalThis[token] = hooks;
 const jsx = data('export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment=Symbol.for("generated-fragment");');
 let code = await transform(`const { ${Object.keys(hooks).join(',')} } = globalThis[Symbol.for('houseatlas.offline-presentation.synthetic')];
   ${between('export function OfflineLanternHost(', '\nfunction RetainedApp(')}
+  export ${between('function RetainedApp(', '\n/** Unsent local drafts')}
   export ${between('async function readHeldDocument(', '\nfunction ReopenedDocument(')}
   export ${host.slice(host.indexOf('function ReopenedDocument('))}`, 'generated-offline-presentation.tsx', 'tsx');
 code = code.replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(jsx));
 const component = await import(data(code));
+const { RetainedApp } = component;
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 const box = { hidden: false, setAttribute(name) { assert.equal(name, 'hidden'); this.hidden = true; },
   removeAttribute(name) { assert.equal(name, 'hidden'); this.hidden = false; } };
@@ -159,12 +164,36 @@ for (const request of [native, electrical, homebox]) {
 }
 console.log('PASS actual reopen resolver: all three namespaces revalidate exact pins, membership and fresh metadata before bytes');
 
-function find(node, type) {
-  if (node?.type === type) return node;
+function find(node, type, matches = () => true) {
+  if (node?.type === type && matches(node.props)) return node;
   const children = node?.props?.children;
-  for (const child of Array.isArray(children) ? children : [children]) { if (child && typeof child === 'object') { const found = find(child, type); if (found) return found; } }
+  for (const child of Array.isArray(children) ? children : [children]) { if (child && typeof child === 'object') { const found = find(child, type, matches); if (found) return found; } }
   return null;
 }
+function text(node) {
+  if (Array.isArray(node)) return node.map(text).join('');
+  return typeof node === 'string' ? node : node?.props ? text(node.props.children) : '';
+}
+runtime = hookRuntime();
+const pillProps = { ...props, presentation: intent.emptyReadingIntent(),
+  selection: { handle: {}, snapshot: snapshot({ capturedAt: '2030-01-01T00:00:00Z' }), signal: new AbortController().signal } };
+for (const [count, offline, online] of [
+  [0, 'Offline · Check connection', 'Back online · Open live'],
+  [1, 'Offline · 1 change waiting · Check connection', 'Back online · Open live to sync 1 change'],
+  [3, 'Offline · 3 changes waiting · Check connection', 'Back online · Open live to sync 3 changes'],
+]) {
+  waiting = count;
+  for (const [connected, label] of [[false, offline], [true, online]]) {
+    reachable = connected;
+    runtime.begin();
+    const pill = find(RetainedApp(pillProps), connected ? 'a' : 'button', props => props.className === 'offline-pill');
+    assert(pill);
+    assert.equal(text(pill), label);
+    if (connected) assert.equal(pill.props.href, '/?live');
+  }
+}
+console.log('PASS offline pill and reconnect link: zero, one and multiple waiting changes, with the live href preserved');
+
 const selected = { handle: {}, snapshot: snapshot(), signal: new AbortController().signal, generation: 1 };
 let unavailable = 0;
 const readProps = { owner: localOwner('native', native.pin), selection: selected, reading: { request: native, position },

@@ -120,15 +120,15 @@ function RetainedApp({ owner, selection, openAtlas, presentation, changePresenta
   </div>;
   const stamp = <>Read-only held copy from <time dateTime={snapshot.capturedAt}>{formatDate(snapshot.capturedAt)}</time>.</>;
   const count = outbox.waiting;
-  const waiting = count ? ` · ${count} ${count === 1 ? 'change' : 'changes'} waiting` : '';
+  const changes = `${count} ${count === 1 ? 'change' : 'changes'}`;
   return <div className={`lantern-host app view-${view} offline-app`}>
     <a className="skip" href="#main">Skip to content</a>
     <header className="topbar"><span className="brand-name">HouseAtlas</span><span className="house-name">{snapshot.data.homeLabel}</span></header>
     <SectionNavigation view={view === 'rooms' ? 'atlas' : view} onView={setView} />
     <div className="shell-tools">
-      {live.reachable ? <a className="offline-pill" href="/?live">Back online · Open live{count ? ` to sync ${count} changes` : ''}</a>
+      {live.reachable ? <a className="offline-pill" href="/?live">Back online · Open live{count ? ` to sync ${changes}` : ''}</a>
         : <button className="offline-pill" type="button" onClick={live.check} disabled={live.checking} aria-live="polite">
-          <Icon name="wifi" size={15} />{live.checking ? 'Checking connection…' : <>Offline{waiting}<span className="offline-pill-action"> · Check connection</span></>}</button>}
+          <Icon name="wifi" size={15} />{live.checking ? 'Checking connection…' : <>Offline{count ? ` · ${changes} waiting` : ''}<span className="offline-pill-action"> · Check connection</span></>}</button>}
       <button type="button" className="icon-btn" aria-label="Settings" onClick={() => setSettings(true)}><Icon name="settings" size={20} /></button>
     </div>
     <main id="main" className="main" tabIndex={-1}>
