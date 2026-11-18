@@ -14,7 +14,8 @@
 import { createHash } from 'node:crypto';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { COMPONENTS, maxScale, meshInstances, readAccessor, readGlb, writeGlb } from './glb.mjs';
-import { decodePng, encodePng, shrinkImage } from './png.mjs';
+import { decodeJpeg } from './jpeg.mjs';
+import { decodePng, EMBEDDED_IMAGE_LIMITS, encodePng, shrinkImage } from './png.mjs';
 
 export const BAKE_DEFAULTS = Object.freeze({
   /** Drawn triangles, counted per node instance like the viewer counts them. */
@@ -392,12 +393,13 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     return decodedViews.get(image.bufferView);
   };
   const shrinks = image => { const pixels = decoded(image); return pixels !== null && Math.max(pixels.width, pixels.height) > options.textureSize; };
-  const slots = (json.materials ?? []).flatMap(material => [[material.normalTexture, 'normal'], [material.pbrMetallicRoughness?.baseColorTexture, 'srgb'],
+  const slots = (json.materials ?? []).flatMap(material => [[material.normalTexture, 'normal'], [material.pbrMetallicRoughness?.baseColorTexture, 'srgb', true],
     [material.emissiveTexture, 'srgb'], [material.pbrMetallicRoughness?.metallicRoughnessTexture, 'data'], [material.occlusionTexture, 'data']])
     .filter(([info]) => json.textures?.[info?.index]?.source !== undefined);
   const imageRoles = new Map(), copies = new Map();
-  for (const [info, role] of slots) {
+  for (const [info, role, baseColor] of slots) {
     const texture = json.textures[info.index], at = texture.source;
+    if (json.images?.[at]?.mimeType === 'image/jpeg' && !baseColor) throw new Error('Embedded JPEG is supported only for base colour');
     if (!imageRoles.has(at)) imageRoles.set(at, role);
     if (imageRoles.get(at) === role || !shrinks(json.images[at])) continue;
     if (!copies.has(`${info.index}:${role}`)) {
@@ -408,18 +410,35 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     info.index = copies.get(`${info.index}:${role}`);
   }
   const textures = [];
-  (json.images ?? []).forEach((image, at) => {
-    if (image.bufferView === undefined) return;
-    const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
+  if (json.images?.some(image => image.mimeType === 'image/jpeg') && json.images.length > EMBEDDED_IMAGE_LIMITS.images)
+    throw new Error('Too many embedded texture images');
+  for (const [at, image] of (json.images ?? []).entries()) {
+    const jpeg = image.mimeType === 'image/jpeg';
+    if (jpeg && (imageRoles.get(at) !== 'srgb' || image.uri !== undefined || !Number.isSafeInteger(image.bufferView) || image.bufferView < 0))
+      throw new Error('JPEG must be an embedded base-colour image');
+    if (image.bufferView === undefined) continue;
+    const view = source.bufferViews?.[image.bufferView], start = view?.byteOffset ?? 0;
+    if (jpeg) {
+      const buffer = source.buffers?.[0];
+      if (!view || view.buffer !== 0 || view.byteStride !== undefined || !Number.isSafeInteger(start) || start < 0
+        || !Number.isSafeInteger(view.byteLength) || view.byteLength < 0 || !bin
+        || !Number.isSafeInteger(buffer?.byteLength) || buffer.uri !== undefined || view.byteLength > Math.min(bin.byteLength, buffer.byteLength) - start)
+        throw new Error('Invalid embedded JPEG bufferView');
+    }
     let bytes = bin.subarray(start, start + view.byteLength);
-    const pixels = decoded(image);
-    if (shrinks(image)) {
+    const pixels = jpeg ? await decodeJpeg(bytes) : decoded(image);
+    if (jpeg || shrinks(image)) {
       const shrunk = shrinkImage(pixels, options.textureSize, imageRoles.get(at) ?? 'data');
       textures.push({ image: at, role: imageRoles.get(at) ?? 'data', from: [pixels.width, pixels.height], to: [shrunk.width, shrunk.height], bytes: bytes.byteLength });
       bytes = encodePng(shrunk); textures.at(-1).bakedBytes = bytes.byteLength;
+      if (jpeg) {
+        if (bytes.byteLength > EMBEDDED_IMAGE_LIMITS.encodedPerImage) throw new Error('Converted JPEG PNG exceeds the texture encoded size limit');
+        image.mimeType = 'image/png';
+        textures.at(-1).convertedFrom = 'image/jpeg';
+      }
     } else if (Number.isFinite(options.textureSize) && !pixels) textures.push({ image: at, kept: 'not an opaque 8-bit RGB, non-interlaced, well-formed PNG; left for the viewer to judge' });
     image.bufferView = addView(bytes);
-  });
+  }
   json.accessors = accessors; json.bufferViews = views;
   const outBin = writer.bytes();
   if (views.length === 0) { delete json.accessors; delete json.bufferViews; delete json.buffers; }
@@ -437,7 +456,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, binBytes: outBin.byteLength, drawnTriangles: drawn(report) },
       budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, siteWeight: options.siteWeight, weld: options.weld,
         textureSize: options.textureSize },
-      // Images halved to fit textureSize (and any this bake could not read, kept as authored).
+      // Images converted or halved to fit textureSize, and unreadable PNGs kept as authored.
       textures,
       rolesFrom: companion ? 'companion' : 'node-extras',
       // Upper bounds on how far baked geometry departs from the master: simplification plus welding.

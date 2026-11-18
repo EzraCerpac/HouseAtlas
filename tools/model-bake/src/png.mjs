@@ -6,14 +6,14 @@
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-/** The viewer's per-image bounds (EMBEDDED_PNG_LIMITS): larger sources stay refused as authored. */
-const LIMITS = { dimension: 1024, pixels: 1_048_576, encoded: 2_097_152 };
+/** Source and output image bounds from the viewer's EMBEDDED_PNG_LIMITS. */
+export const EMBEDDED_IMAGE_LIMITS = Object.freeze({ images: 64, dimension: 1024, pixels: 1_048_576, encodedPerImage: 2_097_152 });
 const letters = bytes => [...bytes].every(v => v >= 65 && v <= 90 || v >= 97 && v <= 122);
 
 /** RGBA pixels (alpha 255) of a PNG, or null where the bake leaves the PNG as authored. */
 export function decodePng(bytes) {
   const png = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (png.length < 57 || png.length > LIMITS.encoded || !png.subarray(0, 8).equals(SIGNATURE)) return null;
+  if (png.length < 57 || png.length > EMBEDDED_IMAGE_LIMITS.encodedPerImage || !png.subarray(0, 8).equals(SIGNATURE)) return null;
   let at = 8, width = 0, height = 0, ended = false, dataEnded = false, palette = false; const data = [];
   while (at < png.length) {
     if (ended || at + 12 > png.length) return null;
@@ -24,7 +24,8 @@ export function decodePng(bytes) {
     if (kind === 'IHDR') {
       if (length !== 13) return null;
       width = body.readUInt32BE(0); height = body.readUInt32BE(4);
-      if (width < 1 || height < 1 || width > LIMITS.dimension || height > LIMITS.dimension || width * height > LIMITS.pixels || body[8] !== 8 || body[9] !== 2 || body[10] !== 0 || body[11] !== 0 || body[12] !== 0) return null;
+      const { dimension, pixels } = EMBEDDED_IMAGE_LIMITS;
+      if (width < 1 || height < 1 || width > dimension || height > dimension || width * height > pixels || body[8] !== 8 || body[9] !== 2 || body[10] !== 0 || body[11] !== 0 || body[12] !== 0) return null;
     } else if (kind === 'IDAT') {
       if (dataEnded) return null; data.push(body);
     } else {
