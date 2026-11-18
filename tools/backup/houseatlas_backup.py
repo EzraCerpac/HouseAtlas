@@ -6,6 +6,8 @@ succeeded since the most recent 04:00 local, so a failed or missed night is
 retried each hour until one succeeds. Without `--if-due` a run always happens.
 
 One run:
+  0. asks iCloud Drive about the destination folder first; if iCloud does not
+     answer, the run fails here and the service is never stopped;
   1. stops the HouseAtlas launchd service, runs the native `backup` CLI against
      the live data directory, and starts the service again (seconds of downtime);
   2. lists the served model release with every file's hash and checks its pins;
@@ -360,8 +362,25 @@ def unpack(archive: Path, destination: Path) -> None:
         tar.extractall(destination, filter="tar")
 
 
+# A busy iCloud Drive (fileproviderd working through a large backlog) can take
+# minutes to answer one status query; give each helper call that long.
+ICLOUD_TIMEOUT = 600
+
+
 def icloud(config: Config, action: str, path: Path) -> dict:
-    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], 120))
+    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], ICLOUD_TIMEOUT))
+
+
+def icloud_ready(config: Config) -> None:
+    """Ask iCloud Drive about the destination before the service is stopped,
+    so an unresponsive iCloud fails the run without restarting the service."""
+    config.icloud_directory.mkdir(exist_ok=True)
+    try:
+        state = icloud(config, "status", config.icloud_directory)
+    except StepFailed as error:
+        raise StepFailed("iCloud preflight", error.detail) from None
+    if not state.get("ubiquitous"):
+        raise StepFailed("iCloud preflight", "destination is not in iCloud Drive")
 
 
 def wait_for(config: Config, path: Path, step: str, done) -> dict:
@@ -675,6 +694,7 @@ def backup(config: Config) -> dict:
         timings[name] = round(time.monotonic() - begin, 1)
         return result
 
+    timed("icloudPreflightSeconds", icloud_ready, config)
     service = Service(config)
     restore_binary = config.restore_check_binary or service.binary
     capture_report = timed("captureSeconds", capture, service, config, work / "bundle")
@@ -702,7 +722,6 @@ def backup(config: Config) -> dict:
 
     # Blobs go up before the archive that names them, so no archive in iCloud
     # ever points at a model file that is not there.
-    config.icloud_directory.mkdir(exist_ok=True)
     store = config.icloud_directory / MODEL_STORE
     stored = timed("modelStoreSeconds", store_models, store, listed, stamp)
     timed("modelUploadSeconds", settle_blobs, config, store, models, stored)

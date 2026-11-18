@@ -91,6 +91,22 @@ class BackupScriptTest(unittest.TestCase):
             hb.capture(FakeService(), config, self.root / "bundle")
         self.assertEqual(calls, ["stop", "start"])
 
+    def test_unresponsive_icloud_stops_the_run_before_the_service(self):
+        helper = self.root / "icloud-helper"
+        helper.write_text("#!/bin/sh\necho 'status: no answer' >&2\nexit 1\n")
+        helper.chmod(0o700)
+        config_file = self.root / "config.json"
+        config_file.write_text(json.dumps({
+            "serviceLabel": "x", "servicePlist": "/unused", "stateDirectory": str(self.root / "state"),
+            "icloudDirectory": str(self.root / "icloud"), "icloudHelper": str(helper),
+        }))
+        touched = []
+        with mock.patch.object(hb, "Service", lambda config: touched.append("service")), \
+                mock.patch.object(hb, "capture", lambda *args: touched.append("capture")):
+            with self.assertRaises(hb.StepFailed) as failed:
+                hb.backup(hb.Config(config_file))
+        self.assertEqual((failed.exception.step, touched), ("iCloud preflight", []))
+
     def fake_icloud_helper(self):
         """Every file counts as uploaded; evict and download flip a marker."""
         helper = self.root / "icloud-helper"

@@ -11,6 +11,10 @@ Network source state; recover those through their own private procedures.
 
 ## What one run does
 
+0. Asks iCloud Drive about the destination folder. If iCloud does not answer
+   (each helper call may take up to ten minutes while iCloud Drive is busy), the
+   run fails here and the service is not stopped, so hourly retries during an
+   iCloud outage do not restart it.
 1. Stops the HouseAtlas launchd service, runs `houseatlas backup` against the
    live data directory, and starts the service again. The service is offline for
    the few seconds the capture takes, and the start runs even if capture fails.
