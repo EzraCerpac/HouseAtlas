@@ -329,7 +329,7 @@ try {
         read:async()=>{const v=reads[Math.min(port.reads++,reads.length-1)];if(v instanceof Error)throw v;return resultDecode(v);},
         ...(refresh?{refresh:()=>{port.posts++;return new Promise((resolve,reject)=>port.pending.push({resolve,reject}));}}:{})};
       const store=createCollectorStore(port,()=>T0),collector={port,store};
-      return {port,store,collector,block:()=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null})),card:storedAt=>deviceCard(withheldFacts,collector,storedAt)};
+      return {port,store,collector,block:mismatches=>renderToStaticMarkup(createElement(InternetSpeed,{collector,scope:scopeOf,label:null,mismatches})),card:(storedAt,facts=withheldFacts)=>deviceCard(facts,collector,storedAt)};
     };
     const settle=async()=>{for(let i=0;i<4;i++)await tick();};
     const BUTTON='>Refresh device list</button>';
@@ -359,9 +359,17 @@ try {
     assert(!html.includes(BUTTON)&&!html.includes('Changed')&&html.includes('<dt>Device list</dt>')&&html.includes(`Refreshed<span class="ua-note">recorded <time`)&&html.includes(fetched),'after agreement: the answer with its recorded time, no control');
     const cleared=m.card();assert(!cleared.includes(NOT_MEASURED_MISMATCH)&&cleared.includes('<span class="ua-net-reach-state">Not measured</span>'),'the card drops the changed-list wording once the re-read agrees');
     assert(m.card('2026-01-01T00:05:00Z').includes(NOT_MEASURED_MISMATCH),'a stored copy keeps its own wording');
+    // The suppression covers only facts read before the refresh's own fetch; a later frame's changed list is said again, and the control returns.
+    assert(!m.block([withheldFacts.retrievedAt]).includes(BUTTON),'the reconciled frame brings nothing back');
+    for(const later of ['2026-01-01T06:00:00Z',fetched,null]) {
+      assert(m.card(undefined,{...withheldFacts,retrievedAt:later}).includes(NOT_MEASURED_MISMATCH),`a frame retrieved ${later??'at an unknown time'} keeps its changed-list wording`);
+      const back=m.block([withheldFacts.retrievedAt,later]);assert(back.includes('Changed, needs a refresh')&&back.includes(BUTTON)&&back.includes('Refreshed<span'),'and the control comes back beside the earlier answer');
+    }
     await settle();assert.deepEqual([m.port.reads,m.port.posts],[2,1],'no timer, poll or further read');m.store.dispose();
     // The re-read still differs (the list changed again) or fails: the control and the wording stay.
-    for(const [reread,text] of [[differ,'Refreshed, unchanged'],[new Error('lost'),'Refreshed, unchanged, results not re-read']]) {
+    // A re-read without results (failed, unknown during a poll, unavailable) keeps the earlier results, the control and the answer, unconfirmed.
+    for(const [reread,text] of [[differ,'Refreshed, unchanged'],[new Error('lost'),'Refreshed, unchanged, state not confirmed'],
+      [{...differ,status:'unknown',retrievedAt:null,results:null},'Refreshed, unchanged, state not confirmed'],[{status:'unavailable'},'Refreshed, unchanged, state not confirmed']]) {
       const k=mount([differ,reread]);k.store.ensure(scopeOf);await settle();k.store.refresh(scopeOf);
       k.port.pending[0].resolve(refreshDecode({status:'unchanged',inventoryRevision:1,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
       const out=k.block();assert(out.includes(BUTTON)&&out.includes('Changed, needs a refresh')&&out.includes(`${text}<span`),`${text}: control stays`);
@@ -390,7 +398,7 @@ try {
     for(const [response,lost,reread,expected] of [
       [{status:'refreshed',inventoryRevision:2,cache:cache('fresh',null)},null,'read',{text:'Refreshed',at:'2026-01-01T01:00:00Z',recorded:true}],
       [{status:'unchanged',inventoryRevision:2,cache:{...cache('fresh',null),lastSuccessfulFetchAt:null}},null,'read',{text:'Refreshed, unchanged',at:T0,recorded:false}],
-      [{status:'refreshed',inventoryRevision:2,cache:cache('fresh',null)},null,'failed',{text:'Refreshed, results not re-read',at:'2026-01-01T01:00:00Z',recorded:true}],
+      [{status:'refreshed',inventoryRevision:2,cache:cache('fresh',null)},null,'unconfirmed',{text:'Refreshed, state not confirmed',at:'2026-01-01T01:00:00Z',recorded:true}],
       [{status:'needs-review',reviewedInventoryRevision:2,collectorInventoryRevision:3},null,null,{text:'Not refreshed, needs review',at:T0,recorded:false}],
       [{status:'running'},null,null,{text:'Busy, a refresh is already running',at:T0,recorded:false}],
       [{status:'not-configured'},null,null,{text:'Not refreshed, refresh is not set up for this source',at:T0,recorded:false}],
@@ -404,5 +412,5 @@ try {
     assert.equal(NOT_MEASURED_MISMATCH,'Not measured: the device list changed and needs a refresh','#718 wording unchanged');
     const dropped=mount([differ]);dropped.store.dispose();assert.equal(dropped.store.refresh(scopeOf),false,'a dropped store sends nothing');assert.equal(dropped.port.posts,0);
   }
-  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree, needs-review offers no control, every answer in words with its time');
+  console.log('PASS Network device-list refresh: only named refresh Editors while lists differ, nothing on browsing, one POST per press, pending blocks, one re-read after success clears the control and card wording only when the lists agree and only for facts read before the refresh, an unconfirmed re-read keeps the answer, needs-review offers no control, every answer in words with its time');
 } finally {rmSync(scratch,{recursive:true,force:true});}

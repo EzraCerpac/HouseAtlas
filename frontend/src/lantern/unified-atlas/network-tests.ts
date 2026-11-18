@@ -31,8 +31,9 @@ export interface RefreshOutcome {
   readonly lost: 'timeout' | 'unknown' | null;
   /** When this browser received the answer. */
   readonly answeredAt: string;
-  /** The one results re-read a refreshed answer sends; null when none was sent. */
-  readonly reread: 'pending' | 'read' | 'failed' | null;
+  /** The one results re-read a refreshed answer sends; null when none was sent.
+   * Unconfirmed: it failed or carried no results, and the earlier results stay. */
+  readonly reread: 'pending' | 'read' | 'unconfirmed' | null;
 }
 export interface CollectorSnapshot {
   readonly reads: ReadonlyMap<string, ResultsRead>;
@@ -113,8 +114,10 @@ export function createCollectorStore(port: NetworkCollectorPort, now: () => stri
           record(outcome);
           if (outcome.reread === null || disposed) return;
           send(() => port.read(scope, controller.signal)).then(
-            value => record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }) }),
-            () => record({ ...outcome, reread: 'failed' }));
+            value => value.status === 'available' && value.results
+              ? record({ ...outcome, reread: 'read' }, { reads: new Map(state.reads).set(key, { status: 'read', value }) })
+              : record({ ...outcome, reread: 'unconfirmed' }),
+            () => record({ ...outcome, reread: 'unconfirmed' }));
         });
       return true;
     },
@@ -155,6 +158,16 @@ export function refreshedListsAgree(snapshot: CollectorSnapshot, scope: Collecto
   const key = scopeKey(scope), read = snapshot.reads.get(key);
   return snapshot.refreshes.get(key)?.reread === 'read' && read?.status === 'read' && read.value.status !== 'unavailable' && !listsDiffer(read.value);
 }
+/** Whether that refresh reconciled a frame's changed-list reason: the re-read
+ * agreed and the frame's facts come from a source read retrieved before the
+ * refresh's own successful fetch (both server times). A later frame, or one
+ * without a retrieval time, keeps its own reason. */
+export function refreshReconciled(snapshot: CollectorSnapshot, scope: CollectorScope, retrievedAt: string | null) {
+  if (retrievedAt === null || !refreshedListsAgree(snapshot, scope)) return false;
+  const response = snapshot.refreshes.get(scopeKey(scope))?.response;
+  const fetched = response?.status === 'refreshed' || response?.status === 'unchanged' ? response.cache.lastSuccessfulFetchAt : null;
+  return fetched !== null && Date.parse(retrievedAt) < Date.parse(fetched);
+}
 const REFRESH_REASON: Readonly<Record<string, string>> = {
   'not-approved': 'this account is not approved to refresh this source',
   'access-revoked': 'access to this source is revoked',
@@ -171,7 +184,7 @@ export function refreshOutcomeText(outcome: RefreshOutcome): { readonly text: st
   switch (response.status) {
     case 'refreshed': case 'unchanged': {
       const at = response.cache.lastSuccessfulFetchAt;
-      const text = [response.status === 'unchanged' ? 'Refreshed, unchanged' : 'Refreshed', outcome.reread === 'failed' ? 'results not re-read' : null].filter(Boolean).join(', ');
+      const text = [response.status === 'unchanged' ? 'Refreshed, unchanged' : 'Refreshed', outcome.reread === 'unconfirmed' ? 'state not confirmed' : null].filter(Boolean).join(', ');
       return at ? { text, at, recorded: true } : answered(text);
     }
     case 'needs-review': return answered('Not refreshed, needs review');

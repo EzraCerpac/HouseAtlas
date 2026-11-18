@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CollectorAction, CollectorScope } from '../../../integration/network-collector';
 import { InlineTime } from '../components/ui';
 import { SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
-import { actionLabel, collectorResults, listsDiffer, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
+import { actionLabel, collectorResults, listsDiffer, refreshedListsAgree, refreshReconciled, outcomeKey, outcomeText, refreshOutcomeText, runningText, scopeKey, speedSparkline, speedText, speedWithTests, latestSpeed, runStateText, type CollectorSnapshot, type CollectorStore, type NetworkCollectorPort } from './network-tests';
 
 /** The collector the Network layer shows now: its port and its store. */
 export interface NetworkCollector { readonly port: NetworkCollectorPort; readonly store: CollectorStore }
@@ -58,7 +58,8 @@ export function DeviceTestRow({ collector, target }: { readonly collector: Netwo
 /** One speed block per Network source whose collector answered. Several are
  * named by their source, by the collection where source names repeat, and by a
  * number where both repeat. */
-export function InternetSpeeds({ collector, rows }: { readonly collector: NetworkCollector; readonly rows: readonly { readonly scope: CollectorScope; readonly label: string }[] }) {
+export function InternetSpeeds({ collector, rows }: { readonly collector: NetworkCollector;
+  readonly rows: readonly { readonly scope: CollectorScope; readonly label: string; readonly mismatches?: readonly (string | null)[] }[] }) {
   const snapshot = useSyncExternalStore(collector.store.subscribe, collector.store.snapshot, collector.store.snapshot);
   useEffect(() => { for (const row of rows) collector.store.ensure(row.scope); });
   const shown = rows.filter(row => collectorResults(snapshot, row.scope));
@@ -66,13 +67,15 @@ export function InternetSpeeds({ collector, rows }: { readonly collector: Networ
   // Sources that share a name and a collection are numbered in the order of their source identity, never by the identity itself.
   const full = (row: (typeof shown)[number]) => distinct ? row.label : `${row.label} · ${row.scope.collectionId}`;
   const twins = (row: (typeof shown)[number]) => shown.filter(other => full(other) === full(row)).map(other => other.scope.sourceInstanceId).sort();
-  return shown.map(row => <InternetSpeed key={scopeKey(row.scope)} collector={collector} scope={row.scope}
+  return shown.map(row => <InternetSpeed key={scopeKey(row.scope)} collector={collector} scope={row.scope} mismatches={row.mismatches ?? []}
     label={shown.length < 2 ? null : twins(row).length < 2 ? full(row) : `${full(row)} · ${twins(row).indexOf(row.scope.sourceInstanceId) + 1}`} />);
 }
 
 /** The host's internet speed from the collector's runs, the Wi-Fi scan state,
  * and the speed test for Editors. A host measurement, not one device's. */
-export function InternetSpeed({ collector, scope, label }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly label: string | null }) {
+export function InternetSpeed({ collector, scope, label, mismatches = [] }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly label: string | null;
+  /** Retrieval times of current-frame facts that report a changed device list. */
+  readonly mismatches?: readonly (string | null)[] }) {
   const snapshot = useCollector(collector, scope);
   const read = collectorResults(snapshot, scope);
   if (!read?.results) return null;
@@ -92,7 +95,7 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
         </svg>}</dd></div>
       {read.retrievedAt && <div><dt>Retrieved</dt><dd><InlineTime value={read.retrievedAt} /></dd></div>}
-      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} />
+      <DeviceListRefresh collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} />
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
@@ -108,9 +111,11 @@ export function InternetSpeed({ collector, scope, label }: { readonly collector:
  * browser's latest answer in view. A changed list that needs review first
  * offers no control. One POST per press; a refreshed answer re-reads the
  * results once, and the control goes when they say the lists agree. */
-function DeviceListRefresh({ collector, scope, snapshot }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot }) {
+function DeviceListRefresh({ collector, scope, snapshot, mismatches }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot; readonly mismatches: readonly (string | null)[] }) {
   const read = collectorResults(snapshot, scope), key = scopeKey(scope), outcome = snapshot.refreshes.get(key);
-  const pending = snapshot.refreshing === key, differ = read !== null && listsDiffer(read);
+  // After an agreeing refresh, a later frame that reports a changed list again brings the control back.
+  const again = refreshedListsAgree(snapshot, scope) && mismatches.some(at => !refreshReconciled(snapshot, scope, at));
+  const pending = snapshot.refreshing === key, differ = read !== null && (listsDiffer(read) || again);
   const review = differ && (read.needsReview || outcome?.response?.status === 'needs-review');
   const offered = differ && !review;
   const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered);

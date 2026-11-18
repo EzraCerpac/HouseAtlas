@@ -8,7 +8,7 @@ import { plural } from './atlas-text';
 import { reachability, reachabilityObservation, sparkline, SPARK_HEIGHT, SPARK_WIDTH } from './network-reachability';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 import { DeviceTestRow, type NetworkCollector } from './NetworkTests';
-import { refreshedListsAgree } from './network-tests';
+import { refreshReconciled } from './network-tests';
 
 /** What the Network layer has chosen on the map: a device, a reported link, or
  * one room's devices (its +n chip). Choosing never moves the camera. */
@@ -48,8 +48,9 @@ const STATUS: Record<NetworkLiveFacts['status'], string> = {
  * hourly series; absent when the frame carries no measurements. */
 const NO_STORE = () => () => undefined;
 function ReachabilityRow({ facts, collector }: { readonly facts: NetworkLiveFacts; readonly collector: NetworkCollector | null }) {
-  // Only this browser's own refresh, re-read, clears the changed-list wording; the row reads nothing itself.
-  const agreed = () => collector !== null && refreshedListsAgree(collector.store.snapshot(), facts.source);
+  // Only this browser's own refresh, re-read, clears the changed-list wording, and only for
+  // facts from before that refresh; the row reads nothing itself.
+  const agreed = () => collector !== null && refreshReconciled(collector.store.snapshot(), facts.source, facts.retrievedAt);
   const view = reachability(facts, useSyncExternalStore(collector?.store.subscribe ?? NO_STORE, agreed, agreed));
   if (!view) return null;
   const spark = sparkline(view.series);
