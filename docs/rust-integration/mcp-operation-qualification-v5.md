@@ -182,6 +182,29 @@ operation/profile/admission and authority. All other 65 pins, historical evidenc
 operation rows and execution/browser/installed states are unchanged. This source
 reinspection qualifies no new runtime or operational boundary.
 
+## Mounted Editor ordered evidence batch
+
+| Operation | Profile and fixture | Named case | Scope |
+| --- | --- | --- | --- |
+| `atlas.batch.execute` | E, disposable in-process Host with genuine generated Editor login and current CSRF | [`mounted_editor_ordered_evidence_batch_retains_child_receipts`](../../backend/src/http/agents/mounted_evidence_controls.rs) | One successful ordered batch of two distinct `atlas.evidence.create` children |
+
+This case extends the batch coverage beyond the borrowed MCP fixture in M12
+and the single-command mounted Editor controls.
+The actual `atlas_records` schema admits the batch, and the MCP response
+correlates to the root request with equal text and structured payloads.
+The Host's read-only `/api/atlas/retained-intent` POST uses a fresh lookup ID
+and returns the original root response and both original child receipts.
+Canonical response validation checks ordered record and audit flattening.
+Both distinct active revision-one records agree with native reads.
+The root and children have separate operation IDs, and their child audit IDs
+line up with the actual Editor-attributed SQLite audits in commit order.
+
+The existing default backend-library command discovers the case.
+This row records coverage separately from the historical PASS registry.
+Other batch shapes, replay, failure outcomes, restart, bridge, WebMCP,
+and configured installation and device acceptance remain outside this case.
+Issue #288 remains open.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor
