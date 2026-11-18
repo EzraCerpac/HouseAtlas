@@ -5,9 +5,11 @@ import datetime as dt
 import json
 import os
 import plistlib
+import shlex
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -91,12 +93,33 @@ class BackupScriptTest(unittest.TestCase):
             hb.capture(FakeService(), config, self.root / "bundle")
         self.assertEqual(calls, ["stop", "start"])
 
+    def test_unresponsive_icloud_stops_the_run_before_the_service(self):
+        helper = self.root / "icloud-helper"
+        helper.write_text("#!/bin/sh\necho 'status: no answer' >&2\nexit 1\n")
+        helper.chmod(0o700)
+        config_file = self.root / "config.json"
+        config_file.write_text(json.dumps({
+            "serviceLabel": "x", "servicePlist": "/unused", "stateDirectory": str(self.root / "state"),
+            "icloudDirectory": str(self.root / "icloud"), "icloudHelper": str(helper),
+        }))
+        touched = []
+        with mock.patch.object(hb, "Service", lambda config: touched.append("service")), \
+                mock.patch.object(hb, "capture", lambda *args: touched.append("capture")):
+            with self.assertRaises(hb.StepFailed) as failed:
+                hb.backup(hb.Config(config_file))
+            helper.unlink()  # a helper that cannot even be started
+            with self.assertRaises(hb.StepFailed) as missing:
+                hb.backup(hb.Config(config_file))
+        self.assertEqual((failed.exception.step, touched), ("iCloud preflight", []))
+        self.assertEqual(missing.exception.step, "iCloud preflight")
+        self.assertIn("cannot start", missing.exception.detail)
+
     def fake_icloud_helper(self):
         """Every file counts as uploaded; evict and download flip a marker."""
         helper = self.root / "icloud-helper"
         evicted = hb.private_dir(self.root / "evicted")
         helper.write_text(f"""#!/bin/sh
-marker="{evicted}/$(basename "$2")"
+marker={shlex.quote(str(evicted))}/"$(basename "$2")"
 case "$1" in evict) touch "$marker";; download) rm -f "$marker";; esac
 if [ -e "$marker" ]; then status=NotDownloaded; else status=NSURLUbiquitousItemDownloadingStatusCurrent; fi
 printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' "$status"
@@ -211,6 +234,71 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         with self.assertRaises(hb.StepFailed) as failure:
             hb.settle_blobs(config, store, models, [])
         self.assertEqual(failure.exception.step, "iCloud upload")
+
+    # The eviction refusal exactly as the helper reported it on the NAS.
+    NOT_YET = ('evict: Error Domain=NSCocoaErrorDomain Code=512 "The file couldn’t be saved." '
+               'UserInfo={NSUnderlyingError=0x6000 {Error Domain=NSFileProviderErrorDomain Code=-2008 '
+               '"The file ‘blob’ cannot be evicted."}}')
+
+    def refusing_helper(self, refusals, message):
+        """The fake helper, refusing the first `refusals` evictions with
+        `message`; counter and call log live under names with spaces."""
+        helper, evicted = self.fake_icloud_helper()
+        left, calls = self.root / "refusals left", self.root / "evict calls"
+        left.write_text(str(refusals))
+        calls.write_text("")
+        helper.write_text(helper.read_text().replace("#!/bin/sh\n", f"""#!/bin/sh
+left={shlex.quote(str(left))}
+calls={shlex.quote(str(calls))}
+if [ "$1" = evict ]; then
+  echo x >> "$calls"
+  if [ "$(cat "$left")" -gt 0 ]; then
+    echo $(( $(cat "$left") - 1 )) > "$left"
+    echo {shlex.quote(message)} >&2
+    exit 1
+  fi
+fi
+""", 1))
+        blob = self.root / "blob"
+        blob.write_bytes(b"x")
+        count = lambda: len(calls.read_text().split())
+        return helper, evicted, blob, count
+
+    def test_a_not_yet_evictable_refusal_is_retried_until_icloud_allows_it(self):
+        helper, evicted, blob, count = self.refusing_helper(2, self.NOT_YET)
+        with mock.patch.object(hb, "EVICT_RETRY_SECONDS", 0):
+            hb.evict(type("C", (), {"icloud_helper": helper, "upload_timeout": 5})(), blob)
+        self.assertEqual(count(), 3)
+        self.assertTrue((evicted / "blob").exists())
+
+    def test_any_other_eviction_failure_stops_at_once(self):
+        denied = 'evict: Error Domain=NSCocoaErrorDomain Code=513 "You don’t have permission."'
+        helper, _, blob, count = self.refusing_helper(5, denied)
+        with self.assertRaises(hb.StepFailed) as failed:
+            hb.evict(type("C", (), {"icloud_helper": helper, "upload_timeout": 60})(), blob)
+        self.assertEqual((failed.exception.step, count()), ("iCloud evict", 1))
+        self.assertIn("Code=513", failed.exception.detail)
+
+    def test_a_refusal_at_the_deadline_is_not_retried(self):
+        helper, _, blob, count = self.refusing_helper(5, self.NOT_YET)
+        begin = time.monotonic()
+        with mock.patch.object(hb, "EVICT_RETRY_SECONDS", 30), self.assertRaises(hb.StepFailed) as failed:
+            hb.evict(type("C", (), {"icloud_helper": helper, "upload_timeout": 1})(), blob)
+        self.assertLess(time.monotonic() - begin, 10)  # the 30 s pause was cut to the deadline
+        self.assertEqual((failed.exception.step, count()), ("iCloud evict", 1))
+        self.assertIn("still refused", failed.exception.detail)
+
+    def test_a_status_query_cannot_outlast_the_wait_deadline(self):
+        helper = self.root / "slow-helper"
+        helper.write_text("#!/bin/sh\nexec sleep 30\n")
+        helper.chmod(0o700)
+        begin = time.monotonic()
+        with self.assertRaises(hb.StepFailed) as failed:
+            hb.wait_for(type("C", (), {"icloud_helper": helper, "upload_timeout": 1})(),
+                        self.root / "x", "iCloud upload", lambda s: s.get("uploaded"))
+        self.assertLess(time.monotonic() - begin, 10)
+        self.assertEqual(failed.exception.step, "iCloud upload")
+        self.assertIn("timed out", failed.exception.detail)
 
     def test_restore_command_refuses_an_existing_destination(self):
         store = self.root / "store"

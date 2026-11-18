@@ -6,6 +6,8 @@ succeeded since the most recent 04:00 local, so a failed or missed night is
 retried each hour until one succeeds. Without `--if-due` a run always happens.
 
 One run:
+  0. asks iCloud Drive about the destination folder first; if iCloud does not
+     answer, the run fails here and the service is never stopped;
   1. stops the HouseAtlas launchd service, runs the native `backup` CLI against
      the live data directory, and starts the service again (seconds of downtime);
   2. lists the served model release with every file's hash and checks its pins;
@@ -101,6 +103,8 @@ def run(step: str, command: list[str], timeout: float = 600) -> str:
         )
     except subprocess.TimeoutExpired:
         raise StepFailed(step, f"timed out after {timeout:.0f}s") from None
+    except OSError as error:  # the command could not be started at all
+        raise StepFailed(step, f"cannot start: {error}") from None
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
         raise StepFailed(step, f"exit {result.returncode}: {detail[-1] if detail else ''}")
@@ -360,22 +364,86 @@ def unpack(archive: Path, destination: Path) -> None:
         tar.extractall(destination, filter="tar")
 
 
-def icloud(config: Config, action: str, path: Path) -> dict:
-    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], 120))
+# A busy iCloud Drive (fileproviderd working through a large backlog) can take
+# minutes to answer one status query; give each helper call that long.
+ICLOUD_TIMEOUT = 600
 
 
-def wait_for(config: Config, path: Path, step: str, done) -> dict:
-    deadline = time.monotonic() + config.upload_timeout
-    while True:
-        state = icloud(config, "status", path)
+def icloud(config: Config, action: str, path: Path, timeout: float = ICLOUD_TIMEOUT) -> dict:
+    return json.loads(run(f"iCloud {action}", [str(config.icloud_helper), action, str(path)], timeout))
+
+
+def icloud_ready(config: Config) -> None:
+    """Ask iCloud Drive about the destination before the service is stopped,
+    so an unresponsive iCloud fails the run without restarting the service."""
+    try:
+        config.icloud_directory.mkdir(exist_ok=True)
+        state = icloud(config, "status", config.icloud_directory)
+    except StepFailed as error:
+        raise StepFailed("iCloud preflight", error.detail) from None
+    except OSError as error:
+        raise StepFailed("iCloud preflight", str(error)) from None
+    if not state.get("ubiquitous"):
+        raise StepFailed("iCloud preflight", "destination is not in iCloud Drive")
+
+
+# Pause between status queries while waiting for iCloud Drive.
+POLL_SECONDS = 15
+
+
+def wait_for(config: Config, path: Path, step: str, done, deadline: float | None = None) -> dict:
+    """Query the helper until `done(state)`, by the deadline (default
+    uploadTimeoutSeconds from now). Every status query and pause is cut to
+    the time left, so the wait never runs past the deadline; a query still
+    unanswered at the deadline is stopped and counts as not done."""
+    if deadline is None:
+        deadline = time.monotonic() + config.upload_timeout
+    error = "no status before the deadline"
+    while (left := deadline - time.monotonic()) > 0:
+        try:
+            state = icloud(config, "status", path, min(ICLOUD_TIMEOUT, left))
+        except StepFailed as failure:
+            if time.monotonic() < deadline:
+                raise
+            error = failure.detail
+            break
         if not state.get("ubiquitous"):
             raise StepFailed(step, "destination is not in iCloud Drive")
         if done(state):
             return state
-        if time.monotonic() > deadline:
-            error = state.get("uploadingError") or state.get("downloadingError") or "no error reported"
-            raise StepFailed(step, f"not done after {config.upload_timeout:.0f}s ({error})")
-        time.sleep(15)
+        error = state.get("uploadingError") or state.get("downloadingError") or "no error reported"
+        time.sleep(max(0.0, min(POLL_SECONDS, deadline - time.monotonic())))
+    raise StepFailed(step, f"not done after {config.upload_timeout:.0f}s ({error})")
+
+
+# Pause between refused evictions while iCloud Drive catches up.
+EVICT_RETRY_SECONDS = 30
+# How the helper reports the one refusal worth retrying: the item is not
+# evictable yet (File Provider error -2008), printed as the underlying NSError.
+EVICT_NOT_YET = "NSFileProviderErrorDomain Code=-2008"
+
+
+def evict(config: Config, path: Path) -> None:
+    """Evict this Mac's copy so the next read comes from iCloud. A busy iCloud
+    Drive can refuse to evict a file it already reports as uploaded until it
+    has caught up, so that refusal alone is retried; any other failure stops
+    the run at once. One deadline (uploadTimeoutSeconds from now) bounds every
+    attempt, pause and the status wait that follows."""
+    deadline = time.monotonic() + config.upload_timeout
+    refusal = "no attempt before the deadline"
+    while (left := deadline - time.monotonic()) > 0:
+        try:
+            icloud(config, "evict", path, min(ICLOUD_TIMEOUT, left))
+            break
+        except StepFailed as error:
+            if EVICT_NOT_YET not in error.detail:
+                raise StepFailed("iCloud evict", error.detail) from None
+            refusal = error.detail
+        time.sleep(max(0.0, min(EVICT_RETRY_SECONDS, deadline - time.monotonic())))
+    else:
+        raise StepFailed("iCloud evict", f"still refused after {config.upload_timeout:.0f}s: {refusal}")
+    wait_for(config, path, "iCloud evict",
+             lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent", deadline)
 
 
 def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Path) -> Path:
@@ -395,8 +463,7 @@ def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Pa
 
     wait_for(config, target, "iCloud upload", lambda s: s.get("uploaded"))
     wait_for(config, folder / f"{archive.name}.sha256", "iCloud upload", lambda s: s.get("uploaded"))
-    icloud(config, "evict", target)
-    wait_for(config, target, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+    evict(config, target)
     icloud(config, "download", target)
     wait_for(config, target, "iCloud download", lambda s: s.get("downloadingStatus") == "NSURLUbiquitousItemDownloadingStatusCurrent")
 
@@ -414,8 +481,7 @@ def settle_blobs(config: Config, store: Path, models: list[dict], created: list[
     for blob in dict.fromkeys(store / "blobs" / model["sha256"] for model in models):
         wait_for(config, blob, "iCloud upload", lambda s: s.get("uploaded"))
     for blob in created:
-        icloud(config, "evict", blob)
-        wait_for(config, blob, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
+        evict(config, blob)
 
 
 def fetch_from_icloud(config: Config):
@@ -675,6 +741,7 @@ def backup(config: Config) -> dict:
         timings[name] = round(time.monotonic() - begin, 1)
         return result
 
+    timed("icloudPreflightSeconds", icloud_ready, config)
     service = Service(config)
     restore_binary = config.restore_check_binary or service.binary
     capture_report = timed("captureSeconds", capture, service, config, work / "bundle")
@@ -702,7 +769,6 @@ def backup(config: Config) -> dict:
 
     # Blobs go up before the archive that names them, so no archive in iCloud
     # ever points at a model file that is not there.
-    config.icloud_directory.mkdir(exist_ok=True)
     store = config.icloud_directory / MODEL_STORE
     stored = timed("modelStoreSeconds", store_models, store, listed, stamp)
     timed("modelUploadSeconds", settle_blobs, config, store, models, stored)
