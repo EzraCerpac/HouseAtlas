@@ -442,7 +442,16 @@ try {
     // Agreement needs positive evidence: results with equal known revisions, not only a missing reason.
     { const u=mount([differ,{...differ,inventoryRevision:3,servedInventoryRevision:2,reviewedInventoryRevision:3,measurementReason:null}]);u.store.ensure(scopeOf);await settle();u.store.refresh(scopeOf);
       u.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
-      assert(u.card().includes(NOT_MEASURED_MISMATCH),'unequal revisions without a reason do not clear the wording');u.store.dispose(); }
+      assert(u.card().includes(NOT_MEASURED_MISMATCH),'unequal revisions without a reason do not clear the wording');
+      const keyed=u.block();assert(keyed.includes('Changed, needs a refresh')&&keyed.includes(BUTTON),'and the key still offers refresh');
+      // The same reply after an agreeing refresh that a newer frame reopened: the control stays until an agreeing re-read.
+      const later='2026-01-01T06:00:00Z',a=mount([differ,agreed,{...differ,inventoryRevision:3,servedInventoryRevision:2,reviewedInventoryRevision:3,measurementReason:null}]);
+      a.store.ensure(scopeOf);await settle();
+      for(let i=0;i<2;i++){a.store.refresh(scopeOf);a.port.pending[i].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();}
+      const reopened=a.block([withheldFacts.retrievedAt,later]);
+      assert(reopened.includes('Changed, needs a refresh')&&reopened.includes(BUTTON),'a non-agreeing re-read after a newer frame keeps the control');
+      assert(a.card(undefined,{...withheldFacts,retrievedAt:later}).includes(NOT_MEASURED_MISMATCH));assert.deepEqual([a.port.reads,a.port.posts],[3,2]);
+      u.store.dispose();a.store.dispose(); }
     // A quarantined failure withholds the results read earlier: only its answer shows, with no speed, state, control or device test from them.
     { const q=mount([differ]);q.store.ensure(scopeOf);await settle();const plainTest=q.card().includes('<dt>Test</dt>');q.store.refresh(scopeOf);
       q.port.pending[0].resolve(refreshDecode({status:'failed',reason:'auth',quarantined:true,cache:{status:'access-revoked',lastSuccessfulFetchAt:'2026-01-01T01:00:00Z',lastAttemptAt:fetched,errorCode:'auth'}}));await settle();

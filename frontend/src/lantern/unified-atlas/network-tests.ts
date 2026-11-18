@@ -162,8 +162,9 @@ const reasonText = (table: Readonly<Record<string, string>>, reason: string | nu
   reason === null ? null : Object.prototype.hasOwnProperty.call(table, reason) ? table[reason]! : reason.replaceAll('-', ' ');
 const withReason = (state: string, reason: string | null) => [state, reasonText({ ...TEST_REASON, ...ANSWER_REASON }, reason)].filter(Boolean).join(', ');
 
-/** The collector's results say its device list differs from the one served. */
-export const listsDiffer = (results: CollectorResults) => results.status !== 'unavailable' && results.measurementReason === 'inventory-revision-mismatch';
+/** The collector's results say its device list differs from the one served: by their reason, or by known, unequal revisions. */
+export const listsDiffer = (results: CollectorResults) => results.status !== 'unavailable' && (results.measurementReason === 'inventory-revision-mismatch'
+  || results.inventoryRevision !== null && results.servedInventoryRevision !== null && results.inventoryRevision !== results.servedInventoryRevision);
 /** After this store's own refresh and its one re-read, the results no longer say the lists differ. */
 /** Usable results that affirm agreement: equal known revisions and no changed-list reason. */
 const affirmsAgreement = (value: CollectorResults) => value.status === 'available' && value.results !== null
