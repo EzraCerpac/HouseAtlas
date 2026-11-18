@@ -9,7 +9,8 @@
  *   --case hung-network    listener accepts `/` but never answers ("lie-fi")
  *   --case live-launch     live entry `/`, generated cached Atlas and a waiting
  *                          outbox entry survive closing and reopening the tab;
- *                          building records come from the online retention pass
+ *                          building records, native and electrical catalogs,
+ *                          and both PDFs come from live retention passes
  *
  * Requires `npm --prefix frontend run build` first, Node 26.10.0 and an
  * inspected HOUSEATLAS_CHROMIUM executable. Prints launch timings. */
@@ -17,14 +18,14 @@ import assert from 'node:assert/strict';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash, X509Certificate } from 'node:crypto';
+import { createHash, randomUUID, X509Certificate } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createServer as createSecureServer } from 'node:https';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transformWithOxc } from 'vite';
+import { build, transformWithOxc } from 'vite';
 import { trackOfflineBrowser, removeOfflineScratch, finishOfflineCleanup } from './offline-launch-cleanup.mjs';
 
 const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000 };
@@ -55,36 +56,68 @@ if (selected === 'live-launch') {
 }
 let onlineSeed = null;
 const topologyReads = [];
+const libraryReads = [];
+const unexpectedRequests = [];
 const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
 const atlasSchema = JSON.parse(readFileSync(new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url)));
 const agentSchema = JSON.parse(readFileSync(new URL('../../contracts/client-schemas/agent-ajv.schema.json', import.meta.url)));
 ajv.addSchema(atlasSchema); ajv.addSchema(agentSchema);
-const serve = (request, response) => {
-  const path = new URL(request.url, 'http://127.0.0.1').pathname;
+const stockBase = ({ workspaceId, homeId }) => `/api/atlas/stock/v3/workspaces/${workspaceId}/homes/${homeId}`;
+const stockRead = (scope, commandId, records, requestId = randomUUID()) => {
+  const result = { schemaVersion: 3, commandId, requestId, resolvedScope: scope,
+    status: 'read', replayed: false, data: { records, sourceStatus: 'current', nextCursor: null } };
+  const check = ajv.getSchema(agentSchema.$id + '#/$defs/result_' + commandId.replace(/[.-]/g, '_'));
+  assert(check(result), JSON.stringify(check.errors));
+  return result;
+};
+const jsonRead = value => new Response(JSON.stringify(value, (key, item) => key === 'metres' ? JSON.rawJSON('2.750') : item),
+  { headers: { 'content-type': 'application/json', 'x-atlas-snapshot-sha256': 'f'.repeat(64), 'cache-control': 'private, no-store' } });
+const serve = async (request, response) => {
+  const url = new URL(request.url, 'http://127.0.0.1');
+  const path = url.pathname;
   if (onlineSeed && path.startsWith('/api/')) {
-    assert.equal(request.method, 'GET', 'Generated online journey sends only GETs');
-    const json = value => response.writeHead(200, { 'content-type': 'application/json',
-      'x-atlas-snapshot-sha256': 'f'.repeat(64) }).end(JSON.stringify(value, (key, item) => key === 'metres' ? JSON.rawJSON('2.750') : item));
-    if (path === '/api/atlas/auth/session') return json({ schemaVersion: 1, actorId: onlineSeed.owner.actorId,
-      csrfToken: 'generated-unused', expiresAt: '2099-01-01T00:00:00Z' });
-    if (path === '/api/atlas/view') return json({ ...onlineSeed.view, entries: [] });
-    if (path.endsWith('/invoke')) {
-      const query = JSON.parse(new URL(request.url, 'http://127.0.0.1').searchParams.get('request'));
-      const held = JSON.parse(Buffer.from(onlineSeed.topology).toString());
-      const kind = query.target.recordType;
-      const records = query.payload.buildingId ? held.buildings.find(b => b.buildingId === query.payload.buildingId)?.members.records
-        : held.lists[kind]?.records;
-      if (records) {
+    const route = `${request.method} ${path}${url.search}`;
+    try {
+      let reply;
+      const { scope } = onlineSeed.view;
+      const library = onlineSeed.library.routes.get(route);
+      if (library) {
+        reply = await library();
+        libraryReads.push({ route, status: reply.status });
+      } else if (route === 'GET /api/atlas/auth/session') {
+        reply = jsonRead({ schemaVersion: 1, actorId: onlineSeed.owner.actorId,
+          csrfToken: 'generated-unused', expiresAt: '2099-01-01T00:00:00Z' });
+      } else if (route === 'GET /api/atlas/view') {
+        reply = jsonRead({ ...onlineSeed.view, entries: [],
+          sourceDocumentsService: { profile: 'houseatlas.geodata-document-read.v2', available: true } });
+      } else if (request.method === 'GET' && path === `${stockBase(scope)}/invoke`) {
+        assert.equal(url.searchParams.size, 1);
+        const query = JSON.parse(url.searchParams.get('request'));
+        const kind = query.target.recordType, commandId = `atlas.${kind}.list`;
+        const held = onlineSeed.topology;
+        const records = query.payload.buildingId === undefined ? held.lists[kind]?.records
+          : kind === 'identity' ? held.buildings.find(b => b.buildingId === query.payload.buildingId)?.members.records : undefined;
+        assert(records, 'Only generated topology lists are served');
+        assert.equal(query.commandId, commandId);
+        const check = ajv.getSchema(agentSchema.$id + '#/$defs/request_' + commandId.replace(/[.-]/g, '_'));
+        assert(check(query), JSON.stringify(check.errors));
+        assert.deepEqual(query.context, scope);
+        assert.equal(query.payload.cursor, null);
+        assert.equal(query.payload.includeArchived, false);
+        reply = jsonRead(stockRead(scope, commandId, records, query.requestId));
         topologyReads.push(kind);
-        const result = { schemaVersion: 3, commandId: query.commandId, requestId: query.requestId, resolvedScope: onlineSeed.view.scope,
-          status: 'read', replayed: false, data: { records, sourceStatus: 'current', nextCursor: null } };
-        const check = ajv.getSchema(agentSchema.$id + '#/$defs/result_atlas_' + kind.replaceAll('-', '_') + '_list');
-        if (!check(result)) { response.writeHead(500).end(JSON.stringify(check.errors)); return; }
-        return json(result);
+      } else if (!onlineSeed.optionalReads.has(route)) {
+        unexpectedRequests.push(route);
       }
+      if (!reply) { response.writeHead(404).end(); return; }
+      const body = Buffer.from(await reply.arrayBuffer());
+      response.writeHead(reply.status, Object.fromEntries(reply.headers)).end(body);
+    } catch (error) {
+      unexpectedRequests.push(`${route}: ${error.message}`);
+      response.writeHead(500).end();
     }
-    response.writeHead(404).end(); return;
+    return;
   }
   if (mode === 'hung' && (path === '/' || path === '/index.html')) { stalled++; held.add(response); return; }
   served++; servedPaths.push(path);
@@ -102,7 +135,7 @@ await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `${tls ? 'https' : 'http'}://127.0.0.1:${server.address().port}`;
 
 // Reuse the public generated publication and the production storage APIs. Only
-// the live-launch case supplies generated online GET responses and seeds unrelated
+// the live-launch case supplies generated online reads and seeds unrelated
 // device data. These data modules are test setup, not additional served assets.
 async function sourceURL(relative, replacements = {}) {
   const file = new URL(relative, import.meta.url);
@@ -117,6 +150,77 @@ async function sourceURL(relative, replacements = {}) {
     assert.ok(match[1].startsWith('data:'), `Unexpected setup import ${match[1]}`);
   return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 }
+const stockRecord = (recordType, recordId, payload, revision = 1) => ({
+  target: { authority: 'atlas', recordType, recordId }, revision, lifecycle: 'active', payload,
+});
+async function liveLibrary(scope, buildingId, homeLabel) {
+  const { createSyntheticDocumentServer } = await import('./source-host-visual/synthetic-documents.ts');
+  const built = await build({ configFile: false, logLevel: 'silent',
+    build: { write: false, target: 'node26', minify: false, lib: {
+      entry: fileURLToPath(new URL('./electrical-library-visual/synthetic-electrical.ts', import.meta.url)), formats: ['es'],
+    } } });
+  const fixture = Array.isArray(built) ? built[0] : built;
+  const { code } = fixture.output.find(file => file.type === 'chunk' && file.isEntry);
+  const { createSyntheticElectricalLibrary } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+  const routes = new Map();
+  const json = (path, value) => routes.set(`GET ${path}`, () => jsonRead(value));
+
+  // Expose one available PDF from the generated Documents fixture. Fill measures
+  // the complete page, so unrelated preview, outline and stale tile stay out.
+  const native = await createSyntheticDocumentServer(scope);
+  const docBase = `/api/atlas/documents/v2/workspaces/${scope.workspaceId}/homes/${scope.homeId}/documents`;
+  const docPath = `${docBase}/${native.documentIds[0]}`;
+  const nativeGet = path => native.transport(native.origin + path, {
+    method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', mode: 'same-origin',
+  });
+  const metadata = await (await nativeGet(docPath)).json();
+  const { document } = metadata;
+  const { assetId, revision, sha256, bytes } = document.payload.original;
+  const nativePin = { documentId: document.recordId, documentRevision: document.revision, assetId,
+    assetRevision: revision, sha256, bytes, contentType: 'application/pdf' };
+  json(`${docBase}?limit=50`, { profile: 'houseatlas.geodata-document-list.v2', scope, documents: [metadata], nextCursor: null });
+  json(docPath, metadata);
+  const nativeOriginal = `${docPath}/original?expectedRevision=${document.revision}`;
+  const nativeDownload = `GET ${nativeOriginal}`;
+  routes.set(nativeDownload, () => nativeGet(nativeOriginal));
+
+  // The mounted electrical reader qualifies the association, both supporting
+  // originals and building evidence before it can fetch the correlated PDF.
+  const electrical = await createSyntheticElectricalLibrary('pdf', 'available', { scope, buildingId, buildingLabel: 'Generated barn', homeLabel });
+  const sceneBase = `/api/atlas/scene/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}`;
+  json(`${sceneBase}/current`, { status: 'available', association: electrical.association });
+  json(`${sceneBase}/head`, electrical.head);
+  const record = (kind, id, payload, rev) => routes.set(`GET ${stockBase(scope)}/records/${kind}/${id}`,
+    () => jsonRead(stockRead(scope, `atlas.${kind}.get`, [stockRecord(kind, id, payload, rev)])));
+  const building = stockRecord('identity', buildingId, { kind: 'location', evidenceIds: [electrical.pdfEvidenceId] });
+  record('identity', buildingId, building.payload, building.revision);
+  let electricalPin, electricalDownload;
+  for (const original of electrical.originals) {
+    const { evidenceId, evidenceRevision, assetId, revision, sha256, bytes, contentType } = original;
+    const provenance = { source: null, sourceRevision: null, sourceConfidence: null, evidenceBasis: 'document',
+      factAt: null, retrievedAt: '2026-01-02T12:00:00Z', vantage: null,
+      uncertainty: { status: 'unknown', explanation: 'Generated documentary original' } };
+    record('evidence', evidenceId, { statement: 'Generated electrical original', provenance,
+      supersedesEvidenceIds: [], references: [{ kind: 'atlas-asset', assetId }] }, evidenceRevision);
+    record('asset', assetId, { owner: 'atlas', purpose: 'evidence-original', availability: 'available',
+      sha256, byteSize: bytes.length, contentType, previewPolicy: 'download-only',
+      sourceLicense: { status: 'unknown', reference: null }, evidenceIds: [] }, revision);
+    const descriptor = createHash('sha256').update(JSON.stringify({ assetId, kind: 'atlas-asset' })).digest('hex');
+    const download = `GET /api/atlas/media/${scope.workspaceId}/${scope.homeId}/${descriptor}/download`;
+    routes.set(download, () => new Response(bytes, { headers: { 'content-type': contentType,
+      'content-length': String(bytes.length), 'content-disposition': 'attachment; filename="generated-original"',
+      'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' } }));
+    if (evidenceId === electrical.pdfEvidenceId) {
+      electricalDownload = download;
+      electricalPin = { source: 'electrical-evidence', buildingId, evidenceId, evidenceRevision,
+        assetId, assetRevision: String(revision), sha256, byteSize: String(bytes.length), contentType };
+    }
+  }
+  assert(electricalPin, 'Generated electrical PDF is pinned by the documentary fixture');
+  const requiredReads = [...routes.keys()].filter(route => route !== `GET ${sceneBase}/head`);
+  return { routes, requiredReads, building, nativePin, electricalPin, pdfDownloads: [nativeDownload, electricalDownload] };
+}
+
 async function liveLaunchSeed() {
   const { buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS, sha256Hex } = await import('./unified-atlas/synthetic-atlas.ts');
   const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
@@ -129,15 +233,12 @@ async function liveLaunchSeed() {
   const copyBackendURL = await sourceURL('../src/offline/live-copy-indexeddb.ts');
   const { syntheticPdf } = await import('./source-host-visual/synthetic-documents.ts');
   const pdf = syntheticPdf();
-  const pin = { documentId: '00000000-0000-4000-8000-000000000850', documentRevision: 1,
-    assetId: '00000000-0000-4000-8000-000000000851', assetRevision: 1,
-    sha256: await sha256Hex(pdf), bytes: pdf.length, contentType: 'application/pdf' };
   // Exact source-native association from the generated HomeBox storage contracts;
   // registration/observation facts describe this held copy, not a provider revision.
   const homeboxPin = { source: 'homebox-attachment', sourceInstanceId: '00000000-0000-4000-8000-000000000040',
     collectionId: 'generated-opaque-collection', entityId: '00000000-0000-4000-8000-000000000041',
     attachmentId: '00000000-0000-4000-8000-000000000042', observationId: '00000000-0000-4000-8000-000000000070',
-    sourceRegistrationVersion: 3, sourceRegistrationSha256: 'e'.repeat(64), sha256: pin.sha256, bytes: pdf.length,
+    sourceRegistrationVersion: 3, sourceRegistrationSha256: 'e'.repeat(64), sha256: await sha256Hex(pdf), bytes: pdf.length,
     contentType: 'application/pdf', sourceContentType: 'application/pdf', beforeRetrievedAt: '2026-01-03T10:00:01Z',
     bodyRetrievedAt: '2026-01-03T10:00:02Z', afterRetrievedAt: '2026-01-03T10:00:03Z' };
   const view = { status: 'ready', scope, homeLabel: 'Synthetic offline home', now: '2026-01-03T10:00:00Z', canEdit: true,
@@ -153,33 +254,21 @@ async function liveLaunchSeed() {
       maintenance: [{ entryId: 'generated-upkeep', name: 'Inspect generated pump', description: 'Generated maintenance only',
         scheduledDate: '2026-01-10', completedDate: null, cost: null }], networkBound: false, networkStates: [], networkRelations: [],
     }] };
-  const catalog = { version: 1, capturedAt: '2026-01-03T10:05:00Z', completeness: 'captured-complete', documents: [{
-    ...pin, contentType: undefined, title: 'Generated held PDF', lifecycle: 'active', recordedAvailability: 'available',
-  }] };
-  // Same UUID-shaped evidence/asset values remain a different source identity.
-  const electricalPin = { source: 'electrical-evidence', buildingId: '00000000-0000-4000-8000-000000000852',
-    evidenceId: pin.documentId, evidenceRevision: 1, assetId: pin.assetId, assetRevision: '1.0', byteSize: String(pdf.length),
-    sha256: pin.sha256, contentType: 'application/pdf' };
-  const electricalBuilding = { buildingId: electricalPin.buildingId, capturedAt: '2026-01-03T10:10:00Z', provenance: null,
-    documents: [{ pin: electricalPin, pages: [{ sheetId: 'generated-electrical-sheet', title: 'Generated electrical sheet', pdfPage: 2,
-      sourceDate: '2020', correlationId: 'generated-correlation', correlationSha256: 'a'.repeat(64),
-      originalPhotoSha256: 'b'.repeat(64), renderedPhotoSha256: 'c'.repeat(64) }] }] };
-
   // Generated building records as the Rooms & places lens reads them (#560), encoded by the actual codec:
   // a building, a level at an exact recorded elevation, a level with an unknown elevation and a room.
   const { loadNumericSource } = await import('./load-numeric-source.mjs');
   const { encodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
   const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
   const place = n => `00000000-0000-4000-8000-0000000009${n}`;
-  const record = (recordType, recordId, payload) => ({ target: { authority: 'atlas', recordType, recordId }, revision: 1, lifecycle: 'active', payload });
-  const location = n => record('identity', place(n), { kind: 'location', evidenceIds: [] });
-  const named = (n, atlasId, semanticKind, label, extra = {}) => record('location-semantics', place(n),
+  const library = await liveLibrary(scope, place('10'), view.homeLabel);
+  const location = n => stockRecord('identity', place(n), { kind: 'location', evidenceIds: [] });
+  const named = (n, atlasId, semanticKind, label, extra = {}) => stockRecord('location-semantics', place(n),
     { atlasId, semanticKind, reviewStatus: 'accepted', label, evidenceIds: [place('40')], ...extra });
-  const contains = (n, from, to, membershipKind) => record('relation', place(n), { kind: 'location-membership', membershipKind,
+  const contains = (n, from, to, membershipKind) => stockRecord('relation', place(n), { kind: 'location-membership', membershipKind,
     from: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: place(from) } },
     to: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: place(to) } },
     reviewStatus: 'accepted', uncertainty: { status: 'unknown', explanation: null }, evidenceIds: [place('40')] });
-  const locations = ['10', '11', '12', '13'].map(location);
+  const locations = [library.building, ...['11', '12', '13'].map(location)];
   const topology = encodeHeldTopology({ version: 1, scope, capturedAt: '2026-01-03T10:20:00.000Z', snapshotSha256: 'f'.repeat(64),
     lists: { identity: { records: locations, sourceStatus: 'current' }, binding: { records: [], sourceStatus: 'current' },
       'location-semantics': { records: [named('20', place('10'), 'building', 'Generated barn'),
@@ -189,6 +278,13 @@ async function liveLaunchSeed() {
       relation: { records: [contains('30', '10', '11', 'building'), contains('31', '10', '12', 'building'), contains('32', '11', '13', 'level')], sourceStatus: 'current' } },
     buildings: [{ buildingId: place('10'), members: { records: locations, sourceStatus: 'current' } }] });
   console.log(`INFO held building records, generated live-launch home: ${topology.byteLength} bytes`);
+  // These independent services are not configured for this fixture.
+  const optionalReads = new Set([
+    `GET ${stockBase(scope)}/admission`,
+    `GET ${stockBase(scope)}/quantity-tool-admission`,
+    `GET ${stockBase(scope)}/records/geometry?pageSize=100&includeArchived=false`,
+    `GET /api/atlas/operation-events?workspaceId=${scope.workspaceId}&homeId=${scope.homeId}&pageSize=25`,
+  ]);
   const owner = { actorId: 'synthetic-offline-launch-actor', ...scope };
   const requestId = 'synthetic-offline-launch-request';
   // Same persisted entry shape as the existing generated outbox examples. It
@@ -201,7 +297,8 @@ async function liveLaunchSeed() {
     body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
       idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
     createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
-  return { topology: [...topology], cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+  return { topology: JSON.parse(Buffer.from(topology).toString()), optionalReads, library, cacheURL, outboxURL,
+    copyOwnerURL, copyBackendURL, view, homeboxPin, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
@@ -364,9 +461,8 @@ try {
     }
   };
 
-  // 1. Online: the Saved entry, or after its load any live launch, verifies the
-  // public shell and prepares the root worker. Here the live entry finds no
-  // backend, which changes nothing: the shell is public build files only.
+  // 1. Online: the Saved or live entry installs the public offline closure.
+  // The live entry also runs ordinary retention against the generated routes.
   if (selected === 'live-launch') onlineSeed = await liveLaunchSeed();
   await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
   await poll(`(async () => {
@@ -388,6 +484,40 @@ try {
         tx.oncomplete = () => yes(rows.result.some(key => key.includes('"topology"'))); tx.onabort = () => no(tx.error);
       }); } finally { db.close(); }
     })()`), true, 'Online-visible building records must be held after the warm');
+    const { nativePin, electricalPin, requiredReads, pdfDownloads } = onlineSeed.library;
+    assert.deepEqual(unexpectedRequests, [], 'Only the generated read contracts may be used online');
+    const servedReads = libraryReads.filter(read => read.status === 200).map(read => read.route);
+    assert.deepEqual(requiredReads.filter(route => !servedReads.includes(route)), [], 'Live fill must read both catalogs and their qualified originals');
+    for (const route of pdfDownloads) assert.equal(servedReads.filter(read => read === route).length, 1, route);
+    const held = await evaluate(`(async () => {
+      const { createLiveCopyOwner } = await import(${JSON.stringify(onlineSeed.copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(onlineSeed.copyBackendURL)});
+      const copies = createLiveCopyOwner(openLiveCopyBackend(indexedDB));
+      const signal = new AbortController().signal;
+      function check(result) {
+        if (result.status !== 'ok') throw new Error('Live hold readback: ' + result.status);
+        return result.value;
+      }
+      async function measure(blob) {
+        const bytes = await blob.arrayBuffer();
+        const digest = await crypto.subtle.digest('SHA-256', bytes);
+        return { bytes: bytes.byteLength, contentType: blob.type,
+          sha256: [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('') };
+      }
+      try {
+        const { handle } = check(await copies.readLast(signal));
+        const { actorId, scope } = check(await copies.copyIdentity(handle, signal));
+        const native = check(await copies.readDocument(handle, ${JSON.stringify(nativePin)}, signal));
+        const electrical = check(await copies.readElectricalDocument(handle, ${JSON.stringify(electricalPin)}, signal));
+        return { actorId, scope, native: await measure(native), electrical: await measure(electrical) };
+      } finally { copies.close(); }
+    })()`);
+    assert.deepEqual(held, {
+      actorId: onlineSeed.owner.actorId, scope: onlineSeed.view.scope,
+      native: { bytes: nativePin.bytes, contentType: nativePin.contentType, sha256: nativePin.sha256 },
+      electrical: { bytes: Number(electricalPin.byteSize), contentType: electricalPin.contentType, sha256: electricalPin.sha256 },
+    }, 'Ordinary live fill retained both exact, catalog-bound PDF originals before any device seeding');
+    console.log(`INFO live library fill held native ${held.native.bytes} bytes and electrical ${held.electrical.bytes} bytes with matching SHA-256`);
   }
   const installed = served;
 
@@ -397,10 +527,10 @@ try {
   } else mode = 'hung';
   served = 0; servedPaths = [];
   let seeded = null;
-  const reopenWrites = [];
+  const reopenApiRequests = [];
   if (selected === 'live-launch') {
     seeded = onlineSeed;
-    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, homeboxPin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
+    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, homeboxPin, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -426,12 +556,7 @@ try {
         const home = check(copies.bindHome(actor, ${JSON.stringify(view.scope)}, () => true));
         const signal = new AbortController().signal;
         check(await copies.keepView(home, ${JSON.stringify(view)}, signal));
-        check(await copies.keepCatalog(home, ${JSON.stringify(catalog)}, signal));
-        check(await copies.keepDocument(home, ${JSON.stringify(pin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
-        check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
-        check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
         check(await copies.keepHomeboxDocument(home, ${JSON.stringify(homeboxPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
-        // Building records must come from the online host's retention pass, never fixture seeding.
       } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
@@ -444,9 +569,9 @@ try {
     ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
     await observePage();
     cdp.listeners.add(message => {
-      if (message.sessionId === sessionId && message.method === 'Network.requestWillBeSent'
-        && !['GET', 'HEAD'].includes(message.params.request.method))
-        reopenWrites.push({ method: message.params.request.method, url: message.params.request.url });
+      if (message.sessionId !== sessionId || message.method !== 'Network.requestWillBeSent') return;
+      const { method, url } = message.params.request;
+      if (url.startsWith(origin + '/api/')) reopenApiRequests.push({ method, url });
     });
     await send('Network.enable');
   } else await send('Page.navigate', { url: 'about:blank' });
@@ -548,18 +673,18 @@ try {
       && !document.querySelector('main').textContent.includes('Generated barn')`, 10_000, 'A copy without building records lost the not-held sentence');
     await tab('Library');
     // Wait for the native row's own action: electrical rows can report "On this device" first.
-    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Generated held PDF')`, 5_000, 'PDF availability not shown');
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Synthetic parcel survey')`, 5_000, 'PDF availability not shown');
     await screenshot('phone-offline-library');
-    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated held PDF').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 1"]');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Synthetic parcel survey').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 1"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
     // Ordinary focus retires all borrowed data, then restores neutral reading
     // intent only after fresh owner reads and a replacement React commit.
     await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF second page did not draw');
     await evaluate(`document.querySelector('button[aria-label="Zoom in PDF"]').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
       return document.querySelector('.source-pdf-controls').textContent.includes('200%') && canvas && canvas.width > 0
         && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF zoom did not draw');
     const reading = await evaluate(`(() => { const frame = document.querySelector('.source-pdf-page');
@@ -569,7 +694,7 @@ try {
     assert.equal(await evaluate(`(() => { window.dispatchEvent(new Event('focus'));
       return document.querySelector('.offline-app-root').hidden; })()`), true, 'Focus must hide borrowed content synchronously');
     await poll(`(() => { const root = document.querySelector('.offline-app-root');
-      const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 2"]');
+      const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
       const frame = document.querySelector('.source-pdf-page');
       return root && !root.hidden && document.querySelector('main h1')?.textContent === 'Library'
         && document.querySelector('.source-pdf-controls')?.textContent.includes('200%')
@@ -589,8 +714,8 @@ try {
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Held HomeBox PDF must not fetch public bytes or data from network');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
-    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
-    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Fictional kitchen · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Fictional kitchen · Page 2').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held electrical PDF did not render its referenced page offline');
     await screenshot('phone-offline-electrical-page');
@@ -618,21 +743,22 @@ try {
     await poll(`(() => document.querySelector('.saved-header h1')?.textContent === 'Saved Atlas'
       && document.querySelector('.saved-header details summary')?.textContent === 'Saved scope'
       && document.querySelector('.saved-message[role="note"]') !== null
-      && document.querySelector('.saved-stage .ua-shell.is-stage') !== null)()`, 15_000,
+      && document.querySelector('.saved-stage .ua-shell.is-stage') !== null
+      && document.querySelector('.navrail, .offline-app-root') === null)()`, 15_000,
       'the explicit Saved entry lost its full view');
     assert.deepEqual(await evaluate(`(async () => {
       const { openOutboxStore } = await import(${JSON.stringify(seeded.outboxURL)});
       const store = openOutboxStore(indexedDB);
       try { return await store.list(); } finally { store.close(); }
     })()`), [seeded.entry], 'closing and reopening offline retains the exact owner, intent, command bytes and waiting state');
-    assert.deepEqual(reopenWrites, [], 'the read-only offline reopen does not dispatch the queued edit or another write');
+    assert.deepEqual(reopenApiRequests, [], 'The offline shell renders all views and PDFs without reading or writing to the API');
     // Retiring only the app copy must not expose its still-held legacy Atlas.
     await evaluate(`sessionStorage.removeItem('houseatlas.saved-entry.v1')`);
     await send('Page.reload', {});
     await poll(`document.querySelector('.navrail') !== null`, 10_000, 'App shell did not reopen for withdrawal');
     await tab('Library');
-    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical original unavailable before withdrawal');
-    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Fictional kitchen · Page 2' && !button.disabled)`, 5_000, 'Electrical original unavailable before withdrawal');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Fictional kitchen · Page 2').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Electrical PDF unavailable before withdrawal');
     const second = await cdp.send('Target.createTarget', { url: origin + '/saved/index.html' });
@@ -657,7 +783,7 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
-    console.log('PASS live-launch: online-visible building records retained after 20-second warm, cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    console.log('PASS live-launch: online building records and both measured library originals retained before offline reopen, cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {
