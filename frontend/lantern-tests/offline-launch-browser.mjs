@@ -33,6 +33,15 @@ assert.equal(process.argv.length, 4, 'Select --case offline-launch, hung-network
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3], budgetMs = CASES[selected];
 assert(budgetMs, 'Select --case offline-launch, hung-network or live-launch');
+const standardProfile = selected === 'live-launch' && process.env.HOUSEATLAS_TEST_STANDARD_DOCUMENTS === '1';
+if (selected === 'live-launch' && !standardProfile) {
+  // A second disposable profile proves the standard host with a genuinely cold device.
+  const child = spawn(process.execPath, process.argv.slice(1), {
+    stdio: 'inherit', env: { ...process.env, HOUSEATLAS_TEST_STANDARD_DOCUMENTS: '1' },
+  });
+  const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  assert.equal(code, 0, 'Standard-profile offline launch');
+}
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
 assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspected local Chromium executable');
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -90,7 +99,7 @@ const serve = async (request, response) => {
           csrfToken: 'generated-unused', expiresAt: '2099-01-01T00:00:00Z' });
       } else if (route === 'GET /api/atlas/view') {
         reply = jsonRead({ ...onlineSeed.view, entries: [],
-          sourceDocumentsService: { profile: 'houseatlas.geodata-document-read.v2', available: true } });
+          sourceDocumentsService: { profile: 'houseatlas.geodata-document-read.v2', available: !standardProfile } });
       } else if (request.method === 'GET' && path === `${stockBase(scope)}/invoke`) {
         assert.equal(url.searchParams.size, 1);
         const query = JSON.parse(url.searchParams.get('request'));
@@ -178,11 +187,13 @@ async function liveLibrary(scope, buildingId, homeLabel) {
   const { assetId, revision, sha256, bytes } = document.payload.original;
   const nativePin = { documentId: document.recordId, documentRevision: document.revision, assetId,
     assetRevision: revision, sha256, bytes, contentType: 'application/pdf' };
-  json(`${docBase}?limit=50`, { profile: 'houseatlas.geodata-document-list.v2', scope, documents: [metadata], nextCursor: null });
-  json(docPath, metadata);
   const nativeOriginal = `${docPath}/original?expectedRevision=${document.revision}`;
   const nativeDownload = `GET ${nativeOriginal}`;
-  routes.set(nativeDownload, () => nativeGet(nativeOriginal));
+  if (!standardProfile) {
+    json(`${docBase}?limit=50`, { profile: 'houseatlas.geodata-document-list.v2', scope, documents: [metadata], nextCursor: null });
+    json(docPath, metadata);
+    routes.set(nativeDownload, () => nativeGet(nativeOriginal));
+  }
 
   // The mounted electrical reader qualifies the association, both supporting
   // originals and building evidence before it can fetch the correlated PDF.
@@ -218,7 +229,8 @@ async function liveLibrary(scope, buildingId, homeLabel) {
   }
   assert(electricalPin, 'Generated electrical PDF is pinned by the documentary fixture');
   const requiredReads = [...routes.keys()].filter(route => route !== `GET ${sceneBase}/head`);
-  return { routes, requiredReads, building, nativePin, electricalPin, pdfDownloads: [nativeDownload, electricalDownload] };
+  return { routes, requiredReads, building, nativePin, electricalPin,
+    pdfDownloads: standardProfile ? [electricalDownload] : [nativeDownload, electricalDownload] };
 }
 
 async function liveLaunchSeed() {
@@ -280,6 +292,7 @@ async function liveLaunchSeed() {
   console.log(`INFO held building records, generated live-launch home: ${topology.byteLength} bytes`);
   // These independent services are not configured for this fixture.
   const optionalReads = new Set([
+    'GET /api/atlas/backup/v1/settings',
     `GET ${stockBase(scope)}/admission`,
     `GET ${stockBase(scope)}/quantity-tool-admission`,
     `GET ${stockBase(scope)}/records/geometry?pageSize=100&includeArchived=false`,
@@ -464,6 +477,10 @@ try {
   // 1. Online: the Saved or live entry installs the public offline closure.
   // The live entry also runs ordinary retention against the generated routes.
   if (selected === 'live-launch') onlineSeed = await liveLaunchSeed();
+  if (standardProfile) {
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: `if (location.origin === ${JSON.stringify(origin)})
+      localStorage.setItem('houseatlas.keep-native-library.v1', 'off');` });
+  }
   await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
   await poll(`(async () => {
     const root = await navigator.serviceWorker.getRegistration('/'), saved = await navigator.serviceWorker.getRegistration('/saved/');
@@ -474,6 +491,14 @@ try {
     await poll(`[...document.querySelectorAll('button')].some(b => b.textContent === 'Place records' && b.getClientRects().length > 0)`, 15_000, 'Online Place records missing');
     await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Place records' && b.getClientRects().length > 0).click()`);
     await poll(`document.body.textContent.includes('Building records: current')`, 15_000, 'Online building records not visible');
+    if (standardProfile) {
+      const fill = `[...document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent === 'Keep library now')`;
+      await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
+      await poll(`Boolean(${fill})`, 10_000, 'Keep library now did not appear');
+      assert.equal(onlineSeed.library.pdfDownloads.some(route => libraryReads.some(read => read.route === route)), false,
+        'The standard-profile original must be acquired by the explicit fill');
+      await evaluate(`${fill}.click()`);
+    }
     await new Promise(done => setTimeout(done, 20_000));
     assert(topologyReads.length >= 4, 'The live host reads generated building records');
     assert.equal(await evaluate(`(async () => {
@@ -507,17 +532,17 @@ try {
       try {
         const { handle } = check(await copies.readLast(signal));
         const { actorId, scope } = check(await copies.copyIdentity(handle, signal));
-        const native = check(await copies.readDocument(handle, ${JSON.stringify(nativePin)}, signal));
+        const native = await copies.readDocument(handle, ${JSON.stringify(nativePin)}, signal);
         const electrical = check(await copies.readElectricalDocument(handle, ${JSON.stringify(electricalPin)}, signal));
-        return { actorId, scope, native: await measure(native), electrical: await measure(electrical) };
+        return { actorId, scope, native: native.status === 'ok' ? await measure(native.value) : native.status, electrical: await measure(electrical) };
       } finally { copies.close(); }
     })()`);
     assert.deepEqual(held, {
       actorId: onlineSeed.owner.actorId, scope: onlineSeed.view.scope,
-      native: { bytes: nativePin.bytes, contentType: nativePin.contentType, sha256: nativePin.sha256 },
+      native: standardProfile ? 'missing' : { bytes: nativePin.bytes, contentType: nativePin.contentType, sha256: nativePin.sha256 },
       electrical: { bytes: Number(electricalPin.byteSize), contentType: electricalPin.contentType, sha256: electricalPin.sha256 },
-    }, 'Ordinary live fill retained both exact, catalog-bound PDF originals before any device seeding');
-    console.log(`INFO live library fill held native ${held.native.bytes} bytes and electrical ${held.electrical.bytes} bytes with matching SHA-256`);
+    }, 'Live fill retained exact, catalog-bound originals for this profile before any device seeding');
+    console.log(`INFO ${standardProfile ? 'standard' : 'full-document'} live fill held electrical ${held.electrical.bytes} bytes with matching SHA-256`);
   }
   const installed = served;
 
@@ -672,45 +697,49 @@ try {
       && document.querySelector('main').textContent.includes('Offline: building records are not held in this saved copy. Connect and open live to read them.')
       && !document.querySelector('main').textContent.includes('Generated barn')`, 10_000, 'A copy without building records lost the not-held sentence');
     await tab('Library');
-    // Wait for the native row's own action: electrical rows can report "On this device" first.
-    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Synthetic parcel survey')`, 5_000, 'PDF availability not shown');
-    await screenshot('phone-offline-library');
-    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Synthetic parcel survey').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 1"]');
-      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
-    // Every page and zoom button, the disabled Previous page included, is displayed at 44 px or more.
-    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.source-pdf-controls button')].map(node => {
-      const rect = node.getBoundingClientRect();
-      return [node.getAttribute('aria-label') ?? node.textContent, node.disabled,
-        node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' && rect.width >= 44 && rect.height >= 44];
-    })`), [['Previous page', true, true], ['Next page', false, true], ['Zoom out PDF', false, true], ['Zoom in PDF', false, true]],
-    'Phone PDF page and zoom buttons are 44 px');
-    // Ordinary focus retires all borrowed data, then restores neutral reading
-    // intent only after fresh owner reads and a replacement React commit.
-    await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
-      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF second page did not draw');
-    await evaluate(`document.querySelector('button[aria-label="Zoom in PDF"]').click()`);
-    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
-      return document.querySelector('.source-pdf-controls').textContent.includes('200%') && canvas && canvas.width > 0
-        && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF zoom did not draw');
-    const reading = await evaluate(`(() => { const frame = document.querySelector('.source-pdf-page');
-      frame.scrollTop = 100; frame.scrollLeft = 40; frame.dispatchEvent(new Event('scroll'));
-      return { top: frame.scrollTop, left: frame.scrollLeft }; })()`);
-    assert(reading.top > 0, 'Generated zoomed PDF must exercise a real vertical reading offset');
-    assert.equal(await evaluate(`(() => { window.dispatchEvent(new Event('focus'));
-      return document.querySelector('.offline-app-root').hidden; })()`), true, 'Focus must hide borrowed content synchronously');
-    await poll(`(() => { const root = document.querySelector('.offline-app-root');
-      const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
-      const frame = document.querySelector('.source-pdf-page');
-      return root && !root.hidden && document.querySelector('main h1')?.textContent === 'Library'
-        && document.querySelector('.source-pdf-controls')?.textContent.includes('200%')
-        && canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden' && frame
-        && Math.abs(frame.scrollTop - ${reading.top}) <= 1 && Math.abs(frame.scrollLeft - ${reading.left}) <= 1;
-    })()`, 15_000, 'Foreground revalidation lost Library or exact PDF page/zoom/reading offset');
-    assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
-    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    if (standardProfile) {
+      assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Synthetic parcel survey')`), false);
+    } else {
+      // Wait for the native row's own action: electrical rows can report "On this device" first.
+      await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Synthetic parcel survey')`, 5_000, 'PDF availability not shown');
+      await screenshot('phone-offline-library');
+      await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Synthetic parcel survey').click()`);
+      await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 1"]');
+        return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
+      // Every page and zoom button, the disabled Previous page included, is displayed at 44 px or more.
+      assert.deepEqual(await evaluate(`[...document.querySelectorAll('.source-pdf-controls button')].map(node => {
+        const rect = node.getBoundingClientRect();
+        return [node.getAttribute('aria-label') ?? node.textContent, node.disabled,
+          node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' && rect.width >= 44 && rect.height >= 44];
+      })`), [['Previous page', true, true], ['Next page', false, true], ['Zoom out PDF', false, true], ['Zoom in PDF', false, true]],
+      'Phone PDF page and zoom buttons are 44 px');
+      // Ordinary focus retires all borrowed data, then restores neutral reading
+      // intent only after fresh owner reads and a replacement React commit.
+      await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
+      await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
+        return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF second page did not draw');
+      await evaluate(`document.querySelector('button[aria-label="Zoom in PDF"]').click()`);
+      await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
+        return document.querySelector('.source-pdf-controls').textContent.includes('200%') && canvas && canvas.width > 0
+          && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF zoom did not draw');
+      const reading = await evaluate(`(() => { const frame = document.querySelector('.source-pdf-page');
+        frame.scrollTop = 100; frame.scrollLeft = 40; frame.dispatchEvent(new Event('scroll'));
+        return { top: frame.scrollTop, left: frame.scrollLeft }; })()`);
+      assert(reading.top > 0, 'Generated zoomed PDF must exercise a real vertical reading offset');
+      assert.equal(await evaluate(`(() => { window.dispatchEvent(new Event('focus'));
+        return document.querySelector('.offline-app-root').hidden; })()`), true, 'Focus must hide borrowed content synchronously');
+      await poll(`(() => { const root = document.querySelector('.offline-app-root');
+        const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 2"]');
+        const frame = document.querySelector('.source-pdf-page');
+        return root && !root.hidden && document.querySelector('main h1')?.textContent === 'Library'
+          && document.querySelector('.source-pdf-controls')?.textContent.includes('200%')
+          && canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden' && frame
+          && Math.abs(frame.scrollTop - ${reading.top}) <= 1 && Math.abs(frame.scrollLeft - ${reading.left}) <= 1;
+      })()`, 15_000, 'Foreground revalidation lost Library or exact PDF page/zoom/reading offset');
+      assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    }
     await poll(`(() => {
       const button = [...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated HomeBox PDF');
       return button && !button.disabled && button.closest('li')?.textContent.includes('On this device · Copied from HomeBox');
@@ -729,7 +758,8 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
-    await poll(`document.body.textContent.includes('Documents:')`, 5_000, 'Offline storage settings did not read size');
+    await poll(`document.body.textContent.includes(${JSON.stringify(standardProfile ? 'Electrical PDFs read so far:' : 'Documents:')})`, 5_000,
+      'Offline storage settings did not read size');
     assert.equal(await evaluate(`(() => {
       const paragraph = [...document.querySelectorAll('[role="dialog"] .setting-static')].find(node =>
         node.textContent.includes('HomeBox PDFs marked “On this device” in Library can open offline. Downloading missing files requires a connection.'));
@@ -790,7 +820,7 @@ try {
     await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
       && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
 
-    console.log('PASS live-launch: online building records and both measured library originals retained before offline reopen, cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, native, HomeBox and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    console.log(`PASS live-launch (${standardProfile ? 'standard' : 'full-document'}): online building records and qualified library originals retained, cached Atlas, held Rooms & places and its not-held sentence, all four phone-width tabs, held PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes`);
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {

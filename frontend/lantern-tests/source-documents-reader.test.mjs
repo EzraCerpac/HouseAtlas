@@ -111,10 +111,11 @@ let factories = 0, requests = 0, load = async () => ({ createNativeSourceDocumen
   } });
 } });
 const consumer = createSourceDocumentsService({ state: () => state, origin: server.origin, loadReader: () => load() });
-for (const facet of [undefined, { ...serviceFacet, available: false }, { ...serviceFacet, profile: 'future-profile' }]) {
+for (const facet of [undefined, { ...serviceFacet, available: false }, { ...serviceFacet, available: 'false' },
+  { ...serviceFacet, profile: 'future-profile' }]) {
   const view = decodeAtlasView({ ...readyDTO, ...(facet ? { sourceDocumentsService: facet } : {}) });
   assert.equal(view.status, 'ready');
-  assert.equal(view.sourceDocumentsService, undefined);
+  assert.deepEqual(view.sourceDocumentsService, facet?.profile === serviceFacet.profile && facet.available === false ? facet : undefined);
   state = { session, scope: view.scope, view };
   consumer.refresh();
   await assert.rejects(consumer.current().createReader(), /current view/);

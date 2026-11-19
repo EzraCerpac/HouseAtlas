@@ -151,28 +151,30 @@ function keepBuildingRecords(owner: import('./live-copy-retention').LiveCopyRete
 async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
-  const current = () => currentSession === session && currentReadyView === view;
+  const current = () => currentSession === session && currentReadyView === view && Date.parse(session.expiresAt) > Date.now();
   const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }, { fillOfflineHomeboxOriginals }] = await Promise.all([
     import('./offline-electrical-policy'), import('./offline-library-policy'), import('./offline-homebox-policy'),
   ]);
   // Imports may finish after the owning read has retired; no stale catalog work.
   if (!current() || signal.aborted) return 'The live view changed.';
-  // Measure both source lists before either automatic byte pass. Unknown source
-  // sizes do not justify evicting previously held files from another source.
-  const catalog = await owner.retainCatalog(signal);
-  if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted')
+  // Only a current, explicit service refusal permits independent electrical fill.
+  // Enumeration failures do not establish the native library size.
+  const preserveHeld = view.sourceDocumentsService?.available === false;
+  const catalog = preserveHeld ? null : await owner.retainCatalog(signal);
+  if (catalog?.status === 'uncertain' || catalog?.status === 'retired' || catalog?.status === 'aborted')
     return `Library download stopped (${catalog.status}). Check held files before trying again.`;
   if (!current() || signal.aborted) return 'The live view changed.';
-  if (catalog.status !== 'ok') return 'Document list is unavailable. Automatic downloads paused until file sizes can be checked.';
-  const measured = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled: () => false, signal });
-  const lists = `${catalog.status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
+  if (catalog && catalog.status !== 'ok') return 'Document list is unavailable. Automatic downloads paused until file sizes can be checked.';
+  const drawings = { owner, topology, port: sourceElectricalLibrary, view, current, preserveHeld, signal };
+  const measured = await fillOfflineElectricalLibraries({ ...drawings, enabled: () => false });
+  const lists = `${catalog ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
   if (!current() || signal.aborted || !enabled()) return lists;
   if (!measured.complete) return `${lists} Automatic downloads paused until file sizes can be checked.`;
   let nativeStopped = false;
-  const native = catalog.status === 'ok' ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
+  const native = catalog ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
   if (nativeStopped || !current() || signal.aborted || !enabled()) return native;
-  const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
-  if (!electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
+  const electrical = await fillOfflineElectricalLibraries({ ...drawings, enabled });
+  if (preserveHeld || !electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
   // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
   const homebox = await fillOfflineHomeboxOriginals({ owner, view, pinnedFiles, current, enabled, signal });
   return `${native} ${electrical.message} ${homebox.message}`;

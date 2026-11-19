@@ -787,7 +787,7 @@ export function createLiveCopyRetention(options: {
     /** Confirmed absence retires only this building's local catalog membership.
      * Empty provenance grants no source access; original bytes remain subject to
      * catalog membership and the existing actor/home/transaction witnesses. */
-    async retireElectricalLibrary(buildingId: string, signal: AbortSignal, current: () => boolean): Promise<OfflineResult<{ evicted: number }>> {
+    async retireElectricalLibrary(buildingId: string, signal: AbortSignal, current: () => boolean, preserveHeld = false): Promise<OfflineResult<{ evicted: number }>> {
       const b = binding(); if (b.status !== 'ok') return remember(b);
       const live = () => !signal.aborted && b.value.current() && current();
       try {
@@ -796,12 +796,13 @@ export function createLiveCopyRetention(options: {
         if (home.status !== 'ok') return remember(home);
         return remember(await owner.keepElectricalCatalog(home.value, {
           buildingId, capturedAt: new Date().toISOString(), provenance: null, documents: [],
-        }, signal));
+        }, signal, preserveHeld));
       } catch { return remember({ status: signal.aborted ? 'aborted' : 'unavailable' }); }
     },
     /** Captures one genuinely read building. The caller retains ownership of its reader/frame. */
     async retainElectricalLibrary(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, signal: AbortSignal,
-      retention: { readonly includeBytes?: boolean; readonly evidenceId?: string; readonly enabled?: () => boolean } = {}): Promise<OfflineResult<{ held: number; unavailable: number; bytes: number }>> {
+      retention: { readonly includeBytes?: boolean; readonly evidenceId?: string; readonly enabled?: () => boolean;
+        readonly preserveHeld?: boolean } = {}): Promise<OfflineResult<{ held: number; unavailable: number; bytes: number }>> {
       const b = binding(); if (b.status !== 'ok') return remember(b);
       const identity = reader.owner();
       const current = () => b.value.current() && reader.owner() === identity && identity !== null && reader.isCurrent(frame);
@@ -838,22 +839,25 @@ export function createLiveCopyRetention(options: {
           provenance: p ? { historicalRoomMappingReceipt: { id: p.historicalRoomMappingReceipt.id, sha256: p.historicalRoomMappingReceipt.sha256 },
             fixtureLedgerSha256: p.fixtureLedgerSha256, supportOriginalSha256: p.supportOriginalSha256,
             currentNativeRoomReview: { id: p.currentNativeRoomReview.id, sha256: p.currentNativeRoomReview.sha256 } } : null };
-        const catalogResult = await owner.keepElectricalCatalog(live.value, building, signal);
+        const catalogResult = await owner.keepElectricalCatalog(live.value, building, signal, retention.preserveHeld);
         if (catalogResult.status !== 'ok') return remember(catalogResult);
         const bytes = documents.reduce((sum, row) => sum + electricalPinBytes(row.pin), 0);
         let held = 0, unavailable = 0;
         const summary = () => ({ status: 'ok' as const, value: { held, unavailable, bytes } });
         if (retention.includeBytes === false || retention.enabled?.() === false) return remember(summary());
         const copy = await owner.readLast(signal); if (copy.status !== 'ok') return remember(copy);
-        const [electrical, native, storage] = await Promise.all([owner.readElectricalCatalog(copy.value.handle, signal),
-          owner.readCatalog(copy.value.handle, signal), owner.status(signal)]);
+        const [electrical, storage] = await Promise.all([owner.readElectricalCatalog(copy.value.handle, signal), owner.status(signal)]);
         if (electrical.status !== 'ok') return remember(electrical);
         if (storage.status !== 'ok') return remember(storage);
-        if (native.status !== 'ok' && native.status !== 'missing') return remember(native);
-        const allBytes = electrical.value.buildings.reduce((sum, row) => sum + row.documents.reduce((n, d) => n + electricalPinBytes(d.pin), 0), 0)
-          + (native.status === 'ok' ? native.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0) : 0);
+        let measuredBytes = electrical.value.buildings.reduce((sum, row) => sum + row.documents.reduce((n, d) => n + electricalPinBytes(d.pin), 0), 0);
+        if (!retention.preserveHeld) {
+          const native = await owner.readCatalog(copy.value.handle, signal);
+          if (native.status !== 'ok' && native.status !== 'missing') return remember(native);
+          if (native.status === 'ok') measuredBytes += native.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0);
+        }
         // Explicit opens may keep their selected original; automatic fill refuses budget churn.
-        if (!retention.evidenceId && allBytes > storage.value.budgetBytes * 0.8) return remember(summary());
+        // Independent fill also checks total held bytes atomically on each write.
+        if (!retention.evidenceId && measuredBytes > storage.value.budgetBytes * 0.8) return remember(summary());
         client = reader.createDrawingClient(frame);
         for (const document of documents) {
           if (retention.evidenceId && document.pin.evidenceId !== retention.evidenceId) continue;
@@ -879,7 +883,7 @@ export function createLiveCopyRetention(options: {
           const original = await blob.arrayBuffer();
           if (!byteCurrent() || signal.aborted || !actor) return remember(retired());
           const admitted = owner.bindHome(actor, frame.scope, byteCurrent); if (admitted.status !== 'ok') return remember(admitted);
-          const result = await owner.keepElectricalDocument(admitted.value, pin, original, signal);
+          const result = await owner.keepElectricalDocument(admitted.value, pin, original, signal, retention.preserveHeld);
           client.release(opened); opened = null;
           if (result.status === 'ok') held++;
           else if (result.status === 'retired' || result.status === 'aborted' || result.status === 'uncertain') return remember(result);

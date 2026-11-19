@@ -311,8 +311,8 @@ export function decodeAtlasView(value: unknown): AtlasView {
       publicationId: selected.publicationId, manifestSha256: selected.manifestSha256 } : undefined;
   const documents = o.sourceDocumentsService;
   const documentService = documents && typeof documents === 'object' && !Array.isArray(documents) ? documents as ObjectValue : null;
-  const sourceDocumentsService = documentService?.profile === 'houseatlas.geodata-document-read.v2' && documentService.available === true
-    ? { profile: 'houseatlas.geodata-document-read.v2' as const, available: true as const } : undefined;
+  const sourceDocumentsService = documentService?.profile === 'houseatlas.geodata-document-read.v2' && typeof documentService.available === 'boolean'
+    ? { profile: 'houseatlas.geodata-document-read.v2' as const, available: documentService.available } : undefined;
   return {
     status,
     scope: currentScope,

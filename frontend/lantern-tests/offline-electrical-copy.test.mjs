@@ -222,6 +222,18 @@ test('shared document LRU enforces one bound across disjoint native and electric
     assert.equal((await owner.readDocument(copy.value.handle, nativePin, signal())).status, 'ok');
     assert.equal((await owner.status(signal())).value.documents, 1);
     assert.equal((await owner.readElectricalCatalog(copy.value.handle, signal())).status, 'ok', 'LRU evicts bytes before catalogs');
+    const before = structuredClone(backend.tables());
+    assert.equal((await owner.keepElectricalDocument(home.value, pin, original.slice().buffer, signal(), true)).status, 'limit');
+    assert.deepEqual(backend.tables(), before, 'Independent fill cannot evict a held native original at the document limit');
+    const bytes = (await owner.status(signal())).value.bytes;
+    const soft = createLiveCopyOwner(backend, { limits: { bytes: Math.floor((bytes + 3) / 0.8) } });
+    try {
+      const selected = await soft.observeActor('generated-actor', () => true);
+      const bound = soft.bindHome(selected.value, scope, () => true);
+      const beforeSoft = structuredClone(backend.tables());
+      assert.equal((await soft.keepElectricalDocument(bound.value, pin, original.slice().buffer, signal(), true)).status, 'limit');
+      assert.deepEqual(backend.tables(), beforeSoft, 'The projected shared soft budget includes already held native bytes');
+    } finally { soft.close(); }
   } finally { owner.close(); }
 });
 
