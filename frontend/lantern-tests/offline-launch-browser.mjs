@@ -713,6 +713,19 @@ try {
           node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' && rect.width >= 44 && rect.height >= 44];
       })`), [['Previous page', true, true], ['Next page', false, true], ['Zoom out PDF', false, true], ['Zoom in PDF', false, true]],
       'Phone PDF page and zoom buttons are 44 px');
+      // Touch on a wide screen (phone layout off): the viewer's Close and download keep 44 px too.
+      const wideTouch = `['Previous page', 'Next page', 'Zoom out PDF', 'Zoom in PDF', 'Close', 'Save held original'].map(name => {
+        const node = [...document.querySelectorAll('[role="dialog"] :is(button, a)')].find(node => (node.getAttribute('aria-label') ?? node.textContent) === name);
+        const rect = node?.getBoundingClientRect();
+        return [name, Boolean(node && node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' && rect.width >= 44 && rect.height >= 44)];
+      })`;
+      await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+      await poll(`matchMedia('(pointer: coarse)').matches && !matchMedia('(max-width: 759px)').matches && ${wideTouch}.every(([, ok]) => ok)`, 5_000, 'Wide touch PDF viewer targets');
+      assert.deepEqual(await evaluate(wideTouch), [['Previous page', true], ['Next page', true], ['Zoom out PDF', true], ['Zoom in PDF', true], ['Close', true], ['Save held original', true]],
+        'Wide touch PDF viewer controls are 44 px');
+      await send('Emulation.setTouchEmulationEnabled', { enabled: false });
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
       // Ordinary focus retires all borrowed data, then restores neutral reading
       // intent only after fresh owner reads and a replacement React commit.
       await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
