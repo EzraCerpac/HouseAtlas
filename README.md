@@ -72,7 +72,10 @@ Without HomeBox settings, HomeBox data stays cached-only. With a read-only crede
 
 ### Network (optional)
 
-The [Network collector](tools/network-collector/README.md) is a separate process that collects on its own schedule into its own store. HouseAtlas reads the stored results and never starts collection while browsing. When the collector's device list differs from the saved one, an Editor named in the provider profile can press **Refresh device list** to publish it. [Provider profile](docs/providers/persistent-cached-provider-selection.md).
+The [Network collector](tools/network-collector/README.md) is a separate process that collects on its own schedule into its own store. HouseAtlas reads the stored results and never starts collection while browsing. When the collector's device list differs from the saved one, an Editor named in the provider profile sees one of two messages in the Network details:
+
+- **Changed, needs a refresh:** the collector's list is the revision already reviewed in the profile; **Refresh device list** publishes it.
+- **Changed; it needs review before it can be refreshed:** the collector reports a newer revision that nobody has reviewed. There is no refresh button. The owner reviews the change, pins that revision in the private provider profile and restarts the service; then the Editor can publish the matching list. See [Adopting a changed inventory revision](docs/providers/persistent-cached-provider-selection.md#adopting-a-changed-inventory-revision).
 
 ### Backups and restore
 
