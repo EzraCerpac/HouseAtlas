@@ -79,7 +79,7 @@ The [Network collector](tools/network-collector/README.md) is a separate process
 
 ### Backups and restore
 
-[`tools/backup`](docs/operations/icloud-backup.md) backs up the Atlas database, kept originals and the served model every night and checks that each copy restores; **Settings** › **Backups** chooses how long copies are kept. Sign-in data, credentials, HomeBox originals and Network state are not in the backup. To rebuild a host from an archive, follow [Recover the service from a backup](docs/operations/persistent-server.md#recover-the-service-from-a-backup).
+On a macOS host, the separate nightly backup job in `tools/backup` runs only once it is installed: write its private config, then run `tools/backup/install.sh <config> --load` ([Nightly iCloud backup](docs/operations/icloud-backup.md#install)). Once loaded, it backs up the Atlas database, kept originals and the served model every night and checks that each copy restores; **Settings** › **Backups** chooses how long copies are kept. Sign-in data, credentials, HomeBox originals and Network state are not in the backup. To rebuild a host from an archive, follow [Recover the service from a backup](docs/operations/persistent-server.md#recover-the-service-from-a-backup).
 
 ## Development and checks
 
