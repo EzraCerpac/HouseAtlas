@@ -6753,6 +6753,47 @@ The fixture's assertions, deadlines and production guards are unchanged.
 These checks establish synthetic implementation behavior only.
 They release no G1–G5, installation or live-provider acceptance.
 
+## Opt-in mounted Editor evidence batch through the production binary
+
+`tools/rust-integration/mounted-evidence-batch-binary-loopback.py` takes a
+normal `houseatlas` executable and uses its production `initialize` and `serve`
+commands on a fresh private loopback HTTPS Host.
+The runner provisions generated Editor and Viewer accounts through a disposable
+provisioning file and selects `existing-editor-commands` in that Host's config.
+It reuses the Network binary harness's TLS, HTTP deadline, and shutdown helpers.
+
+With Rust pinned by `rust-toolchain.toml` and an existing absolute
+`CARGO_TARGET_DIR` outside the checkout, build the normal binary and run:
+
+```sh
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:?Set an existing external Cargo target directory}"
+batch_rustc=$(rustup which --toolchain 1.99.0 rustc)
+batch_cargo=$(rustup which --toolchain 1.99.0 cargo)
+mise run nas:build -- env RUSTC="$batch_rustc" "$batch_cargo" build --offline --locked \
+  -p houseatlas-backend --bin houseatlas
+UV_PYTHON_DOWNLOADS=never mise run nas:build -- uv run --offline --no-project --python python3 python -B \
+  tools/rust-integration/mounted-evidence-batch-binary-loopback.py \
+  --executable "$CARGO_TARGET_DIR/debug/houseatlas"
+```
+
+On Unix this requires Python 3.11 or newer, `uv`, and OpenSSL.
+On hosts without the NAS pool, omit `mise run nas:build --`.
+An operator separately authorized to qualify installed executable bytes can
+skip the build and pass the absolute path to that executable as `--executable`.
+The runner creates its own config, data directory, certificate and loopback
+listener, then stops its child on `SIGTERM` and removes its disposable state.
+It reports cleanup success only after shutdown and removal.
+
+The run sends one mounted `atlas.batch.execute` with two generated evidence
+creates in descending record-ID order.
+It checks canonical correlation, text and structured parity, and both receipts
+in submission order through the read-only retained-intent POST.
+Ordinary Viewer record GETs agree with the child receipts.
+The Editor's operation-event page has exactly two matching audits in native
+sequence, and Viewer MCP initialization returns `403` without a session.
+This covers the binary on generated state.
+Installed configuration, live authorization, and expiry are separate checks.
+
 ## Opt-in Network refresh through the production binary
 
 `tools/rust-integration/network-binary-loopback.py` executes an explicitly
