@@ -45,12 +45,14 @@ cargo build --release --locked -p houseatlas-backend
 (cd frontend && npm ci && npm run typecheck && npm run build)
 ```
 
-Write a private `server.json` (data folder, TLS certificate and key, listen address, HTTPS origin, homes) and initialize a new data folder once, then serve:
+Write a private `server.json` (data folder, frontend folder, TLS certificate and key, listen address, HTTPS origin, homes) and initialize a new data folder once, then serve:
 
 ```sh
-houseatlas initialize --server-config /absolute/private/server.json --provisioning-file /absolute/private/provisioning.json
-houseatlas serve --server-config /absolute/private/server.json
+./target/release/houseatlas initialize --server-config /absolute/private/server.json --provisioning-file /absolute/private/provisioning.json
+./target/release/houseatlas serve --server-config /absolute/private/server.json
 ```
+
+Run these from the repository root; with a custom `CARGO_TARGET_DIR`, the binary is in its `release/` folder instead. Set `frontendDirectory` in `server.json` to the absolute path of the build output, `<repository>/frontend/dist`.
 
 The provisioning file names the accounts, passwords and home memberships; `serve` never reads it. For a single person on one machine, a password-free loopback mode signs in with **Open Home** instead. [Persistent server](docs/operations/persistent-server.md) gives the exact file formats, both sign-in modes and recovery. The host also serves the example house at `/example/index.html`; **Settings** › **Open example house** links to it.
 
@@ -60,7 +62,9 @@ In **Settings** › **Offline storage**, **Keep Library files on this device** d
 
 ### Offline and back to live
 
-After one online launch, opening the app without a connection lands in the **Saved Atlas**, showing the Atlas as this device last read it. Edits made offline wait on the device under **Changes on this device**. When the server answers again, the Saved view shows **Connected · Open live**; in the live app, waiting changes send automatically (or on **Send now** if **Sync** is set to **When I ask**). A change the server can't accept as is moves to **Needs you**, where you keep yours, use the server's or discard it. Details: [root offline entry](docs/offline/root-offline-entry.md) and [live Atlas cache](docs/offline/live-atlas-cache.md).
+After one online launch, opening the app without a connection shows the Atlas as this device last read it. Supported edits made offline wait on the device under **Changes on this device**. When the server answers again, the app shows **Back online · Open live** (with the number of waiting changes); **Open live** returns to the live app, where waiting changes send automatically, or on **Send now** if **Sync** is set to **When I ask**. A change the server can't accept as is moves to **Needs you**, where you keep yours, use the server's or discard it.
+
+Evidence files saved from **Add evidence** are separate: they stay as unsent local drafts in this browser and never upload on their own. Open live, sign in, review each draft and confirm to upload it. Details: [root offline entry](docs/offline/root-offline-entry.md) and [live Atlas cache](docs/offline/live-atlas-cache.md).
 
 ### HomeBox (optional)
 
