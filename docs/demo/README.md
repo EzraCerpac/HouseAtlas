@@ -13,8 +13,8 @@ provider, household file, account, credential or upstream write is involved.
 | [Room](synthetic-room.png) | Lower room selection with source facts and unavailable shape/document information. |
 | [Collage](synthetic-collage.png) | The two unmodified screen captures, labeled SYNTHETIC. |
 
-The capture also produces seven unified Atlas review images. The README shows
-`synthetic-unified-3d.png`; the others are workflow artifacts only:
+The capture also produces seven unified Atlas review images.
+`synthetic-unified-3d.png` is checked in; the others are workflow artifacts only:
 
 | Image | State |
 | --- | --- |
@@ -290,13 +290,16 @@ receipt it writes:
 | `example-documents-list.png` | The fictional source Documents list in Library. |
 | `example-documents-detail.png` | The survey's qualified preview and source details. |
 | `example-network-trace.png` | A recorded logical route from the fictional access point to the fictional network root; it is not a cable route. |
+| `example-plan-network.png` | README image, 1280 × 800 at 2×: ground-floor Plan, **Network** layer, *Fictional access point* card with its reported links and source facts. |
+| `example-plan-electrical.png` | README image, 1280 × 800 at 2×: Hall in Plan, **Electrical** layer, *Fictional symbol 1* › **Show drawing group** with *Fictional circuit A1*. |
 | `example-house-tour.webm` | A short scripted tour: Living room selected, floors spread, Plan with the Electrical layer, back to 3D. |
 | `example-link-startup-chunk.js` | The built app startup file that carries the signed-out link, for startup-size review; `capture.json` lists each startup file's bytes and default gzip size. |
 
 Open the PR's **Checks** tab, choose the **Synthetic README media** run and
 download the `synthetic-readme-media-<head SHA>` artifact (kept seven days).
 Attach or drag the PNG or WebM into the PR description to show a change; do
-not commit them. To show a different state, extend the tour in
+not commit them. The two README images are the exception: after inspection they
+are copied into `docs/demo/` from the artifact of the commit they show. To show a different state, extend the tour in
 `tools/readme-media/capture.mjs`.
 
 Before the screenshot the same run:
@@ -390,7 +393,7 @@ SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are
 the four browsing images, their receipt and the self-referential publication
-manifest, plus the seven unified Atlas image names. The `unifiedAtlas` receipt section
+manifest, plus the seven unified Atlas image names and the two README example images. The `unifiedAtlas` receipt section
 records its entry, observed controls and selection, canvas and draw metadata,
 plan SVG digest, and the hashes of its own source files and images.
 The checked-in receipt

@@ -988,6 +988,8 @@
     {"path":"docs/core-integration/upload-diagnostics.md","mode":"100644","owner":"core-integration"},
     {"path":"docs/demo/README.md","mode":"100644","owner":"web"},
     {"path":"docs/demo/capture.json","mode":"100644","owner":"web"},
+    {"path":"docs/demo/example-plan-electrical.png","mode":"100644","owner":"web"},
+    {"path":"docs/demo/example-plan-network.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-building.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-collage.png","mode":"100644","owner":"web"},
     {"path":"docs/demo/synthetic-room.png","mode":"100644","owner":"web"},
