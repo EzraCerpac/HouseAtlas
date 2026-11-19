@@ -45,7 +45,7 @@ cargo build --release --locked -p houseatlas-backend
 (cd frontend && npm ci && npm run typecheck && npm run build)
 ```
 
-Write a private `server.json` (data folder, frontend folder, TLS certificate and key, listen address, HTTPS origin, homes) and initialize a new data folder once, then serve:
+Write a private `server.json` (data folder, frontend folder, TLS certificate and key, listen address, HTTPS origin, homes) and initialize a new data folder once, then serve. This example is for the default password sign-in:
 
 ```sh
 ./target/release/houseatlas initialize --server-config /absolute/private/server.json --provisioning-file /absolute/private/provisioning.json
@@ -54,7 +54,7 @@ Write a private `server.json` (data folder, frontend folder, TLS certificate and
 
 Run these from the repository root; with a custom `CARGO_TARGET_DIR`, the binary is in its `release/` folder instead. Set `frontendDirectory` in `server.json` to the absolute path of the build output, `<repository>/frontend/dist`.
 
-The provisioning file names the accounts, passwords and home memberships; `serve` never reads it. For a single person on one machine, a password-free loopback mode signs in with **Open Home** instead. [Persistent server](docs/operations/persistent-server.md) gives the exact file formats, both sign-in modes and recovery. The host also serves the example house at `/example/index.html`; **Settings** › **Open example house** links to it.
+The provisioning file names the accounts, passwords and home memberships; `serve` never reads it. For a single person on one machine, the password-free loopback mode signs in with **Open Home** instead; its `initialize` omits `--provisioning-file`, which that mode refuses. [Persistent server](docs/operations/persistent-server.md) gives the exact file formats, both sign-in modes and recovery. The host also serves the example house at `/example/index.html`; **Settings** › **Open example house** links to it.
 
 ### Library files on this device
 
@@ -75,11 +75,11 @@ Without HomeBox settings, HomeBox data stays cached-only. With a read-only crede
 The [Network collector](tools/network-collector/README.md) is a separate process that collects on its own schedule into its own store. HouseAtlas reads the stored results and never starts collection while browsing. When the collector's device list differs from the saved one, an Editor named in the provider profile sees one of two messages in the Network details:
 
 - **Changed, needs a refresh:** the collector's list is the revision already reviewed in the profile; **Refresh device list** publishes it.
-- **Changed; it needs review before it can be refreshed:** the collector reports a newer revision that nobody has reviewed. There is no refresh button. The owner reviews the change, pins that revision in the private provider profile and restarts the service; then the Editor can publish the matching list. See [Adopting a changed inventory revision](docs/providers/persistent-cached-provider-selection.md#adopting-a-changed-inventory-revision).
+- **Changed; it needs review before it can be refreshed:** the collector reports a newer revision that nobody has reviewed. There is no refresh button. The owner reviews the change, pins that revision in the private provider profile, selects the updated profile's SHA-256 and restarts the service; then the Editor can publish the matching list. See [Adopting a changed inventory revision](docs/providers/persistent-cached-provider-selection.md#adopting-a-changed-inventory-revision).
 
 ### Backups and restore
 
-On a macOS host, the separate nightly backup job in `tools/backup` runs only once it is installed: write its private config, then run `tools/backup/install.sh <config> --load` ([Nightly iCloud backup](docs/operations/icloud-backup.md#install)). Once loaded, it backs up the Atlas database, kept originals and the served model every night and checks that each copy restores; **Settings** › **Backups** chooses how long copies are kept. Sign-in data, credentials, HomeBox originals and Network state are not in the backup. To rebuild a host from an archive, follow [Recover the service from a backup](docs/operations/persistent-server.md#recover-the-service-from-a-backup).
+On a macOS host, the separate nightly backup job in `tools/backup` runs only once it is installed: write its private config, then run `tools/backup/install.sh <config> --load` ([Nightly iCloud backup](docs/operations/icloud-backup.md#install)). Allow the installed launcher iCloud Drive access ([permission](docs/operations/icloud-backup.md#icloud-drive-permission)), and confirm one run has finished with its restore checks before relying on it. It backs up the Atlas database, kept originals and the served model every night and checks that each copy restores; **Settings** › **Backups** chooses how long copies are kept. Sign-in data, credentials, HomeBox originals and Network state are not in the backup. To rebuild a host from an archive, follow [Recover the service from a backup](docs/operations/persistent-server.md#recover-the-service-from-a-backup).
 
 ## Development and checks
 
