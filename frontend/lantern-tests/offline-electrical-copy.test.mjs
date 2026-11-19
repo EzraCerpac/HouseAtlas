@@ -8,9 +8,10 @@ import { transformWithOxc } from 'vite';
 const dataModule = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 const ownerCode = stripTypeScriptTypes(readFileSync(new URL('../src/offline/live-copy-owner.ts', import.meta.url), 'utf8'));
 assert(!/^\s*import(?:\s|['"])/m.test(ownerCode));
+const ownerURL = JSON.stringify(dataModule(ownerCode));
 const backendCode = stripTypeScriptTypes(readFileSync(new URL('../src/offline/live-copy-indexeddb.ts', import.meta.url), 'utf8'));
 const adapterCode = stripTypeScriptTypes(readFileSync(new URL('../integration/live-copy-retention.ts', import.meta.url), 'utf8'))
-  .replace(/(['"])\.\.\/src\/offline\/live-copy-owner\1/g, JSON.stringify(dataModule(ownerCode)))
+  .replace(/(['"])\.\.\/src\/offline\/live-copy-owner\1/g, ownerURL)
   .replace(/(['"])\.\.\/src\/offline\/live-copy-indexeddb\1/g, JSON.stringify(dataModule(backendCode)));
 assert(!/^\s*import(?:\s|['"])/m.test(adapterCode.replace(/^import .* from .*;$/gm, '')));
 const { createLiveCopyOwner, validElectricalPin } = await import(dataModule(ownerCode));
@@ -65,10 +66,10 @@ function drawing(buildingId = uuid(3), evidenceId = uuid(4)) {
     contentType: 'application/pdf', purpose: 'evidence-original', previewPolicy: 'download-only', sourceLicense: { status: 'unknown', reference: null }, evidenceIds: [] };
   return { pin, frame, asset };
 }
-async function setup(nativeDocuments = null) {
+async function setup(nativeDocuments = null, createRetention = createLiveCopyRetention) {
   const backend = memory(), session = { actorId: 'generated-actor-a', expiresAt: '2099-01-01T00:00:00Z' };
   let state = { session, view }, current = true, opens = 0, releases = 0, disposals = 0, duringBytes = () => {};
-  const owner = createLiveCopyRetention({ factory: undefined, backend, state: () => state,
+  const owner = createRetention({ factory: undefined, backend, state: () => state,
     documents: () => {
       if (!nativeDocuments) throw new Error('Synthetic native Document v2 transport trap');
       return { async createReader() { const identity = {}; return { owner: () => identity,
@@ -1519,23 +1520,45 @@ test('borrowed Document refuses preview, scope and exact asset-pin mismatches wi
 });
 
 test('confirmed electrical absence retires only the selected building catalog and original eligibility', async () => {
-  const f = await setup(), a = drawing(uuid(81), uuid(82)), b = drawing(uuid(83), uuid(84));
-  try {
-    for (const d of [a, b]) assert.equal((await f.owner.retainElectricalLibrary(f.makeReader(d), d.frame, signal())).status, 'ok');
-    const before = await f.owner.read.readElectricalCatalog(await readCopy(f.owner), signal());
-    assert.equal(before.status, 'ok');
-    const other = before.value.buildings.find(row => row.buildingId === b.pin.buildingId);
-    assert.equal((await f.owner.read.readElectricalDocument(await readCopy(f.owner), a.pin, signal())).status, 'ok');
-    assert.equal((await f.owner.retireElectricalLibrary(a.pin.buildingId, signal(), () => true)).status, 'ok');
-    const handle = await readCopy(f.owner), catalog = await f.owner.read.readElectricalCatalog(handle, signal());
-    assert.equal(catalog.status, 'ok');
-    assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === a.pin.buildingId).documents, []);
-    assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === b.pin.buildingId), other);
-    assert.equal((await f.owner.read.readElectricalDocument(handle, a.pin, signal())).status, 'missing');
-    const retained = await f.owner.read.readElectricalDocument(handle, b.pin, signal());
-    assert.equal(retained.status, 'ok'); assert.deepEqual(new Uint8Array(await retained.value.arrayBuffer()), original);
-    assert.equal(f.counts().opens, 2, 'Retirement reads no additional original');
-  } finally { f.owner.close(); }
+  // Run the real retention adapter and storage owner with a small shared budget.
+  const limitedOwner = dataModule(`
+    export * from ${ownerURL};
+    import { createLiveCopyOwner as createOwner } from ${ownerURL};
+    export const createLiveCopyOwner = (backend, options) =>
+      createOwner(backend, { ...options, limits: { bytes: 16 * 1024 } });
+  `);
+  const { createLiveCopyRetention: limitedRetention } = await import(dataModule(
+    adapterCode.replace(ownerURL, JSON.stringify(limitedOwner))));
+  for (const preserveHeld of [false, true]) {
+    const f = await setup(null, limitedRetention), a = drawing(uuid(81), uuid(82)), b = drawing(uuid(83), uuid(84));
+    const reopened = createLiveCopyOwner(f.backend);
+    try {
+      for (const d of [a, b]) assert.equal((await f.owner.retainElectricalLibrary(f.makeReader(d), d.frame, signal(),
+        { evidenceId: d.pin.evidenceId })).status, 'ok');
+      const before = await f.owner.read.readElectricalCatalog(await readCopy(f.owner), signal());
+      assert.equal(before.status, 'ok');
+      const other = before.value.buildings.find(row => row.buildingId === b.pin.buildingId);
+      assert.equal((await f.owner.read.readElectricalDocument(await readCopy(f.owner), a.pin, signal())).status, 'ok');
+      const { bytes, budgetBytes } = (await f.owner.storage.status(signal())).value;
+      const unrelated = new Uint8Array(budgetBytes - bytes).fill(0x61);
+      assert(unrelated.byteLength > budgetBytes * 0.8, 'Remaining bytes alone exceed the shared soft target');
+      assert.equal((await f.owner.retainTopology(unrelated, signal(), () => true)).status, 'ok');
+      assert.equal((await f.owner.storage.status(signal())).value.bytes, budgetBytes);
+      assert.deepEqual(await f.owner.retireElectricalLibrary(a.pin.buildingId, signal(), () => true, preserveHeld),
+        { status: 'ok', value: { evicted: 0 } }, `Confirmed absence must retire above the soft target (preserveHeld=${preserveHeld})`);
+      assert((await f.owner.storage.status(signal())).value.bytes < budgetBytes, 'Retirement frees catalog bytes');
+      const handle = (await reopened.readLast(signal())).value.handle;
+      const catalog = await reopened.readElectricalCatalog(handle, signal());
+      assert.equal(catalog.status, 'ok');
+      assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === a.pin.buildingId).documents, []);
+      assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === b.pin.buildingId), other);
+      assert.equal((await reopened.readElectricalDocument(handle, a.pin, signal())).status, 'missing');
+      const retained = await reopened.readElectricalDocument(handle, b.pin, signal());
+      assert.equal(retained.status, 'ok'); assert.deepEqual(new Uint8Array(await retained.value.arrayBuffer()), original);
+      assert.deepEqual(await reopened.readTopology(handle, signal()), { status: 'ok', value: unrelated });
+      assert.equal(f.counts().opens, 2, 'Retirement reads no additional original');
+    } finally { reopened.close(); f.owner.close(); }
+  }
 });
 
 test('stale electrical absence session or currentness refuses catalog retirement without mutating stored data', async () => {

@@ -285,8 +285,11 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       let documentCount = rows.filter(r => r.key !== key && documentKind(r.value.kind)).length;
       const exceedsLimits = () => total + bytes.byteLength > limits.bytes || count + 1 > limits.rows
         || documentKind(kind) && documentCount + 1 > limits.documents;
-      // Independent fill uses actual held bytes and cannot evict from any source.
-      if (preserveHeld) need(total + bytes.byteLength <= limits.bytes * 0.8 && !exceedsLimits(), 'limit');
+      // Independent fill cannot evict. Let a catalog retire membership without growing the copy.
+      if (preserveHeld) {
+        const nonGrowingCatalog = kind === 'electrical-catalog' && previous && bytes.byteLength <= previous.value.bytes;
+        need(!exceedsLimits() && (nonGrowingCatalog || total + bytes.byteLength <= limits.bytes * 0.8), 'limit');
+      }
       const ordered = rows.filter(r => r.key !== key).sort((a, z) => Number(!documentKind(a.value.kind)) - Number(!documentKind(z.value.kind)) || a.value.usedAt - z.value.usedAt);
       while (exceedsLimits()) {
         const old = ordered.shift(); need(old, 'limit');
