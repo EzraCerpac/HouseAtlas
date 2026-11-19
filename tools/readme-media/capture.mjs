@@ -14,7 +14,7 @@ const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
 const unifiedNames = ['unified-3d', 'unified-collapsed', 'unified-plan', 'unified-phone', 'unified-phone-crowded', 'unified-phone-hall', 'unified-stacked'];
-const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['building', 'room', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
+const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', 'docs/demo/example-plan-network.png', 'docs/demo/example-plan-electrical.png', ...['building', 'room', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
 async function sourceTreeSnapshot() {
   const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
   const rows = [];
@@ -834,12 +834,46 @@ try {
   await graph.screenshot({ path: resolve(output, 'example-network-trace.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   await productionContext.close();
+  // README showcase: two complete app views at 2x for legibility when scaled to README width.
+  // 1. Network layer on the ground-floor Plan with the access point's card open.
+  // 2. Electrical layer on Hall with Fictional symbol 1's drawing group and its circuit data.
+  const showcaseContext = await exampleBrowser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, locale: 'en-US', timezoneId: 'UTC',
+    colorScheme: 'light', reducedMotion: 'reduce', serviceWorkers: 'block' });
+  await guard(showcaseContext);
+  const showcase = await showcaseContext.newPage();
+  showcase.on('pageerror', error => errors.push(error.message));
+  const showcasePlan = async room => {
+    await showcase.goto(`${exampleOrigin}/example/index.html?building=syn-building-house&floor=syn-level-ground&room=${room}&view=plan`, { waitUntil: 'load' });
+    await showcase.evaluate(() => document.fonts.ready);
+    await showcase.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan'));
+  };
+  await showcasePlan('syn-room-living');
+  await showcase.getByRole('group', { name: 'Layers' }).getByRole('button', { name: /^Network/ }).click();
+  await showcase.getByRole('button', { name: 'Fictional access point, access point: Stairs, Ground floor', exact: true }).click();
+  const accessPoint = showcase.locator('aside.ua-inspector');
+  await accessPoint.getByRole('heading', { level: 2, name: 'Fictional access point', exact: true }).waitFor();
+  await accessPoint.getByText(/^Reported links/).first().waitFor();
+  await accessPoint.getByText(/^Network source facts/).first().waitFor();
+  await frames(showcase);
+  await showcase.screenshot({ path: resolve(output, 'example-plan-network.png'), animations: 'disabled' });
+  await showcasePlan('syn-room-hall');
+  await showcase.getByRole('group', { name: 'Layers' }).getByRole('button', { name: /^Electrical/ }).click();
+  const hall = showcase.locator('aside.ua-inspector');
+  await hall.getByText('Fictional symbol 1', { exact: true }).first().click();
+  await hall.getByRole('button', { name: 'Show drawing group', exact: true }).filter({ visible: true }).first().click();
+  await hall.getByText('Historic drawing group, unverified', { exact: true }).waitFor();
+  await hall.getByText('Fictional circuit A1', { exact: true }).waitFor();
+  await frames(showcase);
+  await showcase.screenshot({ path: resolve(output, 'example-plan-electrical.png'), animations: 'disabled' });
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+  await showcaseContext.close();
   await exampleBrowser.close();
   await new Promise(done => staticServer.close(done));
   const navigationMs = Date.now() - navigationStarted;
   const exampleHouse = {
     entry: exampleEntry, renderer: 'frontend/example page: production LanternHost and UnifiedAtlas over the generated publication',
     viewport: [1280, 800], screenshot: 'example-house.png', video: 'example-house-tour.webm',
+    showcase: { deviceScaleFactor: 2, images: ['example-plan-network.png', 'example-plan-electrical.png'], states: ['Living room Plan, Network layer, Fictional access point card', 'Hall Plan, Electrical layer, Fictional symbol 1 drawing group with circuit data'] },
     tour: ['open on Synthetic house through ?building=', 'select Living room', 'spread floors', 'Plan with Electrical layer', 'back to 3D'],
     states: { direct: { entry: stateEntry, screenshot: 'example-house-state.png', ...direct },
       reopened: { after: ['3D chosen', 'Upkeep', 'Atlas'], ...reopened }, ignored: { entry: ignoredEntry, ...ignored }, home,
@@ -857,7 +891,7 @@ try {
     durationsMs: { typecheckAndBuild: buildMs, tour: tourMs, navigation: navigationMs },
     scope: ['Generated fictional data only', 'Clean browser profile with service workers blocked; synthetic sentinels only, no existing user profile',
       'Video is a review aid: browser timing varies; no pixel or timing evidence', 'Durations are informational'],
-    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png', 'example-network-trace.png'].map(async name =>
+    artifactHashes: Object.fromEntries(await Promise.all(['example-house.png', 'example-house-state.png', 'example-house-tour.webm', 'example-inventory-list.png', 'example-inventory-detail.png', 'example-documents-list.png', 'example-documents-detail.png', 'example-network-trace.png', 'example-plan-network.png', 'example-plan-electrical.png'].map(async name =>
       [name, createHash('sha256').update(await readFile(resolve(output, name))).digest('hex')]))),
   };
   await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browserVersion, viewport: [1440, 1000], collage: [1210, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas, exampleHouse }, null, 2) + '\n');

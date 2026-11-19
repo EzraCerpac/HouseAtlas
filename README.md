@@ -2,11 +2,15 @@
 
 HouseAtlas is a map of your home. It puts buildings, floors and rooms in one place, together with the belongings, documents, electrical drawings and network devices that relate to them. You can open it without a floorplan; a 3D model is optional. It keeps what each source said, when it said it, and what is still unknown.
 
-![Synthetic HouseAtlas Atlas: a generated two-building house model in 3D with its floors spread and the living room selected](docs/demo/synthetic-unified-3d.png)
+![HouseAtlas example house: the ground-floor plan with the Network layer on. The fictional access point in Stairs is selected; its links to the living-room devices are drawn on the plan, and its card lists those links and what the network source reported.](docs/demo/example-plan-network.png)
 
-![Synthetic HouseAtlas demo: reviewed building levels and room details](docs/demo/synthetic-collage.png)
+**Tap a device on the plan** to see its links and what the network source last reported about it.
 
-**SYNTHETIC demo.** These images show the actual React interface with a generated fictional house and invented records. No household files, real accounts or live providers are used. [Screenshots and how they are made](docs/demo/README.md).
+![HouseAtlas example house: Hall selected on the ground-floor plan with the Electrical layer on. A historic drawing group highlights Hall and Living room, and the card shows fictional circuit A1, 16 A, on a fictional panel in Hall.](docs/demo/example-plan-electrical.png)
+
+**Open a drawing symbol in a room** to see the rooms its drawing group covers and the circuit recorded for it.
+
+These are the actual app running the public [example house](#try-the-example-house): a fictional house with invented records, no real household data or live sources. [More screenshots and how they are made](docs/demo/README.md).
 
 ## What it does
 
@@ -29,12 +33,12 @@ npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
 
 Then open <http://127.0.0.1:4179/example/index.html>. Things to try:
 
-- Select **Living room**, then turn on the **Network** layer. Tap a device or a link to see its card.
-- [Hall in Plan](http://127.0.0.1:4179/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-hall&view=plan): turn on **Electrical**, open *Fictional symbol 1* and choose **Show drawing group**.
+- Select **Living room**, switch to **Plan** and turn on the **Network** layer. Tap a device or a link to see its card (first image above).
+- [Hall in Plan](http://127.0.0.1:4179/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-hall&view=plan): turn on **Electrical**, open *Fictional symbol 1* and choose **Show drawing group** (second image).
 - **Library** › **Source documents** › *Synthetic parcel survey* opens a generated PDF.
 - **Place records** in the rooms panel lists belongings with no reviewed room; **Upkeep** shows the reading lamp's entries.
 
-Stop the server with Ctrl-C. Two smaller previews use the same server: <http://127.0.0.1:4179/lantern-tests/source-host-visual/?atlas=generated> (the 3D image above) and <http://127.0.0.1:4179/lantern-tests/core-read-visual/> (select **Alpha** for building sections without a house model). They use fake data in the page, with no sign-in or server. Keep them on loopback; they are not a deployment. The [demo guide](docs/demo/README.md#example-house) lists every feature area and link.
+Stop the server with Ctrl-C. Two smaller previews use the same server: <http://127.0.0.1:4179/lantern-tests/source-host-visual/?atlas=generated> (the generated house in 3D) and <http://127.0.0.1:4179/lantern-tests/core-read-visual/> (select **Alpha** for building sections without a house model). They use fake data in the page, with no sign-in or server. Keep them on loopback; they are not a deployment. The [demo guide](docs/demo/README.md#example-house) lists every feature area and link.
 
 ## Run your own host
 
