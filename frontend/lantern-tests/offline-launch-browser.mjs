@@ -763,6 +763,21 @@ try {
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Held HomeBox PDF must not fetch public bytes or data from network');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    // Closing the held file returns focus to its Library opener: after Escape when the click
+    // did not focus the opener (as on iOS), and after Close when revalidation replaced it.
+    const homeboxOpener = `[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated HomeBox PDF')`;
+    await poll(`document.querySelector('[role="dialog"]') === null && document.activeElement === ${homeboxOpener}`, 5_000, 'Escape left focus off the HomeBox opener');
+    const pressEnter = async () => { for (const type of ['rawKeyDown', 'char', 'keyUp'])
+      await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, ...(type === 'char' ? { text: '\r' } : {}) }); };
+    await pressEnter();
+    await poll(`document.querySelector('canvas[aria-label="Generated HomeBox PDF, PDF page 1"]')?.width > 0`, 15_000, 'Enter did not open the held HomeBox PDF');
+    const replaced = await evaluate(`(() => { window.__heldOpener = ${homeboxOpener}; window.dispatchEvent(new Event('focus')); return document.querySelector('.offline-app-root').hidden; })()`);
+    assert.equal(replaced, true, 'Foreground revalidation must start while the held file is open');
+    await poll(`!document.querySelector('.offline-app-root').hidden && !window.__heldOpener.isConnected
+      && document.querySelector('canvas[aria-label="Generated HomeBox PDF, PDF page 1"]')?.width > 0`, 15_000, 'Revalidation did not reopen the held HomeBox PDF');
+    await evaluate(`document.querySelector('[role="dialog"] button[aria-label="Close"]').focus()`);
+    await pressEnter();
+    await poll(`document.querySelector('[role="dialog"]') === null && document.activeElement === ${homeboxOpener}`, 5_000, 'Close left focus off the current HomeBox opener');
     await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Fictional kitchen · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Fictional kitchen · Page 2').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
