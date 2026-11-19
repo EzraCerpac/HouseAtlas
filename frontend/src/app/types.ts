@@ -130,7 +130,7 @@ export interface ReadyView {
   entries: Entry[];
   caches: Cache[];
   /** Optional current authenticated source service selection; no per-document grant. */
-  sourceDocumentsService?: Readonly<{ profile: 'houseatlas.geodata-document-read.v2'; available: true }>;
+  sourceDocumentsService?: Readonly<{ profile: 'houseatlas.geodata-document-read.v2'; available: boolean }>;
   /** Optional source-owned selection; never native geometry authority. */
   modelOverviewService?: Readonly<{ profile: 'houseatlas.model-overview-read.v1'; available: true;
     publicationId: string; manifestSha256: string }>;

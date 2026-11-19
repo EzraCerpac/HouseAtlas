@@ -124,11 +124,17 @@ export async function checkOfflineLibraryPolicy() {
   assert(start >= 0 && end > start);
   const fillCode = stripTypeScriptTypes(rootSource.slice(start, end))
     .replace(/import\('([^']+)'\)/g, (_all, name) => `loadPolicy(${JSON.stringify(name)})`);
-  for (const outcome of ['incomplete', 'uncertain', 'view-replaced', 'aborted', 'disabled', 'catalog-unavailable', 'native-unavailable', 'complete']) {
-    const session = {}, view = {}; let enabled = true, homebox = 0, electricalPasses = 0;
+  const earlyStops = { expired: [0, 0, 0], 'catalog-unavailable': [1, 0, 0], 'native-unavailable': [1, 1, 1] };
+  for (const outcome of ['incomplete', 'uncertain', 'view-replaced', 'aborted', 'disabled', 'catalog-unavailable', 'native-unavailable', 'complete', 'expired']) {
+    const session = { expiresAt: outcome === 'expired' ? '2000-01-01T00:00:00Z' : '2099-01-01T00:00:00Z' }, view = {};
+    let enabled = true, catalogReads = 0, nativePasses = 0, electricalPasses = 0, homebox = 0;
     const controller = new AbortController();
     const context = { currentSession: session, currentReadyView: view, topology: {}, sourceElectricalLibrary: {}, pinnedFiles: {},
-      loadPolicy: async name => name === './offline-library-policy' ? { fillOfflineLibrary: async (_owner, _signal, _enabled, stop) => { if (outcome === 'native-unavailable') stop(); return 'Native result.'; } }
+      loadPolicy: async name => name === './offline-library-policy' ? { fillOfflineLibrary: async (_owner, _signal, _enabled, stop) => {
+        nativePasses++;
+        if (outcome === 'native-unavailable') stop();
+        return 'Native result.';
+      } }
         : name === './offline-homebox-policy' ? { fillOfflineHomeboxOriginals: async () => { homebox++; return { message: 'HomeBox complete.' }; } }
           : { fillOfflineElectricalLibraries: async () => {
             if (++electricalPasses === 1) return { complete: true, message: 'Measured.' };
@@ -138,8 +144,13 @@ export async function checkOfflineLibraryPolicy() {
           } },
     };
     const fill = vm.runInNewContext(fillCode + '\nfillDeviceLibrary', context);
-    await fill({ retainCatalog: async () => ({ status: outcome === 'catalog-unavailable' ? 'unavailable' : 'ok' }) }, controller.signal, () => enabled);
+    const result = await fill({ retainCatalog: async () => {
+      catalogReads++;
+      return { status: outcome === 'catalog-unavailable' ? 'unavailable' : 'ok' };
+    } }, controller.signal, () => enabled);
     assert.equal(homebox, outcome === 'complete' ? 1 : 0, outcome);
+    assert.deepEqual([catalogReads, nativePasses, electricalPasses], earlyStops[outcome] ?? [1, 1, 2], outcome);
+    if (outcome === 'expired') assert.equal(result, 'The live view changed.');
   }
   cases.push('offline-root-homebox-follows-only-complete-native-electrical-current-enabled-pass');
   return cases;

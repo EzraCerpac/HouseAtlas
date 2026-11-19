@@ -257,7 +257,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
   };
   const put = async (b: Binding, kind: Row['kind'], bytes: Uint8Array<ArrayBuffer>, sha256: string, signal: AbortSignal,
     pin?: StoredPin, expectedSha256?: string | null, admit?: (tx: OfflineTransaction) => Promise<{
-      supersedes(row: Row): boolean; commit(): Promise<void> }>): Promise<number> => {
+      supersedes(row: Row): boolean; commit(): Promise<void> }>, preserveHeld = false): Promise<number> => {
     check(b, signal); need(bytes.byteLength > 0 && bytes.byteLength <= limits.entryBytes, 'limit'); const key = keyFor(b, kind, pin);
     return backend.transaction(true, async tx => {
       const c = await fence(tx, b); check(b, signal);
@@ -283,8 +283,15 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       let total = rows.reduce((sum, r) => sum + r.value.bytes, 0) - (previous?.value.bytes ?? 0);
       let count = rows.length - (previous ? 1 : 0), evicted = 0;
       let documentCount = rows.filter(r => r.key !== key && documentKind(r.value.kind)).length;
+      const exceedsLimits = () => total + bytes.byteLength > limits.bytes || count + 1 > limits.rows
+        || documentKind(kind) && documentCount + 1 > limits.documents;
+      // Independent fill cannot evict. Let a catalog retire membership without growing the copy.
+      if (preserveHeld) {
+        const nonGrowingCatalog = kind === 'electrical-catalog' && previous && bytes.byteLength <= previous.value.bytes;
+        need(!exceedsLimits() && (nonGrowingCatalog || total + bytes.byteLength <= limits.bytes * 0.8), 'limit');
+      }
       const ordered = rows.filter(r => r.key !== key).sort((a, z) => Number(!documentKind(a.value.kind)) - Number(!documentKind(z.value.kind)) || a.value.usedAt - z.value.usedAt);
-      while (total + bytes.byteLength > limits.bytes || count + 1 > limits.rows || documentKind(kind) && documentCount + 1 > limits.documents) {
+      while (exceedsLimits()) {
         const old = ordered.shift(); need(old, 'limit');
         await tx.remove('metadata', old!.key); await tx.remove('bytes', old!.key);
         total -= old!.value.bytes; count--; if (documentKind(old!.value.kind)) documentCount--; evicted++;
@@ -462,7 +469,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       });
     },
     /** Building captures are serialized in this owner; each remains independently timestamped. */
-    keepElectricalCatalog(handle: LiveCopyHome, building: OfflineElectricalBuildingV1, signal: AbortSignal) {
+    keepElectricalCatalog(handle: LiveCopyHome, building: OfflineElectricalBuildingV1, signal: AbortSignal, preserveHeld = false) {
       const captured = structuredClone(building);
       const pending = electricalTail.then(() => run(async () => {
         const b = home(handle); check(b, signal); let previous: OfflineElectricalCatalogV1 | null = null, previousSha: string | null = null;
@@ -471,17 +478,19 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const value: OfflineElectricalCatalogV1 = { version: 1, capturedAt: new Date(now()).toISOString(),
           buildings: [...(previous?.buildings ?? []).filter(row => row.buildingId !== captured.buildingId), captured] };
         validateElectricalCatalog(value); const bytes = encode(value); need(bytes.byteLength <= limits.catalogBytes, 'limit');
-        const sha = await hash(bytes); check(b, signal); const evicted = await put(b, 'electrical-catalog', bytes, sha, signal, undefined, previousSha);
+        const sha = await hash(bytes); check(b, signal);
+        const evicted = await put(b, 'electrical-catalog', bytes, sha, signal, undefined, previousSha, undefined, preserveHeld);
         check(b, signal); changed(); return { evicted };
       }));
       electricalTail = pending.catch(() => undefined); return pending;
     },
-    keepElectricalDocument(handle: LiveCopyHome, pin: OfflineElectricalPinV1, input: ArrayBuffer, signal: AbortSignal) {
+    keepElectricalDocument(handle: LiveCopyHome, pin: OfflineElectricalPinV1, input: ArrayBuffer, signal: AbortSignal, preserveHeld = false) {
       return run(async () => {
         const b = home(handle); need(validElectricalPin(pin)); pin = { ...pin };
         need(input instanceof ArrayBuffer && input.byteLength === electricalPinBytes(pin), 'integrity');
         const bytes = new Uint8Array(input.slice(0)), sha = await hash(bytes); check(b, signal); need(sha === pin.sha256, 'integrity');
-        const evicted = await put(b, 'electrical-document', bytes, sha, signal, pin); check(b, signal); changed(); return { evicted };
+        const evicted = await put(b, 'electrical-document', bytes, sha, signal, pin, undefined, undefined, preserveHeld);
+        check(b, signal); changed(); return { evicted };
       });
     },
     readElectricalCatalog,

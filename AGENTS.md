@@ -57,8 +57,9 @@ branch.
 
 The existing `live-launch` browser case reads generated building records
 and fills the native and electrical libraries through the live entry.
-It measures both held PDF originals before offline reopen
-using generated responses over disposable loopback TLS.
+It measures both held PDF originals on the full-document profile
+and the electrical original on the standard profile before offline reopen.
+Both profiles use generated responses over disposable loopback TLS.
 The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)

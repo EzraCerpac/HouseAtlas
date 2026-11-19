@@ -6,7 +6,7 @@ import type { LiveCopyRetention } from './live-copy-retention';
 /** Use the same reviewed building projection and current native readers as Library. */
 export async function fillOfflineElectricalLibraries(options: {
   owner: LiveCopyRetention; topology: TopologyClient; port: ElectricalLibraryPort;
-  view: ReadyView; current(): boolean; enabled(): boolean; signal: AbortSignal;
+  view: ReadyView; current(): boolean; enabled(): boolean; signal: AbortSignal; preserveHeld?: boolean;
 }): Promise<{ message: string; complete: boolean }> {
   const result = (message: string, complete = false) => ({ message, complete });
   const { owner, topology, port, view, signal } = options;
@@ -39,7 +39,7 @@ export async function fillOfflineElectricalLibraries(options: {
         if (frame.reason !== 'no-current-association') { failed++; continue; }
         const stillAbsent = () => current() && readerOwner !== null && reader.owner() === readerOwner;
         if (!stillAbsent()) return result('Electrical library download stopped because the live view changed.');
-        const retired = await owner.retireElectricalLibrary(building.id, signal, stillAbsent);
+        const retired = await owner.retireElectricalLibrary(building.id, signal, stillAbsent, options.preserveHeld);
         if (retired.status === 'ok') absent++;
         else if (retired.status === 'uncertain' || retired.status === 'retired' || retired.status === 'aborted')
           return result(`Electrical library download stopped (${retired.status}). Check held files before trying again.`);
@@ -47,7 +47,7 @@ export async function fillOfflineElectricalLibraries(options: {
         continue;
       }
       const retained = await owner.retainElectricalLibrary(reader, frame, signal, {
-        includeBytes: options.enabled(), enabled: () => current() && options.enabled(),
+        includeBytes: options.enabled(), enabled: () => current() && options.enabled(), preserveHeld: options.preserveHeld ?? false,
       });
       if (retained.status === 'ok') captured++;
       else if (retained.status === 'uncertain' || retained.status === 'retired' || retained.status === 'aborted') return { message: `Electrical library download stopped (${retained.status}). Check held files before trying again.`, complete: false };
