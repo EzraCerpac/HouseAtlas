@@ -23,8 +23,9 @@
   min-height: 40px;
 }
 
-/* Touch and phone widths: page and zoom buttons keep the shared 44 px target. */
-@media (max-width: 759px), (pointer: coarse) {
+/* Phone widths and any touch input (including touch laptops with a mouse):
+   page and zoom buttons keep the shared 44 px target. */
+@media (max-width: 759px), (any-pointer: coarse) {
   .lantern-host .source-pdf-controls .chip-btn {
     justify-content: center;
     min-width: 44px;
