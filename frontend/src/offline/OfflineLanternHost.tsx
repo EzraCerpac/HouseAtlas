@@ -39,8 +39,8 @@ export function OfflineLanternHost({ owner, openAtlas, openLegacyAtlas }: {
   const generation = useRef(0), intent = useRef<OfflineReadingIntent>(emptyReadingIntent());
   const [presentation, setPresentation] = useState(intent.current), [completed, setCompleted] = useState(0);
   const box = useRef<HTMLDivElement>(null);
-  // The Library button that opened the held file; it outlives a revalidation remount.
-  const opener = useRef<string | null>(null);
+  // The Library button that opened the held file, and what was focused then; it outlives a revalidation remount.
+  const opener = useRef<HeldOpener | null>(null);
   const replaceIntent = (next: OfflineReadingIntent) => { intent.current = next; setPresentation(next); };
   useEffect(() => {
     let controller: AbortController | null = null;
@@ -94,27 +94,27 @@ export function OfflineLanternHost({ owner, openAtlas, openLegacyAtlas }: {
 }
 
 function RetainedApp({ owner, selection, openAtlas, presentation, changePresentation, opener }: { owner: LiveCopyRetention; selection: Selection; openAtlas: OpenAtlas;
-  presentation: OfflineReadingIntent; changePresentation(change: (state: OfflineReadingIntent) => OfflineReadingIntent): void; opener: RefObject<string | null> }) {
+  presentation: OfflineReadingIntent; changePresentation(change: (state: OfflineReadingIntent) => OfflineReadingIntent): void; opener: RefObject<HeldOpener | null> }) {
   const view = presentation.view;
   const reading = presentation.document;
   const setView = (view: ViewId) => changePresentation(state => ({ ...state, view, document: null }));
   const openDocument: OpenDocument = (openedBy, request, page = 1) => {
-    opener.current = openedBy; changePresentation(state => openReadingDocument(state, request, page));
+    opener.current = { key: openedBy, focused: document.activeElement }; changePresentation(state => openReadingDocument(state, request, page));
   };
   // After the held file closes, the dialog returns focus to the element focused when it
   // mounted. A click that does not focus its button (iOS) or a revalidation that replaced
-  // the opener leaves that on the page body, the main sheet or an earlier opener; the
-  // current opener for the same row then takes focus. Focus moved elsewhere is left alone.
+  // the opener leaves that on the page body, the main sheet or whatever was focused before
+  // the click; the current opener for the same row then takes focus. Focus moved elsewhere is left alone.
   const wasReading = useRef(false);
   useEffect(() => {
     if (reading) { wasReading.current = true; return; }
     if (!wasReading.current) return;
     wasReading.current = false;
-    const active = document.activeElement, main = document.getElementById('main');
+    const active = document.activeElement, main = document.getElementById('main'), opened = opener.current;
     const onBody = !active || active === document.body;
-    if (!onBody && active !== main && !(active instanceof HTMLElement && active.dataset.heldOpener !== undefined)) return;
+    if (!onBody && active !== main && active !== opened?.focused) return;
     const target = [...document.querySelectorAll<HTMLButtonElement>('main button[data-held-opener]')]
-      .find(button => button.dataset.heldOpener === opener.current && !button.disabled && button.getClientRects().length > 0);
+      .find(button => button.dataset.heldOpener === opened?.key && !button.disabled && button.getClientRects().length > 0);
     if (target) target.focus(); else if (onBody) main?.focus();
   }, [reading, opener]);
   const [settings, setSettings] = useState(false);
@@ -229,6 +229,7 @@ function OfflineLibrary({ owner, selection, openDocument }: { owner: LiveCopyRet
 }
 
 type OpenDocument = (openedBy: string, request: HeldReadingDocument, page?: number) => void;
+type HeldOpener = { readonly key: string; readonly focused: Element | null };
 function DocumentRow({ row, owner, selection, openDocument }: { row: OfflineCatalogItemV1; owner: LiveCopyRetention; selection: Selection; openDocument: OpenDocument }) {
   const [status, setStatus] = useState<OfflineDocumentAvailability | null>(null);
   useEffect(() => {
@@ -318,11 +319,15 @@ function ElectricalDocumentRow({ owner, selection, document, openDocument }: { o
   }, [owner, selection, document]);
   return <li><strong>Electrical reference PDF</strong> · {document.pin.byteSize} bytes
     <p>{status?.availability === 'held' ? 'On this device' : status?.availability === 'failed-integrity' ? 'Held file failed verification' : 'Not held on this device'}</p>
-    <ul>{document.pages.map(sheet => <li key={sheet.sheetId}>
-      <button type="button" className="btn" disabled={status?.availability !== 'held'} data-held-opener={`electrical:${document.pin.evidenceId}:${sheet.sheetId}`}
-        onClick={() => { if (status?.availability === 'held') openDocument(`electrical:${document.pin.evidenceId}:${sheet.sheetId}`, { kind: 'electrical', pin: status.pin }, sheet.pdfPage); }}>{sheet.title} · Page {sheet.pdfPage}</button>
-      <p>Drawing date: {sheet.sourceDate ?? 'Not recorded'}</p>
-    </li>)}</ul>
+    <ul>{document.pages.map(sheet => {
+      // Evidence IDs are unique per building and sheet IDs per document, so the building is part of the row identity.
+      const openerKey = `electrical:${document.pin.buildingId}:${document.pin.evidenceId}:${sheet.sheetId}`;
+      return <li key={sheet.sheetId}>
+        <button type="button" className="btn" disabled={status?.availability !== 'held'} data-held-opener={openerKey}
+          onClick={() => { if (status?.availability === 'held') openDocument(openerKey, { kind: 'electrical', pin: status.pin }, sheet.pdfPage); }}>{sheet.title} · Page {sheet.pdfPage}</button>
+        <p>Drawing date: {sheet.sourceDate ?? 'Not recorded'}</p>
+      </li>;
+    })}</ul>
     <details><summary>Original identity</summary><dl><dt>Evidence</dt><dd>{document.pin.evidenceId} · revision {document.pin.evidenceRevision}</dd>
       <dt>Asset</dt><dd>{document.pin.assetId} · revision {document.pin.assetRevision}</dd><dt>SHA-256</dt><dd>{document.pin.sha256}</dd></dl></details>
   </li>;

@@ -785,6 +785,45 @@ try {
     await screenshot('phone-offline-electrical-page');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    // A second generated building may reuse the same evidence and sheet IDs; its own row gets focus back
+    // after keyboard Close, and after Escape when a non-focusing click followed focus on the Library tab.
+    // Focus moved out of the dialog on purpose stays where it was put.
+    assert.deepEqual(await evaluate(`(async () => {
+      const { createLiveCopyOwner } = await import(${JSON.stringify(seeded.copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(seeded.copyBackendURL)});
+      const channel = new BroadcastChannel('houseatlas-live-readonly-copy-v1');
+      const copies = createLiveCopyOwner(openLiveCopyBackend(indexedDB), { changed: () => channel.postMessage('changed') });
+      const signal = new AbortController().signal;
+      try {
+        const home = copies.bindHome((await copies.observeActor(${JSON.stringify(seeded.owner.actorId)}, () => true)).value, ${JSON.stringify(seeded.view.scope)}, () => true).value;
+        const handle = (await copies.readLast(signal)).value.handle;
+        const [building] = (await copies.readElectricalCatalog(handle, signal)).value.buildings, [document] = building.documents;
+        const pin = { ...document.pin, buildingId: '00000000-0000-4000-8000-0000000009e2' };
+        const bytes = await (await copies.readElectricalDocument(handle, document.pin, signal)).value.arrayBuffer();
+        return [(await copies.keepElectricalCatalog(home, { ...building, buildingId: pin.buildingId, documents: [{ ...document, pin }] }, signal)).status,
+          (await copies.keepElectricalDocument(home, pin, bytes, signal)).status];
+      } finally { copies.close(); channel.close(); }
+    })()`), ['ok', 'ok'], 'Second generated building with the same electrical evidence and sheet IDs');
+    const sheets = `[...document.querySelectorAll('main button')].filter(button => button.textContent === 'Fictional kitchen · Page 2' && !button.disabled)`;
+    const libraryTab = `[...document.querySelectorAll('.navrail button')].find(button => button.textContent === 'Library')`;
+    const sheetOpen = `document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]')?.width > 0`;
+    const pressEscape = async () => { for (const type of ['rawKeyDown', 'keyUp'])
+      await send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); };
+    await poll(`${sheets}.length === 2`, 10_000, 'Second building sheet not shown');
+    await evaluate(`${sheets}[1].focus()`); await pressEnter();
+    await poll(sheetOpen, 15_000, 'Second building sheet did not open');
+    await evaluate(`document.querySelector('[role="dialog"] button[aria-label="Close"]').focus()`); await pressEnter();
+    await poll(`document.querySelector('[role="dialog"]') === null && document.activeElement === ${sheets}[1]`, 5_000, 'Close left focus off the second building sheet');
+    assert.equal(await evaluate(`(() => { ${libraryTab}.focus(); const focused = document.activeElement === ${libraryTab}; ${sheets}[1].click(); return focused; })()`), true);
+    await poll(sheetOpen, 15_000, 'Second building sheet did not open by click');
+    await pressEscape();
+    await poll(`document.querySelector('[role="dialog"]') === null && document.activeElement === ${sheets}[1]`, 5_000, 'Escape left focus on the Library tab, not the second building sheet');
+    await evaluate(`${sheets}[1].focus()`); await pressEnter();
+    await poll(sheetOpen, 15_000, 'Second building sheet did not reopen');
+    await evaluate(`${libraryTab}.focus()`); await pressEscape();
+    await poll(`document.querySelector('[role="dialog"]') === null`, 5_000, 'Escape did not close the second building sheet');
+    await new Promise(done => setTimeout(done, 300));
+    assert.equal(await evaluate(`document.activeElement === ${libraryTab}`), true, 'Focus moved out of the dialog on purpose must stay there');
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
     await poll(`document.body.textContent.includes(${JSON.stringify(standardProfile ? 'Electrical PDFs read so far:' : 'Documents:')})`, 5_000,
       'Offline storage settings did not read size');
