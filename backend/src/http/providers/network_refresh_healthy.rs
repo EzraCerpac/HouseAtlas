@@ -587,12 +587,30 @@ async fn failure_after_archive_reservation_keeps_previous_generation_readable() 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn post_reservation_contention_retains_custody_and_auth_failure_metadata() -> Result<()> {
     // All contention is controlled after the final GET's actual admission.
-    for (core_busy, auth_failure) in [(true, false), (false, false), (false, true), (true, true)] {
+    for (iteration, (core_busy, auth_failure)) in
+        [(true, false), (false, false), (false, true), (true, true)]
+            .into_iter()
+            .enumerate()
+    {
         let f = Arc::new(fixture_options(false, true, false).await?);
         editor(&f, a::Role::Editor)?;
-        assert_eq!(refresh(&f).await?.1["status"], "refreshed");
-        let before = cache(&f)?;
         let peer = f.inventory.as_ref().unwrap();
+        let started = std::time::Instant::now();
+        let (http_status, initial) = refresh(&f).await?;
+        assert_eq!(
+            initial["status"],
+            "refreshed",
+            "phase=initial-before-contention iteration={} core_busy={core_busy} auth_failure={auth_failure} http_status={} elapsed_ms={} peer_mode={} peer_calls={:?} body_prefix={}",
+            iteration + 1,
+            http_status.as_u16(),
+            started.elapsed().as_millis(),
+            peer.mode.load(Ordering::SeqCst),
+            peer.calls
+                .lock()
+                .map(|calls| calls.iter().take(8).cloned().collect::<Vec<_>>()),
+            initial.to_string().chars().take(2048).collect::<String>(),
+        );
+        let before = cache(&f)?;
         peer.mode
             .store(if auth_failure { 8 } else { 6 }, Ordering::SeqCst);
         let first = {
