@@ -1,14 +1,16 @@
 {
   "format": "houseatlas-synthetic-readme-media/1",
   "synthetic": true,
-  "sourceHead": "fb01da64a8b85c68443ac8a328fb45efbffe936a",
+  "sourceHead": "3a9754dc13cd86b9798af38f5eef3c33658f8d9c",
   "sourceDirty": false,
   "sourceTree": {
     "algorithm": "SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF",
-    "fileCount": 2021,
+    "fileCount": 2037,
     "exclusions": [
       "docs/demo/capture.json",
       "docs/publication/source-manifest.json",
+      "docs/demo/example-plan-network.png",
+      "docs/demo/example-plan-electrical.png",
       "docs/demo/synthetic-building.png",
       "docs/demo/synthetic-room.png",
       "docs/demo/synthetic-collage.png",
@@ -20,7 +22,7 @@
       "docs/demo/synthetic-unified-phone-hall.png",
       "docs/demo/synthetic-unified-stacked.png"
     ],
-    "sha256": "bf61e5eb0bf58127979ce004758f77abe13dcf129f6530bb671f857bdbfa5681"
+    "sha256": "686c2661476e860f2f3a4ac20e4db03cc030735777d64dafcd3b363a4acfc596"
   },
   "node": "v26.10.0",
   "browser": "156.0.8078.4",
@@ -43,7 +45,7 @@
   "hashes": {
     "frontend/lantern-tests/core-read-visual/main.tsx": "13d8f6d19002cbf88912e391658d3e512da6774f6ba2bac5c9da6dd4354b8052",
     "frontend/lantern-tests/core-read-visual/fixture.json": "8288f3404fd0e2579797c692b6dd1befb2e19b1989e365ed87d5be1cef93a65d",
-    "tools/readme-media/capture.mjs": "b573486f0e3ef3d978374ec469285aa8a55068be296e99e28ef1eb4c516cd9f2",
+    "tools/readme-media/capture.mjs": "dd6a8a48e89957b0af2f9cabba4c7bf3df0132dc6668af5a1148d68adb61a2b1",
     "frontend/src/lantern/atlas/AtlasView.tsx": "422e90676744bee7b26e6df895b6f8cfe8bf1aa2d5a750a915be58309866676c",
     "frontend/src/lantern/Host.tsx": "6ecbabe0b0f0b7aa5dad189144c76a945dffcbc912d5f364a8e8ec270ebac3bd",
     "frontend/src/api/topology-client.ts": "8809b37481fe94b11073efe4e46734a373cfe6050e52dd511e3a71fe679b3904",
@@ -139,7 +141,7 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 2,
+          "drawCalls": 12,
           "pixels": [
             890,
             930
@@ -322,7 +324,7 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 40,
+          "drawCalls": 51,
           "pixels": [
             390,
             692
@@ -453,7 +455,7 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 14,
+          "drawCalls": 16,
           "pixels": [
             390,
             692
@@ -523,7 +525,7 @@
         "stageNote": null,
         "drawing": {
           "renderer": "webgl2",
-          "drawCalls": 82,
+          "drawCalls": 93,
           "pixels": [
             890,
             930
@@ -558,7 +560,7 @@
       "Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance"
     ],
     "sourceHashes": {
-      "tools/readme-media/capture.mjs": "b573486f0e3ef3d978374ec469285aa8a55068be296e99e28ef1eb4c516cd9f2",
+      "tools/readme-media/capture.mjs": "dd6a8a48e89957b0af2f9cabba4c7bf3df0132dc6668af5a1148d68adb61a2b1",
       "frontend/lantern-tests/source-host-visual/index.html": "80616c96da23fa1c5c729cf1ec8ba62ea5d915b91284c6f2b1bf7939a59eb0d3",
       "frontend/lantern-tests/source-host-visual/main.tsx": "fc81d174296c3f71919fc153776f3e8ecff9595ced59fdb06a88c8912b9f9335",
       "frontend/lantern-tests/source-host-visual/synthetic-site.ts": "d275bebb4bb0bf250c95203565a674da0ff761082a7e3ee922fbea6c41c18155",
@@ -568,17 +570,17 @@
       "frontend/src/lantern/Host.tsx": "6ecbabe0b0f0b7aa5dad189144c76a945dffcbc912d5f364a8e8ec270ebac3bd",
       "frontend/src/lantern/atlas/AtlasView.tsx": "422e90676744bee7b26e6df895b6f8cfe8bf1aa2d5a750a915be58309866676c",
       "frontend/src/lantern/atlas/useCamera.ts": "6c5a648a89475ced502f336994390b66c0de6c86c96e744741c250c17e258761",
-      "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx": "62ecfc632b35fe13b886737f5d4a16ccaa9d5fc686c68ca739ae9932f567b9ff",
+      "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx": "984a575eaa053cf183d110b6b398d95c29cf613d2ed2f4cd6069bfcbbaf3cd81",
       "frontend/src/lantern/unified-atlas/atlas-text.ts": "36b5a1f912e1b7b777155f80201ddc03bdeeac75b0b4c2a48a9b9eda1ac278c1",
       "frontend/src/lantern/unified-atlas/FloorStack.tsx": "c19b8ea0dc355d54c3a9281c47cbd04151b298c436bcae6b969bef988ab5b02d",
       "frontend/src/lantern/unified-atlas/AtlasInspector.tsx": "f188c84b3ada90c2bfb6de905adb3321d1a7511b9a83263acf7e21c0487c2ba4",
-      "frontend/src/lantern/unified-atlas/AtlasKeys.tsx": "86efc1e5b85cc162f16d69dc61f3025f2bb466cb71c4722231ebbb2797fa34b6",
+      "frontend/src/lantern/unified-atlas/AtlasKeys.tsx": "b0d056ec80a09ff6e16a878f7c2e90beab79f218b68520a4cd7b8fdbab8dea9d",
       "frontend/src/lantern/unified-atlas/scene.ts": "471494e034088f6ee9318a360942499f58e256bb1b299ef243c27da9620a632e",
       "frontend/src/lantern/unified-atlas/runtime-overlays.ts": "a6a493f842143740bd19aaa98c0a6a336dc5adab368c2f3b6196fa2964595620",
-      "frontend/src/lantern/unified-atlas/unified-atlas.css": "5266e55717f384572abf397c53a28ac58222dce614f8e2dcea6c892d1cecc165",
+      "frontend/src/lantern/unified-atlas/unified-atlas.css": "280a0a34eb77489769222b3a43aa75f8d65353622dbf24e4853356201e2d6407",
       "frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx": "4112550208c124ad7112bd59cbc155c1e1412cc435f1b833675cd9c40c9c00cd",
       "frontend/src/lantern/unified-atlas/labels.ts": "942b0bc334cd0abca75d9df5edcd7d7d8e32ae7637fcba6018f5009be6f10d8e",
-      "frontend/src/lantern/unified-atlas/types.ts": "bfe8c0f99db07e9b35c60a14b113cd2525b05196b279ed6bb4849bd1b7edfc68",
+      "frontend/src/lantern/unified-atlas/types.ts": "a895938c673321480eee3fed4d958e5eba9d4315c0c8bf5134b7b553bb232673",
       "frontend/src/lantern/canonical-ifc/MeshLayer.tsx": "94088c5edf63b1d2a6e8596579dd36bb10c0e765dd795d3b21e021b11888ac1d",
       "frontend/src/lantern/canonical-ifc/mesh-scene.ts": "79c49ea6a3ae4a42f98c3e88a188324fd57bd71a7ecfc3a01c370935f7fbb2da",
       "frontend/src/lantern/canonical-ifc/mesh-appearance.ts": "b560cb8cfb35523e367389b5c39543c05bc0889beeeb0084c9ab071eeada24b0",
@@ -591,13 +593,13 @@
       "frontend/src/lantern/canonical-ifc/canonical-ifc.css": "9abdf75a3689e236669027a5d9fa0a68e43e05398ed23d53804aefb3210e766d"
     },
     "artifactHashes": {
-      "docs/demo/synthetic-unified-3d.png": "786184a37957d654113a5c4ab51e8a47d2351ebad12053db50d1924d4f172fcf",
-      "docs/demo/synthetic-unified-collapsed.png": "74b8eeea7cd5800b6e8f1d82769466d5669b487ed0b0c1d4f476c610abbad20b",
-      "docs/demo/synthetic-unified-plan.png": "c655f72f251150177b22217899b6544c9d9316e452305a1accfb5cab1cec56e4",
-      "docs/demo/synthetic-unified-phone.png": "350d2bd5042ba38cc60639b8ee78bd180a5d84e27bcea27f54f8d79a95216f3f",
-      "docs/demo/synthetic-unified-phone-crowded.png": "c82b6bd509361053342b83ef66a778fed2c29f8490bf04b30f6721d0ef3e35cb",
-      "docs/demo/synthetic-unified-phone-hall.png": "cd806879ca1cc0235c2a272ec0b0d3d0b63fc07bc029549396903085a7a36346",
-      "docs/demo/synthetic-unified-stacked.png": "b1210d4e642569730e7fc28929a2d3148d9369dc26d07630b44501984c11d9b4"
+      "docs/demo/synthetic-unified-3d.png": "a8435d76259984a70ec068e33d1fab7d1f7f77c8117e81d908e30f45cb1bd22a",
+      "docs/demo/synthetic-unified-collapsed.png": "ec83bfd2ad1ae8fa49ba080f4f1a71665694d295233d52e29cce17e0d1581d57",
+      "docs/demo/synthetic-unified-plan.png": "b607c9f60ae73c2dc6330e7edbb053a84f7e5fd29f9a9b763a6622a9f4617c63",
+      "docs/demo/synthetic-unified-phone.png": "6e675ebf66b86ca438446db81e1a1520a8113b5b4a963a0bcb5834bd8cd8abf8",
+      "docs/demo/synthetic-unified-phone-crowded.png": "4ac50df6dbf3b0a0babe5c5228c71bcf7a871988ac747595462c9cba7ef60329",
+      "docs/demo/synthetic-unified-phone-hall.png": "e75fcd71823629c99fd693485753e96c843ac4233b30985878463bc9fb47c77f",
+      "docs/demo/synthetic-unified-stacked.png": "102918a78392092a1034e49a63b6106d67455bdaf03454228fff237f66e201cc"
     }
   },
   "exampleHouse": {
@@ -609,6 +611,17 @@
     ],
     "screenshot": "example-house.png",
     "video": "example-house-tour.webm",
+    "showcase": {
+      "deviceScaleFactor": 2,
+      "images": [
+        "example-plan-network.png",
+        "example-plan-electrical.png"
+      ],
+      "states": [
+        "Living room Plan, Network layer, Fictional access point card",
+        "Hall Plan, Electrical layer, Fictional symbol 1 drawing group with circuit data"
+      ]
+    },
     "tour": [
       "open on Synthetic house through ?building=",
       "select Living room",
@@ -701,13 +714,13 @@
       "build": "npm --prefix frontend run build: the app build, then vite build --config example/vite.config.ts into frontend/dist/example",
       "preIsolationUse": [],
       "served": "all of frontend/dist from an owned loopback static server applying the Rust host exact-path, file-type, 4,000,000-byte and cache-header rules; no Rust host",
-      "files": 173,
+      "files": 175,
       "exampleFiles": 70,
       "startup": [
         {
-          "path": "/assets/live-C_EXVMQV.js",
-          "bytes": 384884,
-          "gzip": 96756
+          "path": "/assets/live-MiFMkKQD.js",
+          "bytes": 385978,
+          "gzip": 97064
         },
         {
           "path": "/assets/rolldown-runtime-iC0nZHf4.js",
@@ -760,7 +773,7 @@
           "gzip": 25208
         }
       ],
-      "linkChunk": "/assets/live-C_EXVMQV.js",
+      "linkChunk": "/assets/live-MiFMkKQD.js",
       "exampleInOfflineShell": false,
       "typecheck": {
         "config": "frontend/example/tsconfig.json",
@@ -796,9 +809,9 @@
       }
     },
     "durationsMs": {
-      "typecheckAndBuild": 4184,
-      "tour": 24975,
-      "navigation": 21408
+      "typecheckAndBuild": 5450,
+      "tour": 28755,
+      "navigation": 33678
     },
     "scope": [
       "Generated fictional data only",
@@ -807,14 +820,16 @@
       "Durations are informational"
     ],
     "artifactHashes": {
-      "example-house.png": "5f545bdab9801aae3c05a86dd9199cc24d1d7f9c36a5e8e8dded7a0cfb6db4e0",
-      "example-house-state.png": "dd9e2f679f164f0df056060017e238893283528f86f466973c255211607f1c5e",
-      "example-house-tour.webm": "ceb786c667357ec513ec2fb8a060fbaa8e21753b23b8a9dccadfffec8662205d",
-      "example-inventory-list.png": "faabcc0ba789d688a711e7ef7b613e27f5967ba15926c408cd130787b21a6eab",
-      "example-inventory-detail.png": "7f1ef95751ba99a22dd65918a84c38febde9aea529c6341b357620005ac17c17",
-      "example-documents-list.png": "df499d6bd0ac47d85f2698dc06d934f60ce5b4078a56f651cfb34608f515d67b",
-      "example-documents-detail.png": "5ea65fd0cd1ccb0030d6dddbcf52b83d2a4cc1d4e58ad241ba11076d6a9c7798",
-      "example-network-trace.png": "db7038f8356c7df4e73d757529348fe3bbc69d03585061182279aa8585bc27c9"
+      "example-house.png": "bdbd8be74306e7dc3f327658c68a7d11b881c25ab4a81c91f3b94f3bb0e5913a",
+      "example-house-state.png": "636e97c6d6fd26e29fe09ea0c558c70aeb3faf73be8c17cbbe5d7d9cca61a7d5",
+      "example-house-tour.webm": "0eccf993e38a281be872d38ddad4e7e544578dfb14fee93eee2e64872c02d149",
+      "example-inventory-list.png": "6fe37f4b78c192255b7d517f5cae292d0ce4f43e21ff1e42837381fb510677fb",
+      "example-inventory-detail.png": "4b86ae2f8ff72df111e380d02df5d934b88b0b932711da3d643450bee4a04c1e",
+      "example-documents-list.png": "b3d87129856b2826fd09dfd16ed7e08d2ed4d74bd06a777edcc1d75cef6ff92c",
+      "example-documents-detail.png": "97add642aefdecd523da77edd3f52ae5719205d8ef937ac694f8198045f63553",
+      "example-network-trace.png": "fc5d37e5f4f161c4929e708d0aa105740f8e25820f629162eebd9d6fc3c41e37",
+      "example-plan-network.png": "0c7c95bf50216b0557e90635724359bf6a88a3726a8e51a36c36c7ad2273d63e",
+      "example-plan-electrical.png": "830d340d7388d38ed677da8f27444fc2f5d9e9d58f7e6c152e931416af983a2f"
     }
   }
 }
