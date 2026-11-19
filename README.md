@@ -1,71 +1,109 @@
 # HouseAtlas
 
-HouseAtlas connects rooms, belongings, documents and physical infrastructure in a home atlas. Browse a home without a floorplan, select a building and its reviewed rooms, and keep source dates, unknowns and evidence visible.
-
-HomeBox owns inventory, attachments and maintenance; HouseAtlas owns physical identities, reviewed bindings and optional geometry, circuits and valves. Network observations are a separate passive, read-only source. Browsing does not collect data or write upstream.
+HouseAtlas is a map of your home. It puts buildings, floors and rooms in one place, together with the belongings, documents, electrical drawings and network devices that relate to them. You can open it without a floorplan; a 3D model is optional. It keeps what each source said, when it said it, and what is still unknown.
 
 ![Synthetic HouseAtlas Atlas: a generated two-building house model in 3D with its floors spread and the living room selected](docs/demo/synthetic-unified-3d.png)
 
 ![Synthetic HouseAtlas demo: reviewed building levels and room details](docs/demo/synthetic-collage.png)
 
-**SYNTHETIC demo.** The Atlas shows a generated fictional house model through the application's actual reader and renderer. Its buildings, rooms and records are invented. The browsing fixture has no house model. No household files, real accounts or live providers are used. [Full screenshots and reproduction](docs/demo/README.md).
+**SYNTHETIC demo.** These images show the actual React interface with a generated fictional house and invented records. No household files, real accounts or live providers are used. [Screenshots and how they are made](docs/demo/README.md).
 
-## Try the synthetic interface
+## What it does
 
-Use Node **26.10.0** and npm **11.19.1**, then run from the repository root:
+- **Atlas:** buildings, floors and rooms in **3D** or **Plan**, or as building sections when there is no house model. Turn on the **Electrical**, **Network** and **Measurements** layers to see records on the map. Belongings with no reviewed room stay listed as unplaced rather than guessed.
+- **Belongings and upkeep:** a read-only copy of your HomeBox inventory, attachments and maintenance, shown with how old the copy is. Changes are made in HomeBox itself.
+- **Library:** source documents and electrical drawings, opened in the built-in viewer, with their recorded dates and origin.
+- **Network:** devices drawn in their reviewed rooms, with links styled as wired, wireless or unknown, and a logical graph that traces a device's route to the network root. It shows associations, not cable routes.
+- **Offline:** after one online visit, the app opens without a connection and keeps your edits until you are back.
+
+HouseAtlas owns physical identities, reviewed links between sources, and optional geometry, circuits and valves. HomeBox owns inventory, attachments and maintenance. Network data comes from a separate collector. Browsing never writes to HomeBox or asks the collector to do anything.
+
+## Try the example house
+
+The example house runs the actual app against a fictional house, entirely in the browser. You need Node **26.10.0** and npm **11.19.1**. From the repository root:
 
 ```sh
 npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
 (cd frontend && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4179 --strictPort)
 ```
 
-Open <http://127.0.0.1:4179/lantern-tests/source-host-visual/?atlas=generated> for the generated fictional house model. Select a room or switch between **3D** and **Plan**. Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/> and select **Alpha** for building membership and source facts. Stop the server with Ctrl-C.
+Then open <http://127.0.0.1:4179/example/index.html>. Things to try:
 
-The Atlas demo uses the production scene reader against an in-page fake transport serving a generated publication. The browsing demo uses read clients with synthetic Responses. They supply no authentication, native server, evidence upload or provider integration. Keep it on loopback; do not use it as a deployment.
+- Select **Living room**, then turn on the **Network** layer. Tap a device or a link to see its card.
+- [Hall in Plan](http://127.0.0.1:4179/example/index.html?building=syn-building-house&floor=syn-level-ground&room=syn-room-hall&view=plan): turn on **Electrical**, open *Fictional symbol 1* and choose **Show drawing group**.
+- **Library** › **Source documents** › *Synthetic parcel survey* opens a generated PDF.
+- **Place records** in the rooms panel lists belongings with no reviewed room; **Upkeep** shows the reading lamp's entries.
 
-## What you can explore
+Stop the server with Ctrl-C. Two smaller previews use the same server: <http://127.0.0.1:4179/lantern-tests/source-host-visual/?atlas=generated> (the 3D image above) and <http://127.0.0.1:4179/lantern-tests/core-read-visual/> (select **Alpha** for building sections without a house model). They use fake data in the page, with no sign-in or server. Keep them on loopback; they are not a deployment. The [demo guide](docs/demo/README.md#example-house) lists every feature area and link.
 
-- **Rooms and places:** reviewed building and floor membership, room records and explicit unplaced or unknown information. Names and tree depth do not establish physical placement.
-- **Belongings and documents:** HomeBox projections, source-owned attachments, availability and maintenance. HomeBox edits use verified native links.
-- **Geometry and infrastructure:** optional reviewed geometry and separately owned circuit, valve and evidence records. Geometry is not required for browsing.
-- **Source history:** distinct fact and retrieval dates, uncertainty, stale caches and corrections. Passive Network reads never send collector demand.
+## Run your own host
 
-Some capabilities require a configured native host and reviewed source bindings; these demos show fictional illustrated geometry, building/room browsing and separately generated provisional mesh presentation.
+A configured host is one Rust binary (`houseatlas`) with SQLite storage, serving the built React app over HTTPS. Build it with Rust 1.99.0 (pinned in `rust-toolchain.toml`) and the Node and npm versions above:
 
-## Run the offline core checks
+```sh
+cargo build --release --locked -p houseatlas-backend
+(cd frontend && npm ci && npm run typecheck && npm run build)
+```
 
-After inspecting the named script bodies, install the exact dependency locks and run the ordinary synthetic core:
+Write a private `server.json` (data folder, frontend folder, TLS certificate and key, listen address, HTTPS origin, homes) and initialize a new data folder once, then serve. This example is for the default password sign-in:
+
+```sh
+./target/release/houseatlas initialize --server-config /absolute/private/server.json --provisioning-file /absolute/private/provisioning.json
+./target/release/houseatlas serve --server-config /absolute/private/server.json
+```
+
+Run these from the repository root; with a custom `CARGO_TARGET_DIR`, the binary is in its `release/` folder instead. Set `frontendDirectory` in `server.json` to the absolute path of the build output, `<repository>/frontend/dist`.
+
+The provisioning file names the accounts, passwords and home memberships; `serve` never reads it. For a single person on one machine, the password-free loopback mode signs in with **Open Home** instead; its `initialize` omits `--provisioning-file`, which that mode refuses. [Persistent server](docs/operations/persistent-server.md) gives the exact file formats, both sign-in modes and recovery. The host also serves the example house at `/example/index.html`; **Settings** › **Open example house** links to it.
+
+### Library files on this device
+
+In **Settings** › **Offline storage**, **Keep Library files on this device** downloads source documents and electrical PDFs while they fit the app's storage budget; **Keep library now** fills it on demand. Opening a HomeBox file with **Open file** also keeps it (files over 10 MiB excepted). Held files show **On this device** in Library and open offline. The browser may still clear stored files; **Ask browser to keep storage** requests that it doesn't. Details: [live copy](docs/offline-live-copy.md).
+
+### Offline and back to live
+
+After one online launch, opening the app without a connection shows the Atlas as this device last read it. Supported edits made offline wait on the device under **Changes on this device**. When the server answers again, the app shows **Back online · Open live** (with the number of waiting changes); **Open live** returns to the live app, where waiting changes send automatically, or on **Send now** if **Sync** is set to **When I ask**. A change the server can't accept as is moves to **Needs you**, where you keep yours, use the server's or discard it.
+
+Evidence files saved from **Add evidence** are separate: they stay as unsent local drafts in this browser and never upload on their own. Open live, sign in, review each draft and confirm to upload it. Details: [root offline entry](docs/offline/root-offline-entry.md) and [live Atlas cache](docs/offline/live-atlas-cache.md).
+
+### HomeBox (optional)
+
+Without HomeBox settings, HomeBox data stays cached-only. With a read-only credential file and named refresh Editors in the provider profile, those Editors see **Refresh from HomeBox** under **Sources** in the home overview. Each press reads the collection once with GET requests and replaces the cached copy; nothing refreshes on a schedule or while browsing. [HomeBox setup](docs/operations/persistent-server.md#homebox-open-file-and-refresh).
+
+### Network (optional)
+
+The [Network collector](tools/network-collector/README.md) is a separate process that collects on its own schedule into its own store. HouseAtlas reads the stored results and never starts collection while browsing. When the collector's device list differs from the saved one, an Editor named in the provider profile sees one of two messages in the Network details:
+
+- **Changed, needs a refresh:** the collector's list is the revision already reviewed in the profile; **Refresh device list** publishes it.
+- **Changed; it needs review before it can be refreshed:** the collector reports a newer revision that nobody has reviewed. There is no refresh button. The owner reviews the change, pins that revision in the private provider profile, selects the updated profile's SHA-256 and restarts the service; then the Editor can publish the matching list. See [Adopting a changed inventory revision](docs/providers/persistent-cached-provider-selection.md#adopting-a-changed-inventory-revision).
+
+### Backups and restore
+
+On a macOS host, the separate nightly backup job in `tools/backup` stops and restarts the server through launchd, so it needs more than the foreground `serve` above: the server must already run as a launchd service whose label and plist are the `serviceLabel` and `servicePlist` in the job's private config. The job runs only once it is installed: write that config, then run `tools/backup/install.sh <config> --load` ([Nightly iCloud backup](docs/operations/icloud-backup.md#install)). Allow the installed launcher iCloud Drive access ([permission](docs/operations/icloud-backup.md#icloud-drive-permission)), and confirm one run has finished with its restore checks before relying on it. It backs up the Atlas database, kept originals and the served model every night and checks that each copy restores; **Settings** › **Backups** chooses how long copies are kept. Sign-in data, credentials, HomeBox originals and Network state are not in the backup. To rebuild a host from an archive, follow [Recover the service from a backup](docs/operations/persistent-server.md#recover-the-service-from-a-backup).
+
+## Development and checks
+
+- [Verification guide](docs/contributing/verification.md): every named check, with its prerequisites and limits. Read it before running anything broader than the commands here.
+- [CI lane selection](docs/contributing/ci-path-selection.md): which checks a pull request runs.
+- [Formatting](docs/contributing/formatting.md): run `mise run fmt` before committing Rust changes, then `mise run fmt:check`.
+- [Publication manifest](docs/contributing/formatting.md#publication-manifest): adding, removing or moving a file needs `node tools/publication/refresh-manifest.mjs`; `npm run verify:publication` checks it.
+- [Rust/React development](docs/rust-integration/README.md) and the [documentation index](docs/README.md).
+- [NAS deploy tool](tools/deploy-nas/README.md): deploy a `main` commit or model release and roll it back.
+- [Repository coordination](docs/coordination/worker-handoff.md), [publication provenance](docs/publication/provenance.md) and [operations and rollout](docs/operations/qualification-and-rollout.md).
+
+The quickest ordinary checks, after inspecting the scripts they run:
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
 npm run verify:publication
 npm run build:ordinary
-node --check packages/contracts/history/check-history.mjs
 npm run check:http:ordinary
 npm run test:ordinary
 ```
 
-These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. `test:ordinary` and the `server/` and `web/` part of `build:ordinary` check the JavaScript reference core and UI ([server/README.md](server/README.md)), not the running Rust/React service. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
+These cover the publication file set, module builds and the HTTP history examples. `test:ordinary` and part of `build:ordinary` exercise the older JavaScript reference core in `server/` and `web/`, which the Rust/React app has superseded ([server/README.md](server/README.md)). None of these checks run the Rust service, call a provider or certify security or deployment.
 
-Focused synthetic checks for the canonical IFC source, IFC/GLB, IFC publication and canonical geometry seams are listed with their scope and limits in the [verification guide](docs/contributing/verification.md#canonical-ifc-source-ifcglb-and-publication-seam-checks). The IFC publication check includes the two-floor synthetic fixture of the proposed [v2 scene read contract](docs/canonical-ifc/scene-read-contract-v2.md).
+## Status
 
-## Development and verification
-
-Before committing and publishing Rust changes, run `mise run fmt` in an owned
-checkout, review the diff, refresh the publication manifest, then run
-`mise run fmt:check`. Follow the [writer sequence and prerequisites](docs/contributing/formatting.md).
-These repository tasks work in saved cloud and Mac checkouts; explicit writer
-use is required and existing CI remains the check-only backstop.
-
-The current development snapshot includes a Rust backend, SQLite persistence and a React interface with strict TypeScript.
-
-[The complete verification guide](docs/contributing/verification.md) retains every previously documented named command and its scope, prerequisites and limitations. Read it before running any other check; broad suites and held controls are not authorized by this README.
-
-- [Rust/React development slice](docs/rust-integration/README.md): actual native source, disposable local settings and exact ordinary commands.
-- [Reference UI contract](web/README.md): source ownership, access, freshness and host seams of the JavaScript reference UI; [frontend/src/app/INTEGRATION.md](frontend/src/app/INTEGRATION.md) records the React port against it.
-- [Repository coordination](docs/coordination/worker-handoff.md) and [publication provenance](docs/publication/provenance.md).
-- [Operations and rollout](docs/operations/qualification-and-rollout.md): target and acceptance requirements.
-- [NAS deploy tool](tools/deploy-nas/README.md): deploy a `main` commit or a model release to the NAS, and roll it back; `python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` checks it with a fake service.
-
-This is a development snapshot. No household configuration, credentials or real media belong in Git. Ordinary CI uses no secrets and performs no deployment. Product, recovery, pilot and production acceptance remain separate. Open-source licensing is a future release decision; no license has been selected.
+This is a development snapshot. No household configuration, credentials or real media belong in Git, and ordinary CI uses no secrets and deploys nothing. No open-source license has been selected yet.
