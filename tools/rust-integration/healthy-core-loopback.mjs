@@ -27,6 +27,8 @@ const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-n
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [], nativeListResponses = [];
+// Every generated /invoke GET in request order, so a step counts the reads it requested.
+const invokeRequests = [], invokeById = new Map();
 let phase = 'initial-view';
 const requestPhases = new Map();
 const refreshReads = refreshAvailabilityReads();
@@ -279,6 +281,11 @@ class Pipe {
           observedUrls.push(message.params.request.url);
           requestPhases.set(message.params.requestId, phase);
           const url = new URL(message.params.request.url);
+          if (url.pathname.endsWith('/invoke')) {
+            const invoke = { id: message.params.requestId, path: url.pathname, commandId: JSON.parse(url.searchParams.get('request')).commandId,
+              status: null, snapshot: null, ended: false };
+            invokeRequests.push(invoke); invokeById.set(invoke.id, invoke);
+          }
           if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
             requestId: applicationRequestId(url), bodyBytes: 0, contentLength: null, contentEncoding: null, errorText: null,
@@ -295,9 +302,11 @@ class Pipe {
           requestPhases.delete(message.params.requestId);
           // Earlier UI lifetimes must not exhaust observation before the two
           // measured topology lifetimes below; retain every actual response.
+          const snapshot = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null;
           if (new URL(response.url).pathname.endsWith('/invoke'))
-            nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status,
-              snapshot: Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null });
+            nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status, snapshot });
+          const invoke = invokeById.get(message.params.requestId);
+          if (invoke) { invoke.status = response.status; invoke.snapshot = snapshot; }
         }
         else if (message.method === 'Network.dataReceived') {
           const read = nativeReads.get(message.params.requestId);
@@ -305,6 +314,8 @@ class Pipe {
           observeRead(read, 'data', message.params);
         }
         else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+          const invoke = invokeById.get(message.params.requestId);
+          if (invoke) invoke.ended = true;
           const read = nativeReads.get(message.params.requestId);
           if (read) {
             observeRead(read, message.method === 'Network.loadingFailed' ? 'failed' : 'finished', message.params);
@@ -448,7 +459,17 @@ try {
     return true;
   })()`), 'Visible Close Atlas tools action');
   await until(async () => await evaluate("!document.querySelector('[aria-label=\"Atlas tools\"]:not([hidden])')"), 'Atlas tools closed before section navigation');
-  const topologyResponseStart = nativeListResponses.length;
+  // A step's topology reads are the native reads requested after it begins. Reads requested
+  // earlier, including the live copy's background fill of the same four lists, end first.
+  const stepReads = async label => {
+    await until(() => invokeRequests.every(read => read.ended), 'Earlier native reads ended before ' + label);
+    const start = invokeRequests.length;
+    return {
+      completed: () => invokeRequests.slice(start).filter(read => read.ended).length,
+      reads: () => invokeRequests.slice(start).map(({ path, commandId, status, snapshot }) => ({ path, commandId, status, snapshot })),
+    };
+  };
+  const atlasStep = await stepReads('Atlas entry');
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
       .find(button => button.textContent?.trim() === 'Atlas' && button.getClientRects().length);
@@ -460,10 +481,11 @@ try {
   // lens replaces it and ends its reads. Atlas entry reads the topology once, and
   // Rooms & places reads it once more for its own lifetime.
   await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Atlas topology ready');
-  await until(async () => nativeListResponses.length - topologyResponseStart >= 4, 'Atlas topology reads completed');
-  const atlasReads = nativeListResponses.slice(topologyResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
-  assert.equal(atlasReads.length, 4, 'Four completed actual native topology list reads on Atlas entry');
-  const placesResponseStart = nativeListResponses.length;
+  await until(async () => atlasStep.completed() >= 4, 'Atlas topology reads completed');
+  const atlasReads = atlasStep.reads();
+  assert.equal(atlasReads.length, 4, 'Four actual native topology list reads requested on Atlas entry: ' + JSON.stringify(atlasReads.map(read => read.commandId)));
+  assert.deepEqual(atlasReads.map(read => read.commandId).sort(), viewerCommands, 'Atlas entry reads each topology list once');
+  const placesStep = await stepReads('Rooms & places');
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('button')]
       .find(button => button.textContent?.trim() === 'Place records' && button.getClientRects().length);
@@ -488,8 +510,10 @@ try {
     console.error(JSON.stringify({ topologyStatus: await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent ?? null"), lists }));
     throw error;
   }
-  const placesReads = nativeListResponses.slice(placesResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
-  assert.equal(placesReads.length, 4, 'Four completed actual native topology list reads for Rooms & places');
+  await until(async () => placesStep.completed() >= 4, 'Rooms & places topology reads completed');
+  const placesReads = placesStep.reads();
+  assert.equal(placesReads.length, 4, 'Four actual native topology list reads requested for Rooms & places: ' + JSON.stringify(placesReads.map(read => read.commandId)));
+  assert.deepEqual(placesReads.map(read => read.commandId).sort(), viewerCommands, 'Rooms & places reads each topology list once');
   const topologyReads = [...atlasReads, ...placesReads];
   assert(topologyReads.every(read => read.status === 200 && /^[0-9a-f]{64}$/.test(read.snapshot ?? '')
     && read.snapshot === topologyReads[0].snapshot), 'Actual native topology reads carry one matched retained snapshot identity');
