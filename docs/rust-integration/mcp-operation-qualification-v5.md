@@ -238,6 +238,10 @@ line up with the actual Editor-attributed SQLite audits in commit order.
 
 The existing default backend-library command discovers the case.
 This row records coverage separately from the historical PASS registry.
+The [opt-in production-binary qualification](../contributing/verification.md#opt-in-mounted-editor-evidence-batch-through-the-production-binary)
+checks the same ordered creates and retained receipts over loopback HTTPS.
+It uses a caller-selected executable, generated Editor and Viewer accounts,
+ordinary record GETs and the Editor's native operation-event page.
 Other batch shapes, replay, failure outcomes, restart, bridge, WebMCP,
 and configured installation and device acceptance remain outside this case.
 Issue #288 remains open.

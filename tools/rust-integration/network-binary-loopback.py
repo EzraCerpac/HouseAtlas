@@ -202,7 +202,8 @@ class Client:
         self.origin = f"https://127.0.0.1:{port}"
         self.context = ssl.create_default_context(cafile=str(ca))
 
-    def request(self, method, path, session=None, body=None, csrf=True, deadline=None):
+    def request(self, method, path, session=None, body=None, csrf=True, deadline=None, *,
+                mcp_protocol=None, mcp_session=None):
         deadline = min(time.monotonic() + 10, deadline) if deadline is not None else time.monotonic() + 10
         # Direct literal loopback; no proxy/environment or redirect handling.
         headers = {"Origin": self.origin, "Sec-Fetch-Site": "same-origin"}
@@ -213,6 +214,11 @@ class Client:
         if body is not None:
             body = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
+        if mcp_protocol is not None:
+            headers["Accept"] = "application/json, text/event-stream"
+            headers["MCP-Protocol-Version"] = mcp_protocol
+            if mcp_session is not None:
+                headers["MCP-Session-Id"] = mcp_session
         connection = http.client.HTTPSConnection(
             "127.0.0.1", self.port, context=self.context, timeout=10)
         with cleanup_on_exit(connection.close), elapsed_deadline(deadline):
@@ -269,9 +275,10 @@ def stop_backend(process):
 
 @contextmanager
 def backend(executable, config, profile, client, log):
-    digest = hashlib.sha256(profile.read_bytes()).hexdigest()
-    command = [str(executable), "serve", "--server-config", str(config),
-               "--provider-reads-profile", str(profile), "--provider-reads-sha256", digest]
+    command = [str(executable), "serve", "--server-config", str(config)]
+    if profile is not None:
+        digest = hashlib.sha256(profile.read_bytes()).hexdigest()
+        command.extend(["--provider-reads-profile", str(profile), "--provider-reads-sha256", digest])
     output = log.open("wb")
     with cleanup_on_exit(output.close):
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
@@ -282,34 +289,42 @@ def backend(executable, config, profile, client, log):
             require(process.poll() is None, "Production serve exited before SIGTERM")
 
 
-def qualify(executable, root):
+def initialize_host(executable, root, mcp_commands):
     ca, cert, key = certificates(root)
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
     client = Client(port, ca)
-    workspace, home, source = (str(uuid.uuid4()) for _ in range(3))
+    workspace, home = (str(uuid.uuid4()) for _ in range(2))
+    scope = {"workspaceId": workspace, "homeId": home}
     frontend, data = root / "frontend", root / "data"
     frontend.mkdir(mode=0o700)
     # Satisfies production asset loading only; no renderer/UI is exercised.
     (frontend / "index.html").write_text('<!doctype html><div id="root"></div>\n')
-    config, provisioning, profile = (root / name for name in (
-        "server.json", "provisioning.json", "providers.json"))
+    config, provisioning = root / "server.json", root / "provisioning.json"
     document(config, {"schemaVersion": 1, "deploymentId": str(uuid.uuid4()),
         "dataDirectory": str(data), "logDirectory": str(data / "logs"),
         "frontendDirectory": str(frontend), "tlsCertificate": str(cert),
         "tlsPrivateKey": str(key), "listen": f"127.0.0.1:{port}", "origin": client.origin,
-        "homes": [{"workspaceId": workspace, "homeId": home, "label": "Invented qualification home"}],
-        "mcpCommands": "read-only"})
+        "homes": [{**scope, "label": "Invented qualification home"}],
+        "mcpCommands": mcp_commands})
     users = [{"userId": str(uuid.uuid4()), "actorId": str(uuid.uuid4()),
         "username": f"qualification-{role}", "password": secrets.token_urlsafe(32),
-        "memberships": [{"workspaceId": workspace, "homeId": home, "role": role}]}
+        "memberships": [{**scope, "role": role}]}
         for role in ("editor", "viewer")]
     document(provisioning, {"schemaVersion": 1, "users": users})
     subprocess.run([str(executable), "initialize", "--server-config", str(config),
                     "--provisioning-file", str(provisioning)],
                    check=True, timeout=120, stdout=subprocess.DEVNULL)
     provisioning.unlink()
+    return config, client, scope, users
+
+
+def qualify(executable, root):
+    config, client, home_scope, users = initialize_host(executable, root, "read-only")
+    workspace, home = home_scope["workspaceId"], home_scope["homeId"]
+    source = str(uuid.uuid4())
+    data, profile = root / "data", root / "providers.json"
     receipt = (data / "server-state.json").read_bytes()
     # Owner-issued metadata, never SQL or a reimplementation of state_digest.
     state_digest = json.loads(receipt)["configurationDigest"]
@@ -413,8 +428,8 @@ def qualify(executable, root):
             raise
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def run(qualification, description, prefix):
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--executable", type=Path, required=True,
                         help="Existing houseatlas backend binary; executed only with generated temporary settings")
     args = parser.parse_args()
@@ -428,10 +443,14 @@ def main():
     os.umask(0o077)
     print(f"Backend executable: {executable}", flush=True)
     with cleanup_on_exit(lambda: signal.signal(signal.SIGTERM, previous)):
-        directory = tempfile.TemporaryDirectory(prefix="houseatlas-network-binary-")
+        directory = tempfile.TemporaryDirectory(prefix=prefix)
         with cleanup_on_exit(directory.cleanup):
-            qualify(executable, Path(directory.name).resolve(strict=True))
-    print("PASS cleanup: owned collector stopped and disposable state removed")
+            qualification(executable, Path(directory.name).resolve(strict=True))
+    print("PASS cleanup: disposable state removed")
+
+
+def main():
+    run(qualify, __doc__, "houseatlas-network-binary-")
 
 
 if __name__ == "__main__":
