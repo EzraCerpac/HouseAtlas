@@ -678,6 +678,8 @@ try {
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Synthetic parcel survey').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Synthetic parcel survey, PDF page 1"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.source-pdf-controls button')].map(node => node.getBoundingClientRect())
+      .filter(rect => rect.width < 44 || rect.height < 44).length`), 0, 'Phone PDF page and zoom buttons are 44 px');
     // Ordinary focus retires all borrowed data, then restores neutral reading
     // intent only after fresh owner reads and a replacement React commit.
     await evaluate(`[...document.querySelectorAll('.source-pdf button')].find(button => button.textContent === 'Next page').click()`);
