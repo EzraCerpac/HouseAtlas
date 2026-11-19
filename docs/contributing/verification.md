@@ -1400,6 +1400,11 @@ absence of write dispatch, the held PDF canvases, and the separate explicit
 Saved view.
 On the full-document profile, the held PDF viewer's page and zoom buttons are visible at 44×44 px or more at phone width.
 With touch emulated at 1440×900, those buttons plus Close and Save held original are too.
+On both profiles, closing the held HomeBox PDF returns focus to its Library opener:
+after Escape when the opening click did not focus it, and after keyboard Close when foreground revalidation replaced the opener.
+A second generated building reusing the electrical evidence and sheet IDs returns focus to its own sheet button
+after keyboard Close and after Escape following a non-focusing click from the focused Library tab;
+focus moved out of the dialog on purpose stays there.
 It checks those online-retained building records in the offline Rooms & places lens (held-copy stamp, retrieval time,
 exact elevation token, explicit unknown elevation, 44 px phone controls,
 no network bytes) and, after the records are removed, the not-held sentence. It does not
