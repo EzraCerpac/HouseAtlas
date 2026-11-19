@@ -681,7 +681,8 @@ try {
     // Every page and zoom button, the disabled Previous page included, is displayed at 44 px or more.
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('.source-pdf-controls button')].map(node => {
       const rect = node.getBoundingClientRect();
-      return [node.getAttribute('aria-label') ?? node.textContent, node.disabled, node.getClientRects().length > 0 && rect.width >= 44 && rect.height >= 44];
+      return [node.getAttribute('aria-label') ?? node.textContent, node.disabled,
+        node.getClientRects().length > 0 && getComputedStyle(node).visibility === 'visible' && rect.width >= 44 && rect.height >= 44];
     })`), [['Previous page', true, true], ['Next page', false, true], ['Zoom out PDF', false, true], ['Zoom in PDF', false, true]],
     'Phone PDF page and zoom buttons are 44 px');
     // Ordinary focus retires all borrowed data, then restores neutral reading
