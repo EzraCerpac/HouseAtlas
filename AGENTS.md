@@ -304,3 +304,16 @@ The companion opt-in `test_network_binary_loopback.py` checks elapsed bounds,
 shutdown auditing and cleanup ordering with generated peers and fake processes.
 It adds no default selection, workflow, installed configuration or live-device
 acceptance.
+
+The existing default-library and frontend lanes also gain three small generated
+cases for #304 and #298, with no new runner, workflow, browser or native access.
+`canonical-geometry.test.mjs --healthy` preflights the Full tier from accessor
+counts over zeroed buffers, admitting exactly 4,000,000 triangles and 12,000,000
+vertices and refusing one more of each. The default backend-library set discovers
+`config::model_overview::detail_limit_tests::detail_file_one_byte_over_limit_is_refused_unread`,
+a sparse temporary file one byte over the 256 MiB Full limit refused from its
+metadata without reading it; the exact at-limit file is not exercised. The
+existing `unified-atlas-healthy.mjs` case checks that publication B, sharing no
+ids with A, ignores A's selection, level, building and layers, shows only its own
+floor stack, and places none of A's overlay bindings. These are in-process
+reducer, markup and binding checks, not a mounted replacement or acceptance.

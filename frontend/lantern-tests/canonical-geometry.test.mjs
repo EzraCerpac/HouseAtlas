@@ -48,7 +48,7 @@ const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSourc
 const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPick, labelPoint, LABEL_WORK, pointInShape, relativePath,
   visibleFloorIds, occurrenceTops, sourceMeshColor } = await import(geometryURL);
 const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
-const { GlbFormatError, readGlbContainer, preflightGltf } = await import(preflightURL);
+const { GlbFormatError, readGlbContainer, preflightGltf, DETAIL_GLB_LIMITS } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const { buildGlb, box, SAMPLE_HOUSE, SAMPLE_HOUSE_BOUNDS, SAMPLE_REFERENCE, SAMPLE_REFERENCE_BOUNDS } = await import(sampleURL);
 // Scalar specular is material-local and must agree with its declaration.
@@ -69,6 +69,21 @@ for (const patch of [
   json => { json.extensionsUsed = ['KHR_materials_specular']; json.extensionsRequired = ['KHR_materials_specular']; },
   json => { json.extensionsUsed = ['KHR_materials_specular']; json.nodes = structuredClone(json.nodes); json.nodes[0].extensions = { KHR_materials_specular: {} }; },
 ]) assert.throws(() => preflightGltf(readGlbContainer(scalarGlb(patch))), GlbFormatError);
+// Full-tier exact count boundaries, stated by accessor counts over one zeroed
+// (lazily allocated) buffer; no triangle is generated or drawn.
+const detailCounts = (vertices, indices) => {
+  const positionBytes = vertices * 12, indexBytes = indices * 2;
+  return preflightGltf({ bin: new Uint8Array(positionBytes + indexBytes), json: { asset: { version: '2.0' },
+    buffers: [{ byteLength: positionBytes + indexBytes }],
+    bufferViews: [{ buffer: 0, byteLength: positionBytes }, { buffer: 0, byteOffset: positionBytes, byteLength: indexBytes }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: vertices, type: 'VEC3' },
+      { bufferView: 1, componentType: 5123, count: indices, type: 'SCALAR' }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }], nodes: [{ mesh: 0 }], scenes: [{ nodes: [0] }] } }, DETAIL_GLB_LIMITS);
+};
+assert.equal(detailCounts(3, DETAIL_GLB_LIMITS.triangles * 3).work.triangles, 4_000_000);
+assert.throws(() => detailCounts(3, (DETAIL_GLB_LIMITS.triangles + 1) * 3), GlbFormatError);
+assert.equal(detailCounts(DETAIL_GLB_LIMITS.vertices, 3).work.vertices, 12_000_000);
+assert.throws(() => detailCounts(DETAIL_GLB_LIMITS.vertices + 1, 3), GlbFormatError);
 const { publicationA, publicationB, generatedCoverage } = await import(fixturesURL);
 
 const A = admitPresentation(publicationA()), B = admitPresentation(publicationB()), C = admitPresentation(generatedCoverage());
