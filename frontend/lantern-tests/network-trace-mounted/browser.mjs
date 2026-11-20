@@ -57,7 +57,7 @@ try {
         const el = (${expression}), r = el?.getBoundingClientRect();
         const centre = r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
         const hit = centre && document.elementFromPoint(centre.x, centre.y);
-        return { rect: r?.toJSON(), pressedRect, centre, hit: describe(hit), expanded: el?.getAttribute('aria-expanded'),
+        return { rect: r?.toJSON(), pressedRect, centre, hit: describe(hit), class: el?.getAttribute('class'), expanded: el?.getAttribute('aria-expanded'),
           sameNode: el === original, originalConnected: original?.isConnected, scroll: [scrollX, scrollY],
           atPressPoint: point ? describe(document.elementFromPoint(point.x, point.y)) : null,
           actionable: !!(r?.width && r?.height && el.contains(hit) && !el.closest('[inert], [hidden]') && !el.matches(':disabled')), events };
@@ -251,13 +251,16 @@ try {
   const card = `document.querySelector('.ua-inspector.is-network h2')?.textContent`;
   const scope = `document.querySelector('.ua-viewport').getAttribute('aria-label')`;
   const scopeBefore = await evaluate(scope), roomBefore = await evaluate(`document.querySelector('.ua-inspector h2')?.textContent`);
-  const settledPress = async (expression, name) => {
-    try { await pressSettled(expression); } catch (error) {
-      throw Error(`${error.message}; ${name}: ${JSON.stringify(await evaluate(`window.__settledPress?.read()`))}`, { cause: error });
+  // A missing result after the press reports what the press reached (events, targets, rects) and
+  // what the app then showed, so a lost press and a lost selection read differently.
+  const settledPress = async (expression, name, settled, shown) => {
+    try { await pressSettled(expression); if (settled) await until(settled); } catch (error) {
+      const state = await evaluate(`({ press: window.__settledPress?.read(), shown: ${shown ?? 'undefined'} })`);
+      throw Error(`${error.message}; ${name}: ${JSON.stringify(state)}`, { cause: error });
     } finally { await evaluate(`window.__settledPress?.stop(); true`); }
   };
-  await settledPress(`document.querySelector('.ua-net-device[aria-label^="Host client"]')`, 'Host client glyph');
-  await until(`${card} === 'Host client'`);
+  await settledPress(`document.querySelector('.ua-net-device[aria-label^="Host client"]')`, 'Host client glyph', `${card} === 'Host client'`,
+    `{ card: document.querySelector('.ua-inspector')?.getAttribute('class'), heading: document.querySelector('.ua-inspector h2')?.textContent }`);
   assert.equal(await evaluate(scope), scopeBefore, 'choosing a device leaves the camera scope as it was');
   assert.equal(await evaluate(`!!document.querySelector('#generated-lens .ung, .ua-graph')`), false, 'no graph or lens opens for a device');
   // Its reported link opens the link card; the far end opens that device's card.
