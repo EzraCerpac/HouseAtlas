@@ -166,5 +166,16 @@ it('a transaction error blocks subsequent read callbacks and cannot become a suc
     tx.onerror(); tx.succeedRead(); tx.complete(); await rejected;
     assert.equal(edits, 0); assert.equal(effects, 0); assert.equal(tx.clearCalls, 0); assert.equal(tx.putCalls, 0);
     assert.equal(f.rows()[0].state, 'unsent');
+
+    const quota = new DOMException('Synthetic quota exceeded', 'QuotaExceededError');
+    const lateCause = f.store.change(rows => { edits++; return mark(rows); });
+    const quotaRejected = assert.rejects(lateCause, error => error === quota);
+    await flush();
+    const aborting = f.transactions[1];
+    aborting.onerror();
+    aborting.error = quota;
+    aborting.abort();
+    await quotaRejected;
+    assert.equal(edits, 0); assert.equal(f.rows()[0].state, 'unsent');
   } finally { f.store.close(); }
 });
