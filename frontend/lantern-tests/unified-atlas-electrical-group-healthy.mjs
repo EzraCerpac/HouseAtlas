@@ -176,6 +176,7 @@ for (const [name, row] of checks) {
   assert.deepEqual(row.highlighted, ['room-living'], name);
   assert.deepEqual([row.index.unplacedRecords, row.index.placed.size], [3, 1], name);
   assert.ok(row.unplaced.some(record => record.id === 'f-hall'), `${name}: the withdrawn member is retained as unplaced`);
+  assert.ok(row.unplaced.every(record => /No unambiguous reviewed room placement; historic and unverified/.test(record.qualification)), `${name}: unplaced records say so`);
 }
 
 // #554 consumer: the actual #557 projector over its generated fixture, joined to

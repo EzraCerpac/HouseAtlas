@@ -3723,9 +3723,12 @@ qualification. Seven leave every record unplaced with nothing highlighted
 (withdrawn, changed or foreign room receipt, absent ledger receipt, saved
 identity join in a current frame, current join in a saved snapshot, no binding).
 Three (replaced native place, retargeted region, unselectable occurrence)
-unplace only the affected hall member; the living-room member stays placed and
-group selection highlights only that room. The offline registration helper is not consumed by the
-Atlas, so no registered placement reaches this view.
+unplace only the affected hall member, whose qualification is asserted; the
+living-room member stays placed and is the only room in the grouped members'
+room lists. The check reads those member-room lists; it selects no group, and
+the mounted selection and highlight path is not exercised. The offline
+registration helper is not consumed by the Atlas, so no registered placement
+reaches this view.
 
 None of this mounts the Atlas, issues a current circuit or exercises a native
 host or supplier. The tested state is generated; no electrical test was performed.
