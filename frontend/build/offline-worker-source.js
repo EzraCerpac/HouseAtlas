@@ -13,6 +13,7 @@ const pinURL = kind => new URL(`/saved/.pin-${kind}`, self.location.origin).href
 const locks = self.navigator?.locks;
 const pinned = task => locks ? locks.request('houseatlas-saved-shell-pins', async () => task(await caches.open(PINS))) : null;
 const pin = (pins, kind) => pins.put(pinURL(`${SCOPE}-${kind}`), new Response(BUILD, { headers: { 'content-type': 'text/plain' } }));
+const stamp = cache => cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
 const byPath = new Map(TABLE.map(row => [row.path, row]));
 const digest = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2, '0')).join('');
 async function verified(response, pin) {
@@ -50,12 +51,11 @@ self.addEventListener('install', event => event.waitUntil((async () => {
       await cache.put(url, response);
     }
     await cache.put(ASSET_PINS, new Response(JSON.stringify(TABLE.filter(pin => hashedAsset.test(pin.path)))));
-    // Completion time orders builds for pruning; earlier markers lack it (0).
-    await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
+    await stamp(cache);
     await self.skipWaiting();
   } catch (error) { await caches.delete(NAME); throw error; }
 })()));
-const installedAt = marker => Number(marker?.headers.get('x-installed-at')) || 0;
+const lastUsedAt = marker => Number(marker?.headers.get('x-installed-at')) || 0;
 /** Under the pin lock: keeps this build, every build a scope pin names,
  * unfinished installs, any build completed after this one, and the most recent
  * earlier one; drops the rest. Nothing is pruned until both scopes have an
@@ -64,13 +64,13 @@ async function pruneEarlierBuilds(pins) {
   const named = Object.fromEntries(await Promise.all(PIN_KINDS.map(async kind => [kind, await (await pins.match(pinURL(kind)))?.text()])));
   if (!named['root-active'] || !named['saved-active']) return;
   const keep = new Set(Object.values(named).filter(Boolean));
-  const own = installedAt(await (await caches.open(NAME)).match(MARKER));
+  const own = lastUsedAt(await (await caches.open(NAME)).match(MARKER));
   const earlier = [];
   for (const name of await caches.keys()) {
     if (!name.startsWith(PREFIX) || name === NAME || keep.has(name.slice(PREFIX.length))) continue;
     const marker = await (await caches.open(name)).match(MARKER);
     if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
-    const at = installedAt(marker);
+    const at = lastUsedAt(marker);
     if (at <= own) earlier.push({ name, at });
   }
   earlier.sort((a, b) => b.at - a.at);
@@ -79,6 +79,7 @@ async function pruneEarlierBuilds(pins) {
 self.addEventListener('activate', event => event.waitUntil((async () => {
   if (!await ready()) throw Error('Public shell is not verified');
   await pinned(async pins => {
+    await stamp(await caches.open(NAME)); // A rollback can reactivate an older installed build.
     await pin(pins, 'active');
     const pending = pinURL(`${SCOPE}-pending`);
     if (await (await pins.match(pending))?.text() === BUILD) await pins.delete(pending);

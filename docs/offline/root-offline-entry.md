@@ -76,15 +76,17 @@ An update copies each public file an earlier build's cache already verified
 for the same path and digest, and downloads only the rest. Each worker pins
 its scope's build in a small pin cache (`houseatlas-saved-shell-pins`): as
 pending before its install checks or writes any bytes, and as active when it
-activates. It stamps its completion marker with its install time. After
-claiming clients, an activating worker prunes earlier
+activates. It stamps the marker at installation and refreshes it at activation,
+including after rollback.
+After claiming clients, an activating worker prunes earlier
 `houseatlas-saved-public-*` caches, but only once both scopes have an active
 pin. Pin writes and pruning run under one origin-wide Web Lock, because the
 root and Saved registrations activate independently; without the lock API
 nothing is pruned. A prune keeps its own build, every pinned build (a root
 entry whose update has not run yet keeps its bytes; an install that lost its
-cache to an earlier prune refills it after pinning), any build completed after
-its own, any cache without a completed marker, and the most recent earlier build.
+cache to an earlier prune refills it after pinning), any build stamped after
+its own, any cache without a completed marker, and the most recently used
+earlier build.
 A device therefore holds the current and previous shells after ordinary
 updates instead of one more copy per deploy. The page never prunes:
 an installation can finish after a page-side registration check, which is

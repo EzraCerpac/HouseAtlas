@@ -1100,8 +1100,12 @@ class Deployer:
                 record["restored_frontend"] = str(restored)  # saved below, so a retry can finish this move
                 moves = [(live, live.parent / f"frontend.rolled-back-{record['id']}-{stamp}"), (restored, live)]
             elif not live.exists():  # interrupted after the live frontend was moved aside
+                _files(live)  # also refuses a dangling symlink at the destination
                 prepared = Path(record.get("restored_frontend", ""))
-                moves = [(prepared if record.get("restored_frontend") and prepared.exists() else parked, live)]
+                source = prepared if record.get("restored_frontend") and (
+                    prepared.exists() or prepared.is_symlink()) else parked
+                _files(source)
+                moves = [(source, live)]
         record["status"] = "rolling-back"  # a retry after an interruption picks this record up again
         save_record(cfg.ledger, record)
         restore = dict(record, after_plist=record["before_plist"])
@@ -1220,24 +1224,30 @@ def write_rollback_script(record: dict, cfg: Config) -> None:
                   '  if [ -e "$tree" ] || [ -L "$tree" ]; then',
                   '    links=$(find "$tree" -type l -print)',
                   '    if [ -n "$links" ]; then echo "refusing: frontend tree contains a symlink" >&2; exit 1; fi',
-                  '  fi', 'done']
+                  '  fi', 'done',
+                  # Stage retained assets before stopping the service.
+                  f'if [ -e {parked} ] && [ -e {live} ]; then',
+                  f'  saved_worker={q("^" + SAVED_PDF_WORKER + "$")}',
+                  '  for dir in assets saved; do',
+                  f'    for file in {live}/"$dir"/*; do',
+                  '      [ -f "$file" ] || continue',
+                  '      rel=$dir/${file##*/}',
+                  '      [[ "$dir" == assets || "$rel" =~ $saved_worker ]] || continue',
+                  f'      dest={parked}/"$rel"',
+                  '      if [ -e "$dest" ]; then',
+                  '        cmp -s "$file" "$dest" || { echo "refusing: asset name reused with different bytes: $rel" >&2; exit 1; }',
+                  '      else',
+                  f'        mkdir -p {parked}/"$dir"',
+                  '        rm -f "$dest.rollback-part"',
+                  '        cp -p "$file" "$dest.rollback-part"',
+                  '        mv -f "$dest.rollback-part" "$dest"',
+                  '      fi', '    done', '  done', 'fi']
     lines += [f"launchctl bootout {domain}/{cfg.label} || true",
               f"while launchctl print {domain}/{cfg.label} >/dev/null 2>&1; do sleep 1; done"]
     if record["kind"] == "code":
         # The live frontend can be missing when a deploy stopped right after parking it.
         lines += [f'if [ -e {parked} ]; then',
                   f'  if [ -e {live} ]; then',
-                  # Keep the newer build's lazy chunks and scoped PDF workers.
-                  f'    saved_worker={q("^" + SAVED_PDF_WORKER + "$")}',
-                  '    for dir in assets saved; do',
-                  f'      for file in {live}/"$dir"/*; do',
-                  '        [ -f "$file" ] || continue',
-                  '        rel=$dir/${file##*/}',
-                  '        [[ "$dir" == assets || "$rel" =~ $saved_worker ]] || continue',
-                  f'        if [ ! -e {parked}/"$rel" ]; then',
-                  f'          mkdir -p {parked}/"$dir"',
-                  f'          cp -p "$file" {parked}/"$rel"',
-                  '        fi', '      done', '    done',
                   f'    mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ)',
                   '  fi',
                   # Mark before the move, so a run interrupted right after it can still be retried.

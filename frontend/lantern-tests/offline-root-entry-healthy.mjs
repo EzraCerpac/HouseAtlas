@@ -21,7 +21,7 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const read = path => readFileSync(join(frontend, path), 'utf8');
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-root-entry-generated-'));
 const cases = [];
-// Install completion times order builds for pruning; a counter keeps the order exact.
+// Install and activation timestamps order builds for pruning; a counter keeps the order exact.
 let clock = 0;
 function cacheStorage() {
   const stores = new Map();
@@ -453,6 +453,14 @@ try {
   assert.equal((await prunedOffline.fetchEvent(request('/'))).headers.get('location'), origin + '/saved/index.html');
   const prunedSaved = deployAPI.registrations.get(origin + '/saved/').active.runtime;
   assert.equal(await (await prunedSaved.fetchEvent(request('/saved/index.html'))).text(), await fourth.responses.get('/saved/index.html').clone().text());
+
+  const rollbackStorage = cacheStorage(), rollbackAPI = serviceWorkers();
+  for (const build of [first, second, first, third]) {
+    rollbackAPI.setTarget(build, rollbackStorage);
+    assert.equal((await shellPage(rollbackAPI, rollbackStorage, build).verifySavedShell()).buildId, build.buildId);
+  }
+  assert.deepEqual(public_(rollbackStorage), [prefix + first.buildId, prefix + third.buildId].sort(),
+    'The build reactivated by rollback is the most recent predecessor');
   cases.push('three-deploys-keep-current-and-previous-shell-and-offline-handoff');
 
   // A root entry whose update has not run yet keeps its build: the Saved

@@ -80,8 +80,9 @@ remain outside these cases.
 The synthetic deploy suite has 64 methods.
 Its union, rollback and prune fixtures check hashed Saved PDF worker retention.
 The union and standalone rollback reject symlinks in generated frontend trees.
+The rollback fixtures also check interrupted copies and same-name conflicts.
 The existing Saved worker source case checks retained hashed URLs and verifies
-that changed bytes are refused.
+that changed bytes are refused and a reactivated shell survives the next update.
 
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the
@@ -149,7 +150,7 @@ The frontend healthy list adds `network-live-facts-healthy.mjs`
 (closed decoder, legacy/unjoined preservation, stale/absent and refusal bounds),
 and the existing overlay-source case checks the opt-in current-read extension
 through its generated transport and fake original owners.
-The inventory is 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
+The inventory is 99 SOURCE / 1 BUILD / 13 BROWSER (113 total).
 Ordinary-core's existing tools/ci discovery also selects one synthetic offline
 candidate-helper method (34 methods total); no workflow command is added.
 

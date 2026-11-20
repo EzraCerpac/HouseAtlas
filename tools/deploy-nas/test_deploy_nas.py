@@ -522,6 +522,17 @@ class SwapAndRollback(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             dep.rollback()
         dep.swap = real
+        live = Path(self.record["frontend"])
+        prepared = Path(dn.ledger_records(self.cfg.ledger)[-1]["restored_frontend"])
+        link = prepared / "assets/linked.js"
+        link.symlink_to(self.root / "missing")
+        with self.assertRaisesRegex(dn.DeployError, "symlink"):
+            dep.rollback()
+        link.unlink()
+        live.symlink_to(self.root / "missing")
+        with self.assertRaisesRegex(dn.DeployError, "symlink"):
+            dep.rollback()
+        live.unlink()
         dep.rollback()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
@@ -581,10 +592,21 @@ class SwapAndRollback(unittest.TestCase):
         dn.save_record(self.cfg.ledger, dict(self.record, id="older", status="verified"))
         dep.swap(self.record, self.root / "events.log", self.moves)
         dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        relative_worker = "saved/pdf.worker.min-New_hash.js"
+        parked_worker = write(Path(self.record["parked_frontend"]) / relative_worker, "old worker")
+        result = self.run_standalone(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"asset name reused with different bytes", result.stderr)
+        self.assertFalse((self.root / "launchctl.calls").exists())
+        self.assertEqual(parked_worker.read_text(), "old worker")
+        self.assertEqual((Path(self.record["frontend"]) / relative_worker).read_text(), "new worker")
+        parked_worker.unlink()
+        write(parked_worker.with_suffix(".js.rollback-part"), "partial")
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
         self.assertEqual((self.root / "fe/frontend/saved/pdf.worker.min-New_hash.js").read_text(), "new worker")
+        self.assertFalse((Path(self.record["frontend"]) / (relative_worker + ".rollback-part")).exists())
         self.assertFalse((self.root / "fe/frontend/saved/pdf.worker.min-.js").exists())
         self.assertEqual((self.root / "fe/frontend/saved/service-worker.js").read_text(), "old shell")
         self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
