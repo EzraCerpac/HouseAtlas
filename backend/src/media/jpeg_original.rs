@@ -12,6 +12,16 @@ const MAX_DIMENSION: usize = 16_384;
 const MAX_SCANS: usize = 100;
 const MAX_RGB_BYTES: usize = 75_000_000;
 
+fn decoder_options() -> DecoderOptions {
+    DecoderOptions::default()
+        .set_strict_mode(true)
+        .set_use_unsafe(false)
+        .set_max_width(MAX_DIMENSION)
+        .set_max_height(MAX_DIMENSION)
+        .jpeg_set_max_scans(MAX_SCANS)
+        .jpeg_set_out_colorspace(ColorSpace::RGB)
+}
+
 pub(super) fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<()> {
     budget.check()?;
     if bytes.len() > MAX_BYTES {
@@ -20,14 +30,7 @@ pub(super) fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<()> {
     if bytes.len() < 4 || !bytes.starts_with(b"\xff\xd8") || !bytes.ends_with(b"\xff\xd9") {
         return Err(MediaError::Unsupported);
     }
-    let options = DecoderOptions::default()
-        .set_strict_mode(true)
-        .set_use_unsafe(false)
-        .set_max_width(MAX_DIMENSION)
-        .set_max_height(MAX_DIMENSION)
-        .jpeg_set_max_scans(MAX_SCANS)
-        .jpeg_set_out_colorspace(ColorSpace::RGB);
-    let mut decoder = JpegDecoder::new_with_options(ZCursor::new(bytes), options);
+    let mut decoder = JpegDecoder::new_with_options(ZCursor::new(bytes), decoder_options());
     decoder
         .decode_headers()
         .map_err(|_| MediaError::Unsupported)?;
@@ -54,4 +57,50 @@ pub(super) fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<()> {
     budget.check()?;
     // No pixels, EXIF facts, transformed bytes or preview proofs leave this validator.
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    #[ignore = "separately selected capture decoder control"]
+    fn generated_jpeg_frames_refuse_dimensions_and_pixel_count() -> MediaResult<()> {
+        let budget = WorkBudget::new(Duration::from_secs(2), Default::default())?;
+        for (original, frame_marker) in [
+            (
+                include_bytes!("../../../frontend/capture-evidence-tests/fixtures/synthetic-photo.jpg")
+                    .as_slice(),
+                [0xff, 0xc0],
+            ),
+            (
+                include_bytes!("../../../frontend/capture-evidence-tests/fixtures/synthetic-photo-progressive.jpg")
+                    .as_slice(),
+                [0xff, 0xc2],
+            ),
+        ] {
+            validate(original, &budget)?;
+            let frame = original
+                .windows(2)
+                .position(|pair| pair == frame_marker)
+                .expect("generated fixture must have the expected frame header");
+            let mut altered = original.to_vec();
+            // SOF stores the two-byte height and width immediately after precision.
+            altered[frame + 5..frame + 7].copy_from_slice(&6000_u16.to_be_bytes());
+            altered[frame + 7..frame + 9].copy_from_slice(&6000_u16.to_be_bytes());
+            assert!(matches!(validate(&altered, &budget), Err(MediaError::TooLarge)));
+            altered[frame + 5..frame + 7].copy_from_slice(&16_u16.to_be_bytes());
+            altered[frame + 7..frame + 9].copy_from_slice(&16_385_u16.to_be_bytes());
+            let mut decoder =
+                JpegDecoder::new_with_options(ZCursor::new(altered.as_slice()), decoder_options());
+            assert!(matches!(
+                decoder.decode_headers(),
+                Err(zune_jpeg::errors::DecodeErrors::Format(message))
+                    if message.contains("greater than width limit")
+            ));
+            assert!(matches!(validate(&altered, &budget), Err(MediaError::Unsupported)));
+        }
+        Ok(())
+    }
 }

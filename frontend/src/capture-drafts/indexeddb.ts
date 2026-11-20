@@ -50,9 +50,17 @@ export function openDraftStore(factory: IDBFactory = indexedDB): DraftStore {
         reject(error);
       };
       const timer = setTimeout(() => fail(new Error('Local draft storage did not complete')), deadlineMs);
-      transaction.oncomplete = () => { finish(); if (failed) reject(failure); else resolve(value); };
+      transaction.oncomplete = () => {
+        finish();
+        if (failed) reject(failure ?? transaction.error ?? new Error('Local draft transaction failed'));
+        else resolve(value);
+      };
       transaction.onabort = () => { finish(); reject(failure ?? transaction.error ?? new Error('Local draft transaction was not saved')); };
-      transaction.onerror = () => { failed = true; failure ??= transaction.error ?? new Error('Local draft transaction failed'); };
+      transaction.onerror = () => {
+        failed = true;
+        // A request error can bubble before IndexedDB puts the cause on the aborted transaction.
+        failure ??= transaction.error ?? undefined;
+      };
       // Install terminal handlers before inspecting capability or aborting.
       // Old browsers may reject/ignore the options or omit this property.
       try {

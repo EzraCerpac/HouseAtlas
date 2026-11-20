@@ -94,6 +94,9 @@ const BROWSER = [
   node('unified-atlas-regression/browser.mjs', '--stored-dialog-currentness'),
   node('network-trace-mounted/browser.mjs'),
   ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],
+  ['frontend/capture-drafts-tests/browser-storage.mjs', 'unknown-attempt-locked-after-reopen'],
+  ['frontend/capture-drafts-tests/browser-storage.mjs', 'mounted-capture-controls'],
+  ['frontend/capture-drafts-tests/browser-storage.mjs', 'mounted-draft-lifecycle'],
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;

@@ -12,7 +12,7 @@ import { build } from 'vite';
 const cases = new Set(['native-save-no-upload', 'native-reopen-unsent', 'native-review-confirm-one-upload',
   'native-form-no-draft-database', 'native-other-place-or-account-refused', 'native-lost-reply-drafts-reachable',
   'native-reported-mime-label-upload', 'native-offline-save-held-identity', 'native-save-no-identity-refused',
-  'native-session-answer-classification', 'native-restart-unfocused-held-identity']);
+  'native-session-answer-classification', 'native-restart-unfocused-held-identity', 'native-invalid-upload-replies']);
 const args = process.argv.slice(2);
 assert(args.length === 2 && args[0] === '--case' && cases.has(args[1]), 'Select exactly one named case');
 const caseName = args[1];
@@ -132,6 +132,7 @@ function fixture(shared = { rows: [] }, input = selection) {
       assert.equal(file.name, input.original.name); assert.deepEqual(new Uint8Array(await file.arrayBuffer()), new Uint8Array(await input.original.arrayBuffer()));
       assert.equal(metadata.statement, form.statement); assert.equal(metadata.reason, form.reason); assert.deepEqual(metadata.capture, input.capture);
       shared.posted = { type: file.type, contentType: metadata.contentType, sha256: createHash('sha256').update(new Uint8Array(await file.arrayBuffer())).digest('hex') };
+      if (shared.uploadAnswer) return shared.uploadAnswer(requestId);
       const evidenceId = uuid(908), assetId = uuid(909);
       return json({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId, resolvedScope: scope, status: 'committed',
         replayed: false, operationId: uuid(910), data: { auditIds: [uuid(911), uuid(912)], requestDigest: 'a'.repeat(64), records: [
@@ -359,6 +360,43 @@ try {
     await f.port.discard(localId, { loseUnknownOutcome: true });
     assert.deepEqual(f.shared.rows, []);
     assert.equal(f.calls.post, 1, 'Inspection and removal send nothing');
+  } else if (caseName === 'native-invalid-upload-replies') {
+    for (const [label, uploadAnswer, nativeOutcome, rejection] of [
+      ['missing', () => new Response(null, { status: 204 }), 'unknown', /Native evidence body missing/],
+      ['malformed', () => new Response('{"status":'), 'unknown', /Invalid JSON/],
+      ['known intake refusal', requestId => json({ schemaVersion: 1, kind: 'native-evidence-outcome', requestId, scope,
+        recordId: placeId, outcome: 'not-committed', phase: 'intake', error: { code: 'invalid-upload', httpStatus: 422 } }, 422), 'not-committed'],
+    ]) {
+      const shared = { rows: [], uploadAnswer };
+      const original = fixture(shared);
+      await original.save();
+      const review = await original.port.review(localId, original.signal);
+      const submission = original.port.submit(review, null, placeId, original.signal);
+      if (nativeOutcome === 'not-committed') {
+        const completion = await submission;
+        assert.equal(completion.committed, false, label);
+        assert.equal(completion.localCleanup, 'unconfirmed', label);
+      } else {
+        await assert.rejects(submission, rejection, label);
+      }
+      const [pending] = original.evidence.pending(original.binding);
+      assert.equal(pending.outcome, nativeOutcome, label);
+      const [retained] = shared.rows;
+      assert.equal(retained.state, 'outcome-unknown', label);
+      assert.equal(retained.attempt.requestId, pending.prepared.requestId, label);
+      assert.equal(retained.attempt.idempotencyKey, null, label);
+      assert.equal(retained.sha256, shared.posted.sha256, label);
+      assert.equal(await retained.original.text(), await selection.original.text(), label);
+      assert.deepEqual(retained.capture, selection.capture, label);
+      assert(!original.order.includes('delete'), label);
+      await assert.rejects(original.port.submit(review, null, placeId, original.signal), /Review and confirm/);
+      const reopened = fixture(shared);
+      const inspected = await reopened.port.inspectUnknown(localId, reopened.signal);
+      assert.equal(inspected.retrySafety, 'not-established', label);
+      assert.deepEqual(inspected.attempt, retained.attempt, label);
+      assert.equal(original.calls.post, 1, label);
+      assert.equal(reopened.calls.post, 0, label);
+    }
   } else if (caseName === 'native-reported-mime-label-upload') {
     // Browser labels the direct native upload accepts: none, and a JPEG alias.
     const pdf = new File(['%PDF-1.7\nSynthetic unlabelled draft bytes\n'], 'synthetic-unlabelled.pdf', { type: '', lastModified: 43 });

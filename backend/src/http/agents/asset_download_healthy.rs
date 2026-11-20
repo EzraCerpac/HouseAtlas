@@ -482,7 +482,17 @@ fn healthy_contextual_five_format_native_post_receipt_original_readback() -> Res
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(contextual_five_originals())
+        .block_on(contextual_five_originals(false))
+}
+
+#[test]
+#[ignore = "separately selected capture upload admission control"]
+fn contextual_upload_refuses_when_all_four_slots_are_held() -> Result<(), Failure> {
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(contextual_five_originals(true))
 }
 
 async fn capture_json(
@@ -546,7 +556,7 @@ fn capture_journal(
     )
 }
 
-async fn contextual_five_originals() -> Result<(), Failure> {
+async fn contextual_five_originals(check_busy: bool) -> Result<(), Failure> {
     let scratch = tempfile::Builder::new()
         .prefix("houseatlas-contextual296-")
         .tempdir_in("/tmp")?;
@@ -574,6 +584,7 @@ async fn contextual_five_originals() -> Result<(), Failure> {
     let login = receipt["editorLogin"].clone();
     drop(receipt);
     let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
+    let upload_slots = Arc::clone(&host.upload_slots);
     let first_core = host.core.clone();
     let core_released = Arc::downgrade(&first_core);
     let (store_released, access_released, vault_released) = {
@@ -740,6 +751,33 @@ async fn contextual_five_originals() -> Result<(), Failure> {
                 .ok_or("Missing fixture request ID")?
                 .parse()?,
         );
+        if check_busy {
+            let permits = (0..4)
+                .map(|_| upload_slots.clone().try_acquire_owned())
+                .collect::<Result<Vec<_>, _>>()?;
+            assert_eq!(upload_slots.available_permits(), 0);
+            let response = app.clone().oneshot(upload).await?;
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            let refused: Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), MAX_RESPONSE).await?)?;
+            assert_eq!(refused["kind"], "native-evidence-outcome");
+            assert_eq!(refused["requestId"], metadata["requestId"]);
+            assert_eq!(refused["scope"], context);
+            assert_eq!(refused["recordId"], place);
+            assert_eq!(refused["outcome"], "not-committed");
+            assert_eq!(refused["phase"], "intake");
+            assert_eq!(
+                refused["error"],
+                json!({"code":"upload-busy","httpStatus":503})
+            );
+            assert_eq!(
+                capture_journal(&directory, &setup_result, &validation)?,
+                baseline_operations
+            );
+            drop(permits);
+            assert_eq!(upload_slots.available_permits(), 4);
+            return Ok(());
+        }
         let started = time::OffsetDateTime::now_utc();
         upload_posts += 1;
         let response = app.clone().oneshot(upload).await?;

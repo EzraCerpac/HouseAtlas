@@ -62,6 +62,19 @@ and the electrical original on the standard profile before offline reopen.
 Both profiles use generated responses over disposable loopback TLS.
 The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
+The pinned browser list also runs `mounted-capture-controls`,
+`mounted-draft-lifecycle` and `unknown-attempt-locked-after-reopen`.
+The mounted cases exercise picker events, current admission and retirement,
+and local draft review and invalidation across two tabs.
+The reopen case withholds strict IndexedDB completion from the store,
+then reads the committed marker from an independent connection
+before the one-use local handoff.
+The existing `synthetic-save-reopen-remove` checks the persisted row fields,
+owner and lifetime alongside exact original bytes and provenance.
+These cases use generated files, fresh browser profiles and loopback fixtures.
+The existing controlled IndexedDB error case also checks that a quota cause
+arriving at transaction abort survives the earlier request error.
+
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
 not here. A PR that extends CI names the added scope in the verification guide.
@@ -132,7 +145,7 @@ The frontend healthy list adds `network-live-facts-healthy.mjs`
 (closed decoder, legacy/unjoined preservation, stale/absent and refusal bounds),
 and the existing overlay-source case checks the opt-in current-read extension
 through its generated transport and fake original owners.
-The inventory is 99 SOURCE / 1 BUILD / 11 BROWSER (111 total).
+The inventory is 99 SOURCE / 1 BUILD / 14 BROWSER (114 total).
 Ordinary-core's existing tools/ci discovery also selects one synthetic offline
 candidate-helper method (34 methods total); no workflow command is added.
 
