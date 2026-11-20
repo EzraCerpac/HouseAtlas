@@ -21,7 +21,7 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const read = path => readFileSync(join(frontend, path), 'utf8');
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-root-entry-generated-'));
 const cases = [];
-// Install completion times order builds for pruning; a counter keeps the order exact.
+// Install and activation timestamps order builds for pruning; a counter keeps the order exact.
 let clock = 0;
 function cacheStorage() {
   const stores = new Map();
@@ -44,6 +44,8 @@ function generatedBuild(version) {
   const directory = join(scratch, version); mkdirSync(join(directory, 'saved'), { recursive: true }); mkdirSync(join(directory, 'assets/pdfjs'), { recursive: true });
   const html = '<!doctype html><html><head></head><body><div id="root"></div><script src="/assets/saved.js"></script></body></html>';
   const assets = { '/saved/index.html': html, '/assets/saved.js': `/* generated public Saved entry ${version} */`, '/assets/saved.css': 'body{color:black}',
+    [`/assets/viewer-${version}.js`]: `/* generated lazy viewer ${version} */`,
+    [`/saved/pdf.worker.min-${version}.js`]: `/* generated PDF worker ${version} */`,
     '/assets/pdfjs/openjpeg_nowasm_fallback.js': `/* generated public JPEG decoder ${version} */`,
     '/assets/pdfjs/jbig2_nowasm_fallback.js': `/* generated public JBIG decoder ${version} */` };
   for (const [path, bytes] of Object.entries(assets)) writeFileSync(join(directory, path), bytes);
@@ -57,7 +59,8 @@ function generatedBuild(version) {
   const unmarked = table.map(pin => pin.path === '/saved/index.html' ? { ...pin, bytes: Buffer.byteLength(html), sha256: hash(html) } : pin);
   assert.equal(buildId, hash(hash(JSON.stringify(unmarked) + read('build/offline-worker-source.js')) + read('build/root-offline-worker-source.js')));
   assert(root.startsWith(`const ROOT_BUILD="${buildId}";`));
-  assert.deepEqual(table.map(pin => pin.path), ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.css', '/assets/saved.js', '/saved/index.html']);
+  assert.deepEqual(table.map(pin => pin.path), ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js',
+    '/assets/saved.css', '/assets/saved.js', `/assets/viewer-${version}.js`, '/saved/index.html', `/saved/pdf.worker.min-${version}.js`]);
   const responses = new Map(table.map(pin => {
     const bytes = readFileSync(join(directory, pin.path)); assert.equal(bytes.length, pin.bytes); assert.equal(hash(bytes), pin.sha256);
     return [pin.path, new Response(bytes, { headers: { 'content-type': pin.mime } })];
@@ -283,7 +286,7 @@ try {
   assert.deepEqual(rootRegistration.active.runtime.imports, ['/saved/service-worker.js']);
   assert.equal(rootRegistration.active.runtime.calls.length, 0, 'Root install reuses already verified closure');
   assert.deepEqual([...storage.stores.get(prefix + first.buildId).keys()].sort(),
-    [...first.table.map(pin => origin + pin.path), origin + '/saved/.verified-shell'].sort());
+    [...first.table.map(pin => origin + pin.path), origin + '/saved/.verified-shell', origin + '/saved/.public-asset-pins'].sort());
   cases.push('explicit-prepare-saved-before-root-exact-build-public-bytes');
 
   // Existing installed apps retain start_url /. Normal online root requests
@@ -359,7 +362,7 @@ try {
   assert.equal(offline.fetchEvent(request('/', { method: 'POST' })), null);
   assert.equal(offline.fetchEvent(request('/', { mode: 'cors' })), null);
   assert.deepEqual([...storage.stores.get(prefix + first.buildId).keys()].sort(),
-    [...first.table.map(pin => origin + pin.path), origin + '/saved/.verified-shell'].sort());
+    [...first.table.map(pin => origin + pin.path), origin + '/saved/.verified-shell', origin + '/saved/.public-asset-pins'].sort());
   cases.push('public-whitelist-no-private-api-session-model-or-root-cache');
 
   // An intentional normal Saved entry with its existing marker also prepares
@@ -402,8 +405,21 @@ try {
   assert.equal(rootRegistration.active.buildId, second.buildId); assert.equal(savedRegistration.active.buildId, second.buildId);
   const changed = second.table.filter(pin => first.table.find(row => row.path === pin.path)?.sha256 !== pin.sha256).map(pin => pin.path);
   // The marked Saved entry names its build, so it always changes.
-  assert.deepEqual(changed, ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.js', '/saved/index.html']);
+  assert.deepEqual(changed, ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js',
+    '/assets/saved.js', '/assets/viewer-second.js', '/saved/index.html', '/saved/pdf.worker.min-second.js']);
   assert.deepEqual(savedRegistration.active.runtime.calls.map(call => new URL(call.input).pathname), changed, 'Only changed public bytes are downloaded');
+  const current = workerRuntime(second, 'saved', storage, () => { throw new TypeError('Generated network unavailable'); });
+  for (const path of ['/assets/viewer-concurrent.js', '/saved/pdf.worker.min-concurrent.js']) {
+    const retained = await current.fetchEvent(request(path, { mode: 'cors' }));
+    assert.equal(await retained.text(), await concurrent.responses.get(path).clone().text());
+  }
+  assert.equal(current.calls.length, 0, 'Older hashed assets come from the verified cache');
+  const fallback = '/assets/viewer-concurrent.js';
+  const previous = storage.stores.get(prefix + concurrent.buildId);
+  const original = previous.get(origin + fallback);
+  previous.set(origin + fallback, new Response('changed bytes', { headers: { 'content-type': 'text/javascript' } }));
+  await assert.rejects(current.fetchEvent(request(fallback, { mode: 'cors' })), /Generated network unavailable/);
+  previous.set(origin + fallback, original);
   assert.equal(rootRegistration.active.runtime.calls.length, 0);
   assert(!storage.stores.has(prefix + first.buildId), 'A build behind the most recent earlier one is pruned once no scope runs it');
   assert(storage.stores.has(prefix + 'c'.repeat(64)), 'An unfinished install keeps its cache');
@@ -423,6 +439,23 @@ try {
   await foreignPage.removeSavedShell(first.buildId); assert.equal(foreignAPI.registrations.get(origin + '/'), foreign);
   cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-prunes-older-builds');
 
+  // Before asset pins, the installed shell cached only its marker and responses.
+  const legacyStorage = cacheStorage(), legacyBuild = hash('generated legacy shell');
+  const legacyCache = await legacyStorage.open(prefix + legacyBuild);
+  const legacyBytes = '/* generated legacy PDF worker */';
+  const legacyWorker = `/assets/pdf.worker.min-${hash(legacyBytes).slice(0, 8)}.js`;
+  await legacyCache.put('/saved/.verified-shell', new Response(legacyBuild, { headers: { 'x-installed-at': String(++clock) } }));
+  await legacyCache.put(legacyWorker, new Response(legacyBytes, { headers: { 'content-type': 'text/javascript' } }));
+  await legacyCache.put('/assets/legacy.js', new Response('unversioned'));
+  const update = workerRuntime(second, 'saved', legacyStorage, async input => second.responses.get(new URL(input).pathname).clone());
+  await update.lifecycle('install'); await update.lifecycle('activate');
+  const updatedOffline = workerRuntime(second, 'saved', legacyStorage, () => { throw new TypeError('Generated network unavailable'); });
+  assert.equal(await (await updatedOffline.fetchEvent(request(legacyWorker, { mode: 'cors' }))).text(), legacyBytes);
+  assert.equal(updatedOffline.fetchEvent(request('/assets/legacy.js', { mode: 'cors' })), null);
+  assert.equal(updatedOffline.fetchEvent(request(legacyWorker + '?other', { mode: 'cors' })), null);
+  assert.equal(updatedOffline.calls.length, 0);
+  cases.push('upgrade-serves-legacy-hashed-pdf-worker-offline');
+
   // Three deploys after the first launch leave only the current and previous
   // shells, and the root entry still hands off to the current verified one.
   const third = generatedBuild('third'), fourth = generatedBuild('fourth');
@@ -437,6 +470,14 @@ try {
   assert.equal((await prunedOffline.fetchEvent(request('/'))).headers.get('location'), origin + '/saved/index.html');
   const prunedSaved = deployAPI.registrations.get(origin + '/saved/').active.runtime;
   assert.equal(await (await prunedSaved.fetchEvent(request('/saved/index.html'))).text(), await fourth.responses.get('/saved/index.html').clone().text());
+
+  const rollbackStorage = cacheStorage(), rollbackAPI = serviceWorkers();
+  for (const build of [first, second, first, third]) {
+    rollbackAPI.setTarget(build, rollbackStorage);
+    assert.equal((await shellPage(rollbackAPI, rollbackStorage, build).verifySavedShell()).buildId, build.buildId);
+  }
+  assert.deepEqual(public_(rollbackStorage), [prefix + first.buildId, prefix + third.buildId].sort(),
+    'The build reactivated by rollback is the most recent predecessor');
   cases.push('three-deploys-keep-current-and-previous-shell-and-offline-handoff');
 
   // A root entry whose update has not run yet keeps its build: the Saved

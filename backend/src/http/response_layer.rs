@@ -83,9 +83,19 @@ struct ImmutableAsset;
 /// Every emitted `/assets/` file is named `<name>-<hash>.<ext>` by the
 /// frontend build (vite.config.ts), and release retention keeps older ones
 /// under their own names, so a name never changes its bytes.
+/// The scoped PDF worker uses the same retention rule under `/saved/`.
 fn immutable_asset_path(path: &str) -> bool {
     path.strip_prefix("/assets/")
         .is_some_and(|name| !name.is_empty() && !name.contains('/'))
+        || path
+            .strip_prefix("/saved/pdf.worker.min-")
+            .and_then(|name| name.strip_suffix(".js"))
+            .is_some_and(|hash| {
+                !hash.is_empty()
+                    && hash
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            })
 }
 /// A built folder with its own entry page, such as `/example/`, is reached by
 /// redirecting to exactly `<folder>/index.html`: its page and offline worker
@@ -132,11 +142,16 @@ mod static_cache_tests {
     fn only_hashed_build_assets_are_immutable() {
         assert!(immutable_asset_path("/assets/index-B3x_9kQz.js"));
         assert!(immutable_asset_path("/assets/pdf.worker.min-Da1-xY2b.js"));
+        assert!(immutable_asset_path("/saved/pdf.worker.min-Da1_xY2b.js"));
         for path in [
             "/",
             "/index.html",
             "/saved/index.html",
             "/saved/service-worker.js",
+            "/saved/pdf.worker.min-.js",
+            "/saved/pdf.worker.min-dir/a.js",
+            "/saved/pdf.worker.min-test.mjs",
+            "/saved/other-test.js",
             "/offline-entry-worker.js",
             "/manifest.webmanifest",
             "/icons/houseatlas-192.png",

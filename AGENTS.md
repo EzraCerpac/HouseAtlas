@@ -60,7 +60,6 @@ and fills the native and electrical libraries through the live entry.
 It measures both held PDF originals on the full-document profile
 and the electrical original on the standard profile before offline reopen.
 Both profiles use generated responses over disposable loopback TLS.
-The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
 The pinned browser list also runs `mounted-capture-controls`,
 `mounted-draft-lifecycle` and `unknown-attempt-locked-after-reopen`.
@@ -77,7 +76,27 @@ arriving at transaction abort survives the earlier request error.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
-not here. A PR that extends CI names the added scope in the verification guide.
+with scope changes also named here when a PR extends CI.
+
+The explicit healthy frontend list selects the generated `desktop-library`
+and `desktop-saved-pack` cases in pinned Chrome for Testing.
+Desktop Library checks ordinary HomeBox open, exact retained PDF bytes and
+pages, dedicated worker delivery from Cache Storage, measured storage totals,
+controlled persistence outcomes, application eviction and signed-out reconnect.
+The Saved pack case checks a generated partial pack, accessible keyboard
+navigation and real worker identities through a resealed public build update.
+It checks the old tab's exact worker bytes offline after the worker URL changes
+and compares the retained pack against its original pins.
+Both use disposable profiles and loopback.
+Installed data, actual persistence grants and authorized edit dispatch
+remain outside these cases.
+The synthetic deploy suite has 64 methods.
+Its union, rollback and prune fixtures check hashed Saved PDF worker retention.
+The union and standalone rollback reject symlinks in generated frontend trees.
+The rollback fixtures also check interrupted copies and same-name conflicts.
+The existing Saved worker source case checks retained hashed URLs with and
+without a pin table, refuses changed pinned bytes and verifies that a
+reactivated shell survives the next update.
 
 The default backend-library lane includes four generated mounted MCP cases
 under `http::agents::mounted_evidence_controls::`:
@@ -172,7 +191,7 @@ The frontend healthy list adds `network-live-facts-healthy.mjs`
 (closed decoder, legacy/unjoined preservation, stale/absent and refusal bounds),
 and the existing overlay-source case checks the opt-in current-read extension
 through its generated transport and fake original owners.
-The inventory is 99 SOURCE / 1 BUILD / 14 BROWSER (114 total).
+The inventory is 99 SOURCE / 1 BUILD / 16 BROWSER (116 total).
 Ordinary-core's existing tools/ci discovery also selects one synthetic offline
 candidate-helper method (34 methods total); no workflow command is added.
 

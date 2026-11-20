@@ -28,8 +28,11 @@ touched. They roll back on their own when gateway verification fails; pass
    (`npm ci`, `typecheck`, `build`, `check:backend-frontend-compat`), reusing the
    one persistent Cargo target and the previous build's npm download cache.
 4. Stages the binary in a new `houseatlas-main-<sha7>-<date>-vN/` folder and the
-   frontend next to the live one. The staged frontend is the new build plus every
-   older top-level hashed asset, so tabs opened on an earlier build keep loading.
+   frontend next to the live one.
+   The staged frontend keeps the older top-level hashed assets and hashed Saved
+   PDF workers so tabs opened on an earlier build keep loading.
+   The asset union has no generation cap for those workers.
+   Pruning limits parked frontend trees separately.
    An asset name reused with different bytes stops the deploy.
 5. Starts the new binary on throwaway state (the smoke template, a fresh data
    folder, the live model pins) and checks it: login, the app shell and
