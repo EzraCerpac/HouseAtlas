@@ -215,14 +215,18 @@ export async function checkPartialPack({ evaluate, poll, send }, pack) {
   await ax(hallName);
   await activate(hall, 'Hall');
   const stage = `document.querySelector('.ua-shell [aria-label^="Plan of "], .ua-shell [aria-label^="3D of "]')`;
-  const selected = `${ground}?.getAttribute('aria-label').includes('has the selected room')`;
-  await poll(`${selected} && ${stage}?.getAttribute('aria-label').startsWith('Plan of Ground floor')`, 5_000, 'Plan did not select Hall on the ground floor');
+  const selectedRoom = `document.querySelector('aside[aria-label="Selected room"] h2')`;
+  const checkHall = async mode => {
+    await poll(`${stage}?.getAttribute('aria-label').startsWith('${mode} of ') && ${selectedRoom}?.textContent === 'Hall'`,
+      5_000, mode + ' must show Hall as the selected room');
+    assert.equal(await evaluate(`${ground}?.getAttribute('aria-pressed')`), 'true', mode + ' must keep Ground floor selected');
+  };
+  await checkHall('Plan');
   await activate(button('3D', '[aria-label="Atlas view"]'), '3D');
-  await poll(`${selected} && ${stage}?.getAttribute('aria-label').startsWith('3D of Ground floor')`, 5_000, '3D lost the selected room');
+  await checkHall('3D');
   await activate(button('Plan', '[aria-label="Atlas view"]'), 'Plan');
-  await poll(`${selected} && ${stage}?.getAttribute('aria-label').startsWith('Plan of Ground floor')`,
-    5_000, 'Returning to Plan lost the selected room or floor');
+  await checkHall('Plan');
   await evaluate(`${stage}.focus()`);
   await key('Escape', 27);
-  await poll(`${ground}?.getAttribute('aria-pressed') === 'true' && !(${selected})`, 5_000, 'Escape did not return from room to its floor');
+  await poll(`${ground}?.getAttribute('aria-pressed') === 'true' && !${selectedRoom}`, 5_000, 'Escape did not return from room to its floor');
 }
