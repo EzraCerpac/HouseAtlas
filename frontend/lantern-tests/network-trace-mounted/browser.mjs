@@ -48,11 +48,17 @@ try {
     for (const type of ['mousePressed', 'mouseReleased']) await command('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, ...point });
   };
   const click = text => press(`[...document.querySelectorAll('button')].find(x => x.textContent.trim() === ${JSON.stringify(text)})`);
-  const pressSettled = async expression => {
+  const pressSettled = async (expression, shown) => {
     const point = await evaluate(`new Promise(resolve => {
-      const due = performance.now() + 5000, events = [], controller = new AbortController();
-      let previous, original, point, pressedRect, frame, timer;
+      const due = performance.now() + 5000, events = [], selections = [], controller = new AbortController();
+      let previous, original, point, pressedRect, frame, timer, observer, pressedAt, lastSelection;
       const describe = el => el ? { tag: el.tagName, id: el.id, class: el.getAttribute('class'), text: el.textContent?.slice(0, 100) } : null;
+      const selection = () => {
+        const state = { chosen: (${expression})?.classList.contains('is-chosen'), shown: ${shown ?? 'undefined'} };
+        const key = JSON.stringify(state);
+        if (key !== lastSelection && selections.length < 6) selections.push({ ms: Math.round(performance.now() - pressedAt), ...state });
+        lastSelection = key;
+      };
       const read = () => {
         const el = (${expression}), r = el?.getBoundingClientRect();
         const centre = r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
@@ -60,21 +66,25 @@ try {
         return { rect: r?.toJSON(), pressedRect, centre, hit: describe(hit), class: el?.getAttribute('class'), expanded: el?.getAttribute('aria-expanded'),
           sameNode: el === original, originalConnected: original?.isConnected, scroll: [scrollX, scrollY],
           atPressPoint: point ? describe(document.elementFromPoint(point.x, point.y)) : null,
-          actionable: !!(r?.width && r?.height && el.contains(hit) && !el.closest('[inert], [hidden]') && !el.matches(':disabled')), events };
+          actionable: !!(r?.width && r?.height && el.contains(hit) && !el.closest('[inert], [hidden]') && !el.matches(':disabled')), events, selections };
       };
-      window.__settledPress = { read, stop: () => controller.abort() };
+      window.__settledPress = { read, stop: () => { controller.abort(); observer?.disconnect(); } };
       const finish = result => { clearTimeout(timer); cancelAnimationFrame(frame); resolve(result); };
       timer = setTimeout(() => finish(null), 5000);
       const sample = () => {
         const el = (${expression}), state = read();
         const key = JSON.stringify(state.rect);
         if (state.actionable && el === original && previous === key) {
-          point = state.centre; pressedRect = state.rect;
+          point = state.centre; pressedRect = state.rect; pressedAt = performance.now();
           for (const type of ['mousedown', 'mouseup', 'click']) document.addEventListener(type, event => {
             const current = read();
-            if (events.length < 6) events.push({ type, target: describe(event.target), x: event.clientX, y: event.clientY,
-              rect: current.rect, sameNode: current.sameNode, expanded: current.expanded });
+            if (events.length < 6) events.push({ type, ms: Math.round(performance.now() - pressedAt),
+              target: describe(event.target), onOriginal: event.composedPath().includes(original), x: event.clientX, y: event.clientY,
+              rect: current.rect, atPressPoint: current.atPressPoint, sameNode: current.sameNode, expanded: current.expanded });
           }, { capture: true, signal: controller.signal });
+          ${shown ? `selection();
+          observer = new MutationObserver(selection);
+          observer.observe(el.closest('.ua-shell'), { subtree: true, attributes: true, attributeFilter: ['class'], childList: true, characterData: true });` : ''}
           finish(point); return;
         }
         original = el; previous = state.actionable ? key : null;
@@ -251,10 +261,10 @@ try {
   const card = `document.querySelector('.ua-inspector.is-network h2')?.textContent`;
   const scope = `document.querySelector('.ua-viewport').getAttribute('aria-label')`;
   const scopeBefore = await evaluate(scope), roomBefore = await evaluate(`document.querySelector('.ua-inspector h2')?.textContent`);
-  // A missing result after the press reports what the press reached (events, targets, rects) and
-  // what the app then showed, so a lost press and a lost selection read differently.
+  // Record selection changes through the wait. A card that opens and is cleared before
+  // polling sees it otherwise looks like a click that never selected the device.
   const settledPress = async (expression, name, settled, shown) => {
-    try { await pressSettled(expression); if (settled) await until(settled); } catch (error) {
+    try { await pressSettled(expression, shown); if (settled) await until(settled); } catch (error) {
       const state = await evaluate(`({ press: window.__settledPress?.read(), shown: ${shown ?? 'undefined'} })`);
       throw Error(`${error.message}; ${name}: ${JSON.stringify(state)}`, { cause: error });
     } finally { await evaluate(`window.__settledPress?.stop(); true`); }
