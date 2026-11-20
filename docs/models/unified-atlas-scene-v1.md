@@ -217,6 +217,8 @@ All building, level and occurrence bounds, plan X/Z coordinates and qualified
 overlay source positions use the same glTF world frame after node transforms
 have been applied once. A source-to-geographic origin is provenance, not an
 additional renderer translation.
+A declared `frame` is the scene's own coordinate convention, not a physical
+calibration of the model to the house.
 
 `frame.geographic` is optional and only lights the 3D view for the real sun.
 When present it has exactly `latitude` and `longitude` in WGS84 degrees
@@ -313,8 +315,9 @@ and geometry with explicit saved-at documentary semantics.
 ## Bounded handoff and acceptance
 
 Reuse the existing standard GLTFLoader and its admitted no-external-resource
-profile and aggregate budgets. Target the existing 32 MiB GLB and 64 MiB prepared
-asset limits; validate the actual mounted chunk budget against the server's
+profile and aggregate budgets. Target the existing Overview limits (32 MiB GLB,
+96 MiB prepared, 64 MiB GPU) and the Full limits (256 MiB GLB, 640 MiB prepared,
+384 MiB GPU); validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
 Transfer compression is the one exception, and it widens nothing: an overview
 or detail GLB may require `EXT_meshopt_compression`. The viewer
@@ -337,10 +340,11 @@ Its GLB JSON chunk is at most 8 MiB and glTF minimum version, if declared, is
 poses again. Cameras and node camera references are unsupported in this static
 profile; the Atlas viewport owns its camera.
 Drawn primitive instances, including repeated nodes sharing a mesh, are bounded
-to 20,000 instances, 1,800,000 vertices, 600,000 triangles and 96 MiB of copied
-positions, indices and prepared triangles. Every declared mesh and accessor
-must be used by the bound scene; all buffer views are checked and their copied
-bytes total at most 32 MiB.
+to 20,000 instances. The Overview tier also allows 1,800,000 vertices, 600,000
+triangles and 96 MiB of copied positions, indices and prepared triangles; the
+Full tier allows 12,000,000 vertices, 4,000,000 triangles and 640 MiB. Every
+declared mesh and accessor must be used by the bound scene; all buffer views are
+checked and their copied bytes total at most 32 MiB (Overview) or 256 MiB (Full).
 The companion reader uses a bounded static triangle profile: selected primitives
 have regular Float32 VEC3 positions and optional normals, with checked attribute
 and unsigned scalar index layouts. Morph targets, mesh/node weights and node

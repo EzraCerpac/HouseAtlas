@@ -5035,6 +5035,22 @@ launch selections continue to cover the actual clients. See
 Source generation and synthetic equality establish no device latency or
 operational acceptance; record hosted launch raw/gzip measurements separately.
 
+### Model limit and replacement boundaries
+
+Three generated cases for #304 and #298 join existing selections; no runner,
+workflow, browser, GPU or native access is added. `canonical-geometry.test.mjs
+--healthy` runs the actual Full-tier preflight on accessor counts over zeroed
+buffers: exactly 4,000,000 triangles and 12,000,000 vertices are admitted, one
+more of either is refused. The default backend-library set discovers
+`config::model_overview::detail_limit_tests::detail_file_one_byte_over_limit_is_refused_unread`,
+which refuses a sparse temporary file one byte over the 256 MiB Full limit from
+its metadata without reading it; an exact at-limit file is not exercised.
+`unified-atlas-healthy.mjs` checks that a replacement publication sharing no ids
+ignores the earlier publication's selection, level, building and layers, shows
+only its own floor stack and places none of the earlier overlay bindings. These
+are in-process reducer, markup and binding checks, not a mounted replacement,
+decoder, GPU or device acceptance.
+
 ### Grouped-level display coverage
 
 The existing `node frontend/lantern-tests/unified-atlas-healthy.mjs` case also

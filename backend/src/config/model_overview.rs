@@ -507,3 +507,24 @@ mod scalar_specular_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod detail_limit_tests {
+    use super::MAX_DETAIL_GLB;
+    use std::{fs::File, os::unix::fs::PermissionsExt};
+
+    /// A sparse file one byte over the Full limit is refused from its metadata,
+    /// so no 256 MiB is read or allocated.
+    #[test]
+    fn detail_file_one_byte_over_limit_is_refused_unread() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().canonicalize().unwrap().join("detail.glb");
+        let file = File::create(&path).unwrap();
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))
+            .unwrap();
+        file.set_len(MAX_DETAIL_GLB + 1).unwrap();
+        let error = super::super::server::read_selected_file(&path, MAX_DETAIL_GLB, true)
+            .expect_err("over the Full file limit");
+        assert_eq!(error, "Invalid startup file owner, mode, type or size");
+    }
+}
