@@ -11,12 +11,12 @@ assert.equal(process.version, 'v26.10.0');
 assert.deepEqual(process.argv.slice(2), []);
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'electrical-group-'));
-let electricalGroups, projectDocumentaryFacts, traceElectricalGroup, withholdText, ElectricalTraceDetail;
+let electricalGroups, projectDocumentaryFacts, documentaryOverlayIndex, traceElectricalGroup, withholdText, ElectricalTraceDetail;
 try {
   const entry = join(scratch, 'entry.ts');
   writeFileSync(entry, [
     `export { electricalGroups } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/electrical-group.ts'))};`,
-    `export { projectDocumentaryFacts } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/runtime-overlays.ts'))};`,
+    `export { projectDocumentaryFacts, documentaryOverlayIndex } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/runtime-overlays.ts'))};`,
     `export { traceElectricalGroup, withholdText } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/electrical-trace.ts'))};`,
     `export { ElectricalTraceDetail } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/ElectricalTraceDetail.tsx'))};`,
   ].join('\n'));
@@ -28,7 +28,7 @@ try {
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
   const modulePath = join(scratch, 'electrical.mjs');
   writeFileSync(modulePath, (Array.isArray(built) ? built[0] : built).output.find(row => row.type === 'chunk' && row.isEntry).code);
-  ({ electricalGroups, projectDocumentaryFacts, traceElectricalGroup, withholdText, ElectricalTraceDetail } = await import(pathToFileURL(modulePath).href));
+  ({ electricalGroups, projectDocumentaryFacts, documentaryOverlayIndex, traceElectricalGroup, withholdText, ElectricalTraceDetail } = await import(pathToFileURL(modulePath).href));
 } finally { rmSync(scratch, { recursive: true }); }
 const { createElement } = await import('react');
 const { renderToStaticMarkup } = await import('react-dom/server');
@@ -96,6 +96,87 @@ assert.equal(projected({}, id => id === 's2' ? { group: { id: 'other', label: 'O
 // Existing #553 groups also expose their exact parsed group/source identity.
 assert.deepEqual([group.groupId, group.fixtureIds, group.source], ['group', ['a', 'b', 'c'],
   { workspaceId: 'workspace', homeId: 'home', sceneEvidenceId: 'scene', sceneOriginalSha256: 'generated-source' }]);
+
+// #299: room placement of the same generated ledger, then each stale or
+// withdrawn join. A record whose reviewed room join is no longer current stays in
+// the inventory as unplaced and says so; no group member is placed by name,
+// label or position, and group selection highlights only still-joined rooms.
+const placedCase = ({ pins = {}, bindings, selectable = ['occ-hall', 'occ-living', 'occ-mixed'], mode = 'current-native', join = 'current-native-room-join', receipt = { id: 'rcpt', sha256: 'a'.repeat(64) } } = {}) => {
+  const place = name => ({ packagePlaceKey: `pk-${name}`, packagePlaceUuid: `pu-${name}` });
+  const ids = ['f-hall', 'f-living', 'f-mixed', 'f-nowhere'], regionOf = { 'f-hall': 'r-hall', 'f-living': 'r-living', 'f-mixed': 'r-mixed', 'f-nowhere': 'r-nowhere' };
+  const ledger = { schema: 'houseatlas.documentary-electrical-fixtures.v1', viewKey: 'generated-view', interpretationDate: '2026-01-02',
+    symbolLegend: { xMeansSocket: null, socketsPerX: null, receiptId: null }, roomMappingReceipt: receipt, registrationReceipts: [],
+    sheets: [{ id: 'sheet', title: 'Generated drawing', pdfPage: 1, originalPhoto: 'generated.jpg', originalPhotoSha256: 'd'.repeat(64), renderedPhotoSha256: 'e'.repeat(64), sourceDate: null, regionIds: [] }],
+    groups: [{ id: 'g', label: 'Generated historic group', fixtureIds: ids, evidenceBasis: 'historic-drawing-label', currentCircuitId: null, verifiedWiring: false }],
+    regions: ['hall', 'living', 'mixed'].map(name => ({ id: `r-${name}`, places: [place(name)] })).concat([{ id: 'r-nowhere', places: [place('nowhere')] }]),
+    fixtures: ids.map(id => ({ id, sheetId: 'sheet', regionId: regionOf[id], clusterId: null, kind: 'socket', label: `Generated ${id}`, glyph: 'X',
+      source: { symbolKey: id, originalPhotoSha256: 'd'.repeat(64), renderedPhotoSha256: 'e'.repeat(64), normalizedBox: [0, 0, 1, 1], normalizedPoint: [.5, .5], literalLabels: [], placementDescription: 'Generated drawing symbol' },
+      group: { id: 'g', label: 'G', basis: 'label-adjacent', note: null }, glyphCount: 1, fixtureCount: null, uncertainty: 'Current wiring is unknown',
+      currentState: 'historic-unverified', physicalCoordinate: null, wireRoute: null })) };
+  const room = name => ({ roomId: `room-${name}`, nativePlaceId: `native-${name}`, occurrenceIds: [`occ-${name}`] });
+  const binding = name => ({ ...room(name), spaceOccurrenceId: null, sourceRoomIds: [`s-${name}`], targets: [{ ...place(name), sourceAnchorIds: [`a-${name}`] }],
+    qualification: join, anchor: { kind: 'room-summary' } });
+  const anchor = (name, unresolvedLabels = []) => ({ id: `a-${name}`, targets: [place(name)], unresolvedLabels });
+  const facts = { mode, roomBindings: (bindings ?? ['hall', 'living', 'mixed'].map(binding)), network: { status: 'unavailable', reason: 'not-retained' },
+    electricity: { status: 'unavailable', reason: 'not-retained' }, electricalFixtures: { status: 'available', data: ledger }, observationFacts: [],
+    pins: { workspaceId: 'workspace', homeId: 'home', sceneEvidenceId: 'scene', sceneEvidenceRevision: 1, sceneOriginalSha256: 'f'.repeat(64), sceneAssetId: 'asset',
+      sceneAssetRevision: 1, acceptedRoomReceiptId: 'rcpt', acceptedRoomReceiptSha256: 'a'.repeat(64),
+      acceptedRoomAnchors: [anchor('hall'), anchor('living'), anchor('mixed', ['Unreadable generated label'])], ...pins } };
+  const scene = { rooms: ['hall', 'living', 'mixed'].map(room) };
+  const records = projectDocumentaryFacts(scene, facts, new Set(selectable));
+  const model = { roomsById: new Map(scene.rooms.map(row => [row.roomId, row])), selectable: new Set(selectable) };
+  const [grouped] = electricalGroups(records), index = documentaryOverlayIndex(model, records, 'electrical');
+  const roomsOf = Object.fromEntries(grouped.members.map(({ record, rooms }) => [record.id, rooms]));
+  const highlighted = [...new Set(grouped.members.flatMap(row => row.rooms))].sort();
+  const unplaced = records.unplaced.electrical;
+  return { records, grouped, index, roomsOf, highlighted, unplaced, keys: [...records.rooms.values()].flatMap(row => row.electrical).concat(unplaced).map(row => row.key).sort() };
+};
+const joined = placedCase();
+assert.deepEqual(joined.roomsOf, { 'f-hall': ['room-hall'], 'f-living': ['room-living'], 'f-mixed': [], 'f-nowhere': [] });
+assert.deepEqual(joined.highlighted, ['room-hall', 'room-living'], 'Selecting the group highlights only the still-joined member rooms');
+assert.deepEqual(joined.unplaced.map(row => row.id).sort(), ['f-mixed', 'f-nowhere'], 'An unresolved source component and an unmapped region stay unplaced');
+assert.equal(joined.grouped.missing, 0);
+assert.deepEqual([joined.index.records, joined.index.unplacedRecords, joined.index.placed.size], [4, 2, 2]);
+for (const row of joined.unplaced) assert.match(row.qualification, /No unambiguous reviewed room placement; historic and unverified/);
+const withdrawn = {
+  'receipt withdrawn': placedCase({ pins: { acceptedRoomReceiptId: null, acceptedRoomReceiptSha256: null } }),
+  'receipt hash changed': placedCase({ pins: { acceptedRoomReceiptSha256: 'b'.repeat(64) } }),
+  'ledger names another receipt': placedCase({ receipt: { id: 'other-receipt', sha256: 'a'.repeat(64) } }),
+  'ledger has no room receipt': placedCase({ receipt: null }),
+  'saved identity join in a current frame': placedCase({ join: 'captured-room-identity-join' }),
+  'current join in a saved snapshot': placedCase({ mode: 'saved-documentary-snapshot' }),
+  'no room binding': placedCase({ bindings: [] }),
+};
+for (const [name, row] of Object.entries(withdrawn)) {
+  assert.equal([...row.records.rooms.values()].flatMap(rows => rows.electrical).length, 0, name);
+  assert.deepEqual(Object.values(row.roomsOf), [[], [], [], []], name);
+  assert.deepEqual(row.highlighted, [], `${name}: nothing to highlight`);
+  assert.deepEqual([row.index.records, row.index.unplacedRecords, row.index.placed.size], [4, 4, 0], name);
+  assert.deepEqual(row.keys, joined.keys, `${name}: the same inventory remains`);
+  assert.equal(row.grouped.missing, 0, name);
+  assert.ok(row.unplaced.every(record => /No unambiguous reviewed room placement; historic and unverified/.test(record.qualification)), name);
+}
+// A single stale join unplaces only its own members; the other member stays joined.
+const oneStale = patch => {
+  const row = placedCase(patch);
+  assert.equal(row.grouped.missing, 0);
+  assert.deepEqual(row.keys, joined.keys, 'the same inventory remains');
+  return row;
+};
+const bindingFor = (name, change) => ({ roomId: `room-${name}`, nativePlaceId: `native-${name}`, spaceOccurrenceId: null, sourceRoomIds: [`s-${name}`],
+  targets: [{ packagePlaceKey: `pk-${name}`, packagePlaceUuid: `pu-${name}`, sourceAnchorIds: [`a-${name}`] }], qualification: 'current-native-room-join', anchor: { kind: 'room-summary' }, ...change });
+const livingOnly = bindings => oneStale({ bindings });
+const checks = [
+  ['room moved to another native place', livingOnly([bindingFor('hall', { nativePlaceId: 'native-hall-replaced' }), bindingFor('living')])],
+  ['region retargeted to another place', livingOnly([bindingFor('hall', { targets: [{ packagePlaceKey: 'pk-hall', packagePlaceUuid: 'pu-hall-replaced', sourceAnchorIds: ['a-hall'] }] }), bindingFor('living')])],
+  ['room occurrence no longer selectable', oneStale({ selectable: ['occ-living'] })],
+];
+for (const [name, row] of checks) {
+  assert.deepEqual(row.roomsOf, { 'f-hall': [], 'f-living': ['room-living'], 'f-mixed': [], 'f-nowhere': [] }, name);
+  assert.deepEqual(row.highlighted, ['room-living'], name);
+  assert.deepEqual([row.index.unplacedRecords, row.index.placed.size], [3, 1], name);
+  assert.ok(row.unplaced.some(record => record.id === 'f-hall'), `${name}: the withdrawn member is retained as unplaced`);
+}
 
 // #554 consumer: the actual #557 projector over its generated fixture, joined to
 // actual #553 groups. GENERATED tested state; no electrical test was performed.

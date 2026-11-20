@@ -277,6 +277,11 @@ test('healthy reviewed nomination withdrawal retains provenance and inventory wi
   assert.deepEqual(fresh.records[0].unsupported[0].target,p.target);
   assert.equal(fresh.records[1].placements[0].registrationId,other.id);
   assert.deepEqual(rows,rowsBefore);assert.deepEqual(current,before);assert.deepEqual(p,proposalBefore);
+  // A retained withdrawal is scoped: another feature of the same current source/frame, or another workspace or home, withdraws nothing here.
+  for(const unrelatedWithdrawal of [{...withdrawal,targetFeatureIds:['other-feature']},{...withdrawal,target:{...withdrawal.target,homeId:'other-home'}}]){
+    const scoped=assessRegistration(p,{...base,withdrawnNominations:[unrelatedWithdrawal]});
+    assert.equal(scoped.status,'reviewed-approximate-scene-registration');assert.equal(scoped.withdrawnNominations,undefined);
+  }
 });
 
 test('retained withdrawal requires reconciliation after each source or target revision change',()=>{

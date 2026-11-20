@@ -143,6 +143,21 @@ When a pull request is authorized to merge, enable auto-merge
 so GitHub merges it after the required checks pass.
 Investigate failed or missing checks instead of bypassing the ruleset.
 
+## Electrical room-join coverage
+
+Related to #299. No case, runner, workflow command or case count is added.
+The existing `unified-atlas-electrical-group-healthy.mjs` source entry runs one
+generated room-placement ledger through the actual documentary projector,
+drawing-group join and room-marker index. Receipt-bound members join their
+rooms; an unresolved source component and an unmapped region stay unplaced.
+Nine stale or withdrawn joins leave the same inventory unplaced with the
+unverified qualification, and group selection highlights only rooms still
+joined. The existing registration fixture file also checks that a retained
+withdrawal is scoped to its feature, workspace and home. The offline
+registration helper is not consumed by the Atlas, so no registered placement
+reaches this view. Generated data only; no browser, native service or private
+input, and no physical coordinate or circuit claim.
+
 ## Network overlay live facts
 
 The default backend-library selection additionally discovers the three
