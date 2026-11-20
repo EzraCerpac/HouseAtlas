@@ -22,7 +22,8 @@ export default defineConfig({
         },
         assetFileNames: asset => {
           const names = asset.names ?? [];
-          if (names.some(name => name === 'pdf.worker.min.mjs')) return 'assets/pdf.worker.min-[hash].js';
+          // A dedicated worker's entry must be within the Saved service worker's scope.
+          if (names.some(name => name === 'pdf.worker.min.mjs')) return 'saved/pdf.worker.min-[hash].js';
           return 'assets/[name]-[hash][extname]';
         },
       },

@@ -2,7 +2,7 @@
 import { buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS } from '../unified-atlas/synthetic-atlas';
 import { canonicalPack, PACK_LIMITS, readPackManifest, SECTION_NAMES } from '../../src/offline/manifest';
 import { parseLosslessJson } from '../../src/numeric/lossless-json';
-import { savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
+import { createSavedHouseStore, savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
 export const GENERATED_SCOPE = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
 export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false, finalInteraction = false, sharedRoomObservations = false, networkAssociations = false) {
   const scope = GENERATED_SCOPE, generated = await buildSyntheticAtlas(scope);
@@ -131,6 +131,32 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
   const house: Omit<SavedHouse, 'localRevision'> = { version: 1, key: savedHouseKey(scope), scope, snapshotId, label: 'Generated saved property',
     capturedAt: admitted.capturedAt, shellBuildId, resources: admitted.resources, manifest: admitted.localBytes };
   return { house, resources, scene: composed.envelope, originalRoomNames: generated.companion.rooms.map(room => room.label) };
+}
+
+/** Stage a partial generated pack for the built-shell browser case. */
+export async function keepPartialPack(shellBuildId: string) {
+  const { house, resources } = await generateSavedPack('partial', shellBuildId);
+  const store = createSavedHouseStore(indexedDB);
+  try {
+    const stage = await store.begin(house);
+    for (const pin of house.resources) await store.put(stage, pin, resources.get(pin.sha256)!);
+    const saved = await store.activate(stage);
+    return { capturedAt: saved.capturedAt, snapshotId: saved.snapshotId, localRevision: saved.localRevision };
+  } finally { await store.close(); }
+}
+
+export async function verifyRetainedPack(localRevision: string) {
+  const store = createSavedHouseStore(indexedDB);
+  try {
+    const house = (await store.list()).find(row => row.localRevision === localRevision);
+    if (!house) throw new Error('Generated pack is missing');
+    for (const pin of house.resources) {
+      const blob = await store.asset(house, pin.id);
+      if (blob.size !== pin.bytes || blob.type !== pin.contentType)
+        throw new Error(`Retained resource differs from its pin: ${pin.id}`);
+    }
+    return { shellBuildId: house.shellBuildId, snapshotId: house.snapshotId };
+  } finally { await store.close(); }
 }
 
 /** Distinct fictional documentary places, joined by exact IDs rather than

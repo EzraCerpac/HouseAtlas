@@ -64,7 +64,18 @@ The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
-not here. A PR that extends CI names the added scope in the verification guide.
+with scope changes also named here when a PR extends CI.
+
+The explicit healthy frontend list selects the generated `desktop-library`
+and `desktop-saved-pack` cases in pinned Chrome for Testing.
+Desktop Library checks ordinary HomeBox open, exact retained PDF bytes and
+pages, dedicated worker delivery from Cache Storage, measured storage totals,
+controlled persistence outcomes, application eviction and signed-out reconnect.
+The Saved pack case checks a generated partial pack, accessible keyboard
+navigation and real worker identities through a resealed public build update.
+Both use disposable profiles and loopback.
+Installed data, actual persistence grants and authorized edit dispatch
+remain outside these cases.
 
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the

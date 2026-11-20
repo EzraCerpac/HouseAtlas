@@ -1268,6 +1268,7 @@
     {"path":"frontend/lantern-tests/offline-catalog-mounting-healthy.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/lantern-tests/offline-catalog-regression.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/lantern-tests/offline-connection-probe-healthy.mjs","mode":"100644","owner":"web"},
+    {"path":"frontend/lantern-tests/offline-desktop-cases.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/lantern-tests/offline-electrical-copy.test.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/lantern-tests/offline-house-acquisition-healthy.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/lantern-tests/offline-launch-browser.mjs","mode":"100644","owner":"web"},
