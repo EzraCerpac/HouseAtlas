@@ -689,7 +689,7 @@
     },
     {
       "path": "backend/src/http/agents/mounted_evidence_controls.rs",
-      "sha256": "4001aa85cd2edfd1fae77f487f88a891b3b822d12d816c65e6e40a2f244f1472"
+      "sha256": "899dd8802c9ab316935ce9f68dd6ab070a6c2a162167a5364f0603b5eb47ddf9"
     },
     {
       "path": "backend/src/http/agents/stock_dispatch.rs",
@@ -869,7 +869,7 @@
     },
     {
       "path": "frontend/src/webmcp/healthy.examples.mjs",
-      "sha256": "730d2b508c602960ff7c323d796ef2ccaee54bc378849014125d0e1fddf6e6b1"
+      "sha256": "0c3dc87e74fd19eaba39d98e29e2d966221e48fd0d16cb53135613f41b440d5c"
     },
     {
       "path": "frontend/src/webmcp/stock-schema.ts",

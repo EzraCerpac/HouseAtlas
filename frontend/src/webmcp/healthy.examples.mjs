@@ -239,10 +239,17 @@ function stockHarness({ context, support, dispatch = readPage, commit = () => {}
 }
 
 test('stock admission refuses wrong scope, invalid envelopes and unadmitted batch children before dispatch', async () => {
+  const evidenceTombstone = 'atlas.evidence.tombstone';
+  const tombstoneEvidence = {
+    ...stockRequest(evidenceTombstone, 23, { ...evidenceTarget, recordId: stockId(35) }, {}),
+    ...writeFields, idempotencyKey: stockId(36), preconditions: { target: { kind: 'atlas', value: 1 }, guards: [] },
+  };
+  const mixedBatch = { ...batchEvidence, payload: { commands: [tombstoneEvidence, createEvidence] } };
+  const context = { session: { role: 'editor' }, scope: stockScope,
+    commandIds: [evidenceList, evidenceTombstone, evidenceCreate, batchExecute, 'homebox.field.list'] };
   const harness = stockHarness({
-    context: { session: { role: 'editor' }, scope: stockScope,
-      commandIds: [evidenceList, batchExecute, 'homebox.field.list'] },
-    support: [evidenceList, evidenceCreate, batchExecute],
+    context,
+    support: [evidenceList, evidenceTombstone, evidenceCreate, batchExecute],
     dispatch(request) {
       assert.equal(request.commandId, evidenceList, 'A refused arm reached the dispatch owner');
       return readPage(request);
@@ -255,8 +262,8 @@ test('stock admission refuses wrong scope, invalid envelopes and unadmitted batc
     const validateBrowserInput = ajv.compile(tool.inputSchema);
     assert.equal(tool.annotations.readOnlyHint, false);
     assert.equal(binding.coverage().find(row => row.commandId === 'homebox.field.list').state, 'service-unbound');
-    assert.equal(binding.coverage().find(row => row.commandId === evidenceCreate).state, 'not-host-admitted');
     assert.equal(validateBrowserInput(listEvidence()), true);
+    assert.equal(validateBrowserInput(mixedBatch), true);
     for (const context of [{ ...stockScope, workspaceId: stockId(91) }, { ...stockScope, homeId: stockId(92) }]) {
       await assert.rejects(tool.execute(listEvidence(context)), /differs from selected scope/);
     }
@@ -266,14 +273,21 @@ test('stock admission refuses wrong scope, invalid envelopes and unadmitted batc
       assert.equal(validateBrowserInput(request), false);
       await assert.rejects(tool.execute(request), /Invalid canonical stock envelope/);
     }
-    assert.equal(validateBrowserInput(createEvidence), false);
-    await assert.rejects(tool.execute(createEvidence), /current host tool catalog/);
-    assert.equal(validateBrowserInput(batchEvidence), false);
-    await assert.rejects(tool.execute(batchEvidence), /current host tool catalog/);
+    harness.replace({ ...context, commandIds: context.commandIds.filter(id => id !== evidenceCreate) });
+    assert.deepEqual(await handle.whenSettled(), { state: 'registered', toolNames: ['atlas_records'] });
+    const replacement = browser.tools.get('atlas_records');
+    assert.notEqual(replacement, tool);
+    assert.equal(binding.coverage().find(row => row.commandId === evidenceCreate).state, 'not-host-admitted');
+    const validateReplacement = ajv.compile(replacement.inputSchema);
+    assert.equal(validateReplacement({ ...mixedBatch, payload: { commands: [tombstoneEvidence] } }), true);
+    assert.equal(validateReplacement(createEvidence), false);
+    await assert.rejects(replacement.execute(createEvidence), /current host tool catalog/);
+    assert.equal(validateReplacement(mixedBatch), false);
+    await assert.rejects(replacement.execute(mixedBatch), /Batch child is not in the current host tool catalog/);
     assert.deepEqual(calls, []);
     assert.deepEqual(completions, []);
 
-    assert.deepEqual(await tool.execute(listEvidence()), readPage(listEvidence()));
+    assert.deepEqual(await replacement.execute(listEvidence()), readPage(listEvidence()));
     assert.equal(calls.length, 1);
     assert.deepEqual(completions[0].result, readPage(listEvidence()));
   } finally {

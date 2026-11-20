@@ -4795,13 +4795,15 @@ actual Access and StockService, and disposable SQLite.
   a correlated canonical `CONFLICT` for a two-child batch with a stale second
   child, refresh-and-review guidance, readback of both targets, and equal
   selected records, receipts and audit contents.
-- `mounted_evidence_cursors_distinguish_query_and_access_issuance` checks the
-  original list cursor under another MCP session sharing its login, then the
-  distinct list and history behavior under a fresh login by the same Editor.
-  Changing the filter refuses both cursor types.
+- `mounted_evidence_cursors_distinguish_query_and_access_issuance` first checks
+  list refusal under a fresh login by the same Editor and changed-filter refusal
+  for both cursor types.
+  With the original filter, the same list cursor works under another MCP session
+  sharing its login and the same history cursor works under the fresh login.
 - `mounted_evidence_refuses_wrong_scope_and_invalid_input` checks workspace
   and home route and envelope refusals, anonymous invocation refusal,
-  wrong-typed and unknown fields, and the mounted 64 KiB HTTP body ceiling.
+  wrong-typed and unknown fields, and oversized declared-length refusal above
+  64 KiB.
   A valid request subsequently succeeds with the original MCP session.
 - `mounted_cached_homebox_list_requires_current_partition_grant` compares
   admitted cached entity-list results to the native owner and verifies
@@ -4817,11 +4819,13 @@ and download ports:
 - `stock replacement withholds delayed results and returns canonical unknown only after presentation`
 - `stock download presents only same-origin paths with a valid owner lifetime`
 
-These check admitted-and-bound discovery, zero owner calls on refused inputs,
-the same admission for batch children at discovery and invocation, one current
-registration through a context change, an owner-supplied `unknown-held` batch
-response before and after visible acknowledgement, and same-origin download
-presentation with a bounded owner lifetime.
+These check admitted-and-bound discovery and zero owner calls on refused inputs.
+After context replacement removes the second child's command, the batch remains
+admitted and the mixed batch is refused by both discovery schema and invocation.
+The cases also check one current registration through a context change,
+an owner-supplied `unknown-held` batch response before and after visible
+acknowledgement, and same-origin download presentation with a bounded owner
+lifetime.
 The frontend bootstrap has 22 cases total.
 No CI run step, bridge selection or browser command changes.
 This qualifies a local atomic refusal and fake unknown-result presentation.

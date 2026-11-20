@@ -1154,23 +1154,23 @@ async fn mounted_evidence_cursors_distinguish_query_and_access_issuance() -> Res
 
     let mut same_issuance = Mounted::open(&fixture, &editor).await?;
     assert_ne!(same_issuance.session, original.session);
-    let next = same_issuance.read(&list).await?;
-    assert_eq!(next["data"]["records"], json!([records[1]]));
-
     let fresh_login = fixture.login("editorLogin").await?;
     assert_ne!(fresh_login.cookie, editor.cookie);
     let mut fresh = Mounted::open(&fixture, &fresh_login).await?;
     let failure = fresh.stock_failure(&list).await?;
     assert_eq!(failure["code"], "INVALID_ARGUMENT");
-    let next = fresh.read(&history).await?;
-    assert_eq!(next["data"]["entries"], json!([events[1]]));
 
-    for mut changed in [list, history] {
+    for (request, mounted) in [(&list, &mut same_issuance), (&history, &mut fresh)] {
+        let mut changed = request.clone();
         changed["payload"]["q"] = json!("changed query");
-        let failure = same_issuance.stock_failure(&changed).await?;
+        let failure = mounted.stock_failure(&changed).await?;
         assert_eq!(failure["code"], "INVALID_ARGUMENT");
         assert_eq!(failure["operationId"], Value::Null);
     }
+    let next = same_issuance.read(&list).await?;
+    assert_eq!(next["data"]["records"], json!([records[1]]));
+    let next = fresh.read(&history).await?;
+    assert_eq!(next["data"]["entries"], json!([events[1]]));
     assert_eq!(fixture.facts()?, before);
     Ok(())
 }
@@ -1236,6 +1236,8 @@ async fn mounted_evidence_refuses_wrong_scope_and_invalid_input() -> Result<(), 
             "type":"text","text":"invalid-contract: Stock request validation failed"}]})
         );
     }
+    // exchange declares the serialized length. This exercises the metadata
+    // limit, before the mounted handler reads the body.
     let mut oversized = call;
     oversized["params"]["arguments"]["payload"]["statement"] = json!("x".repeat(64 * 1024));
     let reply = fixture
