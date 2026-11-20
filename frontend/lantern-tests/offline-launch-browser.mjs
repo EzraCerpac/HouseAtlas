@@ -148,11 +148,12 @@ const serve = async (request, response) => {
   served++; servedPaths.push(path);
   const relative = path === '/' ? 'index.html' : path === '/saved/' ? 'saved/index.html' : path.slice(1);
   const file = normalize(join(dist, relative));
-  if (!file.startsWith(dist + '/') || !existsSync(file) || !statSync(file).isFile()) {
+  const successor = successorFiles.get(path);
+  if (!successor && (!file.startsWith(dist + '/') || !existsSync(file) || !statSync(file).isFile())) {
     response.writeHead(404, { 'content-type': 'text/plain' }).end('not found'); return;
   }
   response.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
-  response.end(successorFiles.get(path) ?? readFileSync(file));
+  response.end(successor ?? readFileSync(file));
 };
 const server = tls ? createSecureServer(tls, serve) : createServer(serve);
 server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
@@ -336,8 +337,8 @@ async function liveLaunchSeed() {
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
 
-// Reseal the same public bundle with one harmless HTML revision in task-owned
-// output. This exercises both actual workers without rebuilding the app twice.
+// Reseal the public bundle with a replacement PDF worker and HTML marker.
+// Only the public worker handoff uses this synthetic successor.
 function installSuccessorFiles() {
   const output = join(scratch, 'successor');
   mkdirSync(join(output, 'saved'), { recursive: true });
@@ -345,14 +346,21 @@ function installSuccessorFiles() {
   const html = readFileSync(join(dist, 'saved/index.html'), 'utf8');
   writeFileSync(join(output, 'saved/index.html'), html.replace(/<meta name="houseatlas-saved-shell-build" content="[a-f0-9]{64}">/,
     '<meta name="generated-shell-revision" content="second">'));
-  for (const entry of readdirSync(join(dist, 'saved')).filter(name => name.startsWith('pdf.worker.min-')))
-    cpSync(join(dist, 'saved', entry), join(output, 'saved', entry));
+  const [worker] = readdirSync(join(dist, 'saved')).filter(name => name.startsWith('pdf.worker.min-'));
+  const oldWorker = `/saved/${worker}`;
+  const oldBytes = readFileSync(join(dist, oldWorker));
+  const nextBytes = Buffer.concat([oldBytes, Buffer.from('\n/* Generated successor */\n')]);
+  const nextWorker = `/saved/pdf.worker.min-${createHash('sha256').update(nextBytes).digest('hex').slice(0, 8)}.js`;
+  assert.notEqual(nextWorker, oldWorker);
+  writeFileSync(join(output, nextWorker), nextBytes);
+  successorFiles.set(nextWorker, nextBytes);
   const plugin = offlineShellPlugin();
   plugin.configResolved({ root: dirname(dist), build: { outDir: output } });
   plugin.closeBundle();
   for (const path of ['/saved/index.html', '/saved/service-worker.js', '/offline-entry-worker.js'])
     successorFiles.set(path, readFileSync(join(output, path.slice(1))));
-  return shellBuildId(successorFiles.get('/saved/index.html').toString());
+  return { successor: shellBuildId(successorFiles.get('/saved/index.html').toString()), oldWorker,
+    oldWorkerSha256: createHash('sha256').update(oldBytes).digest('hex') };
 }
 const shellBuildId = html => html.match(/name="houseatlas-saved-shell-build" content="([a-f0-9]{64})"/)?.[1];
 const shownBuild = `document.querySelector('meta[name="houseatlas-saved-shell-build"]')?.content`;
@@ -749,18 +757,35 @@ try {
     await checkPartialPack({ evaluate, poll, send }, pack);
     assert.deepEqual(reopenApiRequests, [], 'A partial pack makes no API requests offline');
     assert.deepEqual(servedPaths, []);
-    const successor = installSuccessorFiles();
+    const { successor, oldWorker, oldWorkerSha256 } = installSuccessorFiles();
     assert.match(successor, /^[a-f0-9]{64}$/);
     assert.notEqual(successor, firstBuild);
     await new Promise(done => server.listen(port, '127.0.0.1', done));
     // A cache-bypassing Saved URL receives the newer public HTML. Its normal
     // startup verifies and updates Saved first, then the root registration.
     assert.equal(await evaluate(shownBuild), firstBuild, 'A newly served build must not relabel the open old document');
+    const oldTab = { targetId, sessionId };
+    ({ targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' }));
+    ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
+    await observePage();
+    await send('Network.enable');
     await send('Page.navigate', { url: origin + '/saved/index.html?generated-build=2' });
     await poll(`document.querySelector('.saved-header [role="status"]')?.textContent === 'Public shell verified' &&
       ${shownBuild} === ${JSON.stringify(successor)}`, 25_000, 'The successor Saved shell did not install');
     await compareShells(successor);
     await new Promise(done => { server.close(done); for (const socket of sockets) socket.destroy(); });
+    const newSessionId = sessionId;
+    sessionId = oldTab.sessionId;
+    assert.equal(await evaluate(shownBuild), firstBuild, 'The older document remained open through activation');
+    assert.deepEqual(await evaluate(workerIdentities), [{ ready: true, buildId: successor }, { ready: true, buildId: successor }]);
+    assert.equal(await evaluate(`(async () => {
+      const response = await fetch(${JSON.stringify(oldWorker)}, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Previous PDF worker unavailable');
+      const digest = await crypto.subtle.digest('SHA-256', await response.arrayBuffer());
+      return new Uint8Array(digest).toHex();
+    })()`), oldWorkerSha256, 'The old tab must still receive its exact PDF worker offline');
+    await cdp.send('Target.closeTarget', { targetId: oldTab.targetId });
+    sessionId = newSessionId;
     await send('Page.navigate', { url: 'about:blank' });
     await send('Page.navigate', { url: origin + '/' });
     await poll(`location.pathname === '/saved/index.html' && ${shownBuild} === ${JSON.stringify(successor)} &&
@@ -770,7 +795,7 @@ try {
     await poll(`document.querySelector('.saved-coverage')?.textContent.includes(${JSON.stringify(pack.localRevision)}) &&
       document.querySelector('.saved-coverage summary')?.textContent.startsWith('Saved coverage: partial pack;')`, 10_000,
       'A public shell update changed the retained partial pack');
-    assert.deepEqual(await evaluate(`import(${JSON.stringify(packModule)}).then(fixture => fixture.verifyRetainedPack(${JSON.stringify(pack.localRevision)}))`),
+    assert.deepEqual(await evaluate(`import(${JSON.stringify(packModule)}).then(fixture => fixture.verifyRetainedPack(${JSON.stringify(pack.localRevision)}, ${JSON.stringify(pack.pins)}))`),
       { shellBuildId: firstBuild, snapshotId: pack.snapshotId }, 'The generated pack must retain its original shell pin and verified resources');
     assert.deepEqual(reopenApiRequests, []);
     assert.deepEqual(externalRequests, []);

@@ -72,11 +72,16 @@ pages, dedicated worker delivery from Cache Storage, measured storage totals,
 controlled persistence outcomes, application eviction and signed-out reconnect.
 The Saved pack case checks a generated partial pack, accessible keyboard
 navigation and real worker identities through a resealed public build update.
+It checks the old tab's exact worker bytes offline after the worker URL changes
+and compares the retained pack against its original pins.
 Both use disposable profiles and loopback.
 Installed data, actual persistence grants and authorized edit dispatch
 remain outside these cases.
-The existing synthetic deploy union case also checks retained hashed Saved PDF
-workers and same-name collisions in temporary folders.
+The synthetic deploy suite has 64 methods.
+Its union, rollback and prune fixtures check hashed Saved PDF worker retention.
+The union and standalone rollback reject symlinks in generated frontend trees.
+The existing Saved worker source case checks retained hashed URLs and verifies
+that changed bytes are refused.
 
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the

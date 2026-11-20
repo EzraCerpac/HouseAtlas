@@ -31,6 +31,8 @@ touched. They roll back on their own when gateway verification fails; pass
    frontend next to the live one.
    The staged frontend keeps the older top-level hashed assets and hashed Saved
    PDF workers so tabs opened on an earlier build keep loading.
+   The asset union has no generation cap for those workers.
+   Pruning limits parked frontend trees separately.
    An asset name reused with different bytes stops the deploy.
 5. Starts the new binary on throwaway state (the smoke template, a fresh data
    folder, the live model pins) and checks it: login, the app shell and

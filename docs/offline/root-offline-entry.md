@@ -41,6 +41,15 @@ its old public asset bytes to a newer live page. Both workers verify only the
 existing public asset table; root/API/model/session responses are never cached.
 No native current data is manufactured, and no global fetch function is replaced.
 
+An open Saved tab can keep requesting hashed assets from the build it loaded
+after a new controller takes over.
+For hashed URLs missing from its own table, the Saved controller checks
+completed retained public caches and verifies the bytes against the older pin.
+The controller uses its current build for navigations and fixed names.
+This works while the older cache is retained and contains the pin table.
+Caches installed before the pin table was introduced require a reload
+if an older URL is unavailable on the network.
+
 The handoff opens the existing Saved Atlas host. Its existing retained store
 lists copies, preserves their capture times and opens a copy only through its
 existing viewer action. The host labels historical records as lacking current
@@ -104,7 +113,8 @@ pins, root navigation-only dispatch with unchanged native fixed-name assets,
 private-route exclusion, the normal marked Saved entry, a foreign root owner,
 ordinary updates, pruning to the current and previous shells after three
 updates, a lagging root entry keeping its build (also when its update races a Saved
-prune), and displayed-build cleanup. Capture labeling is checked
+prune), verified retained hashed assets and corrupt-byte refusal,
+and displayed-build cleanup. Capture labeling is checked
 at the existing component source seams, not through fabricated private records
 or a browser render. VM-local transports never replace process-global fetch.
 No listener, browser, native service, credential, real private store, provider,

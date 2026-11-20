@@ -173,7 +173,7 @@ export async function checkReconnect({ evaluate, poll }, fixture, restoreConnect
   assert.deepEqual(await waiting(), [fixture.entry], 'A refused session must leave the exact waiting edit untouched');
 }
 
-export async function checkPartialPack({ evaluate, poll, send }, pack) {
+export async function checkPartialPack({ evaluate, poll, send }, { capturedAt, snapshotId, localRevision }) {
   const key = async (name, code) => {
     const events = name === 'Enter' ? ['rawKeyDown', 'char', 'keyUp'] : ['rawKeyDown', 'keyUp'];
     for (const type of events)
@@ -192,7 +192,7 @@ export async function checkPartialPack({ evaluate, poll, send }, pack) {
   assert.deepEqual(await evaluate(`(() => {
     const coverage = document.querySelector('${coverage}'), [localRevision, snapshotId] = [...coverage.querySelectorAll('dd')].map(n => n.textContent);
     return { capturedAt: coverage.querySelector('time').dateTime, snapshotId, localRevision };
-  })()`), pack, 'The reopened partial copy must show its exact capture and revision');
+  })()`), { capturedAt, snapshotId, localRevision }, 'The reopened partial copy must show its exact capture and revision');
   assert(await evaluate(`document.querySelector('${coverage}').textContent.includes('Additional source relations not retained')`));
 
   const ax = async name => {

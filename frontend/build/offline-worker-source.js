@@ -1,6 +1,8 @@
 /* Public shell only. The build plugin prepends the exact immutable closure. */
 const PREFIX = 'houseatlas-saved-public-', NAME = PREFIX + BUILD;
 const MARKER = new URL('/saved/.verified-shell', self.location.origin).href;
+const ASSET_PINS = new URL('/saved/.public-asset-pins', self.location.origin).href;
+const hashedAsset = /^\/(?:assets\/[^/]+-|saved\/pdf\.worker\.min-)[A-Za-z0-9_-]+\.(?:js|css|woff2|png)$/;
 // Each owned scope pins the build it installs (pending) and serves (active),
 // so pruning never removes a cache either registration runs or is about to run
 // (the root lags until its update). Pins and pruning share one origin-wide lock:
@@ -47,6 +49,7 @@ self.addEventListener('install', event => event.waitUntil((async () => {
       const response = await reuse(url, pin) ?? await verified(await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' }), pin);
       await cache.put(url, response);
     }
+    await cache.put(ASSET_PINS, new Response(JSON.stringify(TABLE.filter(pin => hashedAsset.test(pin.path)))));
     // Completion time orders builds for pruning; earlier markers lack it (0).
     await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
     await self.skipWaiting();
@@ -99,11 +102,27 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || url.hash) return;
   // No API, auth, native media, arbitrary route or query interception.
   const pin = byPath.get(url.pathname);
-  if (!pin || request.mode === 'navigate' && url.pathname !== '/saved/index.html') return;
+  if (request.mode === 'navigate' && url.pathname !== '/saved/index.html') return;
+  if (!pin && !hashedAsset.test(url.pathname)) return;
   event.respondWith((async () => {
-    const cache = await caches.open(NAME);
-    const marker = await cache.match(MARKER);
-    if (!marker || await marker.text() !== BUILD) throw Error('Public shell unavailable');
-    return verified(await cache.match(url), pin);
+    if (pin) {
+      const cache = await caches.open(NAME);
+      const marker = await cache.match(MARKER);
+      if (!marker || await marker.text() !== BUILD) throw Error('Public shell unavailable');
+      return verified(await cache.match(url), pin);
+    }
+    // A new controller can still receive lazy requests from an older document.
+    // Use only exact pins from a completed public cache. Fixed URLs stay current.
+    for (const name of await caches.keys()) {
+      if (!name.startsWith(PREFIX) || name === NAME) continue;
+      try {
+        const cache = await caches.open(name), marker = await cache.match(MARKER);
+        if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
+        const pins = await (await cache.match(ASSET_PINS))?.json();
+        const previous = pins?.find(row => row.path === url.pathname);
+        if (previous) return await verified(await cache.match(url), previous);
+      } catch { /* This cache has no verified answer. */ }
+    }
+    return fetch(request);
   })());
 });

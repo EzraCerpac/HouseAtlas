@@ -2,7 +2,7 @@
 import { buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS } from '../unified-atlas/synthetic-atlas';
 import { canonicalPack, PACK_LIMITS, readPackManifest, SECTION_NAMES } from '../../src/offline/manifest';
 import { parseLosslessJson } from '../../src/numeric/lossless-json';
-import { createSavedHouseStore, savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
+import { createSavedHouseStore, savedDigest, savedHouseKey, type SavedHouse, type SavedResource } from '../../src/offline/store';
 export const GENERATED_SCOPE = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
 export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false, finalInteraction = false, sharedRoomObservations = false, networkAssociations = false) {
   const scope = GENERATED_SCOPE, generated = await buildSyntheticAtlas(scope);
@@ -141,16 +141,17 @@ export async function keepPartialPack(shellBuildId: string) {
     const stage = await store.begin(house);
     for (const pin of house.resources) await store.put(stage, pin, resources.get(pin.sha256)!);
     const saved = await store.activate(stage);
-    return { capturedAt: saved.capturedAt, snapshotId: saved.snapshotId, localRevision: saved.localRevision };
+    return { capturedAt: saved.capturedAt, snapshotId: saved.snapshotId, localRevision: saved.localRevision, pins: house.resources };
   } finally { await store.close(); }
 }
 
-export async function verifyRetainedPack(localRevision: string) {
+export async function verifyRetainedPack(localRevision: string, pins: readonly SavedResource[]) {
   const store = createSavedHouseStore(indexedDB);
   try {
     const house = (await store.list()).find(row => row.localRevision === localRevision);
     if (!house) throw new Error('Generated pack is missing');
-    for (const pin of house.resources) {
+    if (JSON.stringify(house.resources) !== JSON.stringify(pins)) throw new Error('Generated pack resource pins changed');
+    for (const pin of pins) {
       const blob = await store.asset(house, pin.id);
       if (blob.size !== pin.bytes || blob.type !== pin.contentType)
         throw new Error(`Retained resource differs from its pin: ${pin.id}`);
