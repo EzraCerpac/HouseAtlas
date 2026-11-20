@@ -1247,7 +1247,8 @@ const singleRead = await readUnifiedAtlas({ selection: { ...selection, publicati
   signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
   transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: singleEnvelope.envelopeBytes,
     href: singleEnvelope.href, glb: singleInput.glb, sha256: singleEnvelope.sha256, manifestSha256: singleEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
-const singleModel = bindAtlasModel(singleRead.scene, await loadStandardGlb(singleRead.model, 'single', new AbortController().signal));
+const singleLoaded = await loadStandardGlb(singleRead.model, 'single', new AbortController().signal);
+const singleModel = bindAtlasModel(singleRead.scene, singleLoaded);
 const singleState = initialAtlasState(singleModel), singlePresentation = presentAtlas(singleModel, singleState, none);
 assert.equal(singleModel.selectable.size, 2);
 assert.equal(singleState.exploded, false);
@@ -1256,6 +1257,34 @@ assert.ok(singleModel.floorBuildings.every(building => !hasExplodableLevels(sing
 for (const part of singleModel.parts.filter(part => part.role === 'roof')) {
   assert.equal(singlePresentation.hidden.has(part.mesh.meshKey), false);
   assert.equal(singlePresentation.clips.get(part.mesh.meshKey), null);
+}
+// Replacing publication A with B (no shared building, level, room or occurrence
+// ids) resurrects nothing of A: its selection, floors, ancestry and overlay joins.
+{
+  const ids = ['occurrencesById', 'levelsById', 'buildingsById', 'roomsById'];
+  for (const key of ids) assert.deepEqual([...model[key].keys()].filter(id => singleModel[key].has(id)), [], `A and B share no ${key} id`);
+  const aState = { ...initialAtlasState(model, 'syn-building-house'), levelId: 'syn-level-upper', occurrenceId: 'syn-occ-bath',
+    layers: { electrical: true, network: true, measurements: true } };
+  for (const action of [{ type: 'select', occurrenceId: 'syn-occ-bath' }, { type: 'level', levelId: 'syn-level-upper' },
+    { type: 'building', buildingId: 'syn-building-house' }])
+    assert.equal(atlasReducer(singleModel, aState, action), aState, `B ignores A's ${action.type}`);
+  assert.equal(initialAtlasState(singleModel, 'syn-building-house').buildingId, null, "A's entry building does not open B");
+  assert.deepEqual(contextOccurrenceIds(singleModel, 'syn-occ-bath'), []);
+  const bState = { ...initialAtlasState(singleModel, 'single-building-0'), view: '3d' };
+  const stack = renderToStaticMarkup(createElement(FloorStack, { model: singleModel, levels: singleModel.levelsByBuilding.get('single-building-0'),
+    buildings: singleModel.floorBuildings, buildingNav: true, building: { buildingId: 'single-building-0', label: 'Single building 0' }, state: bState,
+    dispatch() {}, chooseBuilding() {}, shownLevel: null, selectionLevel: null, contextLevels: new Set(),
+    canExplode: false, compact: false, open: true, setOpen() {}, head: { current: null }, panelId: 'replacement-panel' }));
+  assert.deepEqual([...stack.matchAll(/class="ua-rung-name">([^<]*)/g)].map(row => row[1]),
+    ['All buildings', 'Single building 0', 'Single building 1', 'All floors', 'Ground Floor'], "B's rungs are its own");
+  for (const retired of ['Upper floor', 'Ground floor', 'Split level', 'Synthetic house']) assert.ok(!stack.includes(retired), `B's floor stack omits A's ${retired}`);
+  // A's reviewed overlay bindings carried onto B's scene place nowhere.
+  const carried = bindAtlasModel({ ...singleRead.scene, overlayBindings: read.scene.overlayBindings }, singleLoaded);
+  for (const kind of ['electrical', 'network']) {
+    const layer = carried.overlays.get(kind), own = read.scene.overlayBindings.filter(row => row.kind === kind);
+    assert.equal(layer.placed.size, 0, `A's ${kind} bindings place nothing in B`);
+    assert.deepEqual(layer.unplaced.map(row => row.reason), own.map(() => 'other-publication'));
+  }
 }
 assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan' });
 // Feature references may use any order; the generated Split plan is intentionally reordered.
