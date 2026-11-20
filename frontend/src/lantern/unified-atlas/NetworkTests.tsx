@@ -136,7 +136,7 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
   // even if it was closed while pending. Once an answer shows, the reader may close it.
   const [open, setOpen] = useState(pending || !!outcome), [answered, setAnswered] = useState(outcome);
   if (outcome !== answered) { setAnswered(outcome); if (outcome) setOpen(true); }
-  // The control leaves when the lists agree or need review; only focus the button itself held moves to the answer,
+  // The control leaves when the lists agree or need review; only focus the disclosure held (its summary or button) moves to the answer,
   // or to the block's heading when permission is withdrawn and the whole row leaves.
   useEffect(() => {
     if (wasOffered.current && !offered && focused.current && (document.activeElement === document.body || document.activeElement === null)) (status.current ?? fallback.current)?.focus();
@@ -145,10 +145,10 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
   }, [offered]);
   if (!shown) return null;
   const answer = outcome && refreshOutcomeText(outcome);
-  return <details className="ua-source ua-net-refresh" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary>Device list</summary><div>
+  return <details className="ua-source ua-net-refresh" open={open} onToggle={event => setOpen(event.currentTarget.open)}
+    onFocus={() => { focused.current = true; }} onBlur={() => { focused.current = false; }}><summary>Device list</summary><div>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
     {offered && <button type="button" className="btn btn-small" aria-disabled={snapshot.refreshing !== null}
-      onFocus={() => { focused.current = true; }} onBlur={() => { focused.current = false; }}
       onClick={() => { if (snapshot.refreshing === null) collector.store.refresh(scope); }}>{pending ? 'Refreshing device list…' : 'Refresh device list'}</button>}
     <p className="ua-net-test-answer" role="status" tabIndex={-1} ref={status}>
       {answer && <>{answer.text}<span className="ua-note">{answer.recorded ? 'recorded' : 'answered'} <InlineTime value={answer.at} /></span></>}
