@@ -66,7 +66,8 @@ The pinned browser list also runs `mounted-capture-controls`,
 `mounted-draft-lifecycle` and `unknown-attempt-locked-after-reopen`.
 The mounted cases exercise picker events, current admission and retirement,
 and local draft review and invalidation across two tabs.
-The reopen case reads a strict IndexedDB write from an independent connection
+The reopen case withholds strict IndexedDB completion from the store,
+then reads the committed marker from an independent connection
 before the one-use local handoff.
 The existing `synthetic-save-reopen-remove` checks the persisted row fields,
 owner and lifetime alongside exact original bytes and provenance.

@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -39,7 +40,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function startServer(caseName) {
+async function startServer(caseName, signal, ownServer) {
   const mounted = mountedCases.has(caseName);
   const caseModule = mounted
     ? (await build({
@@ -48,6 +49,7 @@ async function startServer(caseName) {
           rollupOptions: { input: resolve(here, 'mounted-cases.tsx'), output: { codeSplitting: false } } },
       })).output.find(entry => entry.type === 'chunk').code
     : await readFile(resolve(here, 'browser-cases.mjs'), 'utf8');
+  signal.throwIfAborted();
   const html = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><body data-status="running"><script type="module" src="/browser-cases.mjs?case=${caseName}"></script></body>`;
   const peerPath = caseName === 'mounted-draft-lifecycle' ? '/draft-peer' : null;
   const requests = [];
@@ -90,19 +92,19 @@ async function startServer(caseName) {
       response.end('Synthetic harness route failed');
     }
   });
-  server.listen(0, '127.0.0.1');
-  await new Promise((resolveListen, reject) => {
-    server.once('listening', resolveListen);
-    server.once('error', reject);
-  });
+  ownServer(server);
+  server.listen({ port: 0, host: '127.0.0.1', signal });
+  await once(server, 'listening', { signal });
   const address = server.address();
   assert(address && typeof address === 'object', 'Loopback server did not receive a TCP port');
-  return { server, requests, origin: `http://127.0.0.1:${address.port}`, peerPath };
+  return { requests, origin: `http://127.0.0.1:${address.port}`, peerPath };
 }
 
-function connectCdp(url, deadline) {
+function connectCdp(url, deadline, signal) {
+  signal.throwIfAborted();
   return new Promise((resolveSocket, reject) => {
     const socket = new WebSocket(url);
+    signal.addEventListener('abort', () => socket.close(), { once: true });
     const pending = new Map();
     const eventListeners = new Map();
     let nextId = 0;
@@ -216,6 +218,8 @@ async function runBrowser(caseName) {
   let cdp;
   let chromeError = null;
   let chromeStderr = '';
+  const cancellation = new AbortController();
+  const { signal } = cancellation;
   let hardTimer;
   let rejectHardTimeout;
   const hardTimeout = new Promise((_, reject) => { rejectHardTimeout = reject; });
@@ -224,16 +228,20 @@ async function runBrowser(caseName) {
     try { process.kill(-child.pid, signal); } catch { /* The process group may already be gone. */ }
   };
   hardTimer = setTimeout(() => {
-    terminateChild('SIGTERM');
-    setTimeout(() => terminateChild('SIGKILL'), 500).unref();
-    cdp?.close();
-    rejectHardTimeout(new Error('Browser regression exceeded its hard 25-second runtime limit'));
+    const error = new Error('Browser regression exceeded its hard 25-second runtime limit');
+    rejectHardTimeout(error);
+    cancellation.abort(error);
   }, workRunMs);
   const work = async () => {
-    const runningServer = await startServer(caseName);
-    server = runningServer.server;
-    const { requests, origin, peerPath } = runningServer;
-    profile = await mkdtemp('/tmp/houseatlas-capture-drafts-');
+    const { requests, origin, peerPath } = await startServer(caseName, signal, acquired => { server = acquired; });
+    signal.throwIfAborted();
+    const acquiredProfile = await mkdtemp('/tmp/houseatlas-capture-drafts-');
+    if (signal.aborted) {
+      // Cleanup may have already run while the filesystem operation was pending.
+      await rm(acquiredProfile, { recursive: true, force: true });
+      signal.throwIfAborted();
+    }
+    profile = acquiredProfile;
     child = spawn(chromePath, [
       '--headless=new', '--disable-gpu', '--disable-dev-shm-usage',
       '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps',
@@ -254,7 +262,8 @@ async function runBrowser(caseName) {
     });
     child.once('error', error => { chromeError = error; });
     const browserUrl = await waitForDevTools(profile, child, deadline, () => chromeError);
-    cdp = await connectCdp(browserUrl, deadline);
+    cdp = await connectCdp(browserUrl, deadline, signal);
+    signal.throwIfAborted();
     const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
     const observedRequests = [];
@@ -304,6 +313,7 @@ async function runBrowser(caseName) {
       }
       await delay(50);
     }
+    assert(!runtimeError, runtimeError);
     assert(result, 'Browser case did not finish within the runner deadline');
     assert(result.ok === true, `${caseName}: ${result.error ?? 'case failed'}`);
     const permittedPrefix = `${origin}/`;

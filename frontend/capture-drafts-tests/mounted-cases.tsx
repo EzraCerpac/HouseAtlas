@@ -68,7 +68,7 @@ function fixture() {
       attachmentPolicy: { contentTypes: CAPTURE_TYPES, maximumBytes: CAPTURE_MAX_BYTES,
         licenses: [{ label: 'Unknown', value: license }] } };
   }
-  const evidence = createNativeEvidenceClient({
+  const nativeEvidence = createNativeEvidenceClient({
     getBinding: () => binding, owner: () => currentSession,
     subscribe(listener) { subscribers.add(listener); return () => { subscribers.delete(listener); }; },
     async exchange(actual, route, method, signal, body) {
@@ -87,6 +87,14 @@ function fixture() {
       return new Response('malformed synthetic reply');
     },
   });
+  let preparing: ReturnType<typeof nativeEvidence.prepare> | undefined;
+  const evidence = {
+    ...nativeEvidence,
+    prepare(...args: Parameters<typeof nativeEvidence.prepare>) {
+      preparing = nativeEvidence.prepare(...args);
+      return preparing;
+    },
+  };
   const refuse = () => { throw new Error('Unexpected source-backed operation'); };
   const adapter = createCaptureDraftAdapter({
     getSession: () => currentSession, getGeneration: () => rootGeneration, getReadScope: () => readScope,
@@ -139,7 +147,11 @@ function fixture() {
       let started: AbortSignal | null = null;
       const response = Promise.withResolvers<Response>();
       nextResponse = signal => { started = signal; return response.promise; };
-      return { started: () => started, release: () => response.resolve(Response.json(admission(id))) };
+      return { started: () => started, async release() {
+        assert(preparing, 'No mounted preparation to settle');
+        response.resolve(Response.json(admission(id)));
+        await Promise.allSettled([preparing]);
+      } };
     },
     failChange(name: string | null) { failChange = name; },
   };
@@ -217,7 +229,7 @@ async function captureControls(f: ReturnType<typeof fixture>) {
     else if (retire === 'unmount') f.render(null);
     else f.replaceBinding();
     assert(signal.aborted, `${retire} did not abort fresh admission`);
-    held.release();
+    await held.release();
     await until(() => !select(captureForm), `${retire} keeping the form retired`);
     assert(f.posts === 0, `${retire} allowed an old upload`);
   }
