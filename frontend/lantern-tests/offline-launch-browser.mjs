@@ -2,7 +2,7 @@
  * production `dist/` on an owned loopback listener, opens the Saved entry once
  * online so both service workers install, then reopens `/` with the network
  * gone. Generated build output and fake read responses only: no native backend,
- * real session, household data or provider. live-launch uses disposable loopback
+ * real session, household data or provider. Live cases use disposable loopback
  * TLS (requires openssl), with trust scoped to its generated certificate key.
  *
  *   --case offline-launch  listener closed (connection refused) before reopen
@@ -11,6 +11,9 @@
  *                          outbox entry survive closing and reopening the tab;
  *                          building records, native and electrical catalogs,
  *                          and both PDFs come from live retention passes
+ *   --case desktop-library ordinary HomeBox open, dedicated PDF worker, storage
+ *                          and explicit reconnect against a signed-out host
+ *   --case desktop-saved-pack partial pack, keyboard navigation and worker update
  *
  * Requires `npm --prefix frontend run build` first, Node 26.10.0 and an
  * inspected HOUSEATLAS_CHROMIUM executable. Prints launch timings. */
@@ -21,18 +24,25 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID, X509Certificate } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createServer as createSecureServer } from 'node:https';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, transformWithOxc } from 'vite';
+import { homeboxRoutes, openOrdinaryHomebox, checkDesktopLibrary, checkLibraryEviction, checkReconnect, checkPartialPack,
+  displayFixtureSize } from './offline-desktop-cases.mjs';
+import { offlineShellPlugin } from '../build/offline-shell-plugin.mjs';
 import { trackOfflineBrowser, removeOfflineScratch, finishOfflineCleanup } from './offline-launch-cleanup.mjs';
 
-const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000 };
-assert.equal(process.argv.length, 4, 'Select --case offline-launch, hung-network or live-launch');
+const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000, 'desktop-library': 2_000, 'desktop-saved-pack': 2_000 };
+const selectionHint = 'Select --case ' + Object.keys(CASES).join(', ');
+assert.equal(process.argv.length, 4, selectionHint);
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3], budgetMs = CASES[selected];
-assert(budgetMs, 'Select --case offline-launch, hung-network or live-launch');
+assert(budgetMs, selectionHint);
+const desktopLibrary = selected === 'desktop-library';
+const desktopPack = selected === 'desktop-saved-pack';
+const liveEntry = selected === 'live-launch' || desktopLibrary;
 const standardProfile = selected === 'live-launch' && process.env.HOUSEATLAS_TEST_STANDARD_DOCUMENTS === '1';
 if (selected === 'live-launch' && !standardProfile) {
   // A second disposable profile proves the standard host with a genuinely cold device.
@@ -52,10 +62,11 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
   '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/manifest+json',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
 let mode = 'online', served = 0, stalled = 0, servedPaths = [];
+const successorFiles = new Map();
 const sockets = new Set(), held = new Set();
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-offline-launch-'));
 let tls = null, certificatePin = null;
-if (selected === 'live-launch') {
+if (liveEntry) {
   const key = join(scratch, 'key.pem'), cert = join(scratch, 'cert.pem');
   const generated = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert,
     '-days', '1', '-subj', '/CN=127.0.0.1'], { encoding: 'utf8' });
@@ -63,7 +74,8 @@ if (selected === 'live-launch') {
   tls = { key: readFileSync(key), cert: readFileSync(cert) };
   certificatePin = createHash('sha256').update(new X509Certificate(tls.cert).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
 }
-let onlineSeed = null;
+let onlineSeed = null, denySession = false;
+const apiRequests = [];
 const topologyReads = [];
 const libraryReads = [];
 const unexpectedRequests = [];
@@ -87,18 +99,22 @@ const serve = async (request, response) => {
   const path = url.pathname;
   if (onlineSeed && path.startsWith('/api/')) {
     const route = `${request.method} ${path}${url.search}`;
+    apiRequests.push(route);
     try {
       let reply;
       const { scope } = onlineSeed.view;
       const library = onlineSeed.library.routes.get(route);
-      if (library) {
+      const homebox = onlineSeed.homebox?.respond(request, url);
+      if (homebox) {
+        reply = homebox;
+      } else if (library) {
         reply = await library();
         libraryReads.push({ route, status: reply.status });
       } else if (route === 'GET /api/atlas/auth/session') {
-        reply = jsonRead({ schemaVersion: 1, actorId: onlineSeed.owner.actorId,
+        reply = denySession ? new Response(null, { status: 401 }) : jsonRead({ schemaVersion: 1, actorId: onlineSeed.owner.actorId,
           csrfToken: 'generated-unused', expiresAt: '2099-01-01T00:00:00Z' });
       } else if (route === 'GET /api/atlas/view') {
-        reply = jsonRead({ ...onlineSeed.view, entries: [],
+        reply = jsonRead({ ...onlineSeed.view, entries: desktopLibrary ? onlineSeed.view.entries : [],
           sourceDocumentsService: { profile: 'houseatlas.geodata-document-read.v2', available: !standardProfile } });
       } else if (request.method === 'GET' && path === `${stockBase(scope)}/invoke`) {
         assert.equal(url.searchParams.size, 1);
@@ -132,16 +148,18 @@ const serve = async (request, response) => {
   served++; servedPaths.push(path);
   const relative = path === '/' ? 'index.html' : path === '/saved/' ? 'saved/index.html' : path.slice(1);
   const file = normalize(join(dist, relative));
-  if (!file.startsWith(dist + '/') || !existsSync(file) || !statSync(file).isFile()) {
+  const successor = successorFiles.get(path);
+  if (!successor && (!file.startsWith(dist + '/') || !existsSync(file) || !statSync(file).isFile())) {
     response.writeHead(404, { 'content-type': 'text/plain' }).end('not found'); return;
   }
   response.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
-  response.end(readFileSync(file));
+  response.end(successor ?? readFileSync(file));
 };
 const server = tls ? createSecureServer(tls, serve) : createServer(serve);
 server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
-const origin = `${tls ? 'https' : 'http'}://127.0.0.1:${server.address().port}`;
+const port = server.address().port;
+const origin = `${tls ? 'https' : 'http'}://127.0.0.1:${port}`;
 
 // Reuse the public generated publication and the production storage APIs. Only
 // the live-launch case supplies generated online reads and seeds unrelated
@@ -229,7 +247,7 @@ async function liveLibrary(scope, buildingId, homeLabel) {
   }
   assert(electricalPin, 'Generated electrical PDF is pinned by the documentary fixture');
   const requiredReads = [...routes.keys()].filter(route => route !== `GET ${sceneBase}/head`);
-  return { routes, requiredReads, building, nativePin, electricalPin,
+  return { routes, requiredReads, building, nativePin, electricalPin, nativeSurveyBytes: native.bytes.get(assetId),
     pdfDownloads: standardProfile ? [electricalDownload] : [nativeDownload, electricalDownload] };
 }
 
@@ -244,7 +262,10 @@ async function liveLaunchSeed() {
   const copyOwnerURL = await sourceURL('../src/offline/live-copy-owner.ts');
   const copyBackendURL = await sourceURL('../src/offline/live-copy-indexeddb.ts');
   const { syntheticPdf } = await import('./source-host-visual/synthetic-documents.ts');
-  const pdf = syntheticPdf();
+  const place = n => `00000000-0000-4000-8000-0000000009${n}`;
+  const homeLabel = 'Synthetic offline home';
+  const library = await liveLibrary(scope, place('10'), homeLabel);
+  const pdf = desktopLibrary ? library.nativeSurveyBytes : syntheticPdf();
   // Exact source-native association from the generated HomeBox storage contracts;
   // registration/observation facts describe this held copy, not a provider revision.
   const homeboxPin = { source: 'homebox-attachment', sourceInstanceId: '00000000-0000-4000-8000-000000000040',
@@ -253,9 +274,11 @@ async function liveLaunchSeed() {
     sourceRegistrationVersion: 3, sourceRegistrationSha256: 'e'.repeat(64), sha256: await sha256Hex(pdf), bytes: pdf.length,
     contentType: 'application/pdf', sourceContentType: 'application/pdf', beforeRetrievedAt: '2026-01-03T10:00:01Z',
     bodyRetrievedAt: '2026-01-03T10:00:02Z', afterRetrievedAt: '2026-01-03T10:00:03Z' };
-  const view = { status: 'ready', scope, homeLabel: 'Synthetic offline home', now: '2026-01-03T10:00:00Z', canEdit: true,
-    homes: [{ ...scope, label: 'Synthetic offline home' }], caches: [], entries: [{
-      ...scope, key: 'generated-item', source: { sourceInstanceId: homeboxPin.sourceInstanceId, collectionId: homeboxPin.collectionId, sourceKind: 'homebox-entity', externalId: homeboxPin.entityId },
+  const source = { sourceInstanceId: homeboxPin.sourceInstanceId, collectionId: homeboxPin.collectionId,
+    sourceKind: 'homebox-entity', externalId: homeboxPin.entityId };
+  const view = { status: 'ready', scope, homeLabel, now: '2026-01-03T10:00:00Z', canEdit: true,
+    homes: [{ ...scope, label: homeLabel }], caches: [], entries: [{
+      ...scope, key: JSON.stringify([source.sourceInstanceId, source.collectionId, source.sourceKind, source.externalId]), source,
       entity: { id: homeboxPin.entityId, name: 'Generated pump', description: '', entityType: null, parent: null, archived: false,
         quantity: '1', manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
       kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'stale', sourceUpdatedAt: null,
@@ -271,8 +294,6 @@ async function liveLaunchSeed() {
   const { loadNumericSource } = await import('./load-numeric-source.mjs');
   const { encodeHeldTopology } = await import(await loadNumericSource('offline/held-topology.ts'));
   const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
-  const place = n => `00000000-0000-4000-8000-0000000009${n}`;
-  const library = await liveLibrary(scope, place('10'), view.homeLabel);
   const location = n => stockRecord('identity', place(n), { kind: 'location', evidenceIds: [] });
   const named = (n, atlasId, semanticKind, label, extra = {}) => stockRecord('location-semantics', place(n),
     { atlasId, semanticKind, reviewStatus: 'accepted', label, evidenceIds: [place('40')], ...extra });
@@ -315,6 +336,34 @@ async function liveLaunchSeed() {
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
+
+// Reseal the public bundle with a replacement PDF worker and HTML marker.
+// Only the public worker handoff uses this synthetic successor.
+function installSuccessorFiles() {
+  const output = join(scratch, 'successor');
+  mkdirSync(join(output, 'saved'), { recursive: true });
+  cpSync(join(dist, 'assets'), join(output, 'assets'), { recursive: true });
+  const html = readFileSync(join(dist, 'saved/index.html'), 'utf8');
+  writeFileSync(join(output, 'saved/index.html'), html.replace(/<meta name="houseatlas-saved-shell-build" content="[a-f0-9]{64}">/,
+    '<meta name="generated-shell-revision" content="second">'));
+  const [worker] = readdirSync(join(dist, 'saved')).filter(name => name.startsWith('pdf.worker.min-'));
+  const oldWorker = `/saved/${worker}`;
+  const oldBytes = readFileSync(join(dist, oldWorker));
+  const nextBytes = Buffer.concat([oldBytes, Buffer.from('\n/* Generated successor */\n')]);
+  const nextWorker = `/saved/pdf.worker.min-${createHash('sha256').update(nextBytes).digest('hex').slice(0, 8)}.js`;
+  assert.notEqual(nextWorker, oldWorker);
+  writeFileSync(join(output, nextWorker), nextBytes);
+  successorFiles.set(nextWorker, nextBytes);
+  const plugin = offlineShellPlugin();
+  plugin.configResolved({ root: dirname(dist), build: { outDir: output } });
+  plugin.closeBundle();
+  for (const path of ['/saved/index.html', '/saved/service-worker.js', '/offline-entry-worker.js'])
+    successorFiles.set(path, readFileSync(join(output, path.slice(1))));
+  return { successor: shellBuildId(successorFiles.get('/saved/index.html').toString()), oldWorker,
+    oldWorkerSha256: createHash('sha256').update(oldBytes).digest('hex') };
+}
+const shellBuildId = html => html.match(/name="houseatlas-saved-shell-build" content="([a-f0-9]{64})"/)?.[1];
+const shownBuild = `document.querySelector('meta[name="houseatlas-saved-shell-build"]')?.content`;
 
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0); listeners = new Set();
@@ -474,14 +523,23 @@ try {
     }
   };
 
+  const installPersistence = () => send('Page.addScriptToEvaluateOnNewDocument', { source: `if (location.origin === ${JSON.stringify(origin)}) {
+      globalThis.persistenceCalls = 0;
+      let granted = false;
+      Object.defineProperties(navigator.storage, {
+        persisted: { value: async () => granted },
+        persist: { value: async () => { globalThis.persistenceCalls++; return granted = globalThis.allowPersistence === true; } },
+      });
+    }` });
   // 1. Online: the Saved or live entry installs the public offline closure.
   // The live entry also runs ordinary retention against the generated routes.
-  if (selected === 'live-launch') onlineSeed = await liveLaunchSeed();
-  if (standardProfile) {
+  if (liveEntry) onlineSeed = await liveLaunchSeed();
+  if (desktopLibrary) onlineSeed.homebox = homeboxRoutes(onlineSeed, stockBase, jsonRead);
+  if (standardProfile || desktopLibrary) {
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `if (location.origin === ${JSON.stringify(origin)})
       localStorage.setItem('houseatlas.keep-native-library.v1', 'off');` });
   }
-  await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
+  await send('Page.navigate', { url: origin + (liveEntry ? '/' : '/saved/index.html') });
   await poll(`(async () => {
     const root = await navigator.serviceWorker.getRegistration('/'), saved = await navigator.serviceWorker.getRegistration('/saved/');
     return root?.active?.state === 'activated' && saved?.active?.state === 'activated'
@@ -544,6 +602,23 @@ try {
     }, 'Live fill retained exact, catalog-bound originals for this profile before any device seeding');
     console.log(`INFO ${standardProfile ? 'standard' : 'full-document'} live fill held electrical ${held.electrical.bytes} bytes with matching SHA-256`);
   }
+  if (desktopLibrary) {
+    // Persistence outcomes are deterministic; Chrome still owns actual IndexedDB and Cache Storage.
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await openOrdinaryHomebox({ evaluate, poll }, onlineSeed);
+  }
+  let pack = null, firstBuild = null, packModule = null;
+  if (desktopPack) {
+    await poll(`document.querySelector('.saved-manager [role="status"]')?.textContent === 'No manually saved house copy on this browser.'`,
+      5_000, 'An empty profile was not described as missing a saved copy');
+    firstBuild = shellBuildId(readFileSync(join(dist, 'saved/index.html'), 'utf8'));
+    assert.match(firstBuild, /^[a-f0-9]{64}$/);
+    const built = await build({ configFile: false, logLevel: 'silent', build: { write: false, target: 'esnext',
+      lib: { entry: fileURLToPath(new URL('./offline-atlas-browser/generated-pack.ts', import.meta.url)), formats: ['es'] } } });
+    const { code } = (Array.isArray(built) ? built[0] : built).output.find(file => file.type === 'chunk' && file.isEntry);
+    packModule = 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
+    pack = await evaluate(`import(${JSON.stringify(packModule)}).then(fixture => fixture.keepPartialPack(${JSON.stringify(firstBuild)}))`);
+  }
   const installed = served;
 
   // 2. Network gone. Reopen the installed start URL.
@@ -552,8 +627,8 @@ try {
   } else mode = 'hung';
   served = 0; servedPaths = [];
   let seeded = null;
-  const reopenApiRequests = [];
-  if (selected === 'live-launch') {
+  const reopenApiRequests = [], externalRequests = [], offlineResponses = [], pdfTargets = new Map();
+  if (liveEntry) {
     seeded = onlineSeed;
     const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, homeboxPin, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
@@ -572,7 +647,7 @@ try {
         cache.keepScene(${JSON.stringify(publicationId)}, ${JSON.stringify(manifestSha256)},
           new Uint8Array(${JSON.stringify(envelope)}), ${JSON.stringify(envelopeSha256)}, null);
       } finally { await store.close(); }
-      const { createLiveCopyOwner } = await import(${JSON.stringify(copyOwnerURL)});
+      ${desktopLibrary ? '' : `      const { createLiveCopyOwner } = await import(${JSON.stringify(copyOwnerURL)});
       const { openLiveCopyBackend } = await import(${JSON.stringify(copyBackendURL)});
       const copies = createLiveCopyOwner(openLiveCopyBackend(indexedDB));
       const check = result => { if (result.status !== 'ok') throw new Error('Generated retention failed: ' + result.status); return result.value; };
@@ -583,22 +658,41 @@ try {
         check(await copies.keepView(home, ${JSON.stringify(view)}, signal));
         check(await copies.keepHomeboxDocument(home, ${JSON.stringify(homeboxPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
       } finally { copies.close(); }
+`}
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
       finally { outbox.close(); }
     })()`), [entry], 'the complete generated queue record is durable before close');
+  }
+  if (liveEntry || desktopPack) {
     // Close the application target, rather than merely reloading its React
     // tree. The new target shares only the device profile and retained stores.
     assert.equal((await cdp.send('Target.closeTarget', { targetId })).success, true);
     ({ targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' }));
     ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
     await observePage();
+    if (desktopLibrary) await installPersistence();
     cdp.listeners.add(message => {
-      if (message.sessionId !== sessionId || message.method !== 'Network.requestWillBeSent') return;
-      const { method, url } = message.params.request;
-      if (url.startsWith(origin + '/api/')) reopenApiRequests.push({ method, url });
+      if (desktopLibrary && message.method === 'Target.attachedToTarget' && message.sessionId === sessionId) {
+        const child = message.params.sessionId;
+        if (message.params.targetInfo.type === 'worker') pdfTargets.set(child, message.params.targetInfo);
+        void cdp.send('Network.enable', {}, child)
+          .then(() => cdp.send('Runtime.runIfWaitingForDebugger', {}, child))
+          .catch(error => record('Worker attach error', String(error)));
+      }
+      if (message.sessionId !== sessionId && !pdfTargets.has(message.sessionId)) return;
+      if (desktopLibrary && message.method === 'Network.responseReceived') {
+        const { url, status, fromServiceWorker, serviceWorkerResponseSource } = message.params.response;
+        if (url.startsWith('http')) offlineResponses.push({ url, status, fromServiceWorker, serviceWorkerResponseSource });
+      }
+      if (message.method === 'Network.requestWillBeSent') {
+        const { method, url } = message.params.request;
+        if (url.startsWith(origin + '/api/')) reopenApiRequests.push({ method, url });
+        if (/^https?:/.test(url) && new URL(url).origin !== origin) externalRequests.push({ method, url });
+      }
     });
     await send('Network.enable');
+    if (desktopLibrary) await send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
   } else await send('Page.navigate', { url: 'about:blank' });
   const started = Date.now();
   send('Page.navigate', { url: origin + '/' }).catch(() => {});
@@ -617,7 +711,96 @@ try {
   // check, not shell bytes: the shell itself must still come from the cache.
   const updateChecks = new Set(['/offline-entry-worker.js', '/saved/service-worker.js']);
   assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Offline reopen fetched public shell bytes from the network');
-  if (seeded) {
+  if (desktopLibrary) {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await checkDesktopLibrary({ evaluate, poll, send }, seeded);
+    await checkLibraryEviction({ evaluate, poll }, seeded);
+    assert.deepEqual(reopenApiRequests, [], 'The offline PDF journey performs no API requests');
+    assert.deepEqual(externalRequests, [], 'The offline PDF journey requests no non-loopback resources');
+    assert.deepEqual(servedPaths, [], 'No request reaches the loopback listener while it is stopped');
+    const workers = offlineResponses.filter(response => new URL(response.url).pathname.includes('/pdf.worker.min-'));
+    assert(workers.some(response => response.status === 200 && response.fromServiceWorker
+      && response.serviceWorkerResponseSource === 'cache-storage'
+      && [...pdfTargets.values()].some(target => target.url === response.url)), JSON.stringify(workers));
+    assert(offlineResponses.every(response => response.fromServiceWorker), JSON.stringify(offlineResponses));
+    assert(!observations.some(event => event.kind === 'Runtime.consoleAPICalled'
+      && event.detail.args.includes('Warning: Setting up fake worker.')), 'PDF.js fell back to the main thread');
+    console.log('INFO PDF worker responses: ' + JSON.stringify(workers.map(({ status, serviceWorkerResponseSource }) => ({ status, serviceWorkerResponseSource }))));
+    assert.deepEqual(unexpectedRequests, [], 'Online HomeBox open used only generated, scoped read routes');
+    const beforeReconnect = apiRequests.length;
+    await checkReconnect({ evaluate, poll }, seeded, async () => {
+      denySession = true;
+      await new Promise(done => server.listen(port, '127.0.0.1', done));
+    });
+    assert.deepEqual(apiRequests.slice(beforeReconnect), ['GET /api/atlas/auth/session']);
+    console.log('INFO desktop library: one ordinary HomeBox read, two rendered pages, exact held original, cached PDF worker, storage totals and explicit persistence outcomes, eviction and signed-out live handoff');
+  } else if (desktopPack) {
+    const workerIdentities = `(async () => {
+        const root = (await navigator.serviceWorker.getRegistration('/'))?.active;
+        const saved = navigator.serviceWorker.controller;
+        if (new URL(root.scriptURL).pathname !== '/offline-entry-worker.js' ||
+            new URL(saved.scriptURL).pathname !== '/saved/service-worker.js') return null;
+        return await Promise.all([[root, 'root-entry-status'], [saved, 'saved-shell-status']].map(([worker, message]) =>
+          new Promise(resolve => {
+            const channel = new MessageChannel();
+            const timer = setTimeout(() => { channel.port1.close(); resolve(null); }, 3000);
+            channel.port1.onmessage = event => { clearTimeout(timer); channel.port1.close(); resolve(event.data); };
+            worker.postMessage(message, [channel.port2]);
+          })));
+      })()`;
+    const compareShells = async expected => {
+      assert.equal(await evaluate(shownBuild), expected);
+      assert.deepEqual(await evaluate(workerIdentities), [{ ready: true, buildId: expected }, { ready: true, buildId: expected }]);
+    };
+    await compareShells(firstBuild);
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await checkPartialPack({ evaluate, poll, send }, pack);
+    assert.deepEqual(reopenApiRequests, [], 'A partial pack makes no API requests offline');
+    assert.deepEqual(servedPaths, []);
+    const { successor, oldWorker, oldWorkerSha256 } = installSuccessorFiles();
+    assert.match(successor, /^[a-f0-9]{64}$/);
+    assert.notEqual(successor, firstBuild);
+    await new Promise(done => server.listen(port, '127.0.0.1', done));
+    // A cache-bypassing Saved URL receives the newer public HTML. Its normal
+    // startup verifies and updates Saved first, then the root registration.
+    assert.equal(await evaluate(shownBuild), firstBuild, 'A newly served build must not relabel the open old document');
+    const oldTab = { targetId, sessionId };
+    ({ targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' }));
+    ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
+    await observePage();
+    await send('Network.enable');
+    await send('Page.navigate', { url: origin + '/saved/index.html?generated-build=2' });
+    await poll(`document.querySelector('.saved-header [role="status"]')?.textContent === 'Public shell verified' &&
+      ${shownBuild} === ${JSON.stringify(successor)}`, 25_000, 'The successor Saved shell did not install');
+    await compareShells(successor);
+    await new Promise(done => { server.close(done); for (const socket of sockets) socket.destroy(); });
+    const newSessionId = sessionId;
+    sessionId = oldTab.sessionId;
+    assert.equal(await evaluate(shownBuild), firstBuild, 'The older document remained open through activation');
+    assert.deepEqual(await evaluate(workerIdentities), [{ ready: true, buildId: successor }, { ready: true, buildId: successor }]);
+    assert.equal(await evaluate(`(async () => {
+      const response = await fetch(${JSON.stringify(oldWorker)}, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Previous PDF worker unavailable');
+      const digest = await crypto.subtle.digest('SHA-256', await response.arrayBuffer());
+      return new Uint8Array(digest).toHex();
+    })()`), oldWorkerSha256, 'The old tab must still receive its exact PDF worker offline');
+    await cdp.send('Target.closeTarget', { targetId: oldTab.targetId });
+    sessionId = newSessionId;
+    await send('Page.navigate', { url: 'about:blank' });
+    await send('Page.navigate', { url: origin + '/' });
+    await poll(`location.pathname === '/saved/index.html' && ${shownBuild} === ${JSON.stringify(successor)} &&
+      document.querySelector('.saved-manager') !== null`, 10_000, 'Cold reopen did not select the successor shell');
+    await compareShells(successor);
+    await evaluate(`[...document.querySelectorAll('.saved-manager button')].find(b => b.textContent === 'Open saved Atlas').click()`);
+    await poll(`document.querySelector('.saved-coverage')?.textContent.includes(${JSON.stringify(pack.localRevision)}) &&
+      document.querySelector('.saved-coverage summary')?.textContent.startsWith('Saved coverage: partial pack;')`, 10_000,
+      'A public shell update changed the retained partial pack');
+    assert.deepEqual(await evaluate(`import(${JSON.stringify(packModule)}).then(fixture => fixture.verifyRetainedPack(${JSON.stringify(pack.localRevision)}, ${JSON.stringify(pack.pins)}))`),
+      { shellBuildId: firstBuild, snapshotId: pack.snapshotId }, 'The generated pack must retain its original shell pin and verified resources');
+    assert.deepEqual(reopenApiRequests, []);
+    assert.deepEqual(externalRequests, []);
+    console.log('INFO desktop Saved pack: exact partial capture, keyboard building/floor/room navigation and accessible names, Plan/3D round trip, and matching root/Saved identities across a public worker update');
+  } else if (seeded) {
     // Assert actual application output from the retained generated publication,
     // not just a shell, a cache record, or an injected waiting-count element.
     await poll(`(() => {
@@ -825,8 +1008,12 @@ try {
     await new Promise(done => setTimeout(done, 300));
     assert.equal(await evaluate(`document.activeElement === ${libraryTab}`), true, 'Focus moved out of the dialog on purpose must stay there');
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
-    await poll(`document.body.textContent.includes(${JSON.stringify(standardProfile ? 'Electrical PDFs read so far:' : 'Documents:')})`, 5_000,
-      'Offline storage settings did not read size');
+    const electricalSize = 'Electrical PDFs read so far: ' + displayFixtureSize(2 * Number(seeded.library.electricalPin.byteSize)) + '.';
+    const nativeSize = standardProfile ? 'Document sizes are unavailable.' : 'Documents: ' + displayFixtureSize(seeded.library.nativePin.bytes) + '.';
+    await poll(`(() => {
+      const text = document.querySelector('[role="dialog"] fieldset')?.textContent ?? '';
+      return text.includes(${JSON.stringify(electricalSize)}) && text.includes(${JSON.stringify(nativeSize)});
+    })()`, 5_000, 'Offline storage settings did not show the catalog byte totals');
     assert.equal(await evaluate(`(() => {
       const paragraph = [...document.querySelectorAll('[role="dialog"] .setting-static')].find(node =>
         node.textContent.includes('HomeBox PDFs marked “On this device” in Library can open offline. Downloading missing files requires a connection.'));

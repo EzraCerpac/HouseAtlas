@@ -41,8 +41,8 @@ function walk(directory) {
 }
 walk(dist);
 assert(files.includes('index.html'), 'Missing compiled application index');
-const worker = files.find(path => /^assets\/pdf\.worker\.min-[A-Za-z0-9_-]+\.js$/.test(path));
-assert(worker, 'PDF.js worker must be emitted as a backend-supported .js module');
+const worker = files.find(path => /^saved\/pdf\.worker\.min-[A-Za-z0-9_-]+\.js$/.test(path));
+assert(worker, 'PDF.js worker must be emitted as a backend-supported .js module within the Saved worker scope');
 assert(readFileSync(join(frontend, 'licenses/pdfjs-dist-LICENSE.txt'), 'utf8').includes('Apache License'), 'Keep the PDF.js license in the public source');
 assert(readFileSync(join(frontend, 'licenses/pdfjs-dist-NOTICE.txt'), 'utf8').length > 0, 'Keep the PDF.js notice in the public source');
 assert(!files.some(path => path.startsWith('licenses/')), 'License and notice source files must stay out of unsupported frontend output');

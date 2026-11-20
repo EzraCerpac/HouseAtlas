@@ -1,6 +1,8 @@
 /* Public shell only. The build plugin prepends the exact immutable closure. */
 const PREFIX = 'houseatlas-saved-public-', NAME = PREFIX + BUILD;
 const MARKER = new URL('/saved/.verified-shell', self.location.origin).href;
+const ASSET_PINS = new URL('/saved/.public-asset-pins', self.location.origin).href;
+const hashedAsset = /^\/(?:assets\/[^/]+-|saved\/pdf\.worker\.min-)[A-Za-z0-9_-]+\.(?:js|css|woff2|png)$/;
 // Each owned scope pins the build it installs (pending) and serves (active),
 // so pruning never removes a cache either registration runs or is about to run
 // (the root lags until its update). Pins and pruning share one origin-wide lock:
@@ -11,6 +13,7 @@ const pinURL = kind => new URL(`/saved/.pin-${kind}`, self.location.origin).href
 const locks = self.navigator?.locks;
 const pinned = task => locks ? locks.request('houseatlas-saved-shell-pins', async () => task(await caches.open(PINS))) : null;
 const pin = (pins, kind) => pins.put(pinURL(`${SCOPE}-${kind}`), new Response(BUILD, { headers: { 'content-type': 'text/plain' } }));
+const stamp = cache => cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
 const byPath = new Map(TABLE.map(row => [row.path, row]));
 const digest = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2, '0')).join('');
 async function verified(response, pin) {
@@ -47,12 +50,12 @@ self.addEventListener('install', event => event.waitUntil((async () => {
       const response = await reuse(url, pin) ?? await verified(await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' }), pin);
       await cache.put(url, response);
     }
-    // Completion time orders builds for pruning; earlier markers lack it (0).
-    await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
+    await cache.put(ASSET_PINS, new Response(JSON.stringify(TABLE.filter(pin => hashedAsset.test(pin.path)))));
+    await stamp(cache);
     await self.skipWaiting();
   } catch (error) { await caches.delete(NAME); throw error; }
 })()));
-const installedAt = marker => Number(marker?.headers.get('x-installed-at')) || 0;
+const lastUsedAt = marker => Number(marker?.headers.get('x-installed-at')) || 0;
 /** Under the pin lock: keeps this build, every build a scope pin names,
  * unfinished installs, any build completed after this one, and the most recent
  * earlier one; drops the rest. Nothing is pruned until both scopes have an
@@ -61,13 +64,13 @@ async function pruneEarlierBuilds(pins) {
   const named = Object.fromEntries(await Promise.all(PIN_KINDS.map(async kind => [kind, await (await pins.match(pinURL(kind)))?.text()])));
   if (!named['root-active'] || !named['saved-active']) return;
   const keep = new Set(Object.values(named).filter(Boolean));
-  const own = installedAt(await (await caches.open(NAME)).match(MARKER));
+  const own = lastUsedAt(await (await caches.open(NAME)).match(MARKER));
   const earlier = [];
   for (const name of await caches.keys()) {
     if (!name.startsWith(PREFIX) || name === NAME || keep.has(name.slice(PREFIX.length))) continue;
     const marker = await (await caches.open(name)).match(MARKER);
     if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
-    const at = installedAt(marker);
+    const at = lastUsedAt(marker);
     if (at <= own) earlier.push({ name, at });
   }
   earlier.sort((a, b) => b.at - a.at);
@@ -76,6 +79,7 @@ async function pruneEarlierBuilds(pins) {
 self.addEventListener('activate', event => event.waitUntil((async () => {
   if (!await ready()) throw Error('Public shell is not verified');
   await pinned(async pins => {
+    await stamp(await caches.open(NAME)); // A rollback can reactivate an older installed build.
     await pin(pins, 'active');
     const pending = pinURL(`${SCOPE}-pending`);
     if (await (await pins.match(pending))?.text() === BUILD) await pins.delete(pending);
@@ -99,11 +103,32 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || url.hash) return;
   // No API, auth, native media, arbitrary route or query interception.
   const pin = byPath.get(url.pathname);
-  if (!pin || request.mode === 'navigate' && url.pathname !== '/saved/index.html') return;
+  if (request.mode === 'navigate' && url.pathname !== '/saved/index.html') return;
+  if (!pin && !hashedAsset.test(url.pathname)) return;
   event.respondWith((async () => {
-    const cache = await caches.open(NAME);
-    const marker = await cache.match(MARKER);
-    if (!marker || await marker.text() !== BUILD) throw Error('Public shell unavailable');
-    return verified(await cache.match(url), pin);
+    if (pin) {
+      const cache = await caches.open(NAME);
+      const marker = await cache.match(MARKER);
+      if (!marker || await marker.text() !== BUILD) throw Error('Public shell unavailable');
+      return verified(await cache.match(url), pin);
+    }
+    // A new controller can still receive lazy requests from an older document.
+    // Fixed URLs stay current. Prefer pins when a retained build recorded them.
+    for (const name of await caches.keys()) {
+      if (!name.startsWith(PREFIX) || name === NAME) continue;
+      try {
+        const cache = await caches.open(name), marker = await cache.match(MARKER);
+        if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
+        const pins = await cache.match(ASSET_PINS);
+        if (!pins) {
+          const legacy = await cache.match(url);
+          if (legacy) return legacy;
+          continue;
+        }
+        const previous = (await pins.json()).find(row => row.path === url.pathname);
+        if (previous) return await verified(await cache.match(url), previous);
+      } catch { /* This cache has no usable answer. */ }
+    }
+    return fetch(request);
   })());
 });

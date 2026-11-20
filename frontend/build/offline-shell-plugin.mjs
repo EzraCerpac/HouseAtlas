@@ -29,7 +29,7 @@ export function offlineShellPlugin() {
           if (entry.isDirectory()) walk(path);
           else {
             const relative = path.slice(output.length).replaceAll('\\', '/');
-            if (!(relative.startsWith('/assets/') || relative === '/saved/index.html')) continue;
+            if (!(relative.startsWith('/assets/') || relative === '/saved/index.html' || /^\/saved\/pdf\.worker\.min-[\w-]+\.js$/.test(relative))) continue;
             const mime = MIME[entry.name.split('.').at(-1)];
             if (!mime || statSync(path).size > 4_000_000) throw Error(`Unsupported public shell asset: ${relative}`);
             const bytes = readFileSync(path);

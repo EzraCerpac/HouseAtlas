@@ -106,25 +106,47 @@ class FrontendUnion(unittest.TestCase):
             write(t / "dist/index.html", '<script src="/assets/live-new.js">')
             write(t / "dist/assets/live-new.js", "new")
             write(t / "dist/assets/shared.js", "same")
+            write(t / "dist/saved/pdf.worker.min-New_hash.js", "new worker")
+            write(t / "dist/saved/service-worker.js", "new shell")
             write(t / "live/index.html", '<script src="/assets/live-old.js">')
             write(t / "live/assets/live-old.js", "old")
             write(t / "live/assets/shared.js", "same")
             write(t / "live/old-page.html", "gone")
+            write(t / "live/saved/pdf.worker.min-Old_hash.js", "previous worker")
+            write(t / "live/saved/service-worker.js", "previous shell")
+            write(t / "live/saved/other.js", "gone")
             r = dn.union_frontend(t / "dist", t / "live", t / "out")
-            self.assertEqual((r["retainedAssets"], r["identicalAssets"], r["droppedNonAssets"]), (1, 1, ["old-page.html"]))
+            self.assertEqual((r["retainedAssets"], r["identicalAssets"], r["droppedNonAssets"]), (2, 1, ["old-page.html", "saved/other.js"]))
             self.assertEqual((t / "out/assets/live-old.js").read_text(), "old")
+            self.assertEqual((t / "out/saved/pdf.worker.min-Old_hash.js").read_text(), "previous worker")
+            self.assertEqual((t / "out/saved/pdf.worker.min-New_hash.js").read_text(), "new worker")
+            self.assertEqual((t / "out/saved/service-worker.js").read_text(), "new shell")
             self.assertEqual((t / "out/index.html").read_text(), '<script src="/assets/live-new.js">')
             self.assertEqual(os.stat(t / "out").st_mode & 0o077, 0)
             self.assertEqual(dn.entry_scripts(t / "out/index.html"), ["assets/live-new.js"])
 
     def test_refuses_a_reused_asset_name_with_new_bytes(self):
-        with tempfile.TemporaryDirectory() as t:
-            t = Path(t)
-            write(t / "dist/assets/a.js", "one")
-            write(t / "live/assets/a.js", "two")
-            with self.assertRaises(dn.DeployError):
-                dn.union_frontend(t / "dist", t / "live", t / "out")
-            self.assertFalse((t / "out").exists())
+        for name in ["assets/a.js", "saved/pdf.worker.min-Shared_hash.js"]:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as t:
+                t = Path(t)
+                write(t / "dist" / name, "one")
+                write(t / "live" / name, "two")
+                with self.assertRaisesRegex(dn.DeployError, "asset name reused with different bytes"):
+                    dn.union_frontend(t / "dist", t / "live", t / "out")
+                self.assertFalse((t / "out").exists())
+
+    def test_refuses_symlinked_frontend_inputs_before_copy(self):
+        for tree in ("dist", "live"):
+            for link_at in ("", "saved", "saved/pdf.worker.min-Old_hash.js"):
+                with self.subTest(tree=tree, link_at=link_at), tempfile.TemporaryDirectory() as t:
+                    t = Path(t)
+                    write(t / "outside/file.js", "not an asset")
+                    target = t / tree / link_at
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.symlink_to(t / "outside" if not link_at.endswith(".js") else t / "outside/missing.js")
+                    with self.assertRaisesRegex(dn.DeployError, "symlink"):
+                        dn.union_frontend(t / "dist", t / "live", t / "out")
+                    self.assertFalse((t / "out").exists())
 
 
 class ModelRelease(unittest.TestCase):
@@ -476,6 +498,7 @@ class SwapAndRollback(unittest.TestCase):
 
     def test_rollback_keeps_the_newer_builds_lazy_chunks(self):
         write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
+        write(self.root / "fe/frontend.next/saved/pdf.worker.min-New_hash.js", "worker")
         svc = FakeService(self.cfg)
         dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
         dep.swap(self.record, self.root / "events.log", self.moves)
@@ -483,6 +506,7 @@ class SwapAndRollback(unittest.TestCase):
         dep.rollback()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
+        self.assertEqual((self.root / "fe/frontend/saved/pdf.worker.min-New_hash.js").read_text(), "worker")
 
     def test_rollback_interrupted_between_moves_resumes_the_union(self):
         write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
@@ -498,6 +522,17 @@ class SwapAndRollback(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             dep.rollback()
         dep.swap = real
+        live = Path(self.record["frontend"])
+        prepared = Path(dn.ledger_records(self.cfg.ledger)[-1]["restored_frontend"])
+        link = prepared / "assets/linked.js"
+        link.symlink_to(self.root / "missing")
+        with self.assertRaisesRegex(dn.DeployError, "symlink"):
+            dep.rollback()
+        link.unlink()
+        live.symlink_to(self.root / "missing")
+        with self.assertRaisesRegex(dn.DeployError, "symlink"):
+            dep.rollback()
+        live.unlink()
         dep.rollback()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
@@ -549,13 +584,31 @@ class SwapAndRollback(unittest.TestCase):
 
     def test_standalone_script_restores_and_tells_the_ledger(self):
         write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
+        write(self.root / "fe/frontend.next/saved/pdf.worker.min-New_hash.js", "new worker")
+        write(self.root / "fe/frontend.next/saved/pdf.worker.min-.js", "not hashed")
+        write(self.root / "fe/frontend.next/saved/service-worker.js", "new shell")
+        write(self.root / "fe/frontend/saved/service-worker.js", "old shell")
         dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
         dn.save_record(self.cfg.ledger, dict(self.record, id="older", status="verified"))
         dep.swap(self.record, self.root / "events.log", self.moves)
         dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        relative_worker = "saved/pdf.worker.min-New_hash.js"
+        parked_worker = write(Path(self.record["parked_frontend"]) / relative_worker, "old worker")
+        result = self.run_standalone(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"asset name reused with different bytes", result.stderr)
+        self.assertFalse((self.root / "launchctl.calls").exists())
+        self.assertEqual(parked_worker.read_text(), "old worker")
+        self.assertEqual((Path(self.record["frontend"]) / relative_worker).read_text(), "new worker")
+        parked_worker.unlink()
+        write(parked_worker.with_suffix(".js.rollback-part"), "partial")
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
+        self.assertEqual((self.root / "fe/frontend/saved/pdf.worker.min-New_hash.js").read_text(), "new worker")
+        self.assertFalse((Path(self.record["frontend"]) / (relative_worker + ".rollback-part")).exists())
+        self.assertFalse((self.root / "fe/frontend/saved/pdf.worker.min-.js").exists())
+        self.assertEqual((self.root / "fe/frontend/saved/service-worker.js").read_text(), "old shell")
         self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
         self.assertEqual(dn.rollback_target(dn.ledger_records(self.cfg.ledger))["id"], "older")
 
@@ -563,6 +616,17 @@ class SwapAndRollback(unittest.TestCase):
         self.moves[0][0].rename(self.moves[0][1])  # deploy stopped right after parking
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+
+    def test_standalone_script_rejects_asset_symlink_before_bootout(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        root = self.root / "fe/frontend/saved"
+        root.mkdir()
+        (root / "pdf.worker.min-New_hash.js").symlink_to(write(self.root / "outside.js", "outside"))
+        result = self.run_standalone(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"frontend tree contains a symlink", result.stderr)
+        self.assertFalse((self.root / "launchctl.calls").exists())
 
     def test_standalone_script_refuses_without_the_parked_frontend(self):
         dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
@@ -853,8 +917,14 @@ class Prune(unittest.TestCase):
 
     def test_keeps_live_and_rollback_caches_and_newest_parked_frontends(self):
         shared = write(self.cfg.ledger.parent / "cargo-target/release/deps/keep", "dependency")
+        live_worker = write(self.fe / "frontend/saved/pdf.worker.min-Live_hash.js", "live worker")
+        old_workers = [write(self.fe / f"frontend.before-{name}/saved/pdf.worker.min-Old_hash.js", name)
+                       for name in self.ids]
         report = self.dep.prune()
         self.assertEqual(shared.read_text(), "dependency")
+        self.assertEqual(live_worker.read_text(), "live worker")
+        self.assertEqual([worker.read_text() for worker in old_workers[-3:]], self.ids[-3:])
+        self.assertTrue(all(not worker.exists() for worker in old_workers[:-3]))
         for i in (-1, -2):  # live, and the build `rollback` returns to
             self.assertTrue(self.inputs(i, "target/release/houseatlas").exists())
             self.assertTrue(self.inputs(i, "npm-cache").exists())

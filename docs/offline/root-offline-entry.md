@@ -41,6 +41,15 @@ its old public asset bytes to a newer live page. Both workers verify only the
 existing public asset table; root/API/model/session responses are never cached.
 No native current data is manufactured, and no global fetch function is replaced.
 
+An open Saved tab can keep requesting hashed assets from the build it loaded
+after a new controller takes over.
+For hashed URLs missing from its own table, the Saved controller checks
+completed retained public caches and verifies the bytes against the older pin
+when that cache has a pin table.
+Caches from before pin tables can answer exact same-origin URLs for hashed
+assets while those caches are retained.
+The controller uses its current build for navigations and fixed names.
+
 The handoff opens the existing Saved Atlas host. Its existing retained store
 lists copies, preserves their capture times and opens a copy only through its
 existing viewer action. The host labels historical records as lacking current
@@ -67,15 +76,17 @@ An update copies each public file an earlier build's cache already verified
 for the same path and digest, and downloads only the rest. Each worker pins
 its scope's build in a small pin cache (`houseatlas-saved-shell-pins`): as
 pending before its install checks or writes any bytes, and as active when it
-activates. It stamps its completion marker with its install time. After
-claiming clients, an activating worker prunes earlier
+activates. It stamps the marker at installation and refreshes it at activation,
+including after rollback.
+After claiming clients, an activating worker prunes earlier
 `houseatlas-saved-public-*` caches, but only once both scopes have an active
 pin. Pin writes and pruning run under one origin-wide Web Lock, because the
 root and Saved registrations activate independently; without the lock API
 nothing is pruned. A prune keeps its own build, every pinned build (a root
 entry whose update has not run yet keeps its bytes; an install that lost its
-cache to an earlier prune refills it after pinning), any build completed after
-its own, any cache without a completed marker, and the most recent earlier build.
+cache to an earlier prune refills it after pinning), any build stamped after
+its own, any cache without a completed marker, and the most recently used
+earlier build.
 A device therefore holds the current and previous shells after ordinary
 updates instead of one more copy per deploy. The page never prunes:
 an installation can finish after a page-side registration check, which is
@@ -104,7 +115,9 @@ pins, root navigation-only dispatch with unchanged native fixed-name assets,
 private-route exclusion, the normal marked Saved entry, a foreign root owner,
 ordinary updates, pruning to the current and previous shells after three
 updates, a lagging root entry keeping its build (also when its update races a Saved
-prune), and displayed-build cleanup. Capture labeling is checked
+prune), retained hashed assets from before and after pin tables,
+corrupt-byte refusal for pinned assets,
+and displayed-build cleanup. Capture labeling is checked
 at the existing component source seams, not through fabricated private records
 or a browser render. VM-local transports never replace process-global fetch.
 No listener, browser, native service, credential, real private store, provider,
