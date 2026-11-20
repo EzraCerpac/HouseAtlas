@@ -1127,6 +1127,7 @@
     {"path":"frontend/capture-drafts-tests/combined-native-ui.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/controller.regression.test.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs","mode":"100644","owner":"core-integration"},
+    {"path":"frontend/capture-drafts-tests/mounted-cases.tsx","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/native-place-drafts.mjs","mode":"100644","owner":"core-integration"},
     {"path":"frontend/capture-drafts-tests/receipt.fixture.mjs","mode":"100644","owner":"web"},
     {"path":"frontend/capture-drafts-tests/save-blob-write.mjs","mode":"100644","owner":"core-integration"},

@@ -61,6 +61,19 @@ It measures both held PDF originals on the full-document profile
 and the electrical original on the standard profile before offline reopen.
 Both profiles use generated responses over disposable loopback TLS.
 
+The pinned browser list also runs `mounted-capture-controls`,
+`mounted-draft-lifecycle` and `unknown-attempt-locked-after-reopen`.
+The mounted cases exercise picker events, current admission and retirement,
+and local draft review and invalidation across two tabs.
+The reopen case withholds strict IndexedDB completion from the store,
+then reads the committed marker from an independent connection
+before the one-use local handoff.
+The existing `synthetic-save-reopen-remove` checks the persisted row fields,
+owner and lifetime alongside exact original bytes and provenance.
+These cases use generated files, fresh browser profiles and loopback fixtures.
+The existing controlled IndexedDB error case also checks that a quota cause
+arriving at transaction abort survives the earlier request error.
+
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
 with scope changes also named here when a PR extends CI.
@@ -83,6 +96,18 @@ The union and standalone rollback reject symlinks in generated frontend trees.
 The rollback fixtures also check interrupted copies and same-name conflicts.
 The existing Saved worker source case checks retained hashed URLs and verifies
 that changed bytes are refused and a reactivated shell survives the next update.
+
+The default backend-library lane includes four generated mounted MCP cases
+under `http::agents::mounted_evidence_controls::`:
+`mounted_editor_batch_stale_child_refuses_without_partial_commit`,
+`mounted_evidence_cursors_distinguish_query_and_access_issuance`,
+`mounted_evidence_refuses_wrong_scope_and_invalid_input`, and
+`mounted_cached_homebox_list_requires_current_partition_grant`.
+The existing WebMCP bootstrap also runs three stock-mount cases for admission
+and input refusal, replacement and unknown completion, and download presentation.
+They use only disposable in-process owners or fake frontend ports.
+The [case ledger](docs/contributing/verification.md#agent-access-synthetic-qualification)
+records their exact evidence and limits.
 
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the
@@ -150,7 +175,7 @@ The frontend healthy list adds `network-live-facts-healthy.mjs`
 (closed decoder, legacy/unjoined preservation, stale/absent and refusal bounds),
 and the existing overlay-source case checks the opt-in current-read extension
 through its generated transport and fake original owners.
-The inventory is 99 SOURCE / 1 BUILD / 13 BROWSER (113 total).
+The inventory is 99 SOURCE / 1 BUILD / 16 BROWSER (116 total).
 Ordinary-core's existing tools/ci discovery also selects one synthetic offline
 candidate-helper method (34 methods total); no workflow command is added.
 

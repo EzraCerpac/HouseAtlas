@@ -37,6 +37,12 @@ let phase = 'bootstrap';
 const refreshReads = refreshAvailabilityReads();
 const requestPhases = new Map();
 const nativeReads = new Map();
+// Bounded, same-origin entry metadata for the Changes failure, including
+// requests that never supplied headers. Keep script slots separate from API slots.
+const entryReads = new Map();
+let entryScripts = 0, omittedEntryReads = 0;
+let navigationError = null;
+const networkError = value => /^net::ERR_[A-Z0-9_]+$/.test(value) ? value : 'failed';
 // The `diagnostic` field is bounded transfer metadata of generated fixture reads for failure
 // messages only; the settlement oracle reads the separate requestId, bodyBytes, header and
 // errorText row fields instead. Byte counts are CDP's decoded/encoded transfer counts and
@@ -298,6 +304,18 @@ try {
       observedUrls.push(message.params.request.url);
       requestPhases.set(message.params.requestId, { method: message.params.request.method, requestPhase: phase });
       const url = new URL(message.params.request.url);
+      if (url.origin === origin && message.params.request.method === 'GET' && (phase === 'bootstrap' || phase === 'viewer-login')) {
+        const path = url.pathname;
+        const route = path === '/' || path === '/api/atlas/auth/session' || path === '/api/atlas/view' || path === '/api/atlas/auth/mode'
+          ? path : message.params.type === 'Script' ? 'script' : null;
+        if (route !== null) {
+          if (entryReads.size >= 24 || (route === 'script' && entryScripts >= 12)) omittedEntryReads++;
+          else {
+            if (route === 'script') entryScripts++;
+            entryReads.set(message.params.requestId, { route, phase, started: performance.now(), status: null, terminal: null });
+          }
+        }
+      }
       if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
         phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
             requestId: applicationRequestId(url), bodyBytes: 0, contentLength: null, contentEncoding: null, errorText: null,
@@ -307,6 +325,8 @@ try {
     } else if (message.method === 'Network.responseReceived') {
       const request = requestPhases.get(message.params.requestId);
       const read = nativeReads.get(message.params.requestId);
+      const entry = entryReads.get(message.params.requestId);
+      if (entry) entry.status = message.params.response.status;
       if (read) { read.status = message.params.response.status; observeRead(read, 'response', message.params); noteResponseHeaders(read, message.params.response); }
       responses.push({ url: message.params.response.url, status: message.params.response.status,
         method: request?.method ?? 'unknown', requestPhase: request?.requestPhase ?? 'unknown', responsePhase: phase });
@@ -317,6 +337,11 @@ try {
           observeRead(read, 'data', message.params);
         }
         else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+      const entry = entryReads.get(message.params.requestId);
+      if (entry) {
+        entry.terminal = message.method === 'Network.loadingFinished' ? 'finished' : networkError(message.params.errorText);
+        entry.elapsedMs = Math.round(performance.now() - entry.started);
+      }
       const read = nativeReads.get(message.params.requestId);
       if (read) {
         observeRead(read, message.method === 'Network.loadingFailed' ? 'failed' : 'finished', message.params);
@@ -368,13 +393,27 @@ try {
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {
-    await until(async () => await evaluate(`(() => {
-      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
-        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
-      if (!button) return false;
-      button.click();
-      return true;
-    })()`), 'Visible Changes navigation');
+    try {
+      await until(async () => await evaluate(`(() => {
+        const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+          .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+        if (!button) return false;
+        button.click();
+        return true;
+      })()`), 'Visible Changes navigation');
+    } catch (error) {
+      let page;
+      try {
+        page = await evaluate(`({ sameOrigin: location.origin === ${JSON.stringify(origin)}, ready: document.readyState,
+          heading: document.querySelector('main h1')?.textContent?.slice(0, 120),
+          navigation: [...document.querySelectorAll('nav[aria-label="Sections"] button')].slice(0, 8)
+            .map(button => ({ text: button.textContent?.trim().slice(0, 60), boxes: button.getClientRects().length })),
+          viewport: [innerWidth, innerHeight] })`);
+      } catch { page = null; }
+      console.error(JSON.stringify({ changesNavigation: { phase, page, navigationError, omittedEntryReads, runtimeExceptions: runtimeErrors.length,
+        reads: [...entryReads.values()].map(({ started, ...read }) => ({ ...read, elapsedMs: read.elapsedMs ?? Math.round(performance.now() - started) })) } }));
+      throw error;
+    }
     await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
     await until(async () => await evaluate(`(() => {
       const button = [...document.querySelectorAll('main#main button')]
@@ -385,7 +424,8 @@ try {
     })()`), 'Visible Atlas tools action');
     await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
   };
-  await send('Page.navigate', { url: origin });
+  const navigation = await send('Page.navigate', { url: origin });
+  if (navigation.errorText) navigationError = networkError(navigation.errorText);
   await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
