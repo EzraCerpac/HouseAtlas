@@ -1066,7 +1066,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 99 source, 1 build, 11 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. The existing live-launch case serves generated session, topology and library reads over disposable loopback TLS (openssl, trust scoped to the generated certificate key). The live app retains building records and fills both libraries on the full-document profile. On a separate standard profile with Native Documents explicitly disabled, Keep library now retains the independently measured electrical PDF. The case checks scoped reads and compares held PDF length, MIME type and SHA-256 before cold offline reopen and canvas rendering. The Atlas, outbox and HomeBox fixtures stay separately seeded. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 99 source, 1 build, 14 browser | Every entry of the explicit run-healthy list, one process each; the example-combined-overlays SOURCE control checks the fictional owner through the production reader/projector, actual test-bundled graph builder and bounded retirement signals, and its fictional panel/circuit projection against the actual #557 projector; this is not native or mounted authority. The example-files SOURCE control reads the example's generated HomeBox manual through the production verified-copy owner over an in-memory store, its source Documents through the production reader, its inventory quantities and upkeep as Upkeep markup, and its electrical drawing PDF through the production Electrical Library reader, checks the example label in dialog markup, and runs the /example/ offline worker (including its /example/ redirect) in a fake worker scope over temporary files; no browser, IndexedDB, network or device. The explicit --stored-dialog-currentness browser selection mounts a generated stored Atlas/native compact dialog for identical-refresh modal/focus/stage retention and denial retirement; the broad default regression suite is not selected. browser entries use the pinned Chrome for Testing build against generated build output. The existing live-launch case serves generated session, topology and library reads over disposable loopback TLS (openssl, trust scoped to the generated certificate key). The live app retains building records and fills both libraries on the full-document profile. On a separate standard profile with Native Documents explicitly disabled, Keep library now retains the independently measured electrical PDF. The case checks scoped reads and compares held PDF length, MIME type and SHA-256 before cold offline reopen and canvas rendering. The Atlas, outbox and HomeBox fixtures stay separately seeded. Both webgl2 and webgl2-probe are required at the unchanged 180000 ms per-entry limit; the latter retains all 220 probe renders and same-browser successor-material assertions, with changed accumulated process/cache history. The required lamp-glass case adds generated GLB-loaded day/night transparency, glow and beam controls; thresholds and runtime are unqualified before hosted execution, and live-owner acceptance stays open. The unified-atlas-start-healthy SOURCE entry exercises the actual types.ts ledger with generated stored-first, refresh, new-owner, reopen and abandoned/replayed initialization controls; it does not mount React or qualify cached-first mounted behavior. The network-source-root SOURCE entry labels pure, static-markup and static-source controls separately. The network-trace-mounted BROWSER entry builds index.html and host.html and checks generated standalone/host-lens trace state after settlement and requires the host trace at the first animation callback after a trusted click; input-to-DOM-observation time is logged as informational, never a pass/fail bound, and this is not live owner or paint evidence. The four AI source selections contain fifty-nine controller, twenty-five disclosure-adapter, twenty-two inspection-owner and eleven manual native-handoff cases using generated data without browser, provider, credentials or source writes. The capture and draft browser selections add mounted-capture-controls, mounted-draft-lifecycle and unknown-attempt-locked-after-reopen, and strengthen the existing synthetic-save-reopen-remove row readback. They use generated files, loopback-only fixture pages, fake session and evidence exchanges, real desktop IndexedDB and a second same-origin tab for invalidation. Picker and foreground events are dispatched by the fixture. The marker is read from a separate connection before handoff. No native service, provider, real picker dialog or device is used. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -1215,6 +1215,65 @@ suite and other draft files remain separately selected; this adds no workflow,
 job, directory glob, browser lane or production behavior change.
 
 ## Generated capture original and draft receipt checks
+
+### Desktop capture and draft qualification
+
+Use Node 26.10.0 and the workflow's pinned Chrome for Testing
+with a fresh disposable profile for each case.
+The frontend browser list selects these four commands.
+
+```sh
+node frontend/capture-drafts-tests/browser-storage.mjs synthetic-save-reopen-remove
+node frontend/capture-drafts-tests/browser-storage.mjs unknown-attempt-locked-after-reopen
+node frontend/capture-drafts-tests/browser-storage.mjs mounted-capture-controls
+node frontend/capture-drafts-tests/browser-storage.mjs mounted-draft-lifecycle
+```
+
+`synthetic-save-reopen-remove` reads exact row fields, owner, file metadata,
+form, provenance and original byte/hash equality across store reopen.
+`unknown-attempt-locked-after-reopen` reads the exact attempt marker from a
+second real IndexedDB connection before handoff, then checks retained bytes,
+one-use review and inspection without retry after reopen.
+`mounted-capture-controls` exercises the DOM file input with generated Files
+and a dispatched cancel event, including repeat selection, removal, HEIC,
+mismatched signature, empty and over-limit refusal, and form retention.
+It holds fresh admission during close, unmount and binding replacement
+and requires zero POSTs from retired forms.
+`mounted-draft-lifecycle` checks lazy database opening, local download readback,
+canonical read and identity fences, explicit review after simulated blur/focus,
+and a real BroadcastChannel signal from a second same-origin browser tab.
+Both mounted cases use production React components with fake session and
+evidence exchanges on a loopback fixture page.
+The browser runner uses an isolated profile and contacts no native service.
+
+Keep these exact failure and resource controls separately selected.
+
+```sh
+node frontend/capture-drafts-tests/browser-storage.mjs mounted-capture-unknown
+node frontend/capture-drafts-tests/browser-storage.mjs mounted-draft-cleanup-refusal
+node frontend/capture-drafts-tests/native-place-drafts.mjs --case native-invalid-upload-replies
+cargo test --offline --locked -p houseatlas-backend --lib -- --ignored --exact media::content::jpeg_original::tests::generated_jpeg_frames_refuse_dimensions_and_pixel_count
+cargo test --offline --locked -p houseatlas-backend --lib -- --ignored --exact http::agents::asset_download_healthy::contextual_upload_refuses_when_all_four_slots_are_held
+```
+
+The malformed capture response leaves the mounted form locked after one
+correlated fake POST.
+The draft cleanup case injects an IndexedDB transaction refusal
+to check visible quota and sign-out messages, unchanged original readback,
+and explicit cancel and keep-and-sign-out.
+The in-process native draft case uses missing, malformed and correlated
+non-commit replies to check persisted attempt IDs and original readback,
+explicit inspection and no retry.
+The JPEG case changes frame dimensions in both generated JPEG fixtures
+to exercise input bounds before RGB decode.
+The upload-slot case holds the four actual Host permits
+while an authenticated in-process multipart request receives a correlated
+`upload-busy` refusal with unchanged committed operation count.
+Browser events do not exercise a system picker dialog or Safari lifecycle.
+These controls supply no automatic eviction, power loss, installed recovery,
+target peak-memory, sustained load or physical-device evidence.
+
+### Generated client and draft receipt cases
 
 The existing `run-healthy.mjs` SOURCE list adds these twenty-two exact commands,
 one process per command, using Node 26.10.0 and unchanged locked frontend

@@ -73,6 +73,7 @@ export function CaptureDraftPanel({ port, source, recordId, candidate, canSave, 
     setStatus('Unsent draft saved on this browser. Nothing was uploaded.');
   }, error => {
     const name = (error as Error | null)?.name;
+    if (name === 'QuotaExceededError') return 'Local draft not saved: this browser has no room for the file. Nothing was sent.';
     if (name === 'DraftWriteError') return 'Local draft not saved: this browser could not store the file. Nothing was sent. Try again.';
     return name !== 'DraftLimitError' ? null : (error as DraftLimitError).limit === 'count'
       ? `Local draft not saved: this browser already holds the maximum of ${DRAFT_LIMITS.count} local drafts, including any for other places or accounts.`

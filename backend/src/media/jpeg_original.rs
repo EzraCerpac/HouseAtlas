@@ -55,3 +55,42 @@ pub(super) fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<()> {
     // No pixels, EXIF facts, transformed bytes or preview proofs leave this validator.
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    #[ignore = "separately selected capture decoder control"]
+    fn generated_jpeg_frames_refuse_dimensions_and_pixel_count() -> MediaResult<()> {
+        let budget = WorkBudget::new(Duration::from_secs(2), Default::default())?;
+        for (original, frame_marker) in [
+            (
+                include_bytes!("../../../frontend/capture-evidence-tests/fixtures/synthetic-photo.jpg")
+                    .as_slice(),
+                [0xff, 0xc0],
+            ),
+            (
+                include_bytes!("../../../frontend/capture-evidence-tests/fixtures/synthetic-photo-progressive.jpg")
+                    .as_slice(),
+                [0xff, 0xc2],
+            ),
+        ] {
+            validate(original, &budget)?;
+            let frame = original
+                .windows(2)
+                .position(|pair| pair == frame_marker)
+                .expect("generated fixture must have the expected frame header");
+            let mut altered = original.to_vec();
+            // SOF stores the two-byte height and width immediately after precision.
+            altered[frame + 5..frame + 7].copy_from_slice(&6000_u16.to_be_bytes());
+            altered[frame + 7..frame + 9].copy_from_slice(&6000_u16.to_be_bytes());
+            assert!(matches!(validate(&altered, &budget), Err(MediaError::TooLarge)));
+            altered[frame + 5..frame + 7].copy_from_slice(&16_u16.to_be_bytes());
+            altered[frame + 7..frame + 9].copy_from_slice(&16_385_u16.to_be_bytes());
+            assert!(matches!(validate(&altered, &budget), Err(MediaError::Unsupported)));
+        }
+        Ok(())
+    }
+}

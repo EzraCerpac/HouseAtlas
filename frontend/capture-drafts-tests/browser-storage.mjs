@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { transformWithOxc } from 'vite';
+import { build, transformWithOxc } from 'vite';
+import react from '@vitejs/plugin-react';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const frontend = resolve(here, '..');
@@ -18,6 +19,12 @@ const sourceRoutes = new Map([
   ['/src/capture-drafts/controller.ts', resolve(frontend, 'src/capture-drafts/controller.ts')],
   ['/src/capture-drafts/receipt.ts', resolve(frontend, 'src/capture-drafts/receipt.ts')],
 ]);
+const mountedCases = new Set([
+  'mounted-capture-controls',
+  'mounted-capture-unknown',
+  'mounted-draft-lifecycle',
+  'mounted-draft-cleanup-refusal',
+]);
 const cases = new Set([
   'retained-original-after-reopen',
   'unknown-attempt-locked-after-reopen',
@@ -25,6 +32,7 @@ const cases = new Set([
   'concurrent-handoff-single-winner',
   'change-callback-abort-preserves-row',
   'synthetic-save-reopen-remove',
+  ...mountedCases,
 ]);
 
 function assert(condition, message) {
@@ -32,8 +40,16 @@ function assert(condition, message) {
 }
 
 async function startServer(caseName) {
-  const caseModule = await readFile(resolve(here, 'browser-cases.mjs'), 'utf8');
+  const mounted = mountedCases.has(caseName);
+  const caseModule = mounted
+    ? (await build({
+        configFile: false, root: frontend, logLevel: 'error', plugins: [react()],
+        build: { write: false, target: 'esnext', minify: false,
+          rollupOptions: { input: resolve(here, 'mounted-cases.tsx'), output: { codeSplitting: false } } },
+      })).output.find(entry => entry.type === 'chunk').code
+    : await readFile(resolve(here, 'browser-cases.mjs'), 'utf8');
   const html = `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><body data-status="running"><script type="module" src="/browser-cases.mjs?case=${caseName}"></script></body>`;
+  const peerPath = caseName === 'mounted-draft-lifecycle' ? '/draft-peer' : null;
   const requests = [];
   const server = createServer(async (request, response) => {
     try {
@@ -41,13 +57,19 @@ async function startServer(caseName) {
       requests.push({ method: request.method, path: url.pathname });
       response.setHeader('Cache-Control', 'no-store');
       response.setHeader('X-Content-Type-Options', 'nosniff');
-      response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; connect-src 'self'; img-src data:; style-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'");
+      const localBlob = caseName === 'mounted-draft-lifecycle' ? ' blob:' : '';
+      response.setHeader('Content-Security-Policy', `default-src 'none'; script-src 'self'; connect-src 'self'${localBlob}; img-src data:; style-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'`);
       if (request.method !== 'GET') {
         response.writeHead(405).end();
         return;
       }
       if (url.pathname === '/' && url.searchParams.size === 1 && url.searchParams.get('case') === caseName) {
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(html);
+        return;
+      }
+      if (url.pathname === peerPath && url.search === '') {
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          .end('<!doctype html><link rel="icon" href="data:,"><title>Synthetic peer tab</title>');
         return;
       }
       if (url.pathname === '/browser-cases.mjs' && url.searchParams.size === 1 && url.searchParams.get('case') === caseName) {
@@ -75,7 +97,7 @@ async function startServer(caseName) {
   });
   const address = server.address();
   assert(address && typeof address === 'object', 'Loopback server did not receive a TCP port');
-  return { server, requests, origin: `http://127.0.0.1:${address.port}` };
+  return { server, requests, origin: `http://127.0.0.1:${address.port}`, peerPath };
 }
 
 function connectCdp(url, deadline) {
@@ -210,11 +232,11 @@ async function runBrowser(caseName) {
   const work = async () => {
     const runningServer = await startServer(caseName);
     server = runningServer.server;
-    const { requests, origin } = runningServer;
+    const { requests, origin, peerPath } = runningServer;
     profile = await mkdtemp('/tmp/houseatlas-capture-drafts-');
     child = spawn(chromePath, [
       '--headless=new', '--disable-gpu', '--disable-dev-shm-usage',
-      '--disable-background-networking', '--disable-sync', '--disable-default-apps',
+      '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps',
       '--disable-extensions', '--disable-service-worker', '--no-first-run', '--no-default-browser-check',
       '--remote-debugging-port=0',
       '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
@@ -236,14 +258,42 @@ async function runBrowser(caseName) {
     const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
     const observedRequests = [];
+    let runtimeError;
     cdp.on('Network.requestWillBeSent', params => observedRequests.push(params.request.url));
+    cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
+      runtimeError ??= exceptionDetails.exception?.description ?? exceptionDetails.text;
+    });
     await cdp.send('Network.enable', {}, sessionId);
     await cdp.send('Runtime.enable', {}, sessionId);
     await cdp.send('Page.enable', {}, sessionId);
+    if (peerPath) {
+      const peerUrl = origin + peerPath;
+      const peer = await cdp.send('Target.createTarget', { url: peerUrl });
+      const attached = await cdp.send('Target.attachToTarget', { targetId: peer.targetId, flatten: true });
+      let ready = false;
+      while (Date.now() < deadline && !ready) {
+        const evaluated = await cdp.send('Runtime.evaluate', {
+          expression: `location.href === ${JSON.stringify(peerUrl)} && document.readyState === 'complete' && (() => {
+            window.syntheticControl = new BroadcastChannel('synthetic-draft-peer-control');
+            window.syntheticSessions = new BroadcastChannel('houseatlas-capture-session-v1');
+            syntheticControl.onmessage = event => {
+              if (event.data === 'invalidate') syntheticSessions.postMessage({ version: 1, type: 'invalidate' });
+            };
+            return true;
+          })()`,
+          returnByValue: true,
+        }, attached.sessionId);
+        ready = evaluated.result?.value === true;
+        if (!ready) await delay(50);
+      }
+      assert(ready, 'Synthetic peer tab did not attach its invalidation listener');
+      await cdp.send('Page.bringToFront', {}, sessionId);
+    }
     await cdp.send('Page.navigate', { url: `${origin}/?case=${caseName}` }, sessionId);
 
     let result;
     while (Date.now() < deadline) {
+      assert(!runtimeError, runtimeError);
       const evaluation = await cdp.send('Runtime.evaluate', {
         expression: 'document.body?.dataset?.status === "complete" ? document.body.textContent : null',
         returnByValue: true,
@@ -257,9 +307,11 @@ async function runBrowser(caseName) {
     assert(result, 'Browser case did not finish within the runner deadline');
     assert(result.ok === true, `${caseName}: ${result.error ?? 'case failed'}`);
     const permittedPrefix = `${origin}/`;
-    const externalRequests = observedRequests.filter(url => !url.startsWith(permittedPrefix));
+    const externalRequests = observedRequests.filter(url => !url.startsWith(permittedPrefix)
+      && !(peerPath && url.startsWith(`blob:${permittedPrefix}`)));
     assert(externalRequests.length === 0, `Browser attempted a request outside its loopback origin: ${externalRequests[0]}`);
-    assert(requests.every(request => request.path === '/' || request.path === '/browser-cases.mjs' || sourceRoutes.has(request.path)),
+    assert(requests.every(request => request.method === 'GET'
+      && (request.path === '/' || request.path === '/browser-cases.mjs' || request.path === peerPath || sourceRoutes.has(request.path))),
       'Loopback server observed a request outside the exact case and TypeScript module routes');
     return { case: caseName, status: 'passed', evidence: result.evidence, externalRequests: 0 };
   };

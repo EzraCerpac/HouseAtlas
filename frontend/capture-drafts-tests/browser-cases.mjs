@@ -135,6 +135,11 @@ async function execute(name) {
         'sha256', 'capture', 'form', 'createdAt', 'expiresAt', 'state', 'attempt'].sort();
       assert(JSON.stringify(Object.keys(saved).sort()) === JSON.stringify(expectedKeys)
         && JSON.stringify(Object.keys(saved.owner).sort()) === JSON.stringify(['actorId', 'homeId', 'workspaceId'])
+        && saved.owner.actorId === boundary().actorId && saved.owner.homeId === boundary().homeId
+        && saved.owner.workspaceId === boundary().workspaceId && saved.format === 'houseatlas-local-capture-draft/1'
+        && saved.recordId === recordId && saved.original.type === 'image/png' && saved.contentType === 'image/png'
+        && saved.lastModified === originalFile().lastModified
+        && Date.parse(saved.expiresAt) - Date.parse(saved.createdAt) === 7 * 24 * 60 * 60 * 1000
         && saved.state === 'unsent' && saved.attempt === null, 'Unexpected persisted authority or row fields');
       const review = await first.controller.review(id, new AbortController().signal);
       const afterReview = (await first.store.read())[0];
@@ -201,8 +206,16 @@ async function execute(name) {
       const id = await saveOne(first.controller);
       const review = await first.controller.review(id, new AbortController().signal);
       const submission = await first.controller.beginAttempt(review.token, { confirmed: true }, new AbortController().signal);
+      const witness = makeController();
+      const marked = (await witness.store.read()).find(row => row.id === id);
+      assert(marked?.state === 'outcome-unknown' && marked.attempt
+        && JSON.stringify(Object.keys(marked.attempt).sort()) === JSON.stringify(['idempotencyKey', 'requestId', 'startedAt'])
+        && Number.isFinite(Date.parse(marked.attempt.startedAt)),
+      'Independent IndexedDB connection did not see the exact marker before handoff');
+      witness.controller.close();
       const intent = submission.takeForForegroundSubmit();
-      assert(intent.requestId && intent.idempotencyKey, 'Attempt handoff lacked synthetic correlation values');
+      assert(marked.attempt.requestId === intent.requestId && marked.attempt.idempotencyKey === intent.idempotencyKey,
+        'Committed pre-handoff marker differs from the handed-off intent');
       first.controller.close();
       const reopened = makeController();
       const callsBeforeReview = { refreshBoundary: reopened.calls.refreshBoundary, loadPlace: reopened.calls.loadPlace };
