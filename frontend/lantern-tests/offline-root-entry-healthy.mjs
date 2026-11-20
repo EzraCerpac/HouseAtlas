@@ -439,6 +439,23 @@ try {
   await foreignPage.removeSavedShell(first.buildId); assert.equal(foreignAPI.registrations.get(origin + '/'), foreign);
   cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-prunes-older-builds');
 
+  // Before asset pins, the installed shell cached only its marker and responses.
+  const legacyStorage = cacheStorage(), legacyBuild = hash('generated legacy shell');
+  const legacyCache = await legacyStorage.open(prefix + legacyBuild);
+  const legacyBytes = '/* generated legacy PDF worker */';
+  const legacyWorker = `/assets/pdf.worker.min-${hash(legacyBytes).slice(0, 8)}.js`;
+  await legacyCache.put('/saved/.verified-shell', new Response(legacyBuild, { headers: { 'x-installed-at': String(++clock) } }));
+  await legacyCache.put(legacyWorker, new Response(legacyBytes, { headers: { 'content-type': 'text/javascript' } }));
+  await legacyCache.put('/assets/legacy.js', new Response('unversioned'));
+  const update = workerRuntime(second, 'saved', legacyStorage, async input => second.responses.get(new URL(input).pathname).clone());
+  await update.lifecycle('install'); await update.lifecycle('activate');
+  const updatedOffline = workerRuntime(second, 'saved', legacyStorage, () => { throw new TypeError('Generated network unavailable'); });
+  assert.equal(await (await updatedOffline.fetchEvent(request(legacyWorker, { mode: 'cors' }))).text(), legacyBytes);
+  assert.equal(updatedOffline.fetchEvent(request('/assets/legacy.js', { mode: 'cors' })), null);
+  assert.equal(updatedOffline.fetchEvent(request(legacyWorker + '?other', { mode: 'cors' })), null);
+  assert.equal(updatedOffline.calls.length, 0);
+  cases.push('upgrade-serves-legacy-hashed-pdf-worker-offline');
+
   // Three deploys after the first launch leave only the current and previous
   // shells, and the root entry still hands off to the current verified one.
   const third = generatedBuild('third'), fourth = generatedBuild('fourth');

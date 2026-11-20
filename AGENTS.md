@@ -94,8 +94,9 @@ The synthetic deploy suite has 64 methods.
 Its union, rollback and prune fixtures check hashed Saved PDF worker retention.
 The union and standalone rollback reject symlinks in generated frontend trees.
 The rollback fixtures also check interrupted copies and same-name conflicts.
-The existing Saved worker source case checks retained hashed URLs and verifies
-that changed bytes are refused and a reactivated shell survives the next update.
+The existing Saved worker source case checks retained hashed URLs with and
+without a pin table, refuses changed pinned bytes and verifies that a
+reactivated shell survives the next update.
 
 The default backend-library lane includes four generated mounted MCP cases
 under `http::agents::mounted_evidence_controls::`:

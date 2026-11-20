@@ -113,16 +113,21 @@ self.addEventListener('fetch', event => {
       return verified(await cache.match(url), pin);
     }
     // A new controller can still receive lazy requests from an older document.
-    // Use only exact pins from a completed public cache. Fixed URLs stay current.
+    // Fixed URLs stay current. Prefer pins when a retained build recorded them.
     for (const name of await caches.keys()) {
       if (!name.startsWith(PREFIX) || name === NAME) continue;
       try {
         const cache = await caches.open(name), marker = await cache.match(MARKER);
         if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
-        const pins = await (await cache.match(ASSET_PINS))?.json();
-        const previous = pins?.find(row => row.path === url.pathname);
+        const pins = await cache.match(ASSET_PINS);
+        if (!pins) {
+          const legacy = await cache.match(url);
+          if (legacy) return legacy;
+          continue;
+        }
+        const previous = (await pins.json()).find(row => row.path === url.pathname);
         if (previous) return await verified(await cache.match(url), previous);
-      } catch { /* This cache has no verified answer. */ }
+      } catch { /* This cache has no usable answer. */ }
     }
     return fetch(request);
   })());
