@@ -169,9 +169,12 @@ The existing `unified-atlas-electrical-group-healthy.mjs` source entry runs one
 generated room-placement ledger through the actual documentary projector,
 drawing-group join and room-marker index. Receipt-bound members join their
 rooms; an unresolved source component and an unmapped region stay unplaced.
-Ten stale or withdrawn joins leave the same inventory unplaced with the
-unverified qualification, and group selection highlights only rooms still
-joined. The existing registration fixture file also checks that a retained
+Ten stale or withdrawn joins keep the same four-record inventory. In seven
+(receipt, saved-versus-current join and no-binding variants) every record is
+unplaced and nothing is highlighted. In three (replaced native place,
+retargeted region, unselectable occurrence) only the affected hall member is
+unplaced and the living-room member stays placed and highlighted. Unplaced
+records keep the unverified qualification. The existing registration fixture file also checks that a retained
 withdrawal is scoped to its feature, workspace and home. The offline
 registration helper is not consumed by the Atlas, so no registered placement
 reaches this view. Generated data only; no browser, native service or private

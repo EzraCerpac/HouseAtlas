@@ -3717,12 +3717,14 @@ unavailable.
 The same file then checks room placement of one generated ledger through the
 actual documentary projector, drawing-group join and room-marker index (#299).
 Receipt-bound members join their rooms; an unresolved source component and an
-unmapped region stay unplaced. Each of ten stale or withdrawn joins (withdrawn,
-changed or foreign room receipt, absent ledger receipt, saved identity join in a
-current frame, current join in a saved snapshot, replaced native place, retargeted
-region, unselectable occurrence, no binding) leaves the same inventory, unplaced
-with the existing unverified qualification, and group selection highlights only
-rooms still joined. The offline registration helper is not consumed by the
+unmapped region stay unplaced. Ten stale or withdrawn joins keep the same
+four-record inventory, and unplaced records keep the existing unverified
+qualification. Seven leave every record unplaced with nothing highlighted
+(withdrawn, changed or foreign room receipt, absent ledger receipt, saved
+identity join in a current frame, current join in a saved snapshot, no binding).
+Three (replaced native place, retargeted region, unselectable occurrence)
+unplace only the affected hall member; the living-room member stays placed and
+group selection highlights only that room. The offline registration helper is not consumed by the
 Atlas, so no registered placement reaches this view.
 
 None of this mounts the Atlas, issues a current circuit or exercises a native
