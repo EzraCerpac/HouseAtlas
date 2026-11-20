@@ -83,7 +83,7 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
   const heading = <h4 tabIndex={-1} ref={head}>Internet speed{label && <span className="ua-note">{label}</span>}</h4>, name = label ? `Internet speed, ${label}` : 'Internet speed';
   // A refresh reported quarantine, or its re-read failed and retired the results: only its answer shows.
   if (refreshWithheld(snapshot, scope) || refreshRetired(snapshot, scope)) return <section className="ua-net-speed" aria-label={name}>{heading}
-    <dl className="ua-facts"><DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} /></dl></section>;
+    <DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} /></section>;
   if (!read?.results) return null;
   const { wifi } = read.results, speed = speedWithTests(read.results.speed, snapshot.speedRuns.get(scopeKey(scope)) ?? []);
   const spark = speedSparkline(speed.recent), busy = snapshot.running !== null, shown = latestSpeed(speed.latest, speed.recent);
@@ -101,23 +101,25 @@ export function InternetSpeed({ collector, scope, label, mismatches = [] }: { re
           {spark.dots.map(([x, y]) => <circle key={`${x},${y}`} className="ua-net-spark-dot" cx={x} cy={y} r={1.5} />)}
         </svg>}</dd></div>
       {read.retrievedAt && <div><dt>Retrieved</dt><dd><InlineTime value={read.retrievedAt} /></dd></div>}
-      {/* The same key in both branches keeps this row (and its focus state) when the other rows are withheld. */}
-      <DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} />
     </dl>
     {collector.port.canTest() && <>
       <button type="button" className="btn btn-small" aria-disabled={busy} onClick={() => { if (!busy) collector.store.run(scope, { kind: 'speed' }); }}>Test speed now</button>
       <Answer collector={collector} scope={scope} action={{ kind: 'speed' }} own={action => action.kind === 'speed'} brief={shownAbove} />
     </>}
     {wifi.latest && <p className="ua-net-wifi">Wi-Fi scan unavailable on this collector</p>}
+    {/* The same key in both branches keeps this disclosure (and its focus state) when the other rows are withheld. */}
+    <DeviceListRefresh key="device-list" collector={collector} scope={scope} snapshot={snapshot} mismatches={mismatches} fallback={head} />
   </section>;
 }
 
-/** The device-list refresh, beside the collector's retrieval: only for a
- * caller the results name as a refresh Editor (`mayRefresh`), and only while
+/** The device-list refresh, closed under the source's speed block: only for
+ * a caller the results name as a refresh Editor (`mayRefresh`), and only while
  * the collector's device list differs from the one served, or to keep this
  * browser's latest answer in view. A changed list that needs review first
  * offers no control. One POST per press; a refreshed answer re-reads the
- * results once, and the control goes when they say the lists agree. */
+ * results once, and the control goes when they say the lists agree. Opening
+ * it reads and sends nothing; while a press is pending or answered it stays
+ * open, so the answer is not hidden. */
 function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }: { readonly collector: NetworkCollector; readonly scope: CollectorScope; readonly snapshot: CollectorSnapshot;
   readonly mismatches: readonly (string | null)[]; readonly fallback: RefObject<HTMLHeadingElement | null> }) {
   const read = collectorResults(snapshot, scope), key = scopeKey(scope), outcome = snapshot.refreshes.get(key);
@@ -139,7 +141,7 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
   }, [offered]);
   if (!shown) return null;
   const answer = outcome && refreshOutcomeText(outcome);
-  return <div className="ua-net-refresh"><dt>Device list</dt><dd>
+  return <details className="ua-source ua-net-refresh" open={pending || !!outcome}><summary>Device list</summary><div>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
     {offered && <button type="button" className="btn btn-small" aria-disabled={snapshot.refreshing !== null}
       onFocus={() => { focused.current = true; }} onBlur={() => { focused.current = false; }}
@@ -147,5 +149,5 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
     <p className="ua-net-test-answer" role="status" tabIndex={-1} ref={status}>
       {answer && <>{answer.text}<span className="ua-note">{answer.recorded ? 'recorded' : 'answered'} <InlineTime value={answer.at} /></span></>}
     </p>
-  </dd></div>;
+  </div></details>;
 }
