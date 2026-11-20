@@ -4779,9 +4779,55 @@ abort listeners, no stale presentation, retained pending owner work and no
 preview/dispatch retry. The busy case observes the adapter's actual native
 composite signal and its listener registration/removal without replacing signal
 semantics, adding production diagnostics or relying on garbage-collection timing.
-All nineteen cases run through the existing registered bootstrap command;
+The original nineteen cases and the three stock-mount cases below run through
+the existing registered bootstrap command;
 `run-healthy.mjs` and workflow selection are unchanged. This is not qualification
 of native quantity effects, real-person approval, React UI or live providers.
+
+## Agent access synthetic qualification
+
+The existing default `cargo test --locked -p houseatlas-backend --lib`
+discovers four new cases under `http::agents::mounted_evidence_controls::`.
+They use the in-process production router, ordinary generated Editor login,
+actual Access and StockService, and disposable SQLite.
+
+- `mounted_editor_batch_stale_child_refuses_without_partial_commit` checks
+  a correlated canonical `CONFLICT` for a two-child batch with a stale second
+  child, refresh-and-review guidance, readback of both targets, and equal
+  selected records, receipts and audit contents.
+- `mounted_evidence_cursors_distinguish_query_and_access_issuance` checks the
+  original list cursor under another MCP session sharing its login, then the
+  distinct list and history behavior under a fresh login by the same Editor.
+  Changing the filter refuses both cursor types.
+- `mounted_evidence_refuses_wrong_scope_and_invalid_input` checks workspace
+  and home route and envelope refusals, anonymous invocation refusal,
+  wrong-typed and unknown fields, and the mounted 64 KiB HTTP body ceiling.
+  A valid request subsequently succeeds with the original MCP session.
+- `mounted_cached_homebox_list_requires_current_partition_grant` compares
+  admitted cached entity-list results to the native owner and verifies
+  refusal after the fixture disables current Access to the retained partition.
+
+The existing `node frontend/lantern-tests/webmcp-adapter-healthy.mjs` command
+bundles the production stock mount and family binding.
+It additionally runs three named cases using fictional session DTOs,
+the shared Ajv schemas and fake dispatch, browser registration, presentation,
+and download ports:
+
+- `stock admission refuses wrong scope, invalid envelopes and unadmitted batch children before dispatch`
+- `stock replacement withholds delayed results and returns canonical unknown only after presentation`
+- `stock download presents only same-origin paths with a valid owner lifetime`
+
+These check admitted-and-bound discovery, zero owner calls on refused inputs,
+the same admission for batch children at discovery and invocation, one current
+registration through a context change, an owner-supplied `unknown-held` batch
+response before and after visible acknowledgement, and same-origin download
+presentation with a bounded owner lifetime.
+The frontend bootstrap has 22 cases total.
+No CI run step, bridge selection or browser command changes.
+This qualifies a local atomic refusal and fake unknown-result presentation.
+Provider partial or unknown effects, byte transfer during WebMCP presentation,
+installed authority, runtime browser registration and operator acceptance
+remain separate.
 
 ## PR lane selection (26 October 2026)
 

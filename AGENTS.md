@@ -66,6 +66,18 @@ The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
 not here. A PR that extends CI names the added scope in the verification guide.
 
+The default backend-library lane includes four generated mounted MCP cases
+under `http::agents::mounted_evidence_controls::`:
+`mounted_editor_batch_stale_child_refuses_without_partial_commit`,
+`mounted_evidence_cursors_distinguish_query_and_access_issuance`,
+`mounted_evidence_refuses_wrong_scope_and_invalid_input`, and
+`mounted_cached_homebox_list_requires_current_partition_grant`.
+The existing WebMCP bootstrap also runs three stock-mount cases for admission
+and input refusal, replacement and unknown completion, and download presentation.
+They use only disposable in-process owners or fake frontend ports.
+The [case ledger](docs/contributing/verification.md#agent-access-synthetic-qualification)
+records their exact evidence and limits.
+
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the
 shared setup action downloads it, verifies its recorded SHA-256 and reported

@@ -96,6 +96,15 @@ fn history(context: &Value, serial: u32) -> Value {
         "payload":{"cursor":null,"pageSize":1,"includeArchived":false,"q":"atlas.evidence."}})
 }
 
+fn batch(context: &Value, children: &[Value], serial: u32) -> Value {
+    json!({"schemaVersion":3,"commandId":"atlas.batch.execute",
+        "requestId":id(serial),"context":context,
+        "target":{"authority":"atlas","kind":"batch","batchId":id(serial + 2)},
+        "payload":{"commands":children},"idempotencyKey":id(serial + 1),
+        "reason":"Generated mounted ordered evidence batch","approvalReceiptId":null,
+        "preconditions":{"target":null,"guards":[]}})
+}
+
 fn validate_response(
     validation: &wire::StockValidation,
     request: &Value,
@@ -362,7 +371,12 @@ impl Fixture {
         // the genuine Editor could commit that mutation through native dispatch.
         assert!(matches!(
             request["commandId"].as_str(),
-            Some("atlas.evidence.get" | "atlas.evidence.list" | "atlas.evidence.history")
+            Some(
+                "atlas.evidence.get"
+                    | "atlas.evidence.list"
+                    | "atlas.evidence.history"
+                    | "homebox.entity.list"
+            )
         ));
         let core = self.host.core.lock().map_err(|_| "Core unavailable")?;
         let result = stock_dispatch::execute(
@@ -541,12 +555,9 @@ impl<'a> Mounted<'a> {
     }
 
     async fn call(&mut self, request: &Value) -> Result<Value, Failure> {
-        wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
+        let parsed = wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
         let reply = self
-            .rpc(
-                "tools/call",
-                json!({"name":"atlas_records","arguments":request}),
-            )
+            .stock_call(wire::operation(parsed.id())?.tool_family.as_str(), request)
             .await?;
         assert!(reply.get("error").is_none());
         let result = &reply["result"];
@@ -564,6 +575,28 @@ impl<'a> Mounted<'a> {
             .ok_or("Missing actual structured result")?;
         assert_eq!(&text, raw);
         Ok(raw.clone())
+    }
+
+    async fn stock_call(&mut self, family: &str, request: &Value) -> Result<Value, Failure> {
+        self.rpc("tools/call", json!({"name":family,"arguments":request}))
+            .await
+    }
+
+    async fn stock_failure(&mut self, request: &Value) -> Result<Value, Failure> {
+        let parsed = wire::StockRequest::parse(&self.fixture.validation, request.clone())?;
+        let reply = self
+            .stock_call(wire::operation(parsed.id())?.tool_family.as_str(), request)
+            .await?;
+        assert!(reply.get("error").is_none());
+        let result = &reply["result"];
+        assert_eq!(result["isError"], true);
+        let failure = &result["structuredContent"];
+        wire::StockResponse::parse(&self.fixture.validation, &parsed, failure.clone(), &[])?;
+        assert_eq!(
+            result["content"],
+            json!([{"type":"text","text":failure.to_string()}])
+        );
+        Ok(failure.clone())
     }
 
     async fn read(&mut self, request: &Value) -> Result<Value, Failure> {
@@ -977,12 +1010,7 @@ async fn mounted_editor_ordered_evidence_batch_retains_child_receipts() -> Resul
         mutation(&fixture.context, numbers[0], "create", None, 91_010),
         mutation(&fixture.context, numbers[1], "create", None, 91_020),
     ];
-    let batch = json!({"schemaVersion":3,"commandId":"atlas.batch.execute",
-        "requestId":id(91_000),"context":fixture.context,
-        "target":{"authority":"atlas","kind":"batch","batchId":id(91_002)},
-        "payload":{"commands":children},"idempotencyKey":id(91_001),
-        "reason":"Generated mounted ordered evidence batch","approvalReceiptId":null,
-        "preconditions":{"target":null,"guards":[]}});
+    let batch = batch(&fixture.context, &children, 91_000);
     let tools = mounted.rpc("tools/list", json!({})).await?;
     let records = tools["result"]["tools"]
         .as_array()
@@ -1070,5 +1098,212 @@ async fn mounted_editor_ordered_evidence_batch_retains_child_receipts() -> Resul
     assert_eq!(audit_ids, expected_audits);
     assert_eq!(root["data"]["auditIds"], json!(audit_ids));
     assert_eq!(fixture.facts()?, after_commit);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_editor_batch_stale_child_refuses_without_partial_commit() -> Result<(), Failure> {
+    let fixture = Fixture::with_profile(McpCommandProfile::ExistingEditorCommands)?;
+    let editor = fixture.login("editorLogin").await?;
+    let seeded = mutation(&fixture.context, PRIMARY, "create", None, 92_010);
+    fixture.commit(&editor, &seeded).await?;
+    let before = fixture.facts()?;
+    let mut mounted = Mounted::open(&fixture, &editor).await?;
+    let fresh = mutation(&fixture.context, 42_003, "create", None, 92_020);
+    let stale = mutation(&fixture.context, PRIMARY, "tombstone", Some(2), 92_030);
+    let request = batch(&fixture.context, &[fresh, stale], 92_000);
+    let refusal = mounted.stock_failure(&request).await?;
+    assert_eq!(refusal["requestId"], request["requestId"]);
+    assert_eq!(refusal["code"], "CONFLICT");
+    assert_eq!(refusal["retry"], "refresh-and-review");
+    assert_eq!(refusal["operationId"], Value::Null);
+    assert_eq!(fixture.facts()?, before);
+
+    let present = mounted
+        .read(&get(&fixture.context, PRIMARY, 92_040))
+        .await?;
+    assert_eq!(
+        present["data"]["records"],
+        json!([record(PRIMARY, 1, "active")])
+    );
+    let absent = mounted
+        .stock_failure(&get(&fixture.context, 42_003, 92_041))
+        .await?;
+    assert_eq!(absent["code"], "RESOURCE_UNAVAILABLE");
+    assert_eq!(fixture.facts()?, before);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_evidence_cursors_distinguish_query_and_access_issuance() -> Result<(), Failure> {
+    let fixture = Fixture::new()?;
+    let editor = fixture.login("editorLogin").await?;
+    let (records, setup) = seed(&fixture, &editor).await?;
+    let events = fixture.committed_events(&setup)?;
+    let before = fixture.facts()?;
+    let mut original = Mounted::open(&fixture, &editor).await?;
+    let mut list = list(&fixture.context, true, 93_001);
+    let mut history = history(&fixture.context, 93_002);
+    for request in [&mut list, &mut history] {
+        let first = original.read(request).await?;
+        let cursor = first["data"]["nextCursor"]
+            .as_str()
+            .ok_or("Missing first-page cursor")?;
+        request["payload"]["cursor"] = json!(cursor);
+    }
+
+    let mut same_issuance = Mounted::open(&fixture, &editor).await?;
+    assert_ne!(same_issuance.session, original.session);
+    let next = same_issuance.read(&list).await?;
+    assert_eq!(next["data"]["records"], json!([records[1]]));
+
+    let fresh_login = fixture.login("editorLogin").await?;
+    assert_ne!(fresh_login.cookie, editor.cookie);
+    let mut fresh = Mounted::open(&fixture, &fresh_login).await?;
+    let failure = fresh.stock_failure(&list).await?;
+    assert_eq!(failure["code"], "INVALID_ARGUMENT");
+    let next = fresh.read(&history).await?;
+    assert_eq!(next["data"]["entries"], json!([events[1]]));
+
+    for mut changed in [list, history] {
+        changed["payload"]["q"] = json!("changed query");
+        let failure = same_issuance.stock_failure(&changed).await?;
+        assert_eq!(failure["code"], "INVALID_ARGUMENT");
+        assert_eq!(failure["operationId"], Value::Null);
+    }
+    assert_eq!(fixture.facts()?, before);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_evidence_refuses_wrong_scope_and_invalid_input() -> Result<(), Failure> {
+    let fixture = Fixture::with_profile(McpCommandProfile::ExistingEditorCommands)?;
+    let editor = fixture.login("editorLogin").await?;
+    let mut mounted = Mounted::open(&fixture, &editor).await?;
+    let before = fixture.facts()?;
+    let request = mutation(&fixture.context, PRIMARY, "create", None, 94_000);
+    let call = json!({"jsonrpc":"2.0","id":"refusal","method":"tools/call",
+        "params":{"name":"atlas_records","arguments":request}});
+    for (workspace, home) in [(id(99), id(2)), (id(1), id(99))] {
+        let mut foreign = request.clone();
+        foreign["context"] = json!({"workspaceId":workspace,"homeId":home});
+        wire::StockRequest::parse(&fixture.validation, foreign.clone())?;
+        let reply = mounted.stock_call("atlas_records", &foreign).await?;
+        assert_eq!(
+            reply["result"],
+            json!({"isError":true,"content":[{
+            "type":"text","text":"not-found: Resource unavailable"}]})
+        );
+
+        let endpoint = format!("/api/atlas/mcp/workspaces/{workspace}/homes/{home}");
+        for (message, session) in [
+            (initialize(json!("foreign-init")), None),
+            (call.clone(), mounted.session.as_deref()),
+        ] {
+            let reply = fixture
+                .exchange(
+                    Method::POST,
+                    &endpoint,
+                    Some(&message),
+                    Some(&editor),
+                    session,
+                )
+                .await?;
+            assert_eq!(reply.status, StatusCode::NOT_FOUND);
+            assert!(!reply.headers.contains_key("mcp-session-id"));
+            assert_eq!(reply.json()?["error"]["code"], -32000);
+        }
+    }
+    let anonymous = fixture
+        .exchange(
+            Method::POST,
+            &fixture.endpoint,
+            Some(&call),
+            None,
+            mounted.session.as_deref(),
+        )
+        .await?;
+    assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(anonymous.json()?["error"]["code"], -32001);
+
+    for (field, invalid) in [("statement", json!(17)), ("unknownField", json!(true))] {
+        let mut malformed = request.clone();
+        malformed["payload"][field] = invalid;
+        let reply = mounted.stock_call("atlas_records", &malformed).await?;
+        assert_eq!(
+            reply["result"],
+            json!({"isError":true,"content":[{
+            "type":"text","text":"invalid-contract: Stock request validation failed"}]})
+        );
+    }
+    let mut oversized = call;
+    oversized["params"]["arguments"]["payload"]["statement"] = json!("x".repeat(64 * 1024));
+    let reply = fixture
+        .exchange(
+            Method::POST,
+            &fixture.endpoint,
+            Some(&oversized),
+            Some(&editor),
+            mounted.session.as_deref(),
+        )
+        .await?;
+    assert_eq!(reply.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(reply.json()?["error"]["code"], -32600);
+    assert_eq!(fixture.facts()?, before);
+
+    // The original session and exact unmodified intent still reach the owner.
+    let success = mounted.commit(&request).await?;
+    assert_eq!(
+        success["data"]["records"],
+        json!([record(PRIMARY, 1, "active")])
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mounted_cached_homebox_list_requires_current_partition_grant() -> Result<(), Failure> {
+    let fixture = Fixture::new()?;
+    let editor = fixture.login("editorLogin").await?;
+    let principal = fixture.principal(&editor, a::Role::Editor)?;
+    let before = fixture.facts()?;
+    let mut mounted = Mounted::open(&fixture, &editor).await?;
+    let mut request = json!({"schemaVersion":3,"commandId":"homebox.entity.list",
+        "requestId":id(95_000),"context":fixture.context,
+        "target":{"authority":"homebox","sourceInstanceId":id(10),
+            "collectionId":"synthetic-collection-a","resourceKind":"entity"},
+        "payload":{"cursor":null,"pageSize":100,"includeArchived":false}});
+    let actual = mounted.read(&request).await?;
+    assert_eq!(actual, fixture.native_read(&principal, &request)?);
+    assert!(!actual["data"]["resources"].as_array().unwrap().is_empty());
+
+    // Keep the registered cache in SQLite and remove only its current Access
+    // entitlement in this disposable fixture.
+    let partition = a::SourcePartition {
+        workspace_id: fixture.scope.workspace_id.clone(),
+        home_id: fixture.scope.home_id.clone(),
+        source_instance_id: a::CanonicalId::parse(&id(10))?,
+        collection_id: "synthetic-collection-a".into(),
+    };
+    {
+        let core = fixture.host.core.lock().map_err(|_| "Core unavailable")?;
+        let mut access = core.access.lock().map_err(|_| "Access unavailable")?;
+        assert!(
+            access
+                .authorize_source_partition(&principal, &partition)
+                .is_ok()
+        );
+        access.set_source_enabled(&partition, false)?;
+        assert!(matches!(
+            access.authorize_source_partition(&principal, &partition),
+            Err(a::AccessError::NotFound)
+        ));
+    }
+    request["requestId"] = json!(id(95_001));
+    let failure = mounted.stock_failure(&request).await?;
+    assert_eq!(failure["requestId"], request["requestId"]);
+    assert_eq!(failure["code"], "RESOURCE_UNAVAILABLE");
+    assert_eq!(failure["retry"], "none");
+    assert_eq!(failure["operationId"], Value::Null);
+    assert_eq!(fixture.facts()?, before);
     Ok(())
 }

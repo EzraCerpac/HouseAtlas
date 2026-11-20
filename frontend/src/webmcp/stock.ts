@@ -78,8 +78,16 @@ export function mountStockWebMcp(options: StockMountOptions): WebMcpHandle {
     schemas.validate(family.inputSchema, input);
     const request = input as StockRequestEnvelope;
     const current = sessions.getContext(session);
-    if (!family.commandIds.includes(request.commandId) || !current.commandIds.includes(request.commandId))
+    const admitted = current.commandIds;
+    if (!family.commandIds.includes(request.commandId) || !admitted.includes(request.commandId))
       throw new TypeError("Command is not in the current host tool catalog");
+    if (request.commandId === "atlas.batch.execute") {
+      // The shared schema limits children to canonical non-batch commands.
+      // Apply the same current admission filter as the published batch schema.
+      const children = request.payload["commands"] as readonly StockRequestEnvelope[];
+      if (children.some(child => !admitted.includes(child.commandId)))
+        throw new TypeError("Batch child is not in the current host tool catalog");
+    }
     if (!sameScope(request.context, current.scope)) throw new TypeError("Stock request context differs from selected scope");
     return clone(request);
   };

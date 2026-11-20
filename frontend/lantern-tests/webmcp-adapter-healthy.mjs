@@ -17,7 +17,7 @@ let signal = null;
 try {
   writeFileSync(join(namespace, 'package.json'), '{"type":"module"}\n', { flag: 'wx' });
   for (const [entry, filename] of [['index.ts', 'index.js'], ['quantity/tool.ts', 'quantity.js'],
-    ['quantity/QuantityHandoff.tsx', 'quantity-custody.js']]) {
+    ['quantity/QuantityHandoff.tsx', 'quantity-custody.js'], ['coverage/families.ts', 'families.js']]) {
     const built = await build({ root: frontend, configFile: false, logLevel: 'warn',
       build: { write: false, target: 'node26',
         lib: { entry: fileURLToPath(new URL(`../src/webmcp/${entry}`, import.meta.url)), formats: ['es'] },
