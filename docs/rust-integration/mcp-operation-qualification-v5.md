@@ -61,7 +61,7 @@ dispatch is `http/agents/stock_dispatch.rs`, native stock read/mutation owners,
 configured `homebox_native` and saved `stock_network_reads`. `NativeCatalog`
 filters input arms and recursively checks every batch child; `OperationMapping`
 joins the published/domain catalogs without enabling an operation. The matrix
-pins its 67 reviewed inputs by SHA-256.
+pins its 68 reviewed inputs by SHA-256.
 The reinspection notes identify the commits for refreshed inputs.
 
 ## Concrete findings and disposition
@@ -267,6 +267,33 @@ The source inventory refreshes the two reviewed issuer and fixture pins.
 The fixture uses one generated asset and tests a request arriving at expiry.
 Expiry during delivery, session expiry/revocation, process restart,
 other formats, browser behavior, and installed acceptance remain open.
+
+## Mounted MCP and stock WebMCP synthetic qualification
+
+The named cases below record current source separately from the historical
+PASS registry, using public main `71f86348` as the implementation baseline.
+The default library and existing source-only WebMCP bootstrap discover them.
+The backend cases use the production in-process router and generated accounts
+with disposable SQLite. The frontend cases run the production stock mount and
+family binding with the shared stock schemas and fake ports.
+
+| Issue criterion and operation | Profile | Named case | Disposition and boundary |
+| --- | --- | --- | --- |
+| #288 atomic batch failure and readback, `atlas.batch.execute` | E | [`mounted_editor_batch_stale_child_refuses_without_partial_commit`](../../backend/src/http/agents/mounted_evidence_controls.rs) | Canonical root `CONFLICT` for a stale second child, both targets checked, selected factual tables equal. Real provider partial effects remain open. |
+| #288 pagination/history and #289 fresh identity, `atlas.evidence.list` / `.history` | M | [`mounted_evidence_cursors_distinguish_query_and_access_issuance`](../../backend/src/http/agents/mounted_evidence_controls.rs) | A fresh login refuses the list cursor and changed filters refuse both cursors before either is used successfully. With the original filter, the same list cursor works under another MCP session with the original cookie and the same history cursor works under a fresh login by the same Editor. #533 continues to own old-session non-rebinding. |
+| #288 bounded input and #289 scope, `atlas.evidence.create` | E | [`mounted_evidence_refuses_wrong_scope_and_invalid_input`](../../backend/src/http/agents/mounted_evidence_controls.rs) | Anonymous and foreign route refusal, wrong workspace/home in the envelope, wrong-typed and extra fields, and oversized declared-length refusal above 64 KiB. Refusals leave selected records/audit/receipt tables equal. A subsequent valid call uses the same session. |
+| #288 cached read parity and #289 missing grant, `homebox.entity.list` | M | [`mounted_cached_homebox_list_requires_current_partition_grant`](../../backend/src/http/agents/mounted_evidence_controls.rs) | Authorized saved entities match native readback. Disabling Access to the retained partition causes a correlated refusal in the same MCP session with the same request target. Configured source and provider access remain open. |
+| #288 operation admission/limits and #289 scope, `atlas.evidence.list` / `.create` / `.tombstone`, `atlas.batch.execute`, `homebox.field.list` | W | [`stock admission refuses wrong scope, invalid envelopes and unadmitted batch children before dispatch`](../../frontend/src/webmcp/healthy.examples.mjs) | Fake current admission intersects the existing executable binding. The unbound HomeBox arm stays unavailable. The batch remains admitted after context replacement, but a mixed batch with the now-unadmitted second child reaches no dispatch owner. Foreign scope and invalid list fields also reach no dispatch owner. |
+| #288 delayed/unknown batch completion and #289 context replacement, `atlas.batch.execute` / `atlas.evidence.list` | W | [`stock replacement withholds delayed results and returns canonical unknown only after presentation`](../../frontend/src/webmcp/healthy.examples.mjs) | Preserves a fake owner's correlated `unknown-held` result and reconciliation direction, with no retry. Replacement withholds the delayed result and exposes the new read-only catalog. This does not create a durable unknown operation. |
+| #288 media resolution, `atlas.asset.download` | W | [`stock download presents only same-origin paths with a valid owner lifetime`](../../frontend/src/webmcp/healthy.examples.mjs) | Exact canonical result survives a fake resolution port. Same-origin path with a five-minute budget is presented. Cross-origin and out-of-budget candidates supply no link. Native byte transfer and expiry remain separately evidenced by M34 and the exact-deadline case above. |
+| #288 remap hold, `atlas.binding.remap` | L / E | [M33 and mounted Editor discovery](#concrete-findings-and-disposition) | Held. The existing native test refuses direct and mixed-batch remap, including a supplied but unproven receipt. The mounted profile omits the arm. A genuine approval issuer and atomic consumption remain owner work. |
+
+Reinspection adds the mounted evidence fixture source pin and refreshes the
+three changed WebMCP pins. Invocation now checks each batch child against the
+current host admission already used by the discovery schema.
+Shared domain authorization and the historical evidence entries stay intact.
+Installed/configured scope, real provider effects, browser/device acceptance,
+and the operator disable/recovery handoff remain open or deferred.
 
 ## Maintaining the snapshot and advancing #288
 

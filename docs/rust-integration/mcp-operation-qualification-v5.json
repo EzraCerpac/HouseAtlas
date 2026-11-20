@@ -688,6 +688,10 @@
       "sha256": "315754b1f94f8ba42665dfec57844179756a66c8ee618c9ad6346198ef36da8d"
     },
     {
+      "path": "backend/src/http/agents/mounted_evidence_controls.rs",
+      "sha256": "899dd8802c9ab316935ce9f68dd6ab070a6c2a162167a5364f0603b5eb47ddf9"
+    },
+    {
       "path": "backend/src/http/agents/stock_dispatch.rs",
       "sha256": "fb6358e4c195507f579062e49c93089be10442d347a3333b6d11ffe41ba75564"
     },
@@ -833,7 +837,7 @@
     },
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",
-      "sha256": "07649d778e805861045c7d07a46b9bbc7a88c31d66654a00105512ca6dd14807"
+      "sha256": "c68716d2a71fe0787fa4e6fb935de5a1902d021bc83ba9793a085d93a054989e"
     },
     {
       "path": "frontend/lantern-tests/webmcp-batch-discovery.mjs",
@@ -865,7 +869,7 @@
     },
     {
       "path": "frontend/src/webmcp/healthy.examples.mjs",
-      "sha256": "703744b006293d32356982014213c42b9101c0bc3fc598949b01113d2b4f8a00"
+      "sha256": "0c3dc87e74fd19eaba39d98e29e2d966221e48fd0d16cb53135613f41b440d5c"
     },
     {
       "path": "frontend/src/webmcp/stock-schema.ts",
@@ -873,7 +877,7 @@
     },
     {
       "path": "frontend/src/webmcp/stock.ts",
-      "sha256": "eec7a9d2260f5592327d135e3060810544313a256862a93767e538319e671255"
+      "sha256": "24b752442cd1add8a2c84371d4e4d9189e3c1ea44e0515379900fe9658d5a488"
     },
     {
       "path": "frontend/src/webmcp/useCommittedResult.ts",

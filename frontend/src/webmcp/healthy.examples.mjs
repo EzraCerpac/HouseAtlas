@@ -7,7 +7,8 @@ import { test } from 'node:test';
 
 assert.ok(process.env.HOUSEATLAS_AT39_BUILD, 'Set HOUSEATLAS_AT39_BUILD to the compiled namespace directory');
 const compiled = pathToFileURL(`${process.env.HOUSEATLAS_AT39_BUILD}/`);
-const { startWebMcp, detectModelContext } = await import(new URL('index.js', compiled));
+const { startWebMcp, detectModelContext, mountStockWebMcp } = await import(new URL('index.js', compiled));
+const { bindAtlasService, bindCommandFamilies } = await import(new URL('families.js', compiled));
 const { mountQuantityWebMcp, QUANTITY_TOOL_NAME } = await import(new URL('quantity.js', compiled));
 const { QuantityHandoffs } = await import(new URL('quantity-custody.js', compiled));
 const root = new URL('../../../', import.meta.url);
@@ -173,6 +174,240 @@ function deferred() {
   const promise = new Promise(done => { resolve = done; });
   return { promise, resolve };
 }
+
+const stockId = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const stockScope = { workspaceId: stockId(1), homeId: stockId(2) };
+const evidenceList = 'atlas.evidence.list';
+const evidenceCreate = 'atlas.evidence.create';
+const batchExecute = 'atlas.batch.execute';
+const evidenceTarget = { authority: 'atlas', recordType: 'evidence' };
+const writeFields = { reason: 'Fictional evidence', approvalReceiptId: null,
+  preconditions: { target: null, guards: [] } };
+const stockRequest = (commandId, requestNumber, target, payload, context = stockScope) => ({
+  schemaVersion: 3, commandId, requestId: stockId(requestNumber), context, target, payload,
+});
+const listEvidence = (scope = stockScope) => stockRequest(evidenceList, 20, evidenceTarget,
+  { cursor: null, pageSize: 1, includeArchived: false }, scope);
+const createEvidence = { ...stockRequest(evidenceCreate, 21, { ...evidenceTarget, recordId: stockId(30) }, {
+  statement: 'Fictional observation α', provenance: { source: null, sourceRevision: null,
+    sourceConfidence: null, evidenceBasis: 'unknown', factAt: null, retrievedAt: '2026-01-01T12:00:00Z',
+    vantage: null, uncertainty: { status: 'unknown', explanation: null } },
+  supersedesEvidenceIds: [], references: [],
+}), ...writeFields, idempotencyKey: stockId(31) };
+const batchEvidence = { ...stockRequest(batchExecute, 22,
+  { authority: 'atlas', kind: 'batch', batchId: stockId(32) }, { commands: [createEvidence] }),
+  ...writeFields, idempotencyKey: stockId(33) };
+const readPage = request => ({
+  schemaVersion: 3, commandId: request.commandId, requestId: request.requestId,
+  resolvedScope: request.context, status: 'read', replayed: false, data: {
+    records: [{ target: createEvidence.target, revision: 1, lifecycle: 'active', payload: createEvidence.payload }],
+    nextCursor: null, sourceStatus: 'current',
+  },
+});
+
+function stockHarness({ context, support, dispatch = readPage, commit = () => {}, downloads }) {
+  const agent = read('contracts/client-schemas/agent-ajv.schema.json');
+  if (!ajv.getSchema(agent.$id)) ajv.addSchema(agent);
+  const browser = syntheticBrowser();
+  const sessions = syntheticSession();
+  let current = context;
+  const calls = [];
+  const completions = [];
+  const binding = bindCommandFamilies({ ...sessions, getContext(session) {
+    assert.equal(session.revision, sessions.getSnapshot().revision);
+    return current;
+  } }, bindAtlasService({ async dispatch(request, invocation) {
+    calls.push({ request, invocation });
+    return dispatch(request);
+  } }, support));
+  const handle = mountStockWebMcp({
+    modelContext: browser, sessions: binding.sessions, service: binding.service, downloads,
+    schemas: { validate(ref, value) {
+      const validate = ajv.getSchema(`${agent.$id}${ref}`);
+      assert.ok(validate, ref);
+      if (!validate(value)) throw new TypeError('Invalid canonical stock envelope');
+    } },
+    visible: { async commit(completion, signal) {
+      await commit(completion, signal);
+      completions.push(completion);
+    } },
+  });
+  return { browser, handle, calls, completions, binding, replace(next) {
+    current = next;
+    sessions.set({ state: 'authenticated', revision: 'synthetic-login-2/home-2' });
+  } };
+}
+
+test('stock admission refuses wrong scope, invalid envelopes and unadmitted batch children before dispatch', async () => {
+  const evidenceTombstone = 'atlas.evidence.tombstone';
+  const tombstoneEvidence = {
+    ...stockRequest(evidenceTombstone, 23, { ...evidenceTarget, recordId: stockId(35) }, {}),
+    ...writeFields, idempotencyKey: stockId(36), preconditions: { target: { kind: 'atlas', value: 1 }, guards: [] },
+  };
+  const mixedBatch = { ...batchEvidence, payload: { commands: [tombstoneEvidence, createEvidence] } };
+  const context = { session: { role: 'editor' }, scope: stockScope,
+    commandIds: [evidenceList, evidenceTombstone, evidenceCreate, batchExecute, 'homebox.field.list'] };
+  const harness = stockHarness({
+    context,
+    support: [evidenceList, evidenceTombstone, evidenceCreate, batchExecute],
+    dispatch(request) {
+      assert.equal(request.commandId, evidenceList, 'A refused arm reached the dispatch owner');
+      return readPage(request);
+    },
+  });
+  const { handle, browser, calls, completions, binding } = harness;
+  try {
+    assert.deepEqual(await handle.whenSettled(), { state: 'registered', toolNames: ['atlas_records'] });
+    const tool = browser.tools.get('atlas_records');
+    const validateBrowserInput = ajv.compile(tool.inputSchema);
+    assert.equal(tool.annotations.readOnlyHint, false);
+    assert.equal(binding.coverage().find(row => row.commandId === 'homebox.field.list').state, 'service-unbound');
+    assert.equal(validateBrowserInput(listEvidence()), true);
+    assert.equal(validateBrowserInput(mixedBatch), true);
+    for (const context of [{ ...stockScope, workspaceId: stockId(91) }, { ...stockScope, homeId: stockId(92) }]) {
+      await assert.rejects(tool.execute(listEvidence(context)), /differs from selected scope/);
+    }
+    for (const payload of [{ pageSize: '1' }, { unknownField: true }, { pageSize: 101 }]) {
+      const request = listEvidence();
+      Object.assign(request.payload, payload);
+      assert.equal(validateBrowserInput(request), false);
+      await assert.rejects(tool.execute(request), /Invalid canonical stock envelope/);
+    }
+    harness.replace({ ...context, commandIds: context.commandIds.filter(id => id !== evidenceCreate) });
+    assert.deepEqual(await handle.whenSettled(), { state: 'registered', toolNames: ['atlas_records'] });
+    const replacement = browser.tools.get('atlas_records');
+    assert.notEqual(replacement, tool);
+    assert.equal(binding.coverage().find(row => row.commandId === evidenceCreate).state, 'not-host-admitted');
+    const validateReplacement = ajv.compile(replacement.inputSchema);
+    assert.equal(validateReplacement({ ...mixedBatch, payload: { commands: [tombstoneEvidence] } }), true);
+    assert.equal(validateReplacement(createEvidence), false);
+    await assert.rejects(replacement.execute(createEvidence), /current host tool catalog/);
+    assert.equal(validateReplacement(mixedBatch), false);
+    await assert.rejects(replacement.execute(mixedBatch), /Batch child is not in the current host tool catalog/);
+    assert.deepEqual(calls, []);
+    assert.deepEqual(completions, []);
+
+    assert.deepEqual(await replacement.execute(listEvidence()), readPage(listEvidence()));
+    assert.equal(calls.length, 1);
+    assert.deepEqual(completions[0].result, readPage(listEvidence()));
+  } finally {
+    handle.dispose();
+  }
+});
+
+test('stock replacement withholds delayed results and returns canonical unknown only after presentation', async () => {
+  const delayed = deferred();
+  const readyToPresent = deferred();
+  const presented = deferred();
+  const editor = { role: 'editor' };
+  const viewer = { role: 'viewer' };
+  const newScope = { ...stockScope, homeId: stockId(92) };
+  const current = { session: editor, scope: stockScope, commandIds: [evidenceList, evidenceCreate, batchExecute] };
+  const unknown = { schemaVersion: 3, requestId: batchEvidence.requestId, code: 'unknown-held',
+    message: 'Outcome unknown', retry: 'human-reconciliation', operationId: stockId(34) };
+  const harness = stockHarness({ context: current, support: current.commandIds,
+    dispatch: request => request.commandId === batchExecute ? unknown
+      : request.context.homeId === stockScope.homeId ? delayed.promise : readPage(request),
+    async commit(completion) {
+      if (completion.result.code === 'unknown-held') {
+        readyToPresent.resolve();
+        await presented.promise;
+      }
+    },
+  });
+  const { handle, browser, calls, completions } = harness;
+  try {
+    await handle.whenSettled();
+    const original = browser.tools.get('atlas_records');
+    let returned = false;
+    const write = original.execute(batchEvidence).then(result => { returned = true; return result; });
+    await readyToPresent.promise;
+    assert.equal(returned, false);
+    assert.deepEqual(completions, []);
+    presented.resolve();
+    assert.deepEqual(await write, unknown);
+    assert.deepEqual(completions[0].request, batchEvidence);
+    assert.deepEqual(completions[0].result, unknown);
+
+    const pending = original.execute(listEvidence());
+    const withheld = assert.rejects(pending, { name: 'AbortError' });
+    harness.replace({ session: viewer, scope: newScope, commandIds: [evidenceList] });
+    await handle.whenSettled();
+    const replacement = browser.tools.get('atlas_records');
+    assert.notEqual(replacement, original);
+    assert.equal(browser.tools.size, 1);
+    assert.equal(replacement.annotations.readOnlyHint, true);
+    assert.equal(calls[1].invocation.signal.aborted, true);
+    assert.equal(calls[1].invocation.applicationSession, editor);
+    delayed.resolve(readPage(listEvidence()));
+    await withheld;
+    await assert.rejects(original.execute(listEvidence()), { name: 'InvalidStateError' });
+    await assert.rejects(replacement.execute({ ...createEvidence, context: newScope }), /current host tool catalog/);
+    assert.equal(completions.length, 1);
+    assert.equal(calls.length, 2);
+
+    assert.deepEqual(await replacement.execute(listEvidence(newScope)), readPage(listEvidence(newScope)));
+    assert.equal(calls[2].invocation.applicationSession, viewer);
+    assert.equal(completions[1].sessionRevision, 'synthetic-login-2/home-2');
+  } finally {
+    handle.dispose();
+  }
+  assert.equal(browser.tools.size, 0);
+});
+
+test('stock download presents only same-origin paths with a valid owner lifetime', async () => {
+  const command = 'atlas.asset.download';
+  const target = { authority: 'atlas', recordType: 'asset', recordId: stockId(40) };
+  const request = stockRequest(command, 41, target, {});
+  const result = { schemaVersion: 3, commandId: command, requestId: request.requestId,
+    resolvedScope: stockScope, status: 'read', replayed: false, data: {
+      target, downloadToken: stockId(42), sha256: null, byteSize: 3,
+      contentType: 'text/plain', disposition: 'attachment',
+    } };
+  const sameOrigin = '/api/atlas/media/downloads/generated';
+  const candidates = [
+    [sameOrigin, 300_000, true],
+    ['//other.example.invalid/file', 300_000, false],
+    ['/\\other.example.invalid/file', 300_000, false],
+    [sameOrigin, 0, false],
+    [sameOrigin, 300_001, false],
+  ];
+  const viewer = { role: 'viewer' };
+  let resolutions = 0;
+  const { handle, browser, completions, calls } = stockHarness({
+    context: { session: viewer, scope: stockScope, commandIds: [command] }, support: [command],
+    dispatch: () => result,
+    downloads: { async resolve(name, input, value, context) {
+      assert.equal(name, 'atlas_media_geometry');
+      assert.deepEqual(input, request);
+      assert.deepEqual(value, result);
+      assert.equal(context.applicationSession, viewer);
+      assert.deepEqual(context.scope, stockScope);
+      const [href, remainingMs] = candidates[resolutions++];
+      return { href, lifetime: { remainingMs }, filename: null, mediaType: 'text/plain', label: 'Original' };
+    } },
+  });
+  try {
+    await handle.whenSettled();
+    const tool = browser.tools.get('atlas_media_geometry');
+    for (const [index, [href, , valid]] of candidates.entries()) {
+      assert.deepEqual(await tool.execute(request), result);
+      const completion = completions[index];
+      assert.deepEqual(completion.result, result);
+      if (valid) {
+        assert.equal(completion.download.href, href);
+        assert.ok(Number.isFinite(completion.downloadDeadline));
+      } else {
+        assert.equal(completion.download, null);
+        assert.equal(completion.downloadDeadline, null);
+      }
+    }
+    assert.equal(calls.length, candidates.length);
+    assert.equal(resolutions, candidates.length);
+  } finally {
+    handle.dispose();
+  }
+});
 
 test('disposal fences a late service result without aborting or repeating owner work', async () => {
   const completion = deferred();
