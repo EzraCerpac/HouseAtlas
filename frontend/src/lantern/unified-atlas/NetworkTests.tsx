@@ -132,6 +132,10 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
   const shown = !!collector.port.refresh && !!(read?.mayRefresh || refreshRetired(snapshot, scope)) && (differ || !!outcome || pending);
   const offered = shown && differ && !review;
   const status = useRef<HTMLParagraphElement>(null), wasOffered = useRef(offered), focused = useRef(false);
+  // Closed by default, open while a press is pending or answered: each new answer (or its re-read) opens it again,
+  // even if it was closed while pending. Once an answer shows, the reader may close it.
+  const [open, setOpen] = useState(pending || !!outcome), [answered, setAnswered] = useState(outcome);
+  if (outcome !== answered) { setAnswered(outcome); if (outcome) setOpen(true); }
   // The control leaves when the lists agree or need review; only focus the button itself held moves to the answer,
   // or to the block's heading when permission is withdrawn and the whole row leaves.
   useEffect(() => {
@@ -141,7 +145,7 @@ function DeviceListRefresh({ collector, scope, snapshot, mismatches, fallback }:
   }, [offered]);
   if (!shown) return null;
   const answer = outcome && refreshOutcomeText(outcome);
-  return <details className="ua-source ua-net-refresh" open={pending || !!outcome}><summary>Device list</summary><div>
+  return <details className="ua-source ua-net-refresh" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary>Device list</summary><div>
     {differ && <span>{review ? 'Changed; it needs review before it can be refreshed' : 'Changed, needs a refresh'}</span>}
     {offered && <button type="button" className="btn btn-small" aria-disabled={snapshot.refreshing !== null}
       onFocus={() => { focused.current = true; }} onBlur={() => { focused.current = false; }}
