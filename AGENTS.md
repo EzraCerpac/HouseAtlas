@@ -150,7 +150,7 @@ The existing `unified-atlas-electrical-group-healthy.mjs` source entry runs one
 generated room-placement ledger through the actual documentary projector,
 drawing-group join and room-marker index. Receipt-bound members join their
 rooms; an unresolved source component and an unmapped region stay unplaced.
-Nine stale or withdrawn joins leave the same inventory unplaced with the
+Ten stale or withdrawn joins leave the same inventory unplaced with the
 unverified qualification, and group selection highlights only rooms still
 joined. The existing registration fixture file also checks that a retained
 withdrawal is scoped to its feature, workspace and home. The offline

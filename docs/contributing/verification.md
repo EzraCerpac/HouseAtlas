@@ -3686,7 +3686,7 @@ unavailable.
 The same file then checks room placement of one generated ledger through the
 actual documentary projector, drawing-group join and room-marker index (#299).
 Receipt-bound members join their rooms; an unresolved source component and an
-unmapped region stay unplaced. Each of nine stale or withdrawn joins (withdrawn,
+unmapped region stay unplaced. Each of ten stale or withdrawn joins (withdrawn,
 changed or foreign room receipt, absent ledger receipt, saved identity join in a
 current frame, current join in a saved snapshot, replaced native place, retargeted
 region, unselectable occurrence, no binding) leaves the same inventory, unplaced
