@@ -3714,6 +3714,22 @@ or unqualified room links stay unplaced, and unrecognized codes read as
 unavailable.
 `ElectricalTraceDetail` is rendered to static markup with react-dom/server.
 
+The same file then checks room placement of one generated ledger through the
+actual documentary projector, drawing-group join and room-marker index (#299).
+Receipt-bound members join their rooms; an unresolved source component and an
+unmapped region stay unplaced. Ten stale or withdrawn joins keep the same
+four-record inventory, and unplaced records keep the existing unverified
+qualification. Seven leave every record unplaced with nothing highlighted
+(withdrawn, changed or foreign room receipt, absent ledger receipt, saved
+identity join in a current frame, current join in a saved snapshot, no binding).
+Three (replaced native place, retargeted region, unselectable occurrence)
+unplace only the affected hall member, whose qualification is asserted; the
+living-room member stays placed and is the only room in the grouped members'
+room lists. The check reads those member-room lists; it selects no group, and
+the mounted selection and highlight path is not exercised. The offline
+registration helper is not consumed by the Atlas, so no registered placement
+reaches this view.
+
 None of this mounts the Atlas, issues a current circuit or exercises a native
 host or supplier. The tested state is generated; no electrical test was performed.
 
