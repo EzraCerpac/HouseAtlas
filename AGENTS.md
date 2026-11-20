@@ -60,7 +60,6 @@ and fills the native and electrical libraries through the live entry.
 It measures both held PDF originals on the full-document profile
 and the electrical original on the standard profile before offline reopen.
 Both profiles use generated responses over disposable loopback TLS.
-The runner selection, workflow and synthetic HomeBox fixture are unchanged.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),
@@ -76,6 +75,8 @@ navigation and real worker identities through a resealed public build update.
 Both use disposable profiles and loopback.
 Installed data, actual persistence grants and authorized edit dispatch
 remain outside these cases.
+The existing synthetic deploy union case also checks retained hashed Saved PDF
+workers and same-name collisions in temporary folders.
 
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the

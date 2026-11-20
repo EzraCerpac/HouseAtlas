@@ -106,25 +106,34 @@ class FrontendUnion(unittest.TestCase):
             write(t / "dist/index.html", '<script src="/assets/live-new.js">')
             write(t / "dist/assets/live-new.js", "new")
             write(t / "dist/assets/shared.js", "same")
+            write(t / "dist/saved/pdf.worker.min-New_hash.js", "new worker")
+            write(t / "dist/saved/service-worker.js", "new shell")
             write(t / "live/index.html", '<script src="/assets/live-old.js">')
             write(t / "live/assets/live-old.js", "old")
             write(t / "live/assets/shared.js", "same")
             write(t / "live/old-page.html", "gone")
+            write(t / "live/saved/pdf.worker.min-Old_hash.js", "previous worker")
+            write(t / "live/saved/service-worker.js", "previous shell")
+            write(t / "live/saved/other.js", "gone")
             r = dn.union_frontend(t / "dist", t / "live", t / "out")
-            self.assertEqual((r["retainedAssets"], r["identicalAssets"], r["droppedNonAssets"]), (1, 1, ["old-page.html"]))
+            self.assertEqual((r["retainedAssets"], r["identicalAssets"], r["droppedNonAssets"]), (2, 1, ["old-page.html", "saved/other.js"]))
             self.assertEqual((t / "out/assets/live-old.js").read_text(), "old")
+            self.assertEqual((t / "out/saved/pdf.worker.min-Old_hash.js").read_text(), "previous worker")
+            self.assertEqual((t / "out/saved/pdf.worker.min-New_hash.js").read_text(), "new worker")
+            self.assertEqual((t / "out/saved/service-worker.js").read_text(), "new shell")
             self.assertEqual((t / "out/index.html").read_text(), '<script src="/assets/live-new.js">')
             self.assertEqual(os.stat(t / "out").st_mode & 0o077, 0)
             self.assertEqual(dn.entry_scripts(t / "out/index.html"), ["assets/live-new.js"])
 
     def test_refuses_a_reused_asset_name_with_new_bytes(self):
-        with tempfile.TemporaryDirectory() as t:
-            t = Path(t)
-            write(t / "dist/assets/a.js", "one")
-            write(t / "live/assets/a.js", "two")
-            with self.assertRaises(dn.DeployError):
-                dn.union_frontend(t / "dist", t / "live", t / "out")
-            self.assertFalse((t / "out").exists())
+        for name in ["assets/a.js", "saved/pdf.worker.min-Shared_hash.js"]:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as t:
+                t = Path(t)
+                write(t / "dist" / name, "one")
+                write(t / "live" / name, "two")
+                with self.assertRaisesRegex(dn.DeployError, "asset name reused with different bytes"):
+                    dn.union_frontend(t / "dist", t / "live", t / "out")
+                self.assertFalse((t / "out").exists())
 
 
 class ModelRelease(unittest.TestCase):

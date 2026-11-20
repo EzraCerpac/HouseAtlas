@@ -271,21 +271,22 @@ def _files(root: Path) -> dict[str, Path]:
 
 
 def union_frontend(dist: Path, live: Path, out: Path) -> dict:
-    """Copy the new build and keep every older top-level hashed asset, so open tabs keep loading."""
+    """Copy the new build and retain older hashed assets needed by open tabs."""
     if out.exists():
         raise DeployError(f"{out} already exists")
     new, old = _files(dist), _files(live)
     shutil.copytree(dist, out)
     retained, identical, dropped = 0, 0, []
     for rel, p in old.items():
+        saved_pdf_worker = re.fullmatch(r"saved/pdf\.worker\.min-[A-Za-z0-9_-]+\.js", rel)
         if rel in new:
-            if rel.startswith("assets/"):
+            if rel.startswith("assets/") or saved_pdf_worker:
                 if sha256_file(p) != sha256_file(new[rel]):
                     shutil.rmtree(out)
                     raise DeployError(f"asset name reused with different bytes: {rel}")
                 identical += 1
             continue
-        if rel.startswith("assets/") and "/" not in rel[len("assets/"):]:
+        if (rel.startswith("assets/") and "/" not in rel[len("assets/"):]) or saved_pdf_worker:
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, out / rel)
             retained += 1
