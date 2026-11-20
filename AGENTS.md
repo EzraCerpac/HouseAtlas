@@ -71,6 +71,8 @@ before the one-use local handoff.
 The existing `synthetic-save-reopen-remove` checks the persisted row fields,
 owner and lifetime alongside exact original bytes and provenance.
 These cases use generated files, fresh browser profiles and loopback fixtures.
+The existing controlled IndexedDB error case also checks that a quota cause
+arriving at transaction abort survives the earlier request error.
 
 The per-lane case ledger (named cases, counts, fixtures and evidence limits)
 lives in the [verification guide](docs/contributing/verification.md#ordinary-lane-case-ledger),

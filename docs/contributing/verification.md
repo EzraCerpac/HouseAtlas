@@ -1041,7 +1041,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
-| ordinary-core / ordinary-core | Run the six controlled-interface draft durability assertions | `node --test --test-concurrency=1 frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs` | every run |  | Six existing production-store assertions through a controlled IDB interface and generated in-memory rows; no real IndexedDB, browser, native service, network, credentials, crash or retention qualification. |
+| ordinary-core / ordinary-core | Run the six controlled-interface draft durability assertions | `node --test --test-concurrency=1 frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs` | every run |  | Six production-store assertions through a controlled IDB interface and generated in-memory rows, including a quota cause arriving at abort after a request error. No real IndexedDB, browser, native service, network, credentials, crash or retention qualification. |
 | ordinary-core / ordinary-core | Build six ordinary modules | `npm run build:ordinary` | every run |  | Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener. |
 | ordinary-core / ordinary-core | Check additive HTTP history schema and valid examples | `node --check packages/contracts/history/check-history.mjs`<br>`npm run check:http:ordinary` | every run |  | Checker syntax, then static compatibility, local schema and fixed valid history-example checks. |
 | ordinary-core / ordinary-core | Run one healthy synthetic Request group | `npm run test:ordinary` | every run |  | One healthy synthetic WHATWG Request group against the JavaScript reference core, with fake GET transports and disposable stores; no socket or provider. |
@@ -1204,15 +1204,15 @@ capability before access, transaction-completion ordering, unsupported
 capabilities without relaxed fallback (including abort throwing/ignored and
 retention of unsent/unknown originals), read-only access after refusal,
 request-success followed by abort, setup failure when abort throws, and error
-followed by late callbacks/completion. The exact file contains six top-level
+followed by late callbacks/completion or a quota cause arriving at abort.
+The exact file contains six top-level
 `it` assertions. Hosted per-test output and the final
 six-test summary establish execution; registration alone is not a pass.
 
 No browser, real IndexedDB, native service, network, credentials or user drafts
 are involved. Controlled-interface behavior is not actual flush, crash/power-loss,
 retention, eviction or device-compatibility qualification. The full controller
-suite and other draft files remain separately selected; this adds no workflow,
-job, directory glob, browser lane or production behavior change.
+suite and other draft files remain separately selected.
 
 ## Generated capture original and draft receipt checks
 
