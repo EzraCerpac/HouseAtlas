@@ -3061,7 +3061,7 @@
   .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
   .lantern-host .ua-snapshot-note { display: none; }
   /* The radio card hangs below the top row, out of its flow. */
-  .lantern-host .ua-scope > .ua-radio { position: absolute; top: calc(100% + 6px); left: 0; width: min(252px, calc(100cqw - 16px)); }
+  .lantern-host .ua-scope > .ua-radio { position: absolute; top: calc(100% + 6px); left: 0; width: min(252px, calc(100vw - 32px)); max-width: none; }
 
   /* Back has its own slim row under the chip, named for where it leads, so
      the chip keeps its whole width and its card hangs from it on screen. */
