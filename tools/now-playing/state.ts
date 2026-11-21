@@ -67,7 +67,12 @@ export class NowPlaying {
   get playing() { return this.state === 'playing'; }
 
   /** Back to "unknown" (startup, pipe EOF). The last track and its own cover are kept; unmatched artwork is not. */
-  reset() { this.state = 'unknown'; this.since = null; this.clearPending(); }
+  /** Returns whether the published content changed. A reattach may be a new session, so `track` waits for new metadata. */
+  reset(): boolean {
+    const before = JSON.stringify(this.content());
+    this.state = 'unknown'; this.since = null; this.seen = false; this.clearPending();
+    return JSON.stringify(this.content()) !== before;
+  }
 
   private clearPending() {
     this.bundle = null; this.picture = null; this.pictureOpen = false; this.pictureRtp = null; this.lastRtp = null;

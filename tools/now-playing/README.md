@@ -19,8 +19,9 @@ SIGTERM/SIGINT stop reading, cancel timers and leave a final `unknown` snapshot.
 
 ## Flags
 
-Exactly two, each an absolute normalized path of at most 4096 characters, and different.
-The snapshot's file name must not look like a cover file (see Snapshot contract).
+Exactly two, each given once, each an absolute normalized path of at most 4096 characters, and different.
+The snapshot's file name must not look like a cover file, ignoring case (see Snapshot contract),
+and the pipe must not be in the snapshot's directory.
 Validation errors use fixed messages without input values.
 
 `--pipe` must be a FIFO created by shairport-sync (`metadata` group, `enabled = "yes"`, `pipe_name`).
@@ -31,7 +32,8 @@ and would get ENXIO if no reader existed, losing that metadata) and never sees e
 when shairport-sync's writer closes or restarts. If the FIFO is missing at startup or a read fails,
 state is `unknown` and the helper retries every second. It polls with `fs.read` into one reused buffer
 (every 100 ms while the pipe is empty) because `net.Socket` does not behave reliably on FIFOs on macOS.
-The snapshot's directory must exist and should be dedicated to the helper (it also holds the cover files);
+The snapshot's directory must exist and should be dedicated to the helper (it also holds the cover files;
+pruning removes only regular files named like covers);
 files are created mode 0600 under umask 077, so the reader must run as the same user.
 
 ## Snapshot contract
@@ -58,6 +60,7 @@ files are created mode 0600 under umask 077, so the reader must run as the same 
 - `track`: the current track while `playing`, otherwise null.
   It is a track committed in the current session only: `pend` and `aend` end a session, and a new session
   without metadata shows `track` null until a title or artist arrives (metadata that arrives before `pbeg` counts).
+  A pipe reattach or a startup retry is treated as a possible new session too.
   Within one session the previous track stays until the next metadata arrives, so `track` can lag a track change.
 - `lastTrack`: the most recent track seen, kept as history across sessions, when stopped or unknown;
   null until a title or artist arrives after the helper first starts.

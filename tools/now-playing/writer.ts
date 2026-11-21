@@ -1,11 +1,13 @@
 import { constants } from 'node:fs';
-import { open, readdir, rename, unlink } from 'node:fs/promises';
+import { lstat, open, readdir, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 // Typical snapshots are well under 1 KiB; the worst case is four 256-code-point texts of four-byte characters.
 export const MAX_SNAPSHOT_BYTES = 8 * 1024;
 export const COVER_NAME = /^cover-[0-9a-f]{64}\.(?:jpg|png)$/;
+// For refusing other paths that could alias a cover name on a case-insensitive file system.
+export const COVER_LIKE = new RegExp(COVER_NAME.source, 'i');
 export type Hooks = { beforeRename?: () => void | Promise<void> };
 
 // A new exclusive 0600 sibling temp file, then a rename over the target: readers see the old or the new complete
@@ -39,12 +41,12 @@ export function coverFiles(dir: string, hooks: Hooks = {}) {
       if (!COVER_NAME.test(name)) throw new Error('Not a cover file name');
       return replace(join(dir, name), bytes, hooks);
     },
-    /** Removes every cover file except `keep`; never touches any other name. Throws after trying all. */
+    /** Removes every regular cover file except `keep`; never touches any other name or file type. Throws after trying all. */
     async prune(keep: string | null): Promise<void> {
       let failure: unknown = null;
       for (const name of await readdir(dir)) {
         if (name === keep || !COVER_NAME.test(name)) continue;
-        try { await unlink(join(dir, name)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failure = error; }
+        try { if ((await lstat(join(dir, name))).isFile()) await unlink(join(dir, name)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failure = error; }
       }
       if (failure) throw failure;
     },

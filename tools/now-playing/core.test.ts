@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { mkdtempSync, writeFileSync, rmSync, realpathSync, symlinkSync, readFileSync, readdirSync, existsSync, openSync, closeSync, writeSync, mkdirSync, constants, statSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, realpathSync, symlinkSync, readFileSync, readdirSync, existsSync, openSync, closeSync, writeSync, mkdirSync, constants, statSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -74,11 +74,14 @@ function rig(opts: { failWrites?: () => boolean; failOpen?: () => boolean } = {}
 }
 
 test('flags are two absolute, normalized, different paths', () => {
-  const ok = ['--pipe', '/example/metadata', '--snapshot', '/example/now-playing.json'];
-  assert.deepEqual(parseFlags(ok), { pipePath: '/example/metadata', snapshotPath: '/example/now-playing.json' });
+  const ok = ['--pipe', '/example/pipe/metadata', '--snapshot', '/example/now-playing.json'];
+  assert.deepEqual(parseFlags(ok), { pipePath: '/example/pipe/metadata', snapshotPath: '/example/now-playing.json' });
   const sha = 'a'.repeat(64);
   for (const bad of [[], ok.slice(0, 2), ok.slice(2), [...ok, '--extra', 'x'], [...ok, 'positional'], ['--pipe', 'relative', ...ok.slice(2)], ['--pipe', '/a\0b', ...ok.slice(2)],
-    [...ok.slice(0, 3), '/example/../x.json'], ['--pipe', '/example/x', '--snapshot', '/example/x'], [...ok.slice(0, 3), `/${'a'.repeat(4096)}`], [...ok.slice(0, 3), `/example/cover-${sha}.jpg`]])
+    [...ok.slice(0, 3), '/example/../x.json'], ['--pipe', '/example/x', '--snapshot', '/example/x'], [...ok.slice(0, 3), `/${'a'.repeat(4096)}`], [...ok.slice(0, 3), `/example/cover-${sha}.jpg`],
+    [...ok.slice(0, 3), `/example/Cover-${sha.toUpperCase()}.JPG`], // aliases a cover file on a case-insensitive file system
+    ['--pipe', '/example/metadata', ...ok.slice(2)], ['--pipe', '/Example/metadata', ...ok.slice(2)], // the pipe must not sit among the covers
+    [...ok, '--pipe', '/example/pipe/other'], [...ok, '--snapshot', '/example/other.json']])
     assert.throws(() => parseFlags(bad), (e: Error) => !/example|relative|positional/.test(e.message), bad.join(' ').slice(0, 60)); // fixed messages, no input values
 });
 
@@ -388,7 +391,8 @@ test('pipe end becomes unknown, reopens after a fixed second and recovers on evi
   }
   await r.c.advance(RETRY_MS);
   await r.send(abrt()); // evidence after reopen
-  assert.equal(r.last().state, 'playing'); assert.equal(r.last().track?.title, 'Song');
+  assert.equal(r.last().state, 'playing'); assert.equal(r.last().track, null); // a reattach may be a new session: no stale title
+  assert.equal(r.last().lastTrack?.title, 'Song');
   await r.helper.stop();
 });
 
@@ -485,7 +489,8 @@ test('helper publishes complete snapshots to a real file through fake pipe strea
 });
 
 test('a cover is written once per change, before its snapshot, and unreferenced covers are removed', async () => {
-  const r = rig();
+  let fail = false;
+  const r = rig({ failWrites: () => fail });
   await r.helper.start(); await r.c.settle();
   const shaOf = (b: Buffer) => createHash('sha256').update(b).digest('hex');
   await r.send(bundle2('One', 'A', PNG), abrt());
@@ -498,6 +503,10 @@ test('a cover is written once per change, before its snapshot, and unreferenced 
   await r.send(bundle2('Three', 'A')); // a track without a picture
   assert.equal('cover' in r.last(), false); assert.equal(r.files.size, 0);
   await r.send(bundle2('Four', 'A', JPEG)); // an earlier picture comes back: its file is written again
+  assert.deepEqual([...r.files.keys()], [coverName({ mediaType: 'image/jpeg', sha256: shaOf(JPEG) })]);
+  // A cover written for a snapshot that then failed is removed once a later snapshot lands, even one naming the old cover.
+  fail = true; await r.send(bundle2('Five', 'A', PNG)); fail = false;
+  await r.send(bundle2('Four', 'A', JPEG));
   assert.deepEqual([...r.files.keys()], [coverName({ mediaType: 'image/jpeg', sha256: shaOf(JPEG) })]);
   await r.helper.stop();
 });
@@ -607,13 +616,14 @@ test('cover files are exclusive 0600 sibling files and pruning touches only cove
     await assert.rejects(Promise.resolve().then(() => files.write('../escape.jpg', JPEG)));
     const others = ['now-playing.json', `cover-${sha('c')}.gif`, `cover-${sha('d')}.jpg.tmp`, `cover-${'e'.repeat(63)}.jpg`, `Cover-${sha('f')}.jpg`, 'notes.txt'];
     for (const n of others) writeFileSync(join(dir, n), 'keep');
-    mkdirSync(join(dir, `cover-${sha('9')}.png`)); // a directory with a cover name cannot be removed and is reported
-    symlinkSync(join(dir, 'notes.txt'), join(dir, `cover-${sha('8')}.jpg`));
-    await assert.rejects(files.prune(a));
-    assert.ok(existsSync(join(dir, a))); assert.ok(!existsSync(join(dir, b))); assert.ok(!existsSync(join(dir, `cover-${sha('8')}.jpg`)));
+    // Only regular files are removed: a directory, a symlink or a FIFO with a cover name is left alone.
+    const odd = [`cover-${sha('9')}.png`, `cover-${sha('8')}.jpg`, `cover-${sha('7')}.png`];
+    mkdirSync(join(dir, odd[0]!)); symlinkSync(join(dir, 'notes.txt'), join(dir, odd[1]!)); execFileSync('mkfifo', [join(dir, odd[2]!)]);
+    await files.prune(a);
+    assert.ok(existsSync(join(dir, a))); assert.ok(!existsSync(join(dir, b)));
+    for (const n of odd) assert.ok(lstatSync(join(dir, n)), n);
     assert.equal(readFileSync(join(dir, 'notes.txt'), 'utf8'), 'keep'); // the link's target is untouched
     for (const n of others) assert.equal(readFileSync(join(dir, n), 'utf8'), 'keep', n);
-    rmSync(join(dir, `cover-${sha('9')}.png`), { recursive: true });
-    await files.prune(null); assert.deepEqual(readdirSync(dir).sort(), others.sort());
+    await files.prune(null); assert.deepEqual(readdirSync(dir).sort(), [...others, ...odd].sort());
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -30,6 +30,7 @@ export class Helper {
   private writeFailing = false;
   private loop: Promise<void> | null = null;
   private written: string | null = null; // cover file known to exist
+  private prunePending = false; // a cover was written since the last successful pruning
   private kept: string | null | undefined; // cover file the last pruning kept; undefined until the first pruning
   constructor(deps: Deps) { this.deps = deps; }
 
@@ -58,11 +59,11 @@ export class Helper {
     const cover = this.model.cover();
     const name = cover ? coverName(cover) : null;
     const text = JSON.stringify(this.model.snapshot(this.deps.clock.now())) + '\n';
-    if (cover && name !== this.written) { await this.deps.writeCover(name!, cover.bytes); this.written = name; }
+    if (cover && name !== this.written) { await this.deps.writeCover(name!, cover.bytes); this.written = name; this.prunePending = true; }
     await this.deps.write(text);
-    if (name !== this.kept) {
-      try { await this.deps.pruneCovers(name); this.kept = name; this.written = name; }
-      catch { this.written = null; } // best effort; retried on the next write
+    if (name !== this.kept || this.prunePending) {
+      try { await this.deps.pruneCovers(name); this.kept = name; this.written = name; this.prunePending = false; } // only `name` remains
+      catch { /* best effort; retried on the next write */ }
     }
   }
   private arm() {
@@ -126,9 +127,9 @@ export class Helper {
       this.stream = null;
       this.parser.reset();
       this.disarmExpiry();
-      this.model.reset();
+      const changed = this.model.reset();
       if (this.stopping) break;
-      this.request();
+      if (changed) this.request(); // otherwise the heartbeat keeps `checkedAt` fresh
       await this.sleep(RETRY_MS);
     }
   }
