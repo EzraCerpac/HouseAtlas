@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 const PROFILE_MAX_BYTES: u64 = 4 * 1024;
 /// The snapshot is small (track text is cut at 256 characters); the cover is a sibling file.
-pub(crate) const SNAPSHOT_MAX_BYTES: u64 = 16 * 1024;
+pub(crate) const SNAPSHOT_MAX_BYTES: u64 = 8 * 1024;
 const COVER_MAX_BYTES: u64 = 256 * 1024;
 const TEXT_MAX_CHARS: usize = 256;
 /// Readers treat a snapshot checked longer ago than this as unknown.
@@ -258,6 +258,8 @@ impl Snapshot {
         };
         let ok = s.schema == "houseatlas.now-playing.v1"
             && since_ok
+            // The current track exists only while playing.
+            && (s.state == State::Playing || s.track.is_none())
             && date(&s.checked_at).is_some()
             && s.track.as_ref().is_none_or(track_ok)
             && s.last_track.as_ref().is_none_or(track_ok)
@@ -347,6 +349,7 @@ mod tests {
                 v.as_object_mut().unwrap().remove("lastTrack");
             }),
             Box::new(|v| v["since"] = Value::Null),
+            Box::new(|v| v["state"] = json!("stopped")),
             Box::new(|v| v["checkedAt"] = json!("yesterday")),
             Box::new(|v| v["track"]["album"] = json!("x")),
             Box::new(|v| v["track"] = json!({"title":"x"})),
@@ -372,6 +375,15 @@ mod tests {
         let mut unknown = snapshot("unknown", "2026-01-01T12:00:10.000Z");
         unknown["since"] = json!("2026-01-01T12:00:02.000Z");
         assert!(decode(&unknown).is_err(), "unknown carries no since");
+        let mut idle = snapshot("stopped", "2026-01-01T12:00:10.000Z");
+        idle["track"] = json!({"title":"x","artist":null});
+        assert!(
+            decode(&idle).is_err(),
+            "only a playing snapshot carries a track"
+        );
+        let mut quiet = base.clone();
+        quiet["track"] = Value::Null;
+        assert!(decode(&quiet).is_ok(), "playing may have no current track");
         assert!(Snapshot::decode(br#"{"schema":"a","schema":"b"}"#).is_err());
         let oversize = vec![b' '; SNAPSHOT_MAX_BYTES as usize + 1];
         assert!(Snapshot::decode(&oversize).is_err());

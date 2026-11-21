@@ -6756,7 +6756,7 @@ The default backend-library lane discovers five generated cases:
 `http::radio_station::tests::healthy_radio_station_route_reads_only_the_configured_home`
 and `http::radio_station::tests::healthy_radio_cover_serves_only_the_verified_named_file`.
 They check the closed `houseatlas.now-playing.v1` decode (keys, states, `since`, text bounds,
-cover reference by media type and SHA-256 belonging to `lastTrack`, duplicate keys, 16 KiB bound),
+cover reference by media type and SHA-256 belonging to `lastTrack`, duplicate keys, 8 KiB bound, current track only while playing),
 the 15-second freshness window on the reader's clock with a 2-second future refusal,
 the closed pinned station profile (medium-wave `frequencyKhz`, absolute snapshot path,
 explicit nullable placement of one publication occurrence),

@@ -75,14 +75,15 @@ function snapshot(v: Json | undefined): RadioSnapshot | null {
   need(r.state === 'playing' || r.state === 'stopped' || r.state === 'unknown');
   const state = r.state, since = r.since === null ? null : date(r.since);
   need((state === 'unknown') === (since === null));
-  const lastTrack = track(r.lastTrack);
+  const lastTrack = track(r.lastTrack), current = track(r.track);
+  need(state === 'playing' || current === null); // the current track exists only while playing
   let cover: RadioCoverRef | null = null;
   if ('cover' in r) {
     const c = row(r.cover, ['mediaType', 'sha256']);
     need((c.mediaType === 'image/jpeg' || c.mediaType === 'image/png') && typeof c.sha256 === 'string' && SHA256.test(c.sha256) && lastTrack !== null);
     cover = Object.freeze({ mediaType: c.mediaType, sha256: c.sha256 });
   }
-  return Object.freeze({ state, since, checkedAt: date(r.checkedAt), track: track(r.track), lastTrack, cover });
+  return Object.freeze({ state, since, checkedAt: date(r.checkedAt), track: current, lastTrack, cover });
 }
 /** Closed decode of the station response; anything else throws. */
 export function decodeRadioStation(v: Json): RadioStation {

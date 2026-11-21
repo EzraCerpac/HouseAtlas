@@ -50,6 +50,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
   const decoded = decodeRadioStation(playing);
   assert.equal(decoded.frequencyKhz, 1440);
   assert.deepEqual(decoded.snapshot.cover, { mediaType: 'image/png', sha256: SHA });
+  assert.equal(decodeRadioStation(station(snapshot('playing', '2026-01-01T12:00:08.000Z', { track: null }))).snapshot.track, null, 'playing may have no current track');
   assert.equal(decodeRadioStation(station(null)).snapshot, null);
   assert.equal(decodeRadioStation(station(null, undefined, null)).placement, null);
   assert.equal(decodeRadioStation({ ...station(null), lastCheckedAt: '2026-01-01T11:59:00.000Z' }).lastCheckedAt, '2026-01-01T11:59:00.000Z');
@@ -68,6 +69,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
     v => { v.snapshot.volume = 3; },
     v => { delete v.snapshot.lastTrack; },
     v => { v.snapshot.since = null; },
+    v => { v.snapshot.state = 'stopped'; }, // a stopped snapshot cannot carry a current track
     v => { v.snapshot.track.album = 'x'; },
     v => { v.snapshot.track.title = 'a\u0007b'; },
     v => { v.snapshot.lastTrack.artist = 'x'.repeat(257); },
