@@ -111,7 +111,9 @@ export class NowPlaying {
       if (this.bundle && item.data.length > 0 && item.data.length <= 16) this.bundle.id = item.data.toString('hex');
     } else if (type === 'core' && (code === 'minm' || code === 'asar')) {
       const open = this.bundle !== null;
-      const b = this.bundle ?? { track: { ...(this.lastTrack ?? { title: null, artist: null }) }, rtp: null, id: null };
+      // Outside a bundle, an item updates the current session's track; a new session starts from nothing, not history.
+      const base = this.seen && this.lastTrack ? this.lastTrack : { title: null, artist: null };
+      const b = this.bundle ?? { track: { ...base }, rtp: null, id: null };
       b.track[code === 'minm' ? 'title' : 'artist'] = text(item.data);
       this.bundle = b;
       if (!open) this.commit(); // tolerate items outside an mdst/mden bundle, updating the last track without an RTP time

@@ -357,6 +357,17 @@ test('track shows only a track committed in the current session; lastTrack stays
   feed(ssnc('pfls') + abrt()); assert.deepEqual(view(), ['playing', 'Early', 'Early']); // a flush is not a session end
   feed(ssnc('aend') + abrt('0/0/0') + abrt()); assert.deepEqual(view(), ['playing', null, 'Early']);
   m.reset(); feed(track('After', 'D') + abrt()); assert.equal(view()[1], 'After');
+  // Loose title or artist items in a new session never borrow the previous session's fields or cover.
+  for (const end of ['pend', 'aend', 'reset']) {
+    const n = new NowPlaying(); const nf = (text: string) => parse(text).forEach(i => n.apply(i, 0));
+    nf(bundle2('Old song', 'Old artist', PNG));
+    if (end === 'reset') n.reset(); else nf(ssnc(end));
+    nf(ssnc('pbeg') + core('minm', 'New song') + abrt());
+    assert.deepEqual(n.snapshot(0).track, { title: 'New song', artist: null }, end);
+    assert.equal('cover' in n.snapshot(0), false, end);
+    nf(core('asar', 'New artist')); // within the session, loose items still update incrementally
+    assert.deepEqual(n.snapshot(0).track, { title: 'New song', artist: 'New artist' }, end);
+  }
 });
 
 test('startup is unknown, and a running helper alone never implies playing', async () => {
