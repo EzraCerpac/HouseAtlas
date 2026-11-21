@@ -30,6 +30,7 @@ impl Host {
             loopback_local: false,
             gateway: None,
             backup_folder: None,
+            radio_station: None,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
@@ -61,6 +62,22 @@ impl Host {
     pub fn with_backup_folder(mut self, folder: std::path::PathBuf) -> Self {
         self.backup_folder = Some(Arc::new(folder));
         self
+    }
+    /// Optional owner-reviewed radio station for one configured home. Reads stay passive.
+    pub fn with_radio_station(
+        mut self,
+        selection: crate::config::radio_station::RadioStationSelection,
+    ) -> crate::storage::Result<Self> {
+        if !self.mcp_scopes.iter().any(|scope| {
+            scope.workspace_id == selection.workspace_id && scope.home_id == selection.home_id
+        }) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Radio station home is not configured",
+            ));
+        }
+        self.radio_station = Some(Arc::new(selection));
+        Ok(self)
     }
     /// Trusted immutable overview selection; all requests retain native access.
     pub fn with_model_overview(
