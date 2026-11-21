@@ -257,6 +257,29 @@ there is no new durable journal or publication authority.
 No real socket, collector, credential, household data, installation or G1–G5
 acceptance is exercised by these cases; no CI run step is added.
 
+## Independent now-playing helper
+
+`tools/now-playing/` is separate from the Network collector.
+It reads shairport-sync's metadata pipe and atomically replaces one bounded
+`houseatlas.now-playing.v1` JSON file; it has no listener, database, network access
+or playback control and knows no frequency or placement.
+State comes only from observed classic-AirPlay or AirPlay 2 events and is `unknown` at startup;
+a running helper, a dead receiver or a start event never implies playing.
+`playing` means recent compressed audio input (`abrt`, needs `bitrate_stats_interval = 1.0`)
+and falls to `unknown` five seconds after the last such report.
+Readers treat a `checkedAt` older than 15 seconds as unknown.
+Ordinary-core selects exactly the twenty-nine synthetic cases in
+`tools/now-playing/core.test.ts` with pinned Node 26.10.0.
+They use fake pipe streams, a controlled clock and disposable temp files, plus one
+disposable temporary FIFO (the helper holds it open read-write):
+split, malformed, truncated and oversize items, state and current-session track rules,
+covers tied to their own track (classic RTP time, AirPlay 2 bundle) with type and size caps,
+written once per change as content-addressed sibling files that the small snapshot names, expiry, reattach, heartbeat,
+fixed one-second pipe retry, two path flags and exclusive temp-file replacement.
+No shairport-sync, installation, backend route, interface, private data
+or G1–G5 acceptance is exercised; no new runner or workflow command beyond that one step.
+The snapshot contract is in the tool README.
+
 ## Named-Editor Network inventory refresh
 
 The default backend-library lane additionally discovers fourteen cases under

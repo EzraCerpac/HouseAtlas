@@ -1048,6 +1048,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run the eight synthetic electrical registration cases | `node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs` | every run | 8 top-level tests | Generated pure in-memory registration cases; no receipt, native authority or physical placement. |
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
 | ordinary-core / ordinary-core | Run synthetic network collector core cases (fake runners and disposable SQLite) | `node --test --test-concurrency=1 tools/network-collector/core.test.ts` | every run | 42 top-level tests | Forty-two synthetic collector cases: strict private config/inventory, revision persistence, single writer, fake home guard and ping parsing, rollup/retention, direct GET handlers, Host/Origin refusal before reads, fake-child command bounds/cleanup, observation-time cross-hour indexing, controlled scheduler shutdown, strict POST fences/body limits and busy ownership, local civil-time nightly claims/restart/rollback, speed parsing, explicit unavailable Wi-Fi intervals, forward migration, target/port restrictions and bounded result histories, speed/ping exclusion, controlled-timezone DST transitions, detached-upload response cleanup and persisted speed-field renaming and bounded missing-close teardown/recovery, required action inventory revisions, atomic replacement refusal before probes and selected-target retention across guard awaits. Disposable SQLite only; no command execution, socket, private data or installed acceptance. |
+| ordinary-core / ordinary-core | Run synthetic now-playing helper cases (fake pipe streams and disposable files) | `node --test --test-concurrency=1 tools/now-playing/core.test.ts` | every run | 29 top-level tests | Twenty-nine synthetic now-playing cases: two absolute path flags, shairport item parsing split at every byte, malformed/truncated items, oversize reported for pictures only and one body bound for whole and split frames, playing only from abrt with a separate five-second expiry to unknown (pbeg/prsm/pres, arst and abrt 0/0/0 are not evidence; pend/pfls/aend/paus stop), cover tied to its own track by matching RTP time (classic) or its mdst/mden bundle (AirPlay 2) with size/type caps and no carry-over across reattach, a new stream (pbeg), an abandoned picture wrapper or a different source track identifier (mper), a track shown only when committed in the current session, a closed small snapshot naming its cover by digest, covers written once per change as exclusive 0600 content-addressed sibling files and pruned by name pattern only, unknown at startup and after a stream end, five-second heartbeat, fixed one-second pipe retry and recovery, write-failure tolerance, clean stop, exclusive unique 0600 temp-file replacement and one disposable temporary FIFO that stays attached for shairport-sync writers opening before, between and after each other. Fake streams, a controlled clock and disposable files only; no shairport-sync, listener, private data or installed acceptance. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
 | ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 64 unittest methods | Temp folders and a fake service. The frontend union, rollback and prune fixtures cover retained hashed Saved PDF workers. The union refuses same-name collisions and the rollback fixtures check atomic retry and conflict refusal, and both normal and interrupted recovery reject symlinks. No launchd, network or real data. |
 | ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 35 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
@@ -6713,6 +6714,37 @@ This releases no G1–G5 gate.
 Typecheck only this tool with the existing frontend dependencies:
 `node frontend/node_modules/typescript/bin/tsc -p tools/network-collector/tsconfig.json`.
 The exact read contract is in `tools/network-collector/README.md`.
+
+## Now-playing helper
+
+Ordinary-core runs
+`node --test --test-concurrency=1 tools/now-playing/core.test.ts`
+under Node 26.10.0.
+Its twenty-nine synthetic cases cover two absolute normalized path flags,
+shairport metadata items split at every byte and batched, malformed and truncated items,
+oversize reported for pictures only, one body bound for whole and split frames,
+state from receiver events (only `abrt` with samples above zero means `playing`;
+`pbeg`, `prsm`, `pres`, `arst` and `abrt` 0/0/0 are not evidence;
+`pend`, `pfls`, `aend` and `paus` stop; a separate five-second deadline publishes `unknown`),
+covers tied to their own track (classic by matching RTP time, AirPlay 2 by its mdst/mden bundle) with magic-byte and 256 KiB caps
+and no carry-over across reattach or session end,
+`track` shown only for a track committed in the current session (`lastTrack` stays as history),
+the closed snapshot shape and its small byte bound with the cover named by digest,
+covers written once per change as mode-0600 content-addressed sibling files and removed by exact name pattern only,
+`unknown` at startup and after a stream end with
+discarded partial frames, the five-second heartbeat with fresh `checkedAt`,
+a fixed one-second pipe retry and recovery, write-failure tolerance, clean stop,
+exclusive unique mode-0600 temp-file replacement that removes only its own file,
+and one disposable temporary FIFO (made with `mkfifo`) the helper holds open read-write, so writers opened before,
+between and after one another are never refused or lost.
+Fake pipe streams, a controlled clock and disposable temp files only;
+no shairport-sync, listener, private data or installed acceptance.
+`playing` means recent compressed audio input reported by the receiver
+(`bitrate_stats_interval = 1.0` in the shairport-sync configuration); the cases do not prove real playback.
+This releases no G1–G5 gate and adds no backend route or interface.
+Typecheck only this tool with the existing frontend dependencies:
+`node frontend/node_modules/typescript/bin/tsc -p tools/now-playing/tsconfig.json`.
+The snapshot contract and freshness rule are in `tools/now-playing/README.md`.
 
 
 ### Passive Network collector backend reads
