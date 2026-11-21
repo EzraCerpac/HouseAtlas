@@ -640,6 +640,11 @@ const sourceModels: SourceModelPort = {
         return requestNetworkInventoryRefresh(scope, session.csrfToken);
       },
     },
+    // The radio station: GETs of its reading and cover while the Atlas shows; nothing else.
+    radio: {
+      async read(scope, signal) { return (await import('./radio-station')).createRadioClient().read(scope, signal); },
+      async cover(scope, sha256, signal) { return (await import('./radio-station')).createRadioClient().cover(scope, sha256, signal); },
+    },
     // Overlay records last projected on this device for the same scene; the
     // Atlas shows them only where no current frame is held.
     async storedOverlays(selection, scene, selectable, signal) {

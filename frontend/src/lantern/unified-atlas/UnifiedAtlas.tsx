@@ -51,6 +51,8 @@ import { networkConnectionNodeKey } from './network-connections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
+import { RadioCardSlot, RadioRingsSlot, type RingPlace } from './RadioCard';
+import { browserRadioEnvironment, createRadioFeed, radioPlacement, type RadioFeed, type RadioFeedState } from './radio';
 import { Inspector, listedLevels, RoomList, type RoomBelongingsSource, type RoomBelongingsState } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
 import type { ElectricalTraceSource } from './electrical-trace';
@@ -761,6 +763,16 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     setCollector({ port: collectorPort, store });
     return () => store.dispose();
   }, [networkOn, collectorPort]);
+  // The radio station while the Atlas shows: its card and, on air, rings from its reviewed room.
+  const radioPort = port.kind === 'live' ? port.radio : undefined;
+  const { workspaceId: radioWorkspace, homeId: radioHome } = model.scene.scope;
+  const [radio, setRadio] = useState<{ readonly feed: RadioFeed; readonly now: () => number } | null>(null);
+  useEffect(() => {
+    if (!radioPort) { setRadio(null); return; }
+    const env = browserRadioEnvironment(), feed = createRadioFeed(radioPort, { workspaceId: radioWorkspace, homeId: radioHome }, env);
+    setRadio({ feed, now: env.now });
+    return () => feed.dispose();
+  }, [radioPort, radioWorkspace, radioHome]);
   // Each Network source with collector facts in a current frame; a stored copy has no collector.
   // Each also keeps the retrieval times of its facts that report a changed device list.
   const collectorScopes = useMemo(() => {
@@ -974,6 +986,17 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     return occurrence && shape ? { occurrenceId: occurrence.spaceOccurrenceId, levelId: occurrence.levelId, path: shape.map(rings => relativePath(rings, origin)).join(' ') } : null;
   }, [model, selected, origin]);
   const planDrawn = planGroups.some(group => group.features.length > 0);
+  // The reviewed transmitter room, named only when it resolves in this publication.
+  const radioPlaceName = (state: RadioFeedState) => {
+    const id = radioPlacement(state.station, model.scene);
+    return id ? atlasOccurrenceName(model, id) : null;
+  };
+  // Rings sit on the transmitter room's floor at its label point, only while that floor is drawn.
+  const radioRingPlace = (state: RadioFeedState): RingPlace | null => {
+    const id = radioPlacement(state.station, model.scene), occurrence = id ? model.occurrencesById.get(id) : undefined, point = id ? model.labels.get(id) : undefined;
+    if (!id || !occurrence || !point || !(planBlend >= .5 ? planned.has(occurrence.levelId) : presentation.visibleLevels.has(occurrence.levelId))) return null;
+    return { transform: planAt(occurrenceFloorHeight(model, presentation, id, t) + ROOM_PLATE), x: point.x - origin[0], z: point.z - origin[2] };
+  };
   const planShown = planBlend > 0 && planDrawn;
   const sitePlan = plan && presentation.focusLevelId === null;
 
@@ -1732,6 +1755,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <span className="ua-snapshot-kind">{detailNote === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
           <span>{detailNote === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
         </p>}
+        {radio && <RadioCardSlot feed={radio.feed} now={radio.now} placeName={radioPlaceName} />}
         <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
@@ -1860,6 +1884,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
           </g>}
+          {radio && <RadioRingsSlot feed={radio.feed} now={radio.now} reduced={reduced} place={radioRingPlace} />}
           {measuring && <g className="ua-measure">
             {measures.spans.map(row => <g key={row.key} className={row.measured ? 'is-measured' : undefined}>
               <line x1={row.line[0]} y1={row.line[1]} x2={row.line[2]} y2={row.line[3]} />

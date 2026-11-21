@@ -78,7 +78,7 @@ const SOURCE = [
   node('example-combined-overlays-healthy.mjs'), node('example-files-healthy.mjs'),
   node('unified-atlas-regression/interactions.test.mjs'),
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-start-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'), node('unified-atlas-network-trace-healthy.mjs'), node('unified-atlas-network-source-root-healthy.mjs'), node('unified-atlas-electrical-group-healthy.mjs'),
-  node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-overlay-feed-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
+  node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-overlay-feed-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'), node('radio-station-healthy.mjs'),
   node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'), node('unified-atlas-daylight-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
