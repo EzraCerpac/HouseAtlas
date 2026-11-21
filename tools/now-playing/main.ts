@@ -1,5 +1,5 @@
 import { dirname } from 'node:path';
-import { parseFlags, Refusal } from './config.ts';
+import { checkDirectories, parseFlags, Refusal } from './config.ts';
 import { Helper } from './helper.ts';
 import { openPipe } from './pipe.ts';
 import { coverFiles, snapshotWriter } from './writer.ts';
@@ -7,6 +7,7 @@ import { coverFiles, snapshotWriter } from './writer.ts';
 async function main() {
   if (process.version !== 'v26.10.0') throw new Error('Node 26.10.0 required');
   const config = parseFlags(process.argv.slice(2));
+  checkDirectories(config);
   process.umask(0o077);
   const covers = coverFiles(dirname(config.snapshotPath));
   const helper = new Helper({

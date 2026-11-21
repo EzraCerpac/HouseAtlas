@@ -21,7 +21,8 @@ SIGTERM/SIGINT stop reading, cancel timers and leave a final `unknown` snapshot.
 
 Exactly two, each given once, each an absolute normalized path of at most 4096 characters, and different.
 The snapshot's file name must not look like a cover file, ignoring case (see Snapshot contract),
-and the pipe must not be in the snapshot's directory.
+and the pipe must not be in the snapshot's directory (compared by directory identity at startup, so a symlinked
+parent cannot alias it); both directories must exist.
 Validation errors use fixed messages without input values.
 
 `--pipe` must be a FIFO created by shairport-sync (`metadata` group, `enabled = "yes"`, `pipe_name`).

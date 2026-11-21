@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseFlags } from './config.ts';
+import { checkDirectories, parseFlags } from './config.ts';
 import { ItemParser, MAX_DATA_BYTES } from './items.ts';
 import { NowPlaying, coverOf, coverName, MAX_COVER_BYTES } from './state.ts';
 import type { Snapshot } from './state.ts';
@@ -57,7 +57,7 @@ function fakeClock(start = Date.parse('2026-01-01T00:00:00Z')) {
     },
   };
 }
-function rig(opts: { failWrites?: () => boolean; failOpen?: () => boolean } = {}) {
+function rig(opts: { failWrites?: () => boolean; failOpen?: () => boolean; failPrune?: () => boolean } = {}) {
   const c = fakeClock();
   const writes: Snapshot[] = []; const logs: string[] = []; const opens: number[] = []; const streams: PassThrough[] = [];
   const files = new Map<string, Buffer>(); const coverWrites: string[] = [];
@@ -66,7 +66,7 @@ function rig(opts: { failWrites?: () => boolean; failOpen?: () => boolean } = {}
     async open() { opens.push(c.clock.now()); if (opts.failOpen?.()) throw new Error('no pipe'); const s = new PassThrough(); streams.push(s); return s; },
     async write(text) { if (opts.failWrites?.()) throw new Error('disk'); writes.push(JSON.parse(text)); },
     async writeCover(name, bytes) { coverWrites.push(name); files.set(name, bytes); },
-    async pruneCovers(keep) { for (const n of [...files.keys()]) if (n !== keep) files.delete(n); },
+    async pruneCovers(keep) { for (const n of [...files.keys()]) if (n !== keep) files.delete(n); if (opts.failPrune?.()) throw new Error('partial prune'); },
     log: m => logs.push(m),
   });
   const send = async (...chunks: string[]) => { for (const x of chunks) streams.at(-1)!.write(x); await c.settle(); };
@@ -83,6 +83,15 @@ test('flags are two absolute, normalized, different paths', () => {
     ['--pipe', '/example/metadata', ...ok.slice(2)], ['--pipe', '/Example/metadata', ...ok.slice(2)], // the pipe must not sit among the covers
     [...ok, '--pipe', '/example/pipe/other'], [...ok, '--snapshot', '/example/other.json']])
     assert.throws(() => parseFlags(bad), (e: Error) => !/example|relative|positional/.test(e.message), bad.join(' ').slice(0, 60)); // fixed messages, no input values
+  // Directories are compared by identity: a symlinked parent cannot put the pipe among the snapshot's files.
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), 'now-playing-flags-'));
+  try {
+    mkdirSync(join(dir, 'pipe')); mkdirSync(join(dir, 'state')); symlinkSync(join(dir, 'state'), join(dir, 'alias'));
+    const flags = (pipeDir: string, snapDir: string) => parseFlags(['--pipe', join(dir, pipeDir, 'metadata'), '--snapshot', join(dir, snapDir, 'now-playing.json')]);
+    checkDirectories(flags('pipe', 'state'));
+    assert.throws(() => checkDirectories(flags('alias', 'state')), /snapshot directory/);
+    assert.throws(() => checkDirectories(flags('missing', 'state')), /must exist/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('parser reads items split at every byte boundary and batched in one chunk', () => {
@@ -489,8 +498,8 @@ test('helper publishes complete snapshots to a real file through fake pipe strea
 });
 
 test('a cover is written once per change, before its snapshot, and unreferenced covers are removed', async () => {
-  let fail = false;
-  const r = rig({ failWrites: () => fail });
+  let fail = false, failPrune = false;
+  const r = rig({ failWrites: () => fail, failPrune: () => failPrune });
   await r.helper.start(); await r.c.settle();
   const shaOf = (b: Buffer) => createHash('sha256').update(b).digest('hex');
   await r.send(bundle2('One', 'A', PNG), abrt());
@@ -506,6 +515,11 @@ test('a cover is written once per change, before its snapshot, and unreferenced 
   assert.deepEqual([...r.files.keys()], [coverName({ mediaType: 'image/jpeg', sha256: shaOf(JPEG) })]);
   // A cover written for a snapshot that then failed is removed once a later snapshot lands, even one naming the old cover.
   fail = true; await r.send(bundle2('Five', 'A', PNG)); fail = false;
+  await r.send(bundle2('Four', 'A', JPEG));
+  assert.deepEqual([...r.files.keys()], [coverName({ mediaType: 'image/jpeg', sha256: shaOf(JPEG) })]);
+  // Pruning that removes the old cover and then fails never leaves a snapshot naming a missing cover file.
+  failPrune = true; await r.send(bundle2('Six', 'A')); failPrune = false;
+  assert.equal(r.files.size, 0);
   await r.send(bundle2('Four', 'A', JPEG));
   assert.deepEqual([...r.files.keys()], [coverName({ mediaType: 'image/jpeg', sha256: shaOf(JPEG) })]);
   await r.helper.stop();

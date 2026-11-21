@@ -62,8 +62,9 @@ export class Helper {
     if (cover && name !== this.written) { await this.deps.writeCover(name!, cover.bytes); this.written = name; this.prunePending = true; }
     await this.deps.write(text);
     if (name !== this.kept || this.prunePending) {
-      try { await this.deps.pruneCovers(name); this.kept = name; this.written = name; this.prunePending = false; } // only `name` remains
+      try { await this.deps.pruneCovers(name); this.kept = name; this.prunePending = false; }
       catch { /* best effort; retried on the next write */ }
+      this.written = name; // pruning never removes `name`, but may have removed any other cover, even when it failed
     }
   }
   private arm() {

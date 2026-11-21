@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { COVER_LIKE } from './writer.ts';
 
@@ -26,4 +27,13 @@ export function parseFlags(argv: string[]): Config {
   // The snapshot directory holds the helper's own files (cover pruning); the pipe lives elsewhere.
   need(dirname(pipe).toLowerCase() !== dirname(snapshot).toLowerCase(), 'Pipe must not be in the snapshot directory');
   return { pipePath: pipe, snapshotPath: snapshot };
+}
+
+/** The pipe's and the snapshot's directories must exist and be different directories (by identity, so symlinked
+ *  parents cannot alias them): the snapshot directory is the helper's own, and its writes must never replace the pipe. */
+export function checkDirectories(config: Config): void {
+  let pipeDir, snapshotDir;
+  try { pipeDir = statSync(dirname(config.pipePath)); snapshotDir = statSync(dirname(config.snapshotPath)); }
+  catch { throw new Refusal('Pipe and snapshot directories must exist'); }
+  need(!(pipeDir.dev === snapshotDir.dev && pipeDir.ino === snapshotDir.ino), 'Pipe must not be in the snapshot directory');
 }
