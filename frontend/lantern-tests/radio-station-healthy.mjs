@@ -4,10 +4,11 @@
 // extends it; a "Now playing" card only while fresh and playing (with its one
 // Hide control), its tuck kept per viewer and home; decorative rings only while
 // fresh, playing and placed in this publication, still for reduced motion; a
-// feed whose expiry publishes a new state, which drops the reading on 401/403,
-// fetches a cover only while it would show (aborted on hide or unwatch, with a
-// deadline and three tries per digest) and sends only GETs, only while watched
-// and visible. Fake transport, timers, storage and visibility; no browser,
+// feed whose expiry publishes a new state, which drops the reading and stops
+// polling on 401/403 from either route until the viewer changes, fetches a
+// cover only while it would show (aborted on hide, unwatch, a stopped reply or
+// expiry, with a deadline and three tries per digest) and sends only GETs, only
+// while watched and visible. Fake transport, timers, storage and visibility; no browser,
 // network or device.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -308,6 +309,34 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   assert.equal(feed.state().cover, null);
   stop(); feed.dispose();
 }
+// A pending cover is aborted as soon as the view no longer needs it: a stopped reply, or expiry.
+{
+  const h = harness(), calls = [];
+  // Ten seconds old at the server: believed for five seconds from each send, inside the cover's 10 s deadline.
+  const covered = station(snapshot('playing', '2026-01-01T12:00:00.000Z', { cover: { mediaType: 'image/png', sha256: SHA } }));
+  let reply = covered;
+  const port = {
+    read: (_scope, signal) => reply === 'hang' ? pending(signal) : Promise.resolve(decodeRadioStation(reply)),
+    cover: (_scope, sha256, signal) => { calls.push({ sha256, signal }); return pending(signal); },
+  };
+  const feed = createRadioFeed(port, scope, h.env), stop = feed.subscribe(() => undefined);
+  await h.settle();
+  assert.equal(calls.length, 1);
+  reply = station(snapshot('stopped', '2026-01-01T12:00:00.000Z', { cover: { mediaType: 'image/png', sha256: SHA } }));
+  await h.advance(RADIO_POLL_MS);
+  assert.ok(calls[0].signal.aborted, 'a stopped reply aborts it');
+  reply = covered;
+  await h.advance(RADIO_POLL_MS);
+  assert.equal(calls.length, 2, 'asked again once it would show');
+  reply = 'hang';
+  await h.advance(RADIO_POLL_MS + 1_000);
+  assert.ok(!calls[1].signal.aborted && radioView(feed.state(), h.now()), 'still fresh, still asked for');
+  await h.advance(1);
+  assert.equal(radioView(feed.state(), h.now()), null);
+  assert.ok(calls[1].signal.aborted, 'expiry aborts it');
+  assert.equal(calls.length, 2);
+  stop(); feed.dispose();
+}
 
 // The feed and client: GETs only, only while watched and visible; 401 and 403 drop the reading.
 {
@@ -315,8 +344,10 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
   const pngSha = Buffer.from(await crypto.subtle.digest('SHA-256', png)).toString('hex');
   let reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
+  let coverRefusal = null;
   const transport = async (url, init) => {
     requests.push({ url, method: init.method, credentials: init.credentials, cache: init.cache, body: init.body });
+    if (coverRefusal && url.endsWith(`/covers/${coverRefusal.sha}`)) return new Response('', { status: coverRefusal.status });
     if (url.includes('/covers/')) return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
     const value = reply();
     return typeof value === 'number' ? new Response('', { status: value }) : new Response(JSON.stringify(value), { status: 200 });
@@ -328,7 +359,11 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   assert.equal(coverBlob.type, 'image/png');
   await assert.rejects(client.cover(scope, SHA, AbortSignal.timeout(1000)), TypeError, 'bytes must match their digest');
   await assert.rejects(client.cover(scope, '../station', AbortSignal.timeout(1000)), TypeError);
-  for (const status of [401, 403]) { reply = () => status; await assert.rejects(client.read(scope, AbortSignal.timeout(1000)), RadioRefused); }
+  for (const status of [401, 403]) {
+    reply = () => status; await assert.rejects(client.read(scope, AbortSignal.timeout(1000)), RadioRefused);
+    coverRefusal = { sha: pngSha, status }; await assert.rejects(client.cover(scope, pngSha, AbortSignal.timeout(1000)), RadioRefused);
+  }
+  coverRefusal = null;
   reply = () => 500;
   await assert.rejects(client.read(scope, AbortSignal.timeout(1000)), error => !(error instanceof RadioRefused));
   reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
@@ -361,32 +396,47 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   reply = () => 500;
   await h.advance(RADIO_POLL_MS); assert.equal(requests.length, 7);
   assert.ok(feed.state().station && feed.state().cover, 'a transport failure keeps the reading');
-  // 401 and 403 drop the reading and its cover at once; polling goes on.
-  for (const status of [401, 403]) {
-    reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
-    await h.advance(RADIO_POLL_MS);
-    const url = feed.state().cover.url;
-    assert.ok(radioView(feed.state(), h.now()));
-    reply = () => status;
-    await h.advance(RADIO_POLL_MS);
-    assert.deepEqual(feed.state(), { configured: null, station: null, freshUntil: null, cover: null }, `${status} drops the reading`);
-    assert.equal(h.revoked.at(-1), url, `${status} revokes the cover`);
-    assert.equal(cardSlot(feed.state(), h.now()), '');
-  }
-  const beforeStop = requests.length;
   // No watcher: no requests.
+  const beforeStop = requests.length;
   stop(); await h.advance(RADIO_POLL_MS * 5);
   assert.equal(requests.length, beforeStop);
   assert.equal(h.watched(), false);
+  feed.dispose();
+  // 401 and 403 from either route drop the reading and its held cover at once
+  // and stop polling, until the feed is made again or the signed-in viewer changes.
+  const coveredBy = sha => () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: sha } }));
+  for (const [status, route] of [[401, 'station'], [403, 'station'], [401, 'cover'], [403, 'cover']]) {
+    let viewer = 'actor-a';
+    reply = coveredBy(pngSha); coverRefusal = null;
+    const refusing = createRadioFeed({ ...client, viewer: () => viewer }, scope, h.env), off = refusing.subscribe(() => undefined);
+    await h.settle();
+    const url = refusing.state().cover.url;
+    assert.equal(radioView(refusing.state(), h.now()).coverUrl, url);
+    if (route === 'station') reply = () => status;
+    else { reply = coveredBy(SHA); coverRefusal = { sha: SHA, status }; }
+    await h.advance(RADIO_POLL_MS);
+    assert.deepEqual(refusing.state(), { configured: null, station: null, freshUntil: null, cover: null }, `${status} from the ${route} route drops the reading`);
+    assert.equal(h.revoked.at(-1), url, `${status} from the ${route} route revokes the held cover`);
+    assert.equal(cardSlot(refusing.state(), h.now()), '');
+    const refusedAt = requests.length;
+    await h.advance(RADIO_POLL_MS * 5);
+    h.hide(true); h.hide(false); await h.settle();
+    assert.equal(requests.length, refusedAt, `no polling after ${status} from the ${route} route, even when the page shows again`);
+    viewer = 'actor-b'; reply = coveredBy(pngSha); coverRefusal = null;
+    h.hide(true); h.hide(false); await h.settle();
+    assert.ok(radioView(refusing.state(), h.now()), 'another signed-in viewer reads again');
+    off(); refusing.dispose();
+  }
+  const beforeUnconfigured = requests.length;
   // A home without a station: one read, then no card and no polling.
   reply = () => 404;
   const unconfigured = createRadioFeed(client, scope, h.env), stop2 = unconfigured.subscribe(() => undefined);
   await h.settle(); await h.advance(RADIO_POLL_MS * 3);
-  assert.equal(requests.length, beforeStop + 1);
+  assert.equal(requests.length, beforeUnconfigured + 1);
   assert.equal(unconfigured.state().configured, false);
   assert.equal(radioView(unconfigured.state(), h.now()), null);
-  stop2(); feed.dispose(); unconfigured.dispose();
+  stop2(); unconfigured.dispose();
   assert.deepEqual(new Set(requests.map(r => r.method)), new Set(['GET']), 'browsing sends only GETs');
   assert.ok(requests.every(r => r.body === undefined && r.credentials === 'same-origin' && r.cache === 'no-store'));
 }
-console.log('INFO radio station: decoder, freshness and expiry, card, tuck keys, rings, covers, refusal and GET-only feed');
+console.log('INFO radio station: decoder, freshness and expiry, card, tuck keys, rings, covers, refusal stop and GET-only feed');

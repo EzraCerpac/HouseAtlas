@@ -1,6 +1,6 @@
 /** Radio station client: two passive GETs, the station reading and a cover by
- * digest. 404 means no station is configured for this home; 401 and 403 mean
- * this viewer may not read it. */
+ * digest. 404 means no station is configured for this home; 401 and 403 from
+ * either route mean this viewer may not read it. */
 import { decodeRadioStation, RadioRefused, type RadioPort, type RadioScope } from '../src/lantern/unified-atlas/radio';
 
 const MAX_RESPONSE = 64 * 1024, MAX_COVER = 256 * 1024;
@@ -22,6 +22,7 @@ export function createRadioClient(transport: typeof fetch = (...args) => fetch(.
     async cover(scope, sha256, signal) {
       if (!/^[0-9a-f]{64}$/.test(sha256)) throw new TypeError('Invalid cover digest');
       const response = await transport(route(scope, `covers/${sha256}`), { ...options, method: 'GET', headers: { Accept: 'image/jpeg, image/png' }, signal });
+      if (response.status === 401 || response.status === 403) throw new RadioRefused();
       const type = response.headers.get('content-type');
       if (!response.ok || (type !== 'image/jpeg' && type !== 'image/png')) throw new Error('Cover unavailable');
       const bytes = await response.arrayBuffer();

@@ -46,7 +46,7 @@ export interface RadioPort {
   /** The signed-in viewer, whose card choice this device keeps per home; null keeps it for the page only. */
   viewer?(): string | null;
 }
-/** The station read was refused (401 or 403): nothing of the last reading is kept. */
+/** A station or cover read was refused (401 or 403): nothing of the last reading is kept. */
 export class RadioRefused extends Error {
   constructor() { super('Radio station read refused'); this.name = 'RadioRefused'; }
 }
@@ -186,16 +186,20 @@ export interface RadioFeed {
 /** Polls only while someone watches and the page is visible: about every four
  * seconds, one request at a time, and at once when the page shows again. A
  * failed read keeps the last answer until it expires, which publishes a new
- * state; a refused read drops it at once. */
+ * state. A refused station or cover read drops it at once and stops polling
+ * until the feed is made again (the Atlas remounts) or, when the page shows
+ * again or is watched again, the signed-in viewer has changed. */
 export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEnvironment = browserRadioEnvironment(), interval = RADIO_POLL_MS): RadioFeed {
   let state: RadioFeedState = { configured: null, station: null, freshUntil: null, cover: null };
   const listeners = new Set<() => void>();
   let disposed = false, poll: unknown = null, expiry: unknown = null, inflight: AbortController | null = null;
   let coverRequest: { sha256: string; controller: AbortController } | null = null, coverFailures = { sha256: '', count: 0 };
   let unvisibility: (() => void) | null = null;
+  /** Set by a refusal, with the viewer it was refused to. */
+  let refused: { readonly viewer: string | null } | null = null;
   const notify = () => { for (const changed of [...listeners]) changed(); };
   const set = (next: RadioFeedState) => { if (!disposed) { state = next; notify(); } };
-  const watching = () => !disposed && listeners.size > 0 && !env.hidden();
+  const watching = () => !disposed && refused === null && listeners.size > 0 && !env.hidden();
   const clear = (timer: unknown) => { if (timer !== null) env.clearTimeout(timer); return null; };
   /** Stopped on purpose, so not counted as a failure. */
   function dropCover() {
@@ -214,18 +218,26 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
   function armExpiry() {
     expiry = clear(expiry);
     const until = state.freshUntil;
-    if (until !== null) expiry = env.setTimeout(() => { expiry = null; set({ ...state, freshUntil: null }); }, Math.max(0, until - env.now() + 1));
+    if (until !== null) expiry = env.setTimeout(() => { expiry = null; set({ ...state, freshUntil: null }); wantCover(); }, Math.max(0, until - env.now() + 1));
   }
   function forget() {
     dropCover(); expiry = clear(expiry);
     if (state.cover) env.revokeObjectURL(state.cover.url);
     set({ configured: null, station: null, freshUntil: null, cover: null });
   }
+  function refuse() {
+    refused = { viewer: port.viewer?.() ?? null };
+    stop(); forget();
+  }
+  /** Fetches the cover the view would show and aborts one it no longer would
+   * (stopped, expired, another track). The feed does not know whether the card
+   * is tucked: tucking is presentation only, so a tucked card's cover still
+   * loads and shows at once when the card comes back. */
   function wantCover() {
-    const sha = shownCover(state, env.now());
-    if (sha === null || !watching() || sha === state.cover?.sha256 || sha === coverRequest?.sha256) return;
+    const sha = watching() ? shownCover(state, env.now()) : null;
+    if (coverRequest && coverRequest.sha256 !== sha) dropCover();
+    if (sha === null || sha === state.cover?.sha256 || coverRequest) return;
     if (coverFailures.sha256 === sha && coverFailures.count >= RADIO_COVER_TRIES) return;
-    dropCover();
     const controller = new AbortController(), deadline = env.setTimeout(() => controller.abort(), RADIO_REQUEST_MS);
     coverRequest = { sha256: sha, controller };
     port.cover(scope, sha, controller.signal).then(blob => {
@@ -234,10 +246,11 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
       coverRequest = null;
       if (state.cover) env.revokeObjectURL(state.cover.url);
       set({ ...state, cover: { sha256: sha, url: env.createObjectURL(blob) } });
-    }, () => {
+    }, error => {
       env.clearTimeout(deadline);
       if (coverRequest?.controller !== controller) return;
       coverRequest = null;
+      if (error instanceof RadioRefused) { refuse(); return; }
       coverFailures = { sha256: sha, count: coverFailures.sha256 === sha ? coverFailures.count + 1 : 1 };
     });
   }
@@ -254,14 +267,15 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
       armExpiry();
       wantCover();
     } catch (error) {
-      // Refused: drop the reading now. Otherwise it is kept until it expires.
-      if (inflight === controller && !disposed && error instanceof RadioRefused) forget();
+      // Refused: drop the reading now and stop. Otherwise it is kept until it expires.
+      if (inflight === controller && !disposed && error instanceof RadioRefused) refuse();
     } finally {
       env.clearTimeout(timeout);
       if (inflight === controller) { inflight = null; if (state.configured !== false) schedule(interval); }
     }
   }
   function visibility() {
+    if (refused && !disposed && (port.viewer?.() ?? null) !== refused.viewer) refused = null;
     if (watching()) { if (!inflight && poll === null) void read(); } else stop();
   }
   return {

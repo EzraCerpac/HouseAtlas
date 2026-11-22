@@ -121,6 +121,7 @@ impl RadioStationSelection {
     }
     pub(crate) fn parse(bytes: &[u8]) -> Result<Self, String> {
         let value = crate::contracts::v2::parse_value(bytes).map_err(|_| invalid())?;
+        need(objects(&value, &["placement"]))?;
         // `nullable` makes the placement required: stated explicitly, null when unreviewed.
         let p: Profile = serde_json::from_value(value).map_err(|_| invalid())?;
         need(
@@ -233,6 +234,14 @@ fn track_ok(track: &Track) -> bool {
             .is_none_or(|s| s.chars().count() <= TEXT_MAX_CHARS && !s.chars().any(char::is_control))
     })
 }
+/// serde's derived structs also accept positional arrays; these shapes are
+/// JSON objects only, and so are the named nested fields when present and not null.
+fn objects(value: &Value, nested: &[&str]) -> bool {
+    value.is_object()
+        && nested
+            .iter()
+            .all(|key| value.get(*key).is_none_or(|v| v.is_object() || v.is_null()))
+}
 fn keys(value: &Value, required: &[&str], optional: &[&str]) -> bool {
     value.as_object().is_some_and(|object| {
         required.iter().all(|key| object.contains_key(*key))
@@ -249,7 +258,9 @@ impl Snapshot {
         let value = crate::contracts::v2::parse_value(bytes).map_err(|_| ())?;
         // Unknown and missing keys are refused by the closed serde shapes; the
         // optional cover is either absent or an object, never null.
-        if value.get("cover").is_some_and(Value::is_null) {
+        if !objects(&value, &["track", "lastTrack", "cover"])
+            || value.get("cover").is_some_and(Value::is_null)
+        {
             return Err(());
         }
         let s: Self = serde_json::from_value(value).map_err(|_| ())?;
@@ -359,6 +370,15 @@ mod tests {
                 v["cover"] = json!({"mediaType":"image/png","sha256":"a".repeat(64)});
                 v["lastTrack"] = Value::Null;
             }),
+            // Positional arrays in place of objects.
+            Box::new(|v| v["track"] = json!(["Example title", null])),
+            Box::new(|v| v["lastTrack"] = json!(["Example title", "Example artist"])),
+            Box::new(|v| v["cover"] = json!(["image/png", "a".repeat(64)])),
+            Box::new(|v| {
+                *v = json!(["houseatlas.now-playing.v1", "playing", "2026-01-01T12:00:02.000Z",
+                    "2026-01-01T12:00:10.000Z", {"title":"Example title","artist":null},
+                    {"title":"Example title","artist":"Example artist"}]);
+            }),
         ];
         for (index, mutate) in mutations.iter().enumerate() {
             let mut value = base.clone();
@@ -429,6 +449,20 @@ mod tests {
             Box::new(|v| v["placement"]["spaceOccurrenceId"] = json!("hall way")),
             Box::new(|v| v["placement"]["roomName"] = json!("Hallway")),
             Box::new(|v| v["profile"] = json!("houseatlas.radio-station-profile.v2")),
+            // Positional arrays in place of objects.
+            Box::new(|v| {
+                v["placement"] = json!(["00000000-0000-4000-8000-000000000009", "occ-hall"])
+            }),
+            Box::new(|v| {
+                *v = json!([
+                    "houseatlas.radio-station-profile.v1",
+                    "00000000-0000-4000-8000-000000000002",
+                    "00000000-0000-4000-8000-000000000003",
+                    "/private/station.json",
+                    "/private/now-playing.json",
+                    null
+                ]);
+            }),
         ];
         for (index, mutate) in mutations.iter().enumerate() {
             let mut value = base.clone();

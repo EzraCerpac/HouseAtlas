@@ -297,8 +297,10 @@ HouseAtlas knows only that AirPlay audio is arriving and the frequency the opera
 not that anything is broadcast. The Atlas polls about every four seconds only while visible
 and shows a card only while the reading is fresh and playing: "Now playing · 1440 AM",
 or just "Now playing" with no frequency (no dial). Freshness counts from the request's send;
-expiry removes the card and rings on time, and a 401/403 drops the reading and its cover.
-The cover is fetched only while it would show, with a deadline and three tries per digest.
+expiry removes the card and rings on time, and a 401/403 from either route drops the reading
+and its cover and stops polling until the Atlas remounts or the signed-in viewer changes.
+The cover is fetched only while it would show (aborted once it would not; a tucked card still
+counts as shown), with a deadline and three tries per digest.
 Otherwise there is no card, tab or rings. The card floats over the stage without moving the rail
 and is not announced; a chevron or a left swipe tucks it to a tab, kept on this device per viewer
 and home. Decorative rings pulse from the placed room while the card would show, still under
@@ -308,6 +310,9 @@ and `http::radio_station::tests::healthy_radio_*` cases (disposable files and th
 the frontend healthy list adds `radio-station-healthy.mjs` (100 SOURCE / 1 BUILD / 16 BROWSER, 117 total)
 with fake transport, timers, storage and visibility. No browser, helper, transmitter, household data
 or G1–G5 acceptance is exercised; no workflow command is added.
+The profile, snapshot, cover and station files must sit under directories only the backend's
+account (or root) can write: the backend checks each file but does not anchor its opens to
+directory descriptors, so it trusts those ancestors.
 
 ## Named-Editor Network inventory refresh
 
