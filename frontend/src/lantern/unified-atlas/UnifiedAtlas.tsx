@@ -1755,7 +1755,7 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <span className="ua-snapshot-kind">{detailNote === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
           <span>{detailNote === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
         </p>}
-        {radio && <RadioCardSlot feed={radio.feed} now={radio.now} placeName={radioPlaceName} />}
+        {radio && <RadioCardSlot feed={radio.feed} now={radio.now} reduced={reduced} placeName={radioPlaceName} />}
         <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}

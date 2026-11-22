@@ -602,10 +602,19 @@
   overflow-wrap: anywhere;
 }
 
-/* The radio station: a lamp, what plays, and a medium-wave slide-rule dial
-   that is backlit only while the reading is fresh and on air. */
-.lantern-host .ua-radio {
+/* The radio station while it is on air: a lamp, what plays, and a backlit
+   medium-wave slide-rule dial. A sideways drag or the chevron tucks it to a
+   tab at the stage's left edge; the tab or a drag back brings it out. */
+.lantern-host .ua-radio-dock {
   flex: none;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.lantern-host .ua-radio-dock.is-dragging { cursor: grabbing; user-select: none; }
+.lantern-host .ua-radio-dock.is-arriving { animation: ua-radio-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes ua-radio-in { from { transform: translateX(calc(-100% - 32px)); } }
+.lantern-host .ua-radio {
+  position: relative;
   display: grid;
   gap: 7px;
   padding: 9px 11px 8px;
@@ -620,9 +629,30 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-right: 24px;
   font: 700 var(--fs-s)/1.25 var(--display);
   font-variant-numeric: tabular-nums;
 }
+.lantern-host .ua-radio-hide {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.lantern-host .ua-radio-hide .icon { transform: scaleX(-1); }
+.lantern-host .ua-radio-hide:hover { background: var(--card-2); color: var(--ink); }
+.lantern-host .ua-radio-hide:focus-visible,
+.lantern-host .ua-radio-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lantern-host .ua-radio-tab:focus-visible { outline-offset: -4px; }
 .lantern-host .ua-radio-lamp {
   flex: none;
   width: 9px;
@@ -631,12 +661,11 @@
   background: var(--hair-2);
   box-shadow: inset 0 0 0 1px rgba(60, 46, 22, 0.2);
 }
-.lantern-host .ua-radio.is-on-air .ua-radio-lamp {
+.lantern-host .ua-radio.is-on-air .ua-radio-lamp,
+.lantern-host .ua-radio-tab .ua-radio-lamp {
   background: var(--lantern);
   box-shadow: inset 0 0 0 1px var(--lantern-edge), 0 0 0 3px rgba(255, 209, 92, 0.32), 0 0 10px 1px rgba(220, 159, 11, 0.5);
 }
-.lantern-host .ua-radio.is-unknown .ua-radio-lamp { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c-unknown); }
-.lantern-host .ua-radio.is-unknown .ua-radio-state { color: var(--ink-2); }
 .lantern-host .ua-radio-now { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lantern-host .ua-radio-cover {
   flex: none;
@@ -651,7 +680,6 @@
 .lantern-host .ua-radio-title { font: 680 var(--fs-s)/1.3 var(--display); }
 .lantern-host .ua-radio-title.is-quiet { color: var(--muted); font-weight: 600; }
 .lantern-host .ua-radio-artist { font: 450 var(--fs-xs)/1.3 var(--text); color: var(--ink-2); }
-.lantern-host .ua-radio-kicker { font: 600 11px/1.3 var(--text); color: var(--muted); }
 .lantern-host .ua-radio-dial { display: block; width: 100%; height: auto; overflow: visible; }
 .lantern-host .ua-radio-glass { fill: var(--card-2); stroke: rgba(60, 46, 22, 0.2); stroke-width: 1; }
 .lantern-host .ua-radio-ticks line { stroke: var(--faint); stroke-width: 0.8; }
@@ -669,6 +697,29 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* The tucked card: a pull tab flush with the stage's left edge, its lamp lit. */
+.lantern-host .ua-radio-tab {
+  flex: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 40px;
+  margin-left: -16px;
+  padding: 0 7px 0 13px;
+  border: 1px solid var(--ua-line);
+  border-left: 0;
+  border-radius: 0 var(--r-panel) var(--r-panel) 0;
+  background: var(--ua-panel);
+  box-shadow: var(--ua-shadow);
+  color: var(--muted);
+  touch-action: pan-y;
+  cursor: pointer;
+}
+.lantern-host .ua-radio-tab:hover { color: var(--ink); }
+.lantern-host .ua-radio-tab.is-arriving { animation: ua-radio-tab-in 180ms ease-out; }
+@keyframes ua-radio-tab-in { from { transform: translateX(-100%); } }
 
 /* Possible reach from the reviewed transmitter room, on its floor: amber
    waves leaving the room one after another, lit like the card's lamp. No
@@ -2819,6 +2870,8 @@
        a wheel or swipe over the rail still scrolls this frame. */
     pointer-events: none;
   }
+  /* The rail's frame reaches the stage edge while the radio tab sits there. */
+  .lantern-host .ua-scope:has(> .ua-radio-tab) { margin-left: -16px; padding-left: 16px; width: calc(var(--ua-rail) + 22px); }
 
   .lantern-host .ua-stack-floors { min-height: var(--ua-ladder-floor, 0px); }
 
@@ -3068,7 +3121,8 @@
   .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
   .lantern-host .ua-snapshot-note { display: none; }
   /* The radio card hangs below the top row, out of its flow. */
-  .lantern-host .ua-scope > .ua-radio { position: absolute; top: calc(100% + 6px); left: 0; width: min(252px, calc(100vw - 32px)); max-width: none; }
+  .lantern-host .ua-scope > .ua-radio-dock { position: absolute; top: calc(100% + 6px); left: 0; width: min(252px, calc(100vw - 32px)); max-width: none; }
+  .lantern-host .ua-scope > .ua-radio-tab { position: absolute; top: calc(100% + 6px); left: -8px; margin: 0; height: 44px; }
 
   /* Back has its own slim row under the chip, named for where it leads, so
      the chip keeps its whole width and its card hangs from it on screen. */

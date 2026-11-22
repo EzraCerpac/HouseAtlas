@@ -1,7 +1,7 @@
 // Named ordinary positive: the Atlas radio station card and rings. Generated
 // station responses through the closed decoder, the 15-second freshness rule on
-// the server's clock plus the page's own elapsed time, the three card states,
-// rings only while fresh, on air and placed in this publication, still rings
+// the server's clock plus the page's own elapsed time, a card only while fresh
+// and on air (with its one Hide control), rings only while fresh, on air and placed in this publication, still rings
 // for reduced motion, and a feed that sends only GETs, only while watched and
 // visible. Fake transport, timers and visibility; no browser, network or device.
 import assert from 'node:assert/strict';
@@ -111,7 +111,7 @@ const feedState = (value, receivedAt = 1_000, cover = null) => ({ configured: tr
   assert.equal(dialFraction(520), 0); assert.equal(dialFraction(1710), 1); assert.equal(dialFraction(9999), 1);
 }
 
-// Card states: what each one says, with a fixed clock text.
+// The card: what it says on air, with a fixed clock text. Off air, unknown or stale shows none.
 const time = iso => `T${iso.slice(11, 19)}`;
 const markup = props => renderToStaticMarkup(createElement(RadioCard, { time, ...props }));
 const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '|').split('|').filter(Boolean);
@@ -126,16 +126,20 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   assert.doesNotMatch(on, /<button|<input|<a /, 'no playback controls');
   const needle = Number(/class="ua-radio-needle" x1="([\d.]+)"/.exec(on)[1]);
   assert.ok(Math.abs(needle - (8 + dialFraction(1440) * 184)) < 0.06, `needle ${needle}`);
-  const off = markup({ view: { kind: 'off-air', frequencyKhz: 1440, lastTrack: { title: 'Example title', artist: null }, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null });
-  assert.deepEqual(visible(off), ['Off air · 1440 kHz', 'Last played', 'Example title', 'Checked T12:00:08']);
-  assert.match(off, /<svg class="ua-radio-dial"/);
-  assert.doesNotMatch(off, /<img/);
-  assert.deepEqual(visible(markup({ view: { kind: 'off-air', frequencyKhz: 1440, lastTrack: null, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null })),
-    ['Off air · 1440 kHz', 'Last played', 'No track details', 'Checked T12:00:08']);
-  const unknown = markup({ view: { kind: 'unknown', frequencyKhz: 1440, lastCheckedAt: '2026-01-01T11:59:00.000Z' }, placeName: 'Hallway' });
-  assert.deepEqual(visible(unknown), ['Unknown · 1440 kHz', 'Last confirmed T11:59:00', 'Transmitter in Hallway']);
-  assert.doesNotMatch(unknown, /Example|is-lit|<img/);
-  assert.deepEqual(visible(markup({ view: { kind: 'unknown', frequencyKhz: 1440, lastCheckedAt: null }, placeName: null })), ['Unknown · 1440 kHz', 'Not confirmed']);
+  const hiding = markup({ view: { kind: 'on-air', frequencyKhz: 1440, track: null, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null, onHide: () => {} });
+  assert.deepEqual(visible(hiding), ['On air · 1440 kHz', 'No track details', 'Checked T12:00:08']);
+  assert.deepEqual([...hiding.matchAll(/<button [^>]*>/g)].map(m => m[0]), ['<button type="button" class="ua-radio-hide" aria-label="Hide radio" title="Hide radio">']);
+  const cardSlot = (value, now) => {
+    const state = feedState(value), feed = { subscribe: () => () => undefined, state: () => state, dispose() {} };
+    return renderToStaticMarkup(createElement(RadioCardSlot, { feed, placeName: () => 'Hallway', now: () => now, reduced: false }));
+  };
+  const shown = cardSlot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 1_000);
+  assert.match(shown, /<div class="ua-radio-dock"><section class="ua-radio is-on-air" aria-label="Radio">/);
+  assert.match(shown, /aria-label="Hide radio"/);
+  assert.equal(cardSlot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 20_000), '', 'stale: no card');
+  assert.equal(cardSlot(station(snapshot('stopped', '2026-01-01T12:00:08.000Z')), 1_000), '', 'off air: no card');
+  assert.equal(cardSlot(station(snapshot('unknown', '2026-01-01T12:00:08.000Z')), 1_000), '', 'unknown: no card');
+  assert.equal(cardSlot(station(null), 1_000), '', 'no snapshot: no card');
 }
 
 // Rings: only fresh, on air and placed in this publication; still for reduced motion.
@@ -167,7 +171,7 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   assert.doesNotMatch(slot(station(snapshot('unknown', '2026-01-01T12:00:08.000Z')), 1_000), /ua-radio-rings/, 'unknown');
   assert.doesNotMatch(slot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 1_000, () => null), /ua-radio-rings/, 'unplaced or floor not drawn');
   const noStation = { subscribe: () => () => undefined, state: () => ({ configured: false, station: null, receivedAt: 0, cover: null }), dispose() {} };
-  assert.equal(renderToStaticMarkup(createElement(RadioCardSlot, { feed: noStation, placeName: () => null, now: () => 0 })), '', 'no station, no card');
+  assert.equal(renderToStaticMarkup(createElement(RadioCardSlot, { feed: noStation, placeName: () => null, now: () => 0, reduced: false })), '', 'no station, no card');
 }
 
 // The feed and client: GETs only, only while watched and visible.
