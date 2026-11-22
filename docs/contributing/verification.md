@@ -6758,11 +6758,14 @@ and `http::radio_station::tests::healthy_radio_cover_serves_only_the_verified_na
 They check the closed `houseatlas.now-playing.v1` decode (keys, states, `since`, text bounds,
 cover reference by media type and SHA-256 belonging to `lastTrack`, duplicate keys, 8 KiB bound, current track only while playing),
 the 15-second freshness window on the reader's clock with a 2-second future refusal,
-the closed pinned station profile (medium-wave `frequencyKhz`, absolute snapshot path,
+the closed pinned station profile (absolute `stationPath` and snapshot path,
 explicit nullable placement of one publication occurrence),
 and, through the in-process router with a disposable persistent loopback-local home,
 unauthenticated, unconfigured-home and absent-configuration refusals, GET only,
 private `no-store` headers, missing, stale, malformed, oversize, wrong-mode and symlinked snapshots,
+the operator's `{"frequencyKhz": N}` station file read on every GET (valid 520 and 1440; absent, out-of-band,
+non-integer, string, null, extra-key, duplicate-key, empty, non-JSON, over 256 bytes, wrong-mode,
+two-link and symlinked files all give `frequencyKhz: null` with status 200 and the now-playing state intact),
 no file writes, and a cover served only when a fresh snapshot names its digest
 and the sibling `cover-<sha256>` file matches that digest, its declared type's magic bytes and 256 KiB.
 Generated files in disposable directories only; no helper, shairport-sync, transmitter or household data.
@@ -6776,7 +6779,8 @@ node frontend/lantern-tests/radio-station-healthy.mjs
 
 It compiles `radio.ts`, `RadioCard.tsx` and `integration/radio-station.ts` and checks
 the closed response decoder, freshness from the server's read age plus the page's own elapsed time,
-the On air, Off air and Unknown card text in static markup (no controls, lit dial only on air),
+the On air, Off air and Unknown card text in static markup (no controls, lit dial only on air;
+with a null frequency the header reads On air without kHz and the dial is omitted),
 rings only for a fresh `playing` reading placed in the shown publication, still rings for reduced motion,
 and a feed over fake transport, timers and visibility that reads nothing until watched,
 polls about every four seconds, pauses while hidden, fetches each cover digest once,

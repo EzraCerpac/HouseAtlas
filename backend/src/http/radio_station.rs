@@ -24,7 +24,7 @@ pub(super) async fn read(
             let seen = station.observe(crate::config::radio_station::wall_clock());
             Ok(Json(json!({
                 "schema": "houseatlas.radio-station.v1",
-                "frequencyKhz": station.frequency_khz,
+                "frequencyKhz": station.frequency_khz(),
                 "placement": station.placement,
                 "readAt": seen.read_at,
                 "lastCheckedAt": seen.last_checked_at,
@@ -188,7 +188,7 @@ mod tests {
     fn station(root: &std::path::Path, home: u32, placement: Value) -> RadioStationSelection {
         let profile = root.join("radio-station.json");
         let bytes = json!({"profile":"houseatlas.radio-station-profile.v1","workspaceId":id(2),"homeId":id(home),
-            "frequencyKhz":1440,"snapshotPath":root.join("now-playing.json"),"placement":placement})
+            "stationPath":root.join("station.json"),"snapshotPath":root.join("now-playing.json"),"placement":placement})
         .to_string();
         write_private(&profile, bytes.as_bytes());
         let sha = format!("{:x}", sha2::Sha256::digest(bytes.as_bytes()));
@@ -261,7 +261,8 @@ mod tests {
             "private headers"
         );
         assert_eq!(body["schema"], "houseatlas.radio-station.v1");
-        assert_eq!(body["frequencyKhz"], 1440);
+        // No station file yet: the frequency is unknown, the rest still reads.
+        assert_eq!(body["frequencyKhz"], Value::Null);
         assert_eq!(body["placement"], placement);
         assert_eq!(
             (&body["snapshot"], &body["lastCheckedAt"]),
@@ -269,6 +270,62 @@ mod tests {
         );
         assert!(chrono::DateTime::parse_from_rfc3339(body["readAt"].as_str().unwrap()).is_ok());
         assert_eq!(body.as_object().unwrap().len(), 6);
+
+        // The operator's file is the only source; every read re-reads it.
+        let station_file = f.root.join("station.json");
+        let khz = |app: Router| {
+            let cookie = f.cookie.clone();
+            async move { get(&app, &route(3), Some(&cookie)).await.1["frequencyKhz"].clone() }
+        };
+        write_private(&station_file, br#"{"frequencyKhz":1440}"#);
+        assert_eq!(khz(app.clone()).await, json!(1440));
+        write_private(&station_file, br#"{"frequencyKhz":520}"#);
+        assert_eq!(khz(app.clone()).await, json!(520));
+        let invalid: [&[u8]; 10] = [
+            br#"{"frequencyKhz":519}"#,
+            br#"{"frequencyKhz":1711}"#,
+            br#"{"frequencyKhz":1440.5}"#,
+            br#"{"frequencyKhz":"1440"}"#,
+            br#"{"frequencyKhz":null}"#,
+            br#"{"frequencyKhz":1440,"unit":"kHz"}"#,
+            br#"{"frequencyKhz":1,"frequencyKhz":1440}"#,
+            br#"{}"#,
+            b"not json",
+            // Over the 256-byte bound, though otherwise well formed.
+            &[br#"{"frequencyKhz":1440}"#.as_slice(), &[b' '; 256]].concat(),
+        ];
+        for bytes in invalid {
+            write_private(&station_file, bytes);
+            let (status, body, _) = get(&app, &route(3), cookie).await;
+            assert_eq!(status, StatusCode::OK, "never an error");
+            assert_eq!(body["frequencyKhz"], Value::Null, "{:?}", bytes);
+        }
+        write_private(&station_file, br#"{"frequencyKhz":1440}"#);
+        fs::set_permissions(&station_file, fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(khz(app.clone()).await, Value::Null, "wrong mode");
+        fs::set_permissions(&station_file, fs::Permissions::from_mode(0o600)).unwrap();
+        let linked = f.root.join("station-link.json");
+        fs::hard_link(&station_file, &linked).unwrap();
+        assert_eq!(khz(app.clone()).await, Value::Null, "two links");
+        fs::remove_file(&linked).unwrap();
+        let target = f.root.join("station-target.json");
+        write_private(&target, br#"{"frequencyKhz":1440}"#);
+        fs::remove_file(&station_file).unwrap();
+        std::os::unix::fs::symlink(&target, &station_file).unwrap();
+        assert_eq!(khz(app.clone()).await, Value::Null, "symlink");
+        fs::remove_file(&station_file).unwrap();
+        write_private(&station_file, br#"{"frequencyKhz":1440}"#);
+        assert_eq!(khz(app.clone()).await, json!(1440), "valid again");
+        // A missing frequency does not hide the now-playing state.
+        fs::remove_file(&station_file).unwrap();
+        write_private(
+            &f.root.join("now-playing.json"),
+            snapshot("playing", &now(-1_000)).to_string().as_bytes(),
+        );
+        let (_, body, _) = get(&app, &route(3), cookie).await;
+        assert_eq!(body["frequencyKhz"], Value::Null);
+        assert_eq!(body["snapshot"]["state"], "playing");
+        write_private(&station_file, br#"{"frequencyKhz":1440}"#);
 
         // Fresh playing snapshot passes through unchanged.
         let snapshots = f.root.join("now-playing.json");

@@ -44,13 +44,13 @@ export interface RadioCardProps {
 }
 export function RadioCard({ view, placeName, time = clock, onHide }: RadioCardProps) {
   return <section className="ua-radio is-on-air" aria-label="Radio">
-    <p className="ua-radio-state" role="status"><span className="ua-radio-lamp" aria-hidden="true" />On air · {view.frequencyKhz} kHz</p>
+    <p className="ua-radio-state" role="status"><span className="ua-radio-lamp" aria-hidden="true" />On air{view.frequencyKhz !== null && ` · ${view.frequencyKhz} kHz`}</p>
     {onHide && <button type="button" className="ua-radio-hide" aria-label="Hide radio" title="Hide radio" onClick={onHide}><Chevron /></button>}
     <div className="ua-radio-now">
       {view.coverUrl && <img className="ua-radio-cover" src={view.coverUrl} alt="" width={44} height={44} />}
       <div className="ua-radio-track"><TrackLines track={view.track} /></div>
     </div>
-    <RadioDial frequencyKhz={view.frequencyKhz} lit />
+    {view.frequencyKhz !== null && <RadioDial frequencyKhz={view.frequencyKhz} lit />}
     <p className="ua-radio-foot">
       <time dateTime={view.checkedAt}>Checked {time(view.checkedAt)}</time>
       {placeName && <span>Transmitter in {placeName}</span>}

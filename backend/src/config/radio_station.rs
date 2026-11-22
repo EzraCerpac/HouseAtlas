@@ -12,6 +12,8 @@ const PROFILE_MAX_BYTES: u64 = 4 * 1024;
 /// The snapshot is small (track text is cut at 256 characters); the cover is a sibling file.
 pub(crate) const SNAPSHOT_MAX_BYTES: u64 = 8 * 1024;
 const COVER_MAX_BYTES: u64 = 256 * 1024;
+/// The operator's station file holds one small integer.
+const STATION_MAX_BYTES: u64 = 256;
 const TEXT_MAX_CHARS: usize = 256;
 /// Readers treat a snapshot checked longer ago than this as unknown.
 pub(crate) const FRESH_MS: i64 = 15_000;
@@ -67,7 +69,7 @@ struct Profile {
     profile: String,
     workspace_id: String,
     home_id: String,
-    frequency_khz: u32,
+    station_path: PathBuf,
     snapshot_path: PathBuf,
     #[serde(deserialize_with = "nullable")]
     placement: Option<Placement>,
@@ -77,8 +79,8 @@ struct Profile {
 pub struct RadioStationSelection {
     pub workspace_id: String,
     pub home_id: String,
-    pub frequency_khz: u32,
     pub placement: Option<Placement>,
+    station_path: PathBuf,
     snapshot_path: PathBuf,
 }
 impl RadioStationSelection {
@@ -126,7 +128,8 @@ impl RadioStationSelection {
             p.profile == "houseatlas.radio-station-profile.v1"
                 && uuid(&p.workspace_id)
                 && uuid(&p.home_id)
-                && FREQUENCY_KHZ.contains(&p.frequency_khz)
+                && absolute_path(&p.station_path).is_ok()
+                && p.station_path.as_os_str().len() <= 4096
                 && absolute_path(&p.snapshot_path).is_ok()
                 && p.snapshot_path.as_os_str().len() <= 4096
                 && p.placement.as_ref().is_none_or(|placement| {
@@ -136,10 +139,23 @@ impl RadioStationSelection {
         Ok(Self {
             workspace_id: p.workspace_id,
             home_id: p.home_id,
-            frequency_khz: p.frequency_khz,
             placement: p.placement,
+            station_path: p.station_path,
             snapshot_path: p.snapshot_path,
         })
+    }
+    /// The transmitter frequency the operator's private file states, read on
+    /// every call and never written. None when the file is absent, unsafe,
+    /// oversize or not exactly `{"frequencyKhz": <integer in the band>}`.
+    pub(crate) fn frequency_khz(&self) -> Option<u32> {
+        let bytes = read_selected_file(&self.station_path, STATION_MAX_BYTES, true).ok()?;
+        let value = crate::contracts::v2::parse_value(&bytes).ok()?;
+        if !keys(&value, &["frequencyKhz"], &[]) {
+            return None;
+        }
+        u32::try_from(value["frequencyKhz"].as_u64()?)
+            .ok()
+            .filter(|khz| FREQUENCY_KHZ.contains(khz))
     }
     /// One passive read of the snapshot file at `now`.
     pub(crate) fn observe(&self, now: chrono::DateTime<chrono::Utc>) -> Observation {
@@ -417,17 +433,11 @@ mod tests {
     fn healthy_radio_profile_parses_closed() {
         let base = json!({"profile":"houseatlas.radio-station-profile.v1",
             "workspaceId":"00000000-0000-4000-8000-000000000002","homeId":"00000000-0000-4000-8000-000000000003",
-            "frequencyKhz":1440,"snapshotPath":"/private/now-playing.json",
+            "stationPath":"/private/station.json","snapshotPath":"/private/now-playing.json",
             "placement":{"publicationId":"00000000-0000-4000-8000-000000000009","spaceOccurrenceId":"occ-hall"}});
         let parse = |v: &Value| RadioStationSelection::parse(v.to_string().as_bytes());
         let station = parse(&base).unwrap();
-        assert_eq!(
-            (
-                station.frequency_khz,
-                station.placement.unwrap().space_occurrence_id
-            ),
-            (1440, "occ-hall".into())
-        );
+        assert_eq!(station.placement.unwrap().space_occurrence_id, "occ-hall");
         let mut unplaced = base.clone();
         unplaced["placement"] = Value::Null;
         assert!(parse(&unplaced).unwrap().placement.is_none());
@@ -435,8 +445,12 @@ mod tests {
             Box::new(|v| {
                 v.as_object_mut().unwrap().remove("placement");
             }),
-            Box::new(|v| v["frequencyKhz"] = json!(1711)),
-            Box::new(|v| v["frequencyKhz"] = json!(1440.5)),
+            Box::new(|v| v["frequencyKhz"] = json!(1440)),
+            Box::new(|v| {
+                v.as_object_mut().unwrap().remove("stationPath");
+            }),
+            Box::new(|v| v["stationPath"] = json!("relative/station.json")),
+            Box::new(|v| v["stationPath"] = json!("/private/../station.json")),
             Box::new(|v| v["snapshotPath"] = json!("relative/now-playing.json")),
             Box::new(|v| v["snapshotPath"] = json!("/private/../now-playing.json")),
             Box::new(|v| v["homeId"] = json!("home")),

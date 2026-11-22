@@ -283,15 +283,20 @@ The snapshot contract is in the tool README.
 ## Atlas radio station
 
 An optional pinned owner-reviewed profile (`--radio-station-profile` and its SHA-256,
-`serve` only, absent by default) names one home, `frequencyKhz`, the helper's snapshot path
+`serve` only, absent by default) names one home, `stationPath`, the helper's snapshot path
 and a nullable placement: one `spaceOccurrenceId` of one scene publication, never inferred.
+`stationPath` is the operator's private file `{"frequencyKhz": N}` (integer kHz, 520–1710),
+the one source of the transmitter frequency; it is written outside this repository, may be absent,
+and is only read here, on each station GET, with the snapshot's private-file checks and a 256-byte bound.
+Absent or invalid, the response carries `frequencyKhz: null` and the now-playing state is unaffected.
 The scoped GET `/api/atlas/radio/v1/workspaces/{w}/homes/{h}/station` reads that file
 (private, bounded, closed `houseatlas.now-playing.v1`) and returns it only when checked
 within 15 s; a separate scoped GET serves the cover only when a fresh snapshot names its
 SHA-256 and the sibling file matches it. No listener, poller, write or helper demand.
 The Atlas polls about every four seconds only while visible and shows On air, Off air or
 Unknown; rings pulse from the placed room only while fresh and on air, still under reduced motion,
-and claim no radio is on. No playback controls.
+and claim no radio is on. With no frequency the card says only On air and omits the dial.
+No playback controls.
 The default backend-library lane discovers five generated `config::radio_station::tests::healthy_radio_*`
 and `http::radio_station::tests::healthy_radio_*` cases (disposable files and the in-process router);
 the frontend healthy list adds `radio-station-healthy.mjs` (100 SOURCE / 1 BUILD / 16 BROWSER, 117 total)

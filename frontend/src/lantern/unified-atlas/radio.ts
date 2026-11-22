@@ -29,7 +29,8 @@ export interface RadioSnapshot {
 export interface RadioPlacement { readonly publicationId: string; readonly spaceOccurrenceId: string }
 /** `houseatlas.radio-station.v1`: station facts plus one passive read. */
 export interface RadioStation {
-  readonly frequencyKhz: number;
+  /** What the operator's station file states, or null when it is absent or unusable. */
+  readonly frequencyKhz: number | null;
   readonly placement: RadioPlacement | null;
   readonly readAt: string;
   readonly lastCheckedAt: string | null;
@@ -90,7 +91,7 @@ export function decodeRadioStation(v: Json): RadioStation {
   const r = row(v, ['schema', 'frequencyKhz', 'placement', 'readAt', 'lastCheckedAt', 'snapshot']);
   need(r.schema === 'houseatlas.radio-station.v1');
   const frequencyKhz = r.frequencyKhz;
-  need(typeof frequencyKhz === 'number' && Number.isInteger(frequencyKhz) && frequencyKhz >= RADIO_BAND_KHZ[0] && frequencyKhz <= RADIO_BAND_KHZ[1]);
+  need(frequencyKhz === null || (typeof frequencyKhz === 'number' && Number.isInteger(frequencyKhz) && frequencyKhz >= RADIO_BAND_KHZ[0] && frequencyKhz <= RADIO_BAND_KHZ[1]));
   let placement: RadioPlacement | null = null;
   if (r.placement !== null) {
     const p = row(r.placement, ['publicationId', 'spaceOccurrenceId']);
@@ -112,9 +113,9 @@ export interface RadioFeedState {
 }
 export type RadioView =
   | { readonly kind: 'none' }
-  | { readonly kind: 'on-air'; readonly frequencyKhz: number; readonly track: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
-  | { readonly kind: 'off-air'; readonly frequencyKhz: number; readonly lastTrack: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
-  | { readonly kind: 'unknown'; readonly frequencyKhz: number; readonly lastCheckedAt: string | null };
+  | { readonly kind: 'on-air'; readonly frequencyKhz: number | null; readonly track: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
+  | { readonly kind: 'off-air'; readonly frequencyKhz: number | null; readonly lastTrack: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
+  | { readonly kind: 'unknown'; readonly frequencyKhz: number | null; readonly lastCheckedAt: string | null };
 
 /** Milliseconds since the helper checked, on the server's clock plus the page's
  * own elapsed time since the answer arrived, so the two clocks never mix. */

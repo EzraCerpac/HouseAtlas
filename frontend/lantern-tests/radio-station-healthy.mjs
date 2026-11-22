@@ -52,13 +52,17 @@ const clone = value => JSON.parse(JSON.stringify(value));
   assert.deepEqual(decoded.snapshot.cover, { mediaType: 'image/png', sha256: SHA });
   assert.equal(decodeRadioStation(station(snapshot('playing', '2026-01-01T12:00:08.000Z', { track: null }))).snapshot.track, null, 'playing may have no current track');
   assert.equal(decodeRadioStation(station(null)).snapshot, null);
+  assert.equal(decodeRadioStation({ ...station(null), frequencyKhz: null }).frequencyKhz, null, 'an absent station file reads as no frequency');
   assert.equal(decodeRadioStation(station(null, undefined, null)).placement, null);
   assert.equal(decodeRadioStation({ ...station(null), lastCheckedAt: '2026-01-01T11:59:00.000Z' }).lastCheckedAt, '2026-01-01T11:59:00.000Z');
   const mutations = [
     v => { v.schema = 'houseatlas.radio-station.v2'; },
     v => { v.extra = 1; },
     v => { delete v.placement; },
+    v => { delete v.frequencyKhz; },
+    v => { v.frequencyKhz = '1440'; },
     v => { v.frequencyKhz = 1440.5; },
+    v => { v.frequencyKhz = 519; },
     v => { v.frequencyKhz = 2000; },
     v => { v.placement.spaceOccurrenceId = 'hall way'; },
     v => { v.placement.publicationId = 'publication'; },
@@ -100,6 +104,8 @@ const feedState = (value, receivedAt = 1_000, cover = null) => ({ configured: tr
   assert.deepEqual(radioView(feedState({ ...station(null), lastCheckedAt: '2026-01-01T11:59:00.000Z' }), 1_000),
     { kind: 'unknown', frequencyKhz: 1440, lastCheckedAt: '2026-01-01T11:59:00.000Z' });
   assert.equal(radioExpiry(feedState(station(null))), null);
+  assert.equal(radioView(feedState({ ...station(snapshot('playing', '2026-01-01T12:00:08.000Z')), frequencyKhz: null }), 1_000).frequencyKhz, null);
+  assert.equal(radioView(feedState({ ...station(null), frequencyKhz: null }), 1_000).frequencyKhz, null);
   assert.deepEqual(radioView({ configured: false, station: null, receivedAt: 0, cover: null }, 0), { kind: 'none' });
   // The cover belongs to lastTrack: off air it shows; on air only while that is the current track.
   const covered = { cover: { mediaType: 'image/png', sha256: SHA } }, held = { sha256: SHA, url: 'blob:cover' };
@@ -129,6 +135,10 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   const hiding = markup({ view: { kind: 'on-air', frequencyKhz: 1440, track: null, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null, onHide: () => {} });
   assert.deepEqual(visible(hiding), ['On air · 1440 kHz', 'No track details', 'Checked T12:00:08']);
   assert.deepEqual([...hiding.matchAll(/<button [^>]*>/g)].map(m => m[0]), ['<button type="button" class="ua-radio-hide" aria-label="Hide radio" title="Hide radio">']);
+  // Without a stated frequency the header drops the kHz part and the dial is omitted.
+  const bare = markup({ view: { kind: 'on-air', frequencyKhz: null, track: { title: 'Example title', artist: null }, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null });
+  assert.deepEqual(visible(bare), ['On air', 'Example title', 'Checked T12:00:08']);
+  assert.doesNotMatch(bare, /<svg class="ua-radio-dial|ua-radio-needle|kHz/);
   const cardSlot = (value, now) => {
     const state = feedState(value), feed = { subscribe: () => () => undefined, state: () => state, dispose() {} };
     return renderToStaticMarkup(createElement(RadioCardSlot, { feed, placeName: () => 'Hallway', now: () => now, reduced: false }));
