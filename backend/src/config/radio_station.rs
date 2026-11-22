@@ -121,8 +121,7 @@ impl RadioStationSelection {
     }
     pub(crate) fn parse(bytes: &[u8]) -> Result<Self, String> {
         let value = crate::contracts::v2::parse_value(bytes).map_err(|_| invalid())?;
-        // The placement is stated explicitly, null when unreviewed.
-        need(value.get("placement").is_some())?;
+        // `nullable` makes the placement required: stated explicitly, null when unreviewed.
         let p: Profile = serde_json::from_value(value).map_err(|_| invalid())?;
         need(
             p.profile == "houseatlas.radio-station-profile.v1"
@@ -248,22 +247,9 @@ impl Snapshot {
             return Err(());
         }
         let value = crate::contracts::v2::parse_value(bytes).map_err(|_| ())?;
-        let track_keys = |v: &Value| v.is_null() || keys(v, &["title", "artist"], &[]);
-        if !keys(
-            &value,
-            &[
-                "schema",
-                "state",
-                "since",
-                "checkedAt",
-                "track",
-                "lastTrack",
-            ],
-            &["cover"],
-        ) || !track_keys(&value["track"])
-            || !track_keys(&value["lastTrack"])
-            || value.get("cover").is_some_and(|cover| cover.is_null())
-        {
+        // Unknown and missing keys are refused by the closed serde shapes; the
+        // optional cover is either absent or an object, never null.
+        if value.get("cover").is_some_and(Value::is_null) {
             return Err(());
         }
         let s: Self = serde_json::from_value(value).map_err(|_| ())?;
@@ -298,29 +284,20 @@ impl Cover {
 }
 
 /// What one read established. `snapshot` is present only when it decoded and
-/// was checked within the freshness window; `last_checked_at` keeps the time of
-/// a decodable but stale snapshot so the card can say when it was last confirmed.
+/// was checked within the freshness window, and not ahead of the reader's clock.
 pub(crate) struct Observation {
     pub(crate) read_at: String,
-    pub(crate) last_checked_at: Option<String>,
     pub(crate) snapshot: Option<Snapshot>,
 }
 impl Observation {
     pub(crate) fn at(snapshot: Option<Snapshot>, now: chrono::DateTime<chrono::Utc>) -> Self {
-        let read_at = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        let checked = snapshot.as_ref().and_then(|s| date(&s.checked_at));
-        let age = checked.map(|at| (now - at).num_milliseconds());
-        match (snapshot, age) {
-            (Some(snapshot), Some(age)) if age >= -FUTURE_MS => Self {
-                read_at,
-                last_checked_at: Some(snapshot.checked_at.clone()),
-                snapshot: (age <= FRESH_MS).then_some(snapshot),
-            },
-            _ => Self {
-                read_at,
-                last_checked_at: None,
-                snapshot: None,
-            },
+        let fresh = |s: &Snapshot| {
+            date(&s.checked_at)
+                .is_some_and(|at| (-FUTURE_MS..=FRESH_MS).contains(&(now - at).num_milliseconds()))
+        };
+        Self {
+            read_at: now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            snapshot: snapshot.filter(fresh),
         }
     }
 }
@@ -414,19 +391,14 @@ mod tests {
         assert_eq!(fresh.read_at, "2026-01-01T12:00:30.000Z");
         let stale = Observation::at(s("2026-01-01T12:00:14.999Z"), now);
         assert!(stale.snapshot.is_none());
-        assert_eq!(
-            stale.last_checked_at.as_deref(),
-            Some("2026-01-01T12:00:14.999Z")
-        );
         let ahead = Observation::at(s("2026-01-01T12:00:32.001Z"), now);
-        assert!(ahead.snapshot.is_none() && ahead.last_checked_at.is_none());
+        assert!(ahead.snapshot.is_none());
         assert!(
             Observation::at(s("2026-01-01T12:00:32.000Z"), now)
                 .snapshot
                 .is_some()
         );
-        let missing = Observation::at(None, now);
-        assert!(missing.snapshot.is_none() && missing.last_checked_at.is_none());
+        assert!(Observation::at(None, now).snapshot.is_none());
     }
 
     #[test]

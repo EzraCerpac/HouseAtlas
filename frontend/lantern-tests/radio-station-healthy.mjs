@@ -1,9 +1,14 @@
 // Named ordinary positive: the Atlas radio station card and rings. Generated
-// station responses through the closed decoder, the 15-second freshness rule on
-// the server's clock plus the page's own elapsed time, a card only while fresh
-// and on air (with its one Hide control), rings only while fresh, on air and placed in this publication, still rings
-// for reduced motion, and a feed that sends only GETs, only while watched and
-// visible. Fake transport, timers and visibility; no browser, network or device.
+// station responses through the closed decoder; freshness from the server's
+// read age counted from the request's send, so waiting for an answer never
+// extends it; a "Now playing" card only while fresh and playing (with its one
+// Hide control), its tuck kept per viewer and home; decorative rings only while
+// fresh, playing and placed in this publication, still for reduced motion; a
+// feed whose expiry publishes a new state, which drops the reading on 401/403,
+// fetches a cover only while it would show (aborted on hide or unwatch, with a
+// deadline and three tries per digest) and sends only GETs, only while watched
+// and visible. Fake transport, timers, storage and visibility; no browser,
+// network or device.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { transformWithOxc } from 'vite';
@@ -31,8 +36,8 @@ const radioURL = await sourceURL('../src/lantern/unified-atlas/radio.ts');
 const radio = await import(radioURL);
 const { createRadioClient } = await import(await sourceURL('../integration/radio-station.ts', { '../src/lantern/unified-atlas/radio': radioURL }));
 const card = await import(await sourceURL('../src/lantern/unified-atlas/RadioCard.tsx', { react: reactURL, 'react/jsx-runtime': jsxURL, './radio': radioURL }, 'tsx'));
-const { decodeRadioStation, radioView, radioPlacement, radioExpiry, createRadioFeed, dialFraction, RADIO_POLL_MS } = radio;
-const { RadioCard, RadioRings, RadioRingsSlot, RadioCardSlot, RADIO_RING_M } = card;
+const { decodeRadioStation, radioView, radioPlacement, radioFreshUntil, createRadioFeed, dialFraction, RadioRefused, RADIO_POLL_MS } = radio;
+const { RadioCard, RadioRings, RadioRingsSlot, RadioCardSlot, RADIO_RING_M, radioTuckKey } = card;
 
 const PUBLICATION = '00000000-0000-4000-8000-000000000009', SHA = 'a'.repeat(64);
 const snapshot = (state, checkedAt, extra = {}) => ({ schema: 'houseatlas.now-playing.v1', state,
@@ -40,9 +45,15 @@ const snapshot = (state, checkedAt, extra = {}) => ({ schema: 'houseatlas.now-pl
   track: state === 'playing' ? { title: 'Example title', artist: 'Example artist' } : null,
   lastTrack: { title: 'Example title', artist: 'Example artist' }, ...extra });
 const station = (shot, readAt = '2026-01-01T12:00:10.000Z', placement = { publicationId: PUBLICATION, spaceOccurrenceId: 'occ-hall' }) => ({
-  schema: 'houseatlas.radio-station.v1', frequencyKhz: 1440, placement, readAt,
-  lastCheckedAt: shot?.checkedAt ?? null, snapshot: shot });
+  schema: 'houseatlas.radio-station.v1', frequencyKhz: 1440, placement, readAt, snapshot: shot });
 const clone = value => JSON.parse(JSON.stringify(value));
+const scope = { workspaceId: '00000000-0000-4000-8000-000000000002', homeId: '00000000-0000-4000-8000-000000000003' };
+const place = { transform: 'matrix(1 0 0 1 0 0)', x: 2, z: 3 };
+const fixedFeed = state => ({ subscribe: () => () => undefined, state: () => state, dispose() {} });
+const cardSlot = (state, now, tuckKey = null) =>
+  renderToStaticMarkup(createElement(RadioCardSlot, { feed: fixedFeed(state), placeName: () => 'Hallway', now: () => now, reduced: false, tuckKey }));
+const ringsSlot = (state, now, placeAt = () => place) =>
+  renderToStaticMarkup(createElement('svg', null, createElement(RadioRingsSlot, { feed: fixedFeed(state), place: placeAt, now: () => now, reduced: false })));
 
 // The closed decoder.
 {
@@ -54,10 +65,10 @@ const clone = value => JSON.parse(JSON.stringify(value));
   assert.equal(decodeRadioStation(station(null)).snapshot, null);
   assert.equal(decodeRadioStation({ ...station(null), frequencyKhz: null }).frequencyKhz, null, 'an absent station file reads as no frequency');
   assert.equal(decodeRadioStation(station(null, undefined, null)).placement, null);
-  assert.equal(decodeRadioStation({ ...station(null), lastCheckedAt: '2026-01-01T11:59:00.000Z' }).lastCheckedAt, '2026-01-01T11:59:00.000Z');
   const mutations = [
     v => { v.schema = 'houseatlas.radio-station.v2'; },
     v => { v.extra = 1; },
+    v => { v.lastCheckedAt = null; },
     v => { delete v.placement; },
     v => { delete v.frequencyKhz; },
     v => { v.frequencyKhz = '1440'; },
@@ -67,7 +78,6 @@ const clone = value => JSON.parse(JSON.stringify(value));
     v => { v.placement.spaceOccurrenceId = 'hall way'; },
     v => { v.placement.publicationId = 'publication'; },
     v => { v.readAt = 'now'; },
-    v => { v.lastCheckedAt = null; },
     v => { v.snapshot.schema = 'houseatlas.now-playing.v2'; },
     v => { v.snapshot.state = 'paused'; },
     v => { v.snapshot.volume = 3; },
@@ -89,70 +99,90 @@ const clone = value => JSON.parse(JSON.stringify(value));
   });
 }
 
-// Freshness: the server's age at read plus the page's elapsed time, never mixed clocks.
-const feedState = (value, receivedAt = 1_000, cover = null) => ({ configured: true, station: decodeRadioStation(value), receivedAt, cover });
+// Freshness: the server's age at its read, counted from the request's send on the page's own clock.
+const feedState = (value, sentAt = 1_000, cover = null) => {
+  const decoded = decodeRadioStation(value);
+  return { configured: true, station: decoded, freshUntil: radioFreshUntil(decoded, sentAt), cover };
+};
 {
   const fresh = feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z')));
-  assert.equal(radioView(fresh, 1_000).kind, 'on-air');
-  assert.equal(radioView(fresh, 1_000 + 13_000).kind, 'on-air');
-  assert.equal(radioView(fresh, 1_000 + 13_001).kind, 'unknown', '15 s after the helper last checked');
-  assert.equal(radioExpiry(fresh), 1_000 + 13_001);
-  assert.deepEqual(radioView(fresh, 20_000), { kind: 'unknown', frequencyKhz: 1440, lastCheckedAt: '2026-01-01T12:00:08.000Z' });
-  // A check far ahead of the server's read, an unknown state, or no snapshot is unknown.
-  assert.equal(radioView(feedState(station(snapshot('playing', '2026-01-01T12:00:12.001Z'))), 1_000).kind, 'unknown');
-  assert.equal(radioView(feedState(station(snapshot('unknown', '2026-01-01T12:00:09.000Z'))), 1_000).kind, 'unknown');
-  assert.deepEqual(radioView(feedState({ ...station(null), lastCheckedAt: '2026-01-01T11:59:00.000Z' }), 1_000),
-    { kind: 'unknown', frequencyKhz: 1440, lastCheckedAt: '2026-01-01T11:59:00.000Z' });
-  assert.equal(radioExpiry(feedState(station(null))), null);
+  assert.equal(fresh.freshUntil, 1_000 + 13_000, 'checked 2 s before the server read');
+  assert.ok(radioView(fresh, 1_000));
+  assert.ok(radioView(fresh, 1_000 + 13_000));
+  assert.equal(radioView(fresh, 1_000 + 13_001), null, '15 s after the helper last checked');
+  assert.deepEqual(radioView(fresh, 1_000), { frequencyKhz: 1440, track: { title: 'Example title', artist: 'Example artist' }, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' });
+  // A check ahead of the server's read counts as age 0; the server refuses more than 2 s ahead.
+  assert.equal(feedState(station(snapshot('playing', '2026-01-01T12:00:11.000Z'))).freshUntil, 1_000 + 15_000);
+  assert.equal(feedState(station(snapshot('playing', '2026-01-01T11:59:54.999Z'))).freshUntil, null, 'over 15 s old at the server');
+  assert.equal(radioView({ ...fresh, freshUntil: null }, 1_000), null, 'an expired state shows nothing at any time');
+  // Only a playing reading has a view.
+  assert.equal(radioView(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z'))), 1_000), null);
+  assert.equal(radioView(feedState(station(snapshot('unknown', '2026-01-01T12:00:09.000Z'))), 1_000), null);
+  assert.equal(feedState(station(null)).freshUntil, null);
+  assert.equal(radioView(feedState(station(null)), 1_000), null);
+  assert.equal(radioView({ configured: false, station: null, freshUntil: null, cover: null }, 0), null);
   assert.equal(radioView(feedState({ ...station(snapshot('playing', '2026-01-01T12:00:08.000Z')), frequencyKhz: null }), 1_000).frequencyKhz, null);
-  assert.equal(radioView(feedState({ ...station(null), frequencyKhz: null }), 1_000).frequencyKhz, null);
-  assert.deepEqual(radioView({ configured: false, station: null, receivedAt: 0, cover: null }, 0), { kind: 'none' });
-  // The cover belongs to lastTrack: off air it shows; on air only while that is the current track.
+  // The cover belongs to lastTrack: it shows only while that is the current track.
   const covered = { cover: { mediaType: 'image/png', sha256: SHA } }, held = { sha256: SHA, url: 'blob:cover' };
-  assert.equal(radioView(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z', covered)), 1_000, held), 1_000).coverUrl, 'blob:cover');
   assert.equal(radioView(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z', covered)), 1_000, held), 1_000).coverUrl, 'blob:cover');
   const changed = snapshot('playing', '2026-01-01T12:00:08.000Z', covered); changed.track = { title: 'Next title', artist: 'Example artist' };
   assert.equal(radioView(feedState(station(changed), 1_000, held), 1_000).coverUrl, null);
-  assert.equal(radioView(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z', covered)), 1_000, { sha256: 'b'.repeat(64), url: 'blob:old' }), 1_000).coverUrl, null);
+  assert.equal(radioView(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z', covered)), 1_000, { sha256: 'b'.repeat(64), url: 'blob:old' }), 1_000).coverUrl, null);
   assert.equal(dialFraction(520), 0); assert.equal(dialFraction(1710), 1); assert.equal(dialFraction(9999), 1);
 }
 
-// The card: what it says on air, with a fixed clock text. Off air, unknown or stale shows none.
+// The card: what it says while playing, with a fixed clock text. Anything else shows none.
 const time = iso => `T${iso.slice(11, 19)}`;
 const markup = props => renderToStaticMarkup(createElement(RadioCard, { time, ...props }));
 const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '|').split('|').filter(Boolean);
 {
-  const on = markup({ view: { kind: 'on-air', frequencyKhz: 1440, track: { title: 'Example title', artist: 'Example artist' }, coverUrl: 'blob:cover', checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: 'Hallway' });
-  assert.deepEqual(visible(on), ['On air · 1440 kHz', 'Example title', 'Example artist', 'Checked T12:00:08', 'Transmitter in Hallway']);
-  assert.match(on, /<section class="ua-radio is-on-air" aria-label="Radio">/);
-  assert.match(on, /role="status"/);
+  const on = markup({ view: { frequencyKhz: 1440, track: { title: 'Example title', artist: 'Example artist' }, coverUrl: 'blob:cover', checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: 'Hallway' });
+  assert.deepEqual(visible(on), ['Now playing · 1440 AM', 'Example title', 'Example artist', 'Checked T12:00:08', 'Transmitter in Hallway']);
+  assert.match(on, /<section class="ua-radio" aria-label="Radio">/);
+  assert.doesNotMatch(on, /role=|aria-live/, 'ambient: nothing is announced');
+  assert.doesNotMatch(on, /[Oo]n air|kHz/, 'no broadcast claim');
   assert.match(on, /<img class="ua-radio-cover" src="blob:cover" alt=""/);
-  assert.match(on, /<svg class="ua-radio-dial is-lit"[^>]*aria-hidden="true"/);
+  assert.match(on, /<svg class="ua-radio-dial"[^>]*aria-hidden="true"/);
   assert.match(on, /<time dateTime="2026-01-01T12:00:08.000Z">/);
   assert.doesNotMatch(on, /<button|<input|<a /, 'no playback controls');
   const needle = Number(/class="ua-radio-needle" x1="([\d.]+)"/.exec(on)[1]);
   assert.ok(Math.abs(needle - (8 + dialFraction(1440) * 184)) < 0.06, `needle ${needle}`);
-  const hiding = markup({ view: { kind: 'on-air', frequencyKhz: 1440, track: null, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null, onHide: () => {} });
-  assert.deepEqual(visible(hiding), ['On air · 1440 kHz', 'No track details', 'Checked T12:00:08']);
+  const hiding = markup({ view: { frequencyKhz: 1440, track: null, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null, onHide: () => {} });
+  assert.deepEqual(visible(hiding), ['Now playing · 1440 AM', 'No track details', 'Checked T12:00:08']);
   assert.deepEqual([...hiding.matchAll(/<button [^>]*>/g)].map(m => m[0]), ['<button type="button" class="ua-radio-hide" aria-label="Hide radio" title="Hide radio">']);
-  // Without a stated frequency the header drops the kHz part and the dial is omitted.
-  const bare = markup({ view: { kind: 'on-air', frequencyKhz: null, track: { title: 'Example title', artist: null }, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null });
-  assert.deepEqual(visible(bare), ['On air', 'Example title', 'Checked T12:00:08']);
-  assert.doesNotMatch(bare, /<svg class="ua-radio-dial|ua-radio-needle|kHz/);
-  const cardSlot = (value, now) => {
-    const state = feedState(value), feed = { subscribe: () => () => undefined, state: () => state, dispose() {} };
-    return renderToStaticMarkup(createElement(RadioCardSlot, { feed, placeName: () => 'Hallway', now: () => now, reduced: false }));
-  };
-  const shown = cardSlot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 1_000);
-  assert.match(shown, /<div class="ua-radio-dock"><section class="ua-radio is-on-air" aria-label="Radio">/);
+  // Without a stated frequency the header says only Now playing and the dial is omitted.
+  const bare = markup({ view: { frequencyKhz: null, track: { title: 'Example title', artist: null }, coverUrl: null, checkedAt: '2026-01-01T12:00:08.000Z' }, placeName: null });
+  assert.deepEqual(visible(bare), ['Now playing', 'Example title', 'Checked T12:00:08']);
+  assert.doesNotMatch(bare, /<svg class="ua-radio-dial|ua-radio-needle| AM/);
+  const shown = cardSlot(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z'))), 1_000);
+  assert.match(shown, /^<div class="ua-radio-dock"><section class="ua-radio" aria-label="Radio">/);
   assert.match(shown, /aria-label="Hide radio"/);
-  assert.equal(cardSlot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 20_000), '', 'stale: no card');
-  assert.equal(cardSlot(station(snapshot('stopped', '2026-01-01T12:00:08.000Z')), 1_000), '', 'off air: no card');
-  assert.equal(cardSlot(station(snapshot('unknown', '2026-01-01T12:00:08.000Z')), 1_000), '', 'unknown: no card');
-  assert.equal(cardSlot(station(null), 1_000), '', 'no snapshot: no card');
+  assert.equal(cardSlot(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z'))), 20_000), '', 'stale: no card');
+  assert.equal(cardSlot(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z'))), 1_000), '', 'stopped: no card');
+  assert.equal(cardSlot(feedState(station(snapshot('unknown', '2026-01-01T12:00:08.000Z'))), 1_000), '', 'unknown: no card');
+  assert.equal(cardSlot(feedState(station(null)), 1_000), '', 'no snapshot: no card');
+  assert.equal(cardSlot({ configured: false, station: null, freshUntil: null, cover: null }, 0), '', 'no station: no card');
 }
 
-// Rings: only fresh, on air and placed in this publication; still for reduced motion.
+// The tuck: kept per viewer and home on this device; without a viewer, for the page only.
+{
+  const stored = new Map();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
+    getItem: key => stored.get(key) ?? null, setItem: (key, value) => { stored.set(key, String(value)); }, removeItem: key => { stored.delete(key); } } });
+  const keyA = radioTuckKey('actor-a', scope.workspaceId, scope.homeId);
+  assert.equal(keyA, `houseatlas.radio.tucked:["actor-a","${scope.workspaceId}","${scope.homeId}"]`);
+  assert.equal(radioTuckKey(null, scope.workspaceId, scope.homeId), null);
+  stored.set(keyA, '1');
+  const playing = feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z')));
+  assert.equal(cardSlot(playing, 1_000, keyA), '<button type="button" class="ua-radio-tab" aria-label="Show radio" title="Show radio"><span class="ua-radio-lamp" aria-hidden="true"></span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>');
+  assert.match(cardSlot(playing, 1_000, radioTuckKey('actor-b', scope.workspaceId, scope.homeId)), /class="ua-radio-dock"/, 'another viewer keeps its own choice');
+  assert.match(cardSlot(playing, 1_000, radioTuckKey('actor-a', scope.workspaceId, '00000000-0000-4000-8000-000000000006')), /class="ua-radio-dock"/, 'and so does another home');
+  assert.match(cardSlot(playing, 1_000, null), /class="ua-radio-dock"/);
+  assert.equal(cardSlot(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z'))), 1_000, keyA), '', 'no tab when nothing plays');
+  delete globalThis.localStorage;
+}
+
+// Rings: decorative, only fresh, playing and placed in this publication; still for reduced motion.
 {
   const scene = { publication: { publicationId: PUBLICATION }, occurrences: [{ spaceOccurrenceId: 'occ-hall' }, { spaceOccurrenceId: 'occ-living' }] };
   const at = value => radioPlacement(decodeRadioStation(value), scene);
@@ -160,8 +190,8 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   assert.equal(at(station(null, undefined, null)), null);
   assert.equal(at(station(null, undefined, { publicationId: '00000000-0000-4000-8000-000000000008', spaceOccurrenceId: 'occ-hall' })), null);
   assert.equal(at(station(null, undefined, { publicationId: PUBLICATION, spaceOccurrenceId: 'occ-attic' })), null);
-  const place = { transform: 'matrix(1 0 0 1 0 0)', x: 2, z: 3 };
   const moving = renderToStaticMarkup(createElement('svg', null, createElement(RadioRings, { place, reduced: false })));
+  assert.match(moving, /<g class="ua-radio-rings" transform="[^"]+" aria-hidden="true">/);
   assert.equal((moving.match(/<circle /g) ?? []).length, 5);
   assert.equal((moving.match(new RegExp(`r="${RADIO_RING_M}"`, 'g')) ?? []).length, 5);
   assert.deepEqual([...moving.matchAll(/animation-delay:(-?[\d.]+)s/g)].map(m => Number(m[1])), [0, -1.2, -2.4, -3.6, -4.8]);
@@ -170,38 +200,23 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   assert.match(still, /class="ua-radio-rings is-still"/);
   assert.doesNotMatch(still, /animation/);
   assert.deepEqual([...still.matchAll(/ r="([\d.]+)"/g)].map(m => Number(m[1])), [0.9, 1.8, 2.7, 3.6, 4.5]);
-  const slot = (value, now, placeAt = () => place) => {
-    const state = feedState(value);
-    const feed = { subscribe: () => () => undefined, state: () => state, dispose() {} };
-    return renderToStaticMarkup(createElement('svg', null, createElement(RadioRingsSlot, { feed, place: placeAt, now: () => now, reduced: false })));
-  };
-  assert.match(slot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 1_000), /ua-radio-rings/);
-  assert.doesNotMatch(slot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 20_000), /ua-radio-rings/, 'stale');
-  assert.doesNotMatch(slot(station(snapshot('stopped', '2026-01-01T12:00:08.000Z')), 1_000), /ua-radio-rings/, 'off air');
-  assert.doesNotMatch(slot(station(snapshot('unknown', '2026-01-01T12:00:08.000Z')), 1_000), /ua-radio-rings/, 'unknown');
-  assert.doesNotMatch(slot(station(snapshot('playing', '2026-01-01T12:00:08.000Z')), 1_000, () => null), /ua-radio-rings/, 'unplaced or floor not drawn');
-  const noStation = { subscribe: () => () => undefined, state: () => ({ configured: false, station: null, receivedAt: 0, cover: null }), dispose() {} };
-  assert.equal(renderToStaticMarkup(createElement(RadioCardSlot, { feed: noStation, placeName: () => null, now: () => 0, reduced: false })), '', 'no station, no card');
+  assert.match(ringsSlot(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z'))), 1_000), /ua-radio-rings/);
+  assert.doesNotMatch(ringsSlot(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z'))), 20_000), /ua-radio-rings/, 'stale');
+  assert.doesNotMatch(ringsSlot(feedState(station(snapshot('stopped', '2026-01-01T12:00:08.000Z'))), 1_000), /ua-radio-rings/, 'stopped');
+  assert.doesNotMatch(ringsSlot(feedState(station(snapshot('unknown', '2026-01-01T12:00:08.000Z'))), 1_000), /ua-radio-rings/, 'unknown');
+  assert.doesNotMatch(ringsSlot(feedState(station(snapshot('playing', '2026-01-01T12:00:08.000Z'))), 1_000, () => null), /ua-radio-rings/, 'unplaced or floor not drawn');
 }
 
-// The feed and client: GETs only, only while watched and visible.
-{
-  const requests = [], timers = new Map();
-  let clock = 0, hidden = false, nextTimer = 1, visibility = null, reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
-  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-  const pngSha = Buffer.from(await crypto.subtle.digest('SHA-256', png)).toString('hex');
-  const transport = async (url, init) => {
-    requests.push({ url, method: init.method, credentials: init.credentials, cache: init.cache, body: init.body });
-    if (url.includes('/covers/')) return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
-    const value = reply();
-    return value === 404 ? new Response('', { status: 404 }) : new Response(JSON.stringify(value), { status: 200 });
-  };
+// Fake timers, clock, object URLs and visibility for the feed.
+function harness() {
+  const timers = new Map(), revoked = [];
+  let clock = 0, hidden = false, nextTimer = 1, visibility = null, urls = 0;
   const env = {
     now: () => clock, hidden: () => hidden,
     onVisibility(changed) { visibility = changed; return () => { visibility = null; }; },
     setTimeout(run, ms) { const id = nextTimer++; timers.set(id, { run, at: clock + ms }); return id; },
     clearTimeout(id) { timers.delete(id); },
-    createObjectURL: () => 'blob:cover', revokeObjectURL() {},
+    createObjectURL: () => `blob:${++urls}`, revokeObjectURL: url => { revoked.push(url); },
   };
   const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve)); };
   const advance = async ms => {
@@ -213,54 +228,165 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
     }
     clock = until;
   };
-  const scope = { workspaceId: '00000000-0000-4000-8000-000000000002', homeId: '00000000-0000-4000-8000-000000000003' };
-  // The client: exact routes, GET, same-origin, no-store, digest-checked cover.
+  return { env, settle, advance, revoked, now: () => clock, hide: value => { hidden = value; visibility?.(); }, watched: () => visibility !== null };
+}
+const pending = signal => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+
+// Expiry publishes a new state, so a stale card and rings leave on time while reads hang or fail.
+{
+  const h = harness();
+  let answer = () => decodeRadioStation(station(snapshot('playing', '2026-01-01T12:00:08.000Z')));
+  const port = { read: (_scope, signal) => answer(signal), cover: () => Promise.reject(new Error('none')) };
+  const feed = createRadioFeed(port, scope, h.env), seen = [];
+  const stop = feed.subscribe(() => { seen.push(feed.state()); });
+  await h.settle();
+  const fresh = feed.state();
+  assert.equal(fresh.freshUntil, 13_000);
+  answer = pending; seen.length = 0;
+  await h.advance(13_000);
+  assert.equal(seen.length, 0, 'a hanging read publishes nothing');
+  assert.ok(radioView(feed.state(), h.now()), 'still fresh at 13 s');
+  await h.advance(1);
+  assert.equal(seen.length, 1, 'expiry notifies');
+  const expired = seen[0];
+  assert.notEqual(expired, fresh, 'with a new state, so useSyncExternalStore renders again');
+  assert.equal(expired.freshUntil, null);
+  assert.equal(radioView(expired, 0), null, 'the expired state shows nothing, whatever the clock');
+  assert.equal(cardSlot(expired, h.now()), '', 'no card');
+  assert.equal(ringsSlot(expired, h.now()), '<svg></svg>', 'no rings');
+  answer = () => Promise.reject(new Error('offline'));
+  await h.advance(RADIO_POLL_MS * 3);
+  assert.equal(seen.length, 1, 'failed reads publish nothing more');
+  stop(); feed.dispose();
+}
+// Time spent waiting for the answer counts: 14 s old at the server and 3 s in flight is not shown.
+{
+  const h = harness();
+  const answer = () => decodeRadioStation(station(snapshot('playing', '2026-01-01T12:00:00.000Z'), '2026-01-01T12:00:14.000Z'));
+  const port = { read: () => new Promise(resolve => h.env.setTimeout(() => resolve(answer()), 3_000)), cover: () => Promise.reject(new Error('none')) };
+  const feed = createRadioFeed(port, scope, h.env), stop = feed.subscribe(() => undefined);
+  await h.advance(3_000);
+  assert.equal(feed.state().configured, true);
+  assert.equal(feed.state().freshUntil, null);
+  assert.equal(radioView(feed.state(), h.now()), null);
+  assert.equal(cardSlot(feed.state(), h.now()), '');
+  assert.equal(radioFreshUntil(feed.state().station, 3_000), 4_000, 'counted from receipt it would have shown');
+  stop(); feed.dispose();
+}
+
+// Covers: asked for only while they would show, aborted when hidden or unwatched, with a deadline and three tries per digest.
+{
+  const h = harness(), calls = [];
+  const covered = station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: SHA } }));
+  const otherTrack = clone(covered); otherTrack.snapshot.track = { title: 'Next title', artist: null };
+  let reply = otherTrack, failing = false;
+  const port = {
+    read: async () => decodeRadioStation(reply),
+    cover: (_scope, sha256, signal) => { calls.push({ sha256, signal }); return failing ? Promise.reject(new Error('offline')) : pending(signal); },
+  };
+  const feed = createRadioFeed(port, scope, h.env);
+  let stop = feed.subscribe(() => undefined);
+  await h.settle();
+  assert.equal(calls.length, 0, 'the cover of another track is not asked for');
+  reply = covered;
+  await h.advance(RADIO_POLL_MS);
+  assert.equal(calls.length, 1);
+  h.hide(true);
+  assert.ok(calls[0].signal.aborted, 'hiding aborts it');
+  h.hide(false); await h.settle();
+  assert.equal(calls.length, 2, 'asked again once shown');
+  stop();
+  assert.ok(calls[1].signal.aborted, 'unwatching aborts it');
+  stop = feed.subscribe(() => undefined); await h.settle();
+  assert.equal(calls.length, 3);
+  await h.advance(10_000);
+  assert.ok(calls[2].signal.aborted, 'a cover that does not answer is given up after 10 s');
+  failing = true;
+  await h.advance(RADIO_POLL_MS * 6);
+  assert.equal(calls.length, 5, 'retried on later polls, three failed tries per digest');
+  assert.ok(calls.every(call => call.sha256 === SHA));
+  assert.equal(feed.state().cover, null);
+  stop(); feed.dispose();
+}
+
+// The feed and client: GETs only, only while watched and visible; 401 and 403 drop the reading.
+{
+  const requests = [];
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const pngSha = Buffer.from(await crypto.subtle.digest('SHA-256', png)).toString('hex');
+  let reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
+  const transport = async (url, init) => {
+    requests.push({ url, method: init.method, credentials: init.credentials, cache: init.cache, body: init.body });
+    if (url.includes('/covers/')) return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
+    const value = reply();
+    return typeof value === 'number' ? new Response('', { status: value }) : new Response(JSON.stringify(value), { status: 200 });
+  };
+  const h = harness();
+  // The client: exact routes, GET, same-origin, no-store, digest-checked cover, refusals distinguished.
   const client = createRadioClient(transport);
   const coverBlob = await client.cover(scope, pngSha, AbortSignal.timeout(1000));
   assert.equal(coverBlob.type, 'image/png');
   await assert.rejects(client.cover(scope, SHA, AbortSignal.timeout(1000)), TypeError, 'bytes must match their digest');
   await assert.rejects(client.cover(scope, '../station', AbortSignal.timeout(1000)), TypeError);
+  for (const status of [401, 403]) { reply = () => status; await assert.rejects(client.read(scope, AbortSignal.timeout(1000)), RadioRefused); }
+  reply = () => 500;
+  await assert.rejects(client.read(scope, AbortSignal.timeout(1000)), error => !(error instanceof RadioRefused));
+  reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
   requests.length = 0;
-  const feed = createRadioFeed(client, scope, env);
-  await settle();
+  const feed = createRadioFeed(client, scope, h.env);
+  await h.settle();
   assert.equal(requests.length, 0, 'nothing is read until someone watches');
   let notified = 0;
   const stop = feed.subscribe(() => { notified++; });
-  await settle();
+  await h.settle();
   assert.equal(requests.length, 2, 'station, then its cover once');
   assert.equal(requests[0].url, `/api/atlas/radio/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/station`);
   assert.equal(requests[1].url, `/api/atlas/radio/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/covers/${pngSha}`);
-  assert.equal(feed.state().cover.url, 'blob:cover');
+  assert.equal(feed.state().cover.url, 'blob:1');
+  assert.equal(radioView(feed.state(), h.now()).coverUrl, 'blob:1');
   assert.ok(notified >= 2);
-  await advance(RADIO_POLL_MS - 1);
+  await h.advance(RADIO_POLL_MS - 1);
   assert.equal(requests.length, 2);
-  await advance(1);
+  await h.advance(1);
   assert.equal(requests.length, 3, 'about every four seconds');
-  await advance(RADIO_POLL_MS * 2);
+  await h.advance(RADIO_POLL_MS * 2);
   assert.equal(requests.length, 5, 'the same cover digest is not fetched again');
-  // Hidden: polling stops; showing again reads at once.
-  hidden = true; visibility(); await advance(RADIO_POLL_MS * 5);
+  // Hidden: polling stops and the reading expires; showing again reads at once.
+  h.hide(true); await h.advance(RADIO_POLL_MS * 5);
   assert.equal(requests.length, 5);
-  assert.equal(radioView(feed.state(), clock).kind, 'unknown', 'the last answer ages into unknown');
-  hidden = false; visibility(); await settle();
+  assert.equal(radioView(feed.state(), h.now()), null, 'the last answer expires');
+  h.hide(false); await h.settle();
   assert.equal(requests.length, 6);
-  // A failed read keeps the last answer to age out; the next poll still runs.
-  reply = () => { throw new Error('offline'); };
-  await advance(RADIO_POLL_MS); assert.equal(requests.length, 7);
-  await advance(RADIO_POLL_MS); assert.equal(requests.length, 8);
+  // A failed read keeps the last answer until it expires; the next poll still runs.
+  reply = () => 500;
+  await h.advance(RADIO_POLL_MS); assert.equal(requests.length, 7);
+  assert.ok(feed.state().station && feed.state().cover, 'a transport failure keeps the reading');
+  // 401 and 403 drop the reading and its cover at once; polling goes on.
+  for (const status of [401, 403]) {
+    reply = () => station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: pngSha } }));
+    await h.advance(RADIO_POLL_MS);
+    const url = feed.state().cover.url;
+    assert.ok(radioView(feed.state(), h.now()));
+    reply = () => status;
+    await h.advance(RADIO_POLL_MS);
+    assert.deepEqual(feed.state(), { configured: null, station: null, freshUntil: null, cover: null }, `${status} drops the reading`);
+    assert.equal(h.revoked.at(-1), url, `${status} revokes the cover`);
+    assert.equal(cardSlot(feed.state(), h.now()), '');
+  }
+  const beforeStop = requests.length;
   // No watcher: no requests.
-  stop(); await advance(RADIO_POLL_MS * 5);
-  assert.equal(requests.length, 8);
-  assert.equal(visibility, null);
+  stop(); await h.advance(RADIO_POLL_MS * 5);
+  assert.equal(requests.length, beforeStop);
+  assert.equal(h.watched(), false);
   // A home without a station: one read, then no card and no polling.
   reply = () => 404;
-  const unconfigured = createRadioFeed(client, scope, env), stop2 = unconfigured.subscribe(() => undefined);
-  await settle(); await advance(RADIO_POLL_MS * 3);
-  assert.equal(requests.length, 9);
+  const unconfigured = createRadioFeed(client, scope, h.env), stop2 = unconfigured.subscribe(() => undefined);
+  await h.settle(); await h.advance(RADIO_POLL_MS * 3);
+  assert.equal(requests.length, beforeStop + 1);
   assert.equal(unconfigured.state().configured, false);
-  assert.equal(radioView(unconfigured.state(), clock).kind, 'none');
+  assert.equal(radioView(unconfigured.state(), h.now()), null);
   stop2(); feed.dispose(); unconfigured.dispose();
   assert.deepEqual(new Set(requests.map(r => r.method)), new Set(['GET']), 'browsing sends only GETs');
   assert.ok(requests.every(r => r.body === undefined && r.credentials === 'same-origin' && r.cache === 'no-store'));
 }
-console.log('INFO radio station: decoder, freshness, card states, rings and GET-only feed');
+console.log('INFO radio station: decoder, freshness and expiry, card, tuck keys, rings, covers, refusal and GET-only feed');

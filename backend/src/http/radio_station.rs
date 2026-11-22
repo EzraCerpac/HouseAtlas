@@ -27,7 +27,6 @@ pub(super) async fn read(
                 "frequencyKhz": station.frequency_khz(),
                 "placement": station.placement,
                 "readAt": seen.read_at,
-                "lastCheckedAt": seen.last_checked_at,
                 "snapshot": seen.snapshot,
             }))
             .into_response())
@@ -264,12 +263,9 @@ mod tests {
         // No station file yet: the frequency is unknown, the rest still reads.
         assert_eq!(body["frequencyKhz"], Value::Null);
         assert_eq!(body["placement"], placement);
-        assert_eq!(
-            (&body["snapshot"], &body["lastCheckedAt"]),
-            (&Value::Null, &Value::Null)
-        );
+        assert_eq!(body["snapshot"], Value::Null);
         assert!(chrono::DateTime::parse_from_rfc3339(body["readAt"].as_str().unwrap()).is_ok());
-        assert_eq!(body.as_object().unwrap().len(), 6);
+        assert_eq!(body.as_object().unwrap().len(), 5);
 
         // The operator's file is the only source; every read re-reads it.
         let station_file = f.root.join("station.json");
@@ -333,19 +329,17 @@ mod tests {
         write_private(&snapshots, fresh.to_string().as_bytes());
         let (_, body, _) = get(&app, &route(3), cookie).await;
         assert_eq!(body["snapshot"], fresh);
-        assert_eq!(body["lastCheckedAt"], fresh["checkedAt"]);
 
-        // Stale: withheld, its check time kept.
+        // Stale: withheld.
         let stale = snapshot("playing", &now(-16_000));
         write_private(&snapshots, stale.to_string().as_bytes());
         let (_, body, _) = get(&app, &route(3), cookie).await;
         assert_eq!(body["snapshot"], Value::Null);
-        assert_eq!(body["lastCheckedAt"], stale["checkedAt"]);
 
         // Malformed, oversize, wrong mode and symlinked snapshots read as no reading.
         let mut malformed = snapshot("stopped", &now(0));
         malformed["volume"] = json!(3);
-        let oversize = vec![b' '; 512 * 1024 + 1];
+        let oversize = vec![b' '; crate::config::radio_station::SNAPSHOT_MAX_BYTES as usize + 1];
         for bytes in [
             b"not json".to_vec(),
             malformed.to_string().into_bytes(),
@@ -354,10 +348,7 @@ mod tests {
             write_private(&snapshots, &bytes);
             let (status, body, _) = get(&app, &route(3), cookie).await;
             assert_eq!(status, StatusCode::OK);
-            assert_eq!(
-                (&body["snapshot"], &body["lastCheckedAt"]),
-                (&Value::Null, &Value::Null)
-            );
+            assert_eq!(body["snapshot"], Value::Null);
         }
         write_private(
             &snapshots,
@@ -454,7 +445,10 @@ mod tests {
             fetch(cover_route(3, &sha), None).await.0,
             StatusCode::UNAUTHORIZED
         );
-        assert_ne!(fetch(cover_route(6, &sha), cookie).await.0, StatusCode::OK);
+        assert_eq!(
+            fetch(cover_route(6, &sha), cookie).await.0,
+            StatusCode::NOT_FOUND
+        );
         assert_eq!(
             fetch(cover_route(3, &"b".repeat(64)), cookie).await.0,
             StatusCode::NOT_FOUND

@@ -602,6 +602,10 @@ function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCach
 /** The stored copy read for display for the current selection; the fresh read of that
  * selection takes its verified model bytes (withShownModel) and releases it when it ends. */
 let shownCopy: { readonly selection: ModelOverviewSelection; readonly read: Promise<StoredAtlasRead | null> } | null = null;
+/** The one radio station client, loaded on first use. */
+let radioClientLoad: ReturnType<typeof loadRadioClient> | null = null;
+const loadRadioClient = () => import('./radio-station').then(module => module.createRadioClient());
+const radioClient = () => radioClientLoad ??= loadRadioClient().catch(error => { radioClientLoad = null; throw error; });
 const sourceModels: SourceModelPort = {
   // The unified Atlas reads the same selected publication's opt-in scene and
   // pinned model bytes; the same owner, session and expiry fence every step.
@@ -642,8 +646,9 @@ const sourceModels: SourceModelPort = {
     },
     // The radio station: GETs of its reading and cover while the Atlas shows; nothing else.
     radio: {
-      async read(scope, signal) { return (await import('./radio-station')).createRadioClient().read(scope, signal); },
-      async cover(scope, sha256, signal) { return (await import('./radio-station')).createRadioClient().cover(scope, sha256, signal); },
+      viewer: () => currentSession?.actorId ?? null,
+      async read(scope, signal) { return (await radioClient()).read(scope, signal); },
+      async cover(scope, sha256, signal) { return (await radioClient()).cover(scope, sha256, signal); },
     },
     // Overlay records last projected on this device for the same scene; the
     // Atlas shows them only where no current frame is held.

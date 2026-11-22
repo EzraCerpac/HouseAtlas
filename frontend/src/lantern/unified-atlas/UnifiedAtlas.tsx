@@ -51,7 +51,7 @@ import { networkConnectionNodeKey } from './network-connections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import { OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
-import { RadioCardSlot, RadioRingsSlot, type RingPlace } from './RadioCard';
+import { RadioCardSlot, RadioRingsSlot, radioTuckKey, type RingPlace } from './RadioCard';
 import { browserRadioEnvironment, createRadioFeed, radioPlacement, type RadioFeed, type RadioFeedState } from './radio';
 import { Inspector, listedLevels, RoomList, type RoomBelongingsSource, type RoomBelongingsState } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
@@ -763,14 +763,14 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
     setCollector({ port: collectorPort, store });
     return () => store.dispose();
   }, [networkOn, collectorPort]);
-  // The radio station while the Atlas shows: its card and, on air, rings from its reviewed room.
+  // The radio station while the Atlas shows: its card and, while audio plays, rings from its reviewed room.
   const radioPort = port.kind === 'live' ? port.radio : undefined;
   const { workspaceId: radioWorkspace, homeId: radioHome } = model.scene.scope;
-  const [radio, setRadio] = useState<{ readonly feed: RadioFeed; readonly now: () => number } | null>(null);
+  const [radio, setRadio] = useState<{ readonly feed: RadioFeed; readonly now: () => number; readonly tuckKey: string | null } | null>(null);
   useEffect(() => {
     if (!radioPort) { setRadio(null); return; }
     const env = browserRadioEnvironment(), feed = createRadioFeed(radioPort, { workspaceId: radioWorkspace, homeId: radioHome }, env);
-    setRadio({ feed, now: env.now });
+    setRadio({ feed, now: env.now, tuckKey: radioTuckKey(radioPort.viewer?.() ?? null, radioWorkspace, radioHome) });
     return () => feed.dispose();
   }, [radioPort, radioWorkspace, radioHome]);
   // Each Network source with collector facts in a current frame; a stored copy has no collector.
@@ -1755,7 +1755,6 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
           <span className="ua-snapshot-kind">{detailNote === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
           <span>{detailNote === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
         </p>}
-        {radio && <RadioCardSlot feed={radio.feed} now={radio.now} reduced={reduced} placeName={radioPlaceName} />}
         <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
           building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
           state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
@@ -1767,6 +1766,11 @@ function AtlasStage({ model: lighter, port, sourceOwner, selection, entryBuildin
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`} title={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span aria-hidden="true">Back</span></button>}
       </div>
+
+      {/* Floats over the stage beside the rail (below the top row on phones), so it never moves the rail. */}
+      {radio && <div className="ua-radio-slot" inert={stageInert}>
+        <RadioCardSlot key={radio.tuckKey ?? ''} feed={radio.feed} now={radio.now} reduced={reduced} placeName={radioPlaceName} tuckKey={radio.tuckKey} />
+      </div>}
 
       <div className="ua-tools" inert={stageInert}>
         {/* Compact: the view moves to the dock below, by the thumb. */}

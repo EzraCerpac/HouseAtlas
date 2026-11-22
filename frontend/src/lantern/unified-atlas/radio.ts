@@ -1,16 +1,18 @@
 /** The owner-configured radio station and the helper's now-playing reading.
- * Browsing only reads: GETs of the station and, when its digest changes, the
- * cover. Nothing here starts or controls playback. A reading is believed for
- * 15 seconds after the helper last checked it; past that, or when anything is
- * missing or malformed, the state is unknown. Rings show possible reach from a
- * reviewed placement only; they never claim that any radio is on. */
+ * Browsing only reads: GETs of the station and, while it would show, its cover.
+ * Nothing here starts or controls playback. Playing means AirPlay audio is
+ * arriving at the helper; the frequency is what the operator stated. Neither
+ * says that anything is broadcast. A reading is believed until 15 seconds after
+ * the helper last checked it, counted from when the page asked; past that, or
+ * when anything is missing, malformed or refused, nothing shows. Rings show
+ * possible reach from a reviewed placement only. */
 import type { AtlasScene } from './types';
 
 export const RADIO_FRESH_MS = 15_000;
-/** A checkedAt this far ahead of the server's read is not believed. */
-const RADIO_FUTURE_MS = 2_000;
 export const RADIO_POLL_MS = 4_000;
 const RADIO_REQUEST_MS = 10_000;
+/** Attempts per cover digest; a later poll may retry after a failed one. */
+const RADIO_COVER_TRIES = 3;
 /** The medium-wave band the dial draws, inclusive. */
 export const RADIO_BAND_KHZ = [520, 1710] as const;
 
@@ -33,14 +35,20 @@ export interface RadioStation {
   readonly frequencyKhz: number | null;
   readonly placement: RadioPlacement | null;
   readonly readAt: string;
-  readonly lastCheckedAt: string | null;
   /** Present only when the server read a valid snapshot checked within 15 s. */
   readonly snapshot: RadioSnapshot | null;
 }
-/** The two GETs the page may send. `read` answers null when no station is configured. */
+/** The two GETs the page may send. `read` answers null when no station is
+ * configured and throws RadioRefused when the viewer may not read it. */
 export interface RadioPort {
   read(scope: RadioScope, signal: AbortSignal): Promise<RadioStation | null>;
   cover(scope: RadioScope, sha256: string, signal: AbortSignal): Promise<Blob>;
+  /** The signed-in viewer, whose card choice this device keeps per home; null keeps it for the page only. */
+  viewer?(): string | null;
+}
+/** The station read was refused (401 or 403): nothing of the last reading is kept. */
+export class RadioRefused extends Error {
+  constructor() { super('Radio station read refused'); this.name = 'RadioRefused'; }
 }
 
 function need(ok: unknown): asserts ok { if (!ok) throw new TypeError('Radio station response unavailable'); }
@@ -88,7 +96,7 @@ function snapshot(v: Json | undefined): RadioSnapshot | null {
 }
 /** Closed decode of the station response; anything else throws. */
 export function decodeRadioStation(v: Json): RadioStation {
-  const r = row(v, ['schema', 'frequencyKhz', 'placement', 'readAt', 'lastCheckedAt', 'snapshot']);
+  const r = row(v, ['schema', 'frequencyKhz', 'placement', 'readAt', 'snapshot']);
   need(r.schema === 'houseatlas.radio-station.v1');
   const frequencyKhz = r.frequencyKhz;
   need(frequencyKhz === null || (typeof frequencyKhz === 'number' && Number.isInteger(frequencyKhz) && frequencyKhz >= RADIO_BAND_KHZ[0] && frequencyKhz <= RADIO_BAND_KHZ[1]));
@@ -98,49 +106,46 @@ export function decodeRadioStation(v: Json): RadioStation {
     need(typeof p.publicationId === 'string' && UUID.test(p.publicationId) && typeof p.spaceOccurrenceId === 'string' && ID.test(p.spaceOccurrenceId));
     placement = Object.freeze({ publicationId: p.publicationId, spaceOccurrenceId: p.spaceOccurrenceId });
   }
-  const shot = snapshot(r.snapshot), lastCheckedAt = r.lastCheckedAt === null ? null : date(r.lastCheckedAt);
-  need(shot === null || lastCheckedAt === shot.checkedAt);
-  return Object.freeze({ frequencyKhz, placement, readAt: date(r.readAt), lastCheckedAt, snapshot: shot });
+  return Object.freeze({ frequencyKhz, placement, readAt: date(r.readAt), snapshot: snapshot(r.snapshot) });
 }
 
-/** What the page last heard. `receivedAt` is on the feed's own monotonic clock. */
+/** What the page last heard. */
 export interface RadioFeedState {
   /** null until the first answer; false when no station is configured. */
   readonly configured: boolean | null;
   readonly station: RadioStation | null;
-  readonly receivedAt: number;
+  /** Until when the reading is believed, on the feed's own monotonic clock; null once it is not. */
+  readonly freshUntil: number | null;
   readonly cover: { readonly sha256: string; readonly url: string } | null;
 }
-export type RadioView =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'on-air'; readonly frequencyKhz: number | null; readonly track: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
-  | { readonly kind: 'off-air'; readonly frequencyKhz: number | null; readonly lastTrack: RadioTrack | null; readonly coverUrl: string | null; readonly checkedAt: string }
-  | { readonly kind: 'unknown'; readonly frequencyKhz: number | null; readonly lastCheckedAt: string | null };
-
-/** Milliseconds since the helper checked, on the server's clock plus the page's
- * own elapsed time since the answer arrived, so the two clocks never mix. */
-function age(station: RadioStation, receivedAt: number, now: number): number | null {
-  if (!station.snapshot) return null;
-  const served = Date.parse(station.readAt) - Date.parse(station.snapshot.checkedAt);
-  return served < -RADIO_FUTURE_MS ? null : served + Math.max(0, now - receivedAt);
+/** What the card shows: only a fresh playing reading has one. */
+export interface RadioOnAir {
+  readonly frequencyKhz: number | null;
+  readonly track: RadioTrack | null;
+  readonly coverUrl: string | null;
+  readonly checkedAt: string;
 }
-/** When the current reading stops being believed, on the feed clock, or null. */
-export function radioExpiry(state: RadioFeedState): number | null {
-  const at = state.station && age(state.station, state.receivedAt, state.receivedAt);
-  return at === null || at === undefined || at > RADIO_FRESH_MS ? null : state.receivedAt + RADIO_FRESH_MS - at + 1;
+
+/** Until when an answer to a request sent at `sentAt` is believed: the
+ * server's age at its read is counted from the send, so waiting for the answer
+ * never extends it. A check ahead of the server's read counts as age 0. */
+export function radioFreshUntil(station: RadioStation | null, sentAt: number): number | null {
+  const shot = station?.snapshot;
+  if (!station || !shot) return null;
+  const age = Math.max(0, Date.parse(station.readAt) - Date.parse(shot.checkedAt));
+  return age > RADIO_FRESH_MS ? null : sentAt + RADIO_FRESH_MS - age;
 }
 const sameTrack = (a: RadioTrack | null, b: RadioTrack | null) => a !== null && b !== null && a.title === b.title && a.artist === b.artist;
-export function radioView(state: RadioFeedState, now: number): RadioView {
-  const station = state.station;
-  if (!station) return { kind: 'none' };
-  const shot = station.snapshot, elapsed = age(station, state.receivedAt, now);
-  if (!shot || elapsed === null || elapsed > RADIO_FRESH_MS || shot.state === 'unknown')
-    return { kind: 'unknown', frequencyKhz: station.frequencyKhz, lastCheckedAt: shot?.checkedAt ?? station.lastCheckedAt };
-  const coverUrl = shot.cover && state.cover?.sha256 === shot.cover.sha256 ? state.cover.url : null;
-  // The cover belongs to lastTrack; on air it shows only while that is the current track.
-  if (shot.state === 'playing') return { kind: 'on-air', frequencyKhz: station.frequencyKhz, track: shot.track,
-    coverUrl: sameTrack(shot.track, shot.lastTrack) ? coverUrl : null, checkedAt: shot.checkedAt };
-  return { kind: 'off-air', frequencyKhz: station.frequencyKhz, lastTrack: shot.lastTrack, coverUrl, checkedAt: shot.checkedAt };
+/** The cover belongs to lastTrack; it shows only while that is the current track. */
+function shownCover(state: RadioFeedState, now: number): string | null {
+  const shot = state.station?.snapshot;
+  return shot?.cover && radioView(state, now) && sameTrack(shot.track, shot.lastTrack) ? shot.cover.sha256 : null;
+}
+export function radioView(state: RadioFeedState, now: number): RadioOnAir | null {
+  const station = state.station, shot = station?.snapshot;
+  if (!station || !shot || shot.state !== 'playing' || state.freshUntil === null || now > state.freshUntil) return null;
+  const cover = shot.cover && sameTrack(shot.track, shot.lastTrack) && state.cover?.sha256 === shot.cover.sha256 ? state.cover.url : null;
+  return { frequencyKhz: station.frequencyKhz, track: shot.track, coverUrl: cover, checkedAt: shot.checkedAt };
 }
 /** The reviewed occurrence in this exact publication, or null. Never inferred. */
 export function radioPlacement(station: RadioStation | null, scene: AtlasScene): string | null {
@@ -180,20 +185,27 @@ export interface RadioFeed {
 }
 /** Polls only while someone watches and the page is visible: about every four
  * seconds, one request at a time, and at once when the page shows again. A
- * failed read keeps the last answer, which then ages into unknown. */
+ * failed read keeps the last answer until it expires, which publishes a new
+ * state; a refused read drops it at once. */
 export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEnvironment = browserRadioEnvironment(), interval = RADIO_POLL_MS): RadioFeed {
-  let state: RadioFeedState = { configured: null, station: null, receivedAt: 0, cover: null };
+  let state: RadioFeedState = { configured: null, station: null, freshUntil: null, cover: null };
   const listeners = new Set<() => void>();
   let disposed = false, poll: unknown = null, expiry: unknown = null, inflight: AbortController | null = null;
-  let coverRequest: { sha256: string; controller: AbortController } | null = null, coverTried: string | null = null;
+  let coverRequest: { sha256: string; controller: AbortController } | null = null, coverFailures = { sha256: '', count: 0 };
   let unvisibility: (() => void) | null = null;
   const notify = () => { for (const changed of [...listeners]) changed(); };
   const set = (next: RadioFeedState) => { if (!disposed) { state = next; notify(); } };
   const watching = () => !disposed && listeners.size > 0 && !env.hidden();
   const clear = (timer: unknown) => { if (timer !== null) env.clearTimeout(timer); return null; };
+  /** Stopped on purpose, so not counted as a failure. */
+  function dropCover() {
+    const request = coverRequest;
+    coverRequest = null; request?.controller.abort();
+  }
   function stop() {
     poll = clear(poll);
     inflight?.abort(); inflight = null;
+    dropCover();
   }
   function schedule(ms: number) {
     poll = clear(poll);
@@ -201,35 +213,49 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
   }
   function armExpiry() {
     expiry = clear(expiry);
-    const at = radioExpiry(state);
-    if (at !== null) expiry = env.setTimeout(() => { expiry = null; notify(); }, Math.max(0, at - env.now()));
+    const until = state.freshUntil;
+    if (until !== null) expiry = env.setTimeout(() => { expiry = null; set({ ...state, freshUntil: null }); }, Math.max(0, until - env.now() + 1));
   }
-  function wantCover(station: RadioStation | null) {
-    const sha = station?.snapshot?.cover?.sha256 ?? null;
-    if (sha === null || sha === state.cover?.sha256 || sha === coverRequest?.sha256 || sha === coverTried) return;
-    coverRequest?.controller.abort();
-    const controller = new AbortController();
-    coverRequest = { sha256: sha, controller }; coverTried = sha;
+  function forget() {
+    dropCover(); expiry = clear(expiry);
+    if (state.cover) env.revokeObjectURL(state.cover.url);
+    set({ configured: null, station: null, freshUntil: null, cover: null });
+  }
+  function wantCover() {
+    const sha = shownCover(state, env.now());
+    if (sha === null || !watching() || sha === state.cover?.sha256 || sha === coverRequest?.sha256) return;
+    if (coverFailures.sha256 === sha && coverFailures.count >= RADIO_COVER_TRIES) return;
+    dropCover();
+    const controller = new AbortController(), deadline = env.setTimeout(() => controller.abort(), RADIO_REQUEST_MS);
+    coverRequest = { sha256: sha, controller };
     port.cover(scope, sha, controller.signal).then(blob => {
+      env.clearTimeout(deadline);
       if (coverRequest?.controller !== controller || disposed) return;
       coverRequest = null;
       if (state.cover) env.revokeObjectURL(state.cover.url);
       set({ ...state, cover: { sha256: sha, url: env.createObjectURL(blob) } });
-    }, () => { if (coverRequest?.controller === controller) coverRequest = null; });
+    }, () => {
+      env.clearTimeout(deadline);
+      if (coverRequest?.controller !== controller) return;
+      coverRequest = null;
+      coverFailures = { sha256: sha, count: coverFailures.sha256 === sha ? coverFailures.count + 1 : 1 };
+    });
   }
   async function read() {
     if (!watching() || inflight) return;
-    const controller = new AbortController();
+    const controller = new AbortController(), sentAt = env.now();
     inflight = controller;
     const timeout = env.setTimeout(() => controller.abort(), RADIO_REQUEST_MS);
     try {
       const station = await port.read(scope, controller.signal);
       if (inflight !== controller || disposed) return;
-      set({ ...state, configured: station !== null, station, receivedAt: env.now() });
+      const until = radioFreshUntil(station, sentAt);
+      set({ ...state, configured: station !== null, station, freshUntil: until !== null && until >= env.now() ? until : null });
       armExpiry();
-      wantCover(station);
-    } catch {
-      // Kept: the last answer ages into unknown on its own.
+      wantCover();
+    } catch (error) {
+      // Refused: drop the reading now. Otherwise it is kept until it expires.
+      if (inflight === controller && !disposed && error instanceof RadioRefused) forget();
     } finally {
       env.clearTimeout(timeout);
       if (inflight === controller) { inflight = null; if (state.configured !== false) schedule(interval); }
@@ -250,7 +276,7 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
     state: () => state,
     dispose() {
       if (disposed) return;
-      stop(); expiry = clear(expiry); coverRequest?.controller.abort(); coverRequest = null;
+      stop(); expiry = clear(expiry);
       unvisibility?.(); unvisibility = null;
       if (state.cover) env.revokeObjectURL(state.cover.url);
       disposed = true; listeners.clear();
