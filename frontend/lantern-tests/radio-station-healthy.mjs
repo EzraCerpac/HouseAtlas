@@ -374,6 +374,10 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
     return typeof value === 'number' ? new Response('', { status: value }) : new Response(JSON.stringify(value), { status: 200 });
   };
   const h = harness();
+  const loaded = async condition => {
+    for (let i = 0; i < 1000 && !condition(); i++) await new Promise(resolve => setTimeout(resolve, 1));
+    assert.ok(condition(), 'the digest-checked cover loads');
+  };
   // The client: exact routes, GET, same-origin, no-store, digest-checked cover, refusals distinguished.
   const client = createRadioClient(transport);
   const coverBlob = await client.cover(scope, pngSha, AbortSignal.timeout(1000));
@@ -395,6 +399,8 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   let notified = 0;
   const stop = feed.subscribe(() => { notified++; });
   await h.settle();
+  // The real client digests cover bytes with WebCrypto off the main thread: wait for it rather than a fixed number of turns.
+  await loaded(() => feed.state().cover);
   assert.equal(requests.length, 2, 'station, then its cover once');
   assert.equal(requests[0].url, `/api/atlas/radio/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/station`);
   assert.equal(requests[1].url, `/api/atlas/radio/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/covers/${pngSha}`);
@@ -430,7 +436,7 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
     let viewer = 'actor-a';
     reply = coveredBy(pngSha); coverRefusal = null;
     const refusing = createRadioFeed({ ...client, viewer: () => viewer }, scope, h.env), off = refusing.subscribe(() => undefined);
-    await h.settle();
+    await h.settle(); await loaded(() => refusing.state().cover);
     const url = refusing.state().cover.url;
     assert.equal(radioView(refusing.state(), h.now()).coverUrl, url);
     if (route === 'station') reply = () => status;
