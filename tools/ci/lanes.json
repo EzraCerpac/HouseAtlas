@@ -310,6 +310,31 @@
       }
     },
     {
+      "id": "core.now-playing",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run synthetic now-playing helper cases (fake pipe streams and disposable files)",
+      "kind": "test",
+      "if": null,
+      "run": [
+        "node --test --test-concurrency=1 tools/now-playing/core.test.ts"
+      ],
+      "toolchain": [
+        "node"
+      ],
+      "files": [
+        "tools/now-playing/core.test.ts"
+      ],
+      "scope": "Twenty-nine synthetic now-playing cases: two absolute path flags, shairport item parsing split at every byte, malformed/truncated items, oversize reported for pictures only and one body bound for whole and split frames, playing only from abrt with a separate five-second expiry to unknown (pbeg/prsm/pres, arst and abrt 0/0/0 are not evidence; pend/pfls/aend/paus stop), cover tied to its own track by matching RTP time (classic) or its mdst/mden bundle (AirPlay 2) with size/type caps and no carry-over across reattach, a new stream (pbeg), an abandoned picture wrapper or a different source track identifier (mper), a track shown only when committed in the current session, a closed small snapshot naming its cover by digest, covers written once per change as exclusive 0600 content-addressed sibling files and pruned by name pattern only, unknown at startup and after a stream end, five-second heartbeat, fixed one-second pipe retry and recovery, write-failure tolerance, clean stop, exclusive unique 0600 temp-file replacement and one disposable temporary FIFO that stays attached for shairport-sync writers opening before, between and after each other. Fake streams, a controlled clock and disposable files only; no shairport-sync, listener, private data or installed acceptance.",
+      "cases": {
+        "counter": "node-test-toplevel",
+        "files": [
+          "tools/now-playing/core.test.ts"
+        ],
+        "expected": 29
+      }
+    },
+    {
       "id": "core.cargo-modes",
       "workflow": "ordinary-core.yml",
       "job": "ordinary-core",
@@ -452,8 +477,8 @@
       "step": "Record coverage boundary",
       "kind": "summary",
       "if": "always()",
-      "run": ["printf '%s\\n' 'Scope: synthetic publication-input disposition claim parsing/reconciliation/formatting (29 pure, 75 adapter in-memory and 57 disposable filesystem observation cases only), stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only), forty-two synthetic network collector cases (fake runners/children, disposable SQLite, direct GET/POST handlers and controlled schedulers only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"",
-        "printf '%s\\n' 'Six strict draft-store assertions use the production adapter with a controlled IDB interface and generated in-memory rows only; no real IndexedDB, browser, crash, native service or retention qualification.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases, three exact scoped bridge read cases, six controlled-interface draft durability assertions and the forty-two synthetic collector cases (including in-process scheduler overlap and action busy checks), guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
+      "run": ["printf '%s\\n' 'Scope: synthetic publication-input disposition claim parsing/reconciliation/formatting (29 pure, 75 adapter in-memory and 57 disposable filesystem observation cases only), stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only), forty-two synthetic network collector cases (fake runners/children, disposable SQLite, direct GET/POST handlers and controlled schedulers only), twenty-nine synthetic now-playing helper cases (fake pipe streams, one disposable temporary FIFO and temp files only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"",
+        "printf '%s\\n' 'Six strict draft-store assertions use the production adapter with a controlled IDB interface and generated in-memory rows only; no real IndexedDB, browser, crash, native service or retention qualification.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases, three exact scoped bridge read cases, six controlled-interface draft durability assertions, the forty-two synthetic collector cases (including in-process scheduler overlap and action busy checks) and the twenty-nine synthetic now-playing helper cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
       "toolchain": [],
       "files": [],
       "scope": "Writes the job scope and exclusions to the step summary; not a pass claim."
