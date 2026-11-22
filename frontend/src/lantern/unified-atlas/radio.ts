@@ -229,6 +229,10 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
     refused = { viewer: port.viewer?.() ?? null };
     stop(); forget();
   }
+  /** Honours a refusal observed for `viewer`, unless the feed is gone, already refused, or another viewer signed in since. */
+  function refuseFor(viewer: string | null) {
+    if (!disposed && refused === null && (port.viewer?.() ?? null) === viewer) refuse();
+  }
   /** Fetches the cover the view would show and aborts one it no longer would
    * (stopped, expired, another track). The feed does not know whether the card
    * is tucked: tucking is presentation only, so a tucked card's cover still
@@ -239,6 +243,7 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
     if (sha === null || sha === state.cover?.sha256 || coverRequest) return;
     if (coverFailures.sha256 === sha && coverFailures.count >= RADIO_COVER_TRIES) return;
     const controller = new AbortController(), deadline = env.setTimeout(() => controller.abort(), RADIO_REQUEST_MS);
+    const viewer = port.viewer?.() ?? null;
     coverRequest = { sha256: sha, controller };
     port.cover(scope, sha, controller.signal).then(blob => {
       env.clearTimeout(deadline);
@@ -248,15 +253,17 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
       set({ ...state, cover: { sha256: sha, url: env.createObjectURL(blob) } });
     }, error => {
       env.clearTimeout(deadline);
-      if (coverRequest?.controller !== controller) return;
-      coverRequest = null;
-      if (error instanceof RadioRefused) { refuse(); return; }
+      const current = coverRequest?.controller === controller;
+      if (current) coverRequest = null;
+      // An observed refusal counts even when a newer reading made this request unnecessary.
+      if (error instanceof RadioRefused) { refuseFor(viewer); return; }
+      if (!current) return;
       coverFailures = { sha256: sha, count: coverFailures.sha256 === sha ? coverFailures.count + 1 : 1 };
     });
   }
   async function read() {
     if (!watching() || inflight) return;
-    const controller = new AbortController(), sentAt = env.now();
+    const controller = new AbortController(), sentAt = env.now(), viewer = port.viewer?.() ?? null;
     inflight = controller;
     const timeout = env.setTimeout(() => controller.abort(), RADIO_REQUEST_MS);
     try {
@@ -268,7 +275,7 @@ export function createRadioFeed(port: RadioPort, scope: RadioScope, env: RadioEn
       wantCover();
     } catch (error) {
       // Refused: drop the reading now and stop. Otherwise it is kept until it expires.
-      if (inflight === controller && !disposed && error instanceof RadioRefused) refuse();
+      if (error instanceof RadioRefused) refuseFor(viewer);
     } finally {
       env.clearTimeout(timeout);
       if (inflight === controller) { inflight = null; if (state.configured !== false) schedule(interval); }

@@ -337,6 +337,27 @@ const pending = signal => new Promise((_, reject) => signal.addEventListener('ab
   assert.equal(calls.length, 2);
   stop(); feed.dispose();
 }
+// A refusal observed on a cover request that a newer reading already made unnecessary still drops the reading and stops.
+{
+  const h = harness(), calls = [], reads = [];
+  let reply = station(snapshot('playing', '2026-01-01T12:00:08.000Z', { cover: { mediaType: 'image/png', sha256: SHA } }));
+  const port = {
+    read: () => { reads.push(1); return Promise.resolve(decodeRadioStation(reply)); },
+    cover: (_scope, sha256, signal) => new Promise((_, reject) => calls.push({ sha256, signal, reject })),
+  };
+  const feed = createRadioFeed(port, scope, h.env), stop = feed.subscribe(() => undefined);
+  await h.settle();
+  assert.equal(calls.length, 1);
+  reply = station(snapshot('playing', '2026-01-01T12:00:08.000Z', { track: { title: 'Replacement', artist: null }, lastTrack: { title: 'Replacement', artist: null } }));
+  await h.advance(RADIO_POLL_MS);
+  assert.ok(calls[0].signal.aborted && radioView(feed.state(), h.now()), 'the replacement song shows and the old cover request is dropped');
+  calls[0].reject(new RadioRefused()); await h.settle();
+  assert.deepEqual(feed.state(), { configured: null, station: null, freshUntil: null, cover: null }, 'the superseded refusal still drops the reading');
+  const after = reads.length;
+  await h.advance(RADIO_POLL_MS * 3);
+  assert.equal(reads.length, after, 'and polling stops');
+  stop(); feed.dispose();
+}
 
 // The feed and client: GETs only, only while watched and visible; 401 and 403 drop the reading.
 {
