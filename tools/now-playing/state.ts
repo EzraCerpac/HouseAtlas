@@ -141,11 +141,13 @@ export class NowPlaying {
     const b = this.bundle;
     this.bundle = null;
     if (!b || (b.track.title === null && b.track.artist === null)) return;
+    const current = this.seen; // lastTrack belongs to this session, not history
     this.seen = true;
     const prev = this.lastTrack;
-    // Same track: same title and artist, and no conflicting source identifier. The identifier (sender-scoped,
-    // not always sent) can only tell tracks apart, never join different titles; a missing one keeps the known one.
-    const same = prev !== null && prev.title === b.track.title && prev.artist === b.track.artist &&
+    // Same track: committed earlier in this session, same title and artist, and no conflicting source identifier.
+    // The identifier (sender-scoped, not always sent) can only tell tracks apart, never join different titles;
+    // a missing one keeps the known one. A new session never inherits history's cover.
+    const same = current && prev !== null && prev.title === b.track.title && prev.artist === b.track.artist &&
       (b.id === null || this.lastId === null || b.id === this.lastId);
     this.lastTrack = b.track; this.lastRtp = b.rtp; this.lastId = b.id ?? (same ? this.lastId : null);
     if (b.cover !== undefined) { this.lastCover = b.cover; this.picture = null; }

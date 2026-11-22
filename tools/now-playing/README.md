@@ -77,7 +77,8 @@ files are created mode 0600 under umask 077, so the reader must run as the same 
   so give the helper its own directory.
   `mediaType` is `image/jpeg` or `image/png`, decided by the picture's magic bytes, never by metadata.
   At most 256 KiB decoded; larger or unrecognised pictures leave the cover absent.
-  A cover belongs to the track it was matched to and is dropped when the track changes
+  A cover belongs to the track it was matched to and is dropped when the track changes or a new session starts
+  (after `pend`, `aend`, a reattach or a restart, the same title gets a cover only from a new picture)
   (a different title or artist, or a different `mper` source track identifier when both carry one):
   - Classic AirPlay: published only when the picture (`pcst`) and the track bundle (`mdst`) carry the same RTP time,
     in either order; a picture without a matching RTP time, or before any track, is omitted.

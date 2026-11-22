@@ -304,8 +304,11 @@ test('artwork never carries across a reattach or a session boundary', () => {
     const s = run(track('Own', 'A', '100') + pic(PNG, '100'), reset, '');
     assert.deepEqual([s.lastTrack?.title, s.cover?.mediaType], ['Own', 'image/png']);
   }
-  // The same title and artist again after a reattach keeps its own cover.
-  assert.equal(run(bundle2('Own', 'A', PNG), eof, bundle2('Own', 'A')).cover?.mediaType, 'image/png');
+  // A new session never inherits history's cover, even for the same title and artist (a missing cover is acceptable).
+  for (const reset of [eof, end('pend'), end('aend')]) {
+    assert.equal('cover' in run(bundle2('Own', 'A', PNG), reset, bundle2('Own', 'A')), false);
+    assert.equal('cover' in run(ssnc('mdst') + ssnc('PICT', PNG) + core('minm', 'Solo') + ssnc('mden'), reset, core('minm', 'Solo')), false);
+  }
 });
 
 test('track identifiers and new streams bound artwork', () => {
