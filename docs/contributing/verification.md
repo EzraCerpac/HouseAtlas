@@ -6757,7 +6757,8 @@ The default backend-library lane discovers five generated cases:
 and `http::radio_station::tests::healthy_radio_cover_serves_only_the_verified_named_file`.
 They check the closed `houseatlas.now-playing.v1` decode (keys, states, `since`, text bounds,
 cover reference by media type and SHA-256 belonging to `lastTrack`, duplicate keys, 8 KiB bound, current track only while playing),
-the 15-second freshness window on the reader's clock with a 2-second future refusal,
+the 15-second freshness window on the reader's clock with a 2-second future refusal
+(a stale or future snapshot is withheld, and the response carries no other check time),
 the closed pinned station profile (absolute `stationPath` and snapshot path,
 explicit nullable placement of one publication occurrence),
 and, through the in-process router with a disposable persistent loopback-local home,
@@ -6778,14 +6779,25 @@ node frontend/lantern-tests/radio-station-healthy.mjs
 ```
 
 It compiles `radio.ts`, `RadioCard.tsx` and `integration/radio-station.ts` and checks
-the closed response decoder, freshness from the server's read age plus the page's own elapsed time,
-the On air, Off air and Unknown card text in static markup (no controls, lit dial only on air;
-with a null frequency the header reads On air without kHz and the dial is omitted),
-rings only for a fresh `playing` reading placed in the shown publication, still rings for reduced motion,
-and a feed over fake transport, timers and visibility that reads nothing until watched,
-polls about every four seconds, pauses while hidden, fetches each cover digest once,
-stops for a home without a station and sends only same-origin `no-store` GETs.
-It does not mount the Atlas, open a browser or measure layout, and it qualifies no reach.
+the closed response decoder (an extra `lastCheckedAt` is refused),
+freshness as the server's read age counted from the request's send on the page's own clock,
+and the card in static markup only for a fresh `playing` reading:
+"Now playing · 1440 AM", or "Now playing" with no dial for a null frequency,
+no broadcast wording, no live-region role and only the Hide control;
+stale, `stopped`, `unknown`, absent and unconfigured readings render no card.
+A stored tuck renders the Show radio tab only for the same viewer and home key.
+Rings are `aria-hidden`, only for a fresh `playing` reading placed in the shown publication,
+and still for reduced motion.
+The feed runs over fake transport, timers, object URLs and visibility.
+With reads hanging and then failing, expiry at 15 s notifies with a new state
+that renders no card or rings. A snapshot 14 s old at the server is not shown after a 3 s response.
+A 401 or 403 drops the reading and revokes its cover URL, while a 500 keeps the reading.
+A cover is not requested for a track other than `lastTrack`. Hiding or unwatching aborts it,
+a hung one is abandoned after 10 s, and later polls retry it to three failed tries per digest.
+The feed also reads nothing until watched, polls about every four seconds, pauses while hidden,
+fetches a held cover digest once, stops for a home without a station
+and sends only same-origin `no-store` GETs.
+It does not mount the Atlas, open a browser, move focus or measure layout, and it qualifies no reach.
 
 ### Passive Network collector backend reads
 

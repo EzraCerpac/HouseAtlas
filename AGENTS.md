@@ -293,14 +293,20 @@ The scoped GET `/api/atlas/radio/v1/workspaces/{w}/homes/{h}/station` reads that
 (private, bounded, closed `houseatlas.now-playing.v1`) and returns it only when checked
 within 15 s; a separate scoped GET serves the cover only when a fresh snapshot names its
 SHA-256 and the sibling file matches it. No listener, poller, write or helper demand.
-The Atlas polls about every four seconds only while visible and shows On air, Off air or
-Unknown; rings pulse from the placed room only while fresh and on air, still under reduced motion,
-and claim no radio is on. With no frequency the card says only On air and omits the dial.
-No playback controls.
+HouseAtlas knows only that AirPlay audio is arriving and the frequency the operator stated,
+not that anything is broadcast. The Atlas polls about every four seconds only while visible
+and shows a card only while the reading is fresh and playing: "Now playing · 1440 AM",
+or just "Now playing" with no frequency (no dial). Freshness counts from the request's send;
+expiry removes the card and rings on time, and a 401/403 drops the reading and its cover.
+The cover is fetched only while it would show, with a deadline and three tries per digest.
+Otherwise there is no card, tab or rings. The card floats over the stage without moving the rail
+and is not announced; a chevron or a left swipe tucks it to a tab, kept on this device per viewer
+and home. Decorative rings pulse from the placed room while the card would show, still under
+reduced motion. No playback controls.
 The default backend-library lane discovers five generated `config::radio_station::tests::healthy_radio_*`
 and `http::radio_station::tests::healthy_radio_*` cases (disposable files and the in-process router);
 the frontend healthy list adds `radio-station-healthy.mjs` (100 SOURCE / 1 BUILD / 16 BROWSER, 117 total)
-with fake transport, timers and visibility. No browser, helper, transmitter, household data
+with fake transport, timers, storage and visibility. No browser, helper, transmitter, household data
 or G1–G5 acceptance is exercised; no workflow command is added.
 
 ## Named-Editor Network inventory refresh
