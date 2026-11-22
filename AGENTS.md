@@ -280,6 +280,40 @@ No shairport-sync, installation, backend route, interface, private data
 or G1–G5 acceptance is exercised; no new runner or workflow command beyond that one step.
 The snapshot contract is in the tool README.
 
+## Atlas radio station
+
+An optional pinned owner-reviewed profile (`--radio-station-profile` and its SHA-256,
+`serve` only, absent by default) names one home, `stationPath`, the helper's snapshot path
+and a nullable placement: one `spaceOccurrenceId` of one scene publication, never inferred.
+`stationPath` is the operator's private file `{"frequencyKhz": N}` (integer kHz, 520–1710),
+the one source of the transmitter frequency; it is written outside this repository, may be absent,
+and is only read here, on each station GET, with the snapshot's private-file checks and a 256-byte bound.
+Absent or invalid, the response carries `frequencyKhz: null` and the now-playing state is unaffected.
+The scoped GET `/api/atlas/radio/v1/workspaces/{w}/homes/{h}/station` reads that file
+(private, bounded, closed `houseatlas.now-playing.v1`) and returns it only when checked
+within 15 s; a separate scoped GET serves the cover only when a fresh snapshot names its
+SHA-256 and the sibling file matches it. No listener, poller, write or helper demand.
+HouseAtlas knows only that AirPlay audio is arriving and the frequency the operator stated,
+not that anything is broadcast. The Atlas polls about every four seconds only while visible
+and shows a card only while the reading is fresh and playing: "Now playing · 1440 AM",
+or just "Now playing" with no frequency (no dial). Freshness counts from the request's send;
+expiry removes the card and rings on time, and a 401/403 from either route drops the reading
+and its cover and stops polling until the Atlas remounts or the signed-in viewer changes.
+The cover is fetched only while it would show (aborted once it would not; a tucked card still
+counts as shown), with a deadline and three tries per digest.
+Otherwise there is no card, tab or rings. The card floats over the stage without moving the rail
+and is not announced; a chevron or a left swipe tucks it to a tab, kept on this device per viewer
+and home. Decorative rings pulse from the placed room while the card would show, still under
+reduced motion. No playback controls.
+The default backend-library lane discovers five generated `config::radio_station::tests::healthy_radio_*`
+and `http::radio_station::tests::healthy_radio_*` cases (disposable files and the in-process router);
+the frontend healthy list adds `radio-station-healthy.mjs` (100 SOURCE / 1 BUILD / 16 BROWSER, 117 total)
+with fake transport, timers, storage and visibility. No browser, helper, transmitter, household data
+or G1–G5 acceptance is exercised; no workflow command is added.
+The profile, snapshot, cover and station files must sit under directories only the backend's
+account (or root) can write: the backend checks each file but does not anchor its opens to
+directory descriptors, so it trusts those ancestors.
+
 ## Named-Editor Network inventory refresh
 
 The default backend-library lane additionally discovers fourteen cases under

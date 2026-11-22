@@ -234,6 +234,8 @@ export interface UnifiedAtlasPort {
   keepOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, overlays: StoredOverlays): void;
   /** The Network collector's stored results and Editor tests; absent without a collector route. */
   readonly networkCollector?: import('./network-tests').NetworkCollectorPort;
+  /** The owner-configured radio station's passive reads; absent without the route. */
+  readonly radio?: import('./radio').RadioPort;
 }
 
 /** Presentation ownership is separate from the unchanged native read contract. */
@@ -259,6 +261,7 @@ export interface LiveAtlasPresentationPort {
   storedOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, selectable: ReadonlySet<string>, signal: AbortSignal): Promise<StoredOverlays | null>;
   keepOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, overlays: StoredOverlays): void;
   readonly networkCollector?: UnifiedAtlasPort['networkCollector'];
+  readonly radio?: UnifiedAtlasPort['radio'];
 }
 export interface SavedAtlasPresentationPort {
   readonly kind: 'saved';

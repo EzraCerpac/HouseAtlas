@@ -41,6 +41,7 @@ mod quantity_http_healthy;
 mod quantity_tool_admission;
 mod quantity_worker;
 mod query;
+mod radio_station;
 mod read_authority;
 mod reads;
 mod response;
@@ -140,6 +141,7 @@ pub struct Host {
     loopback_local: bool,
     gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
     backup_folder: Option<Arc<std::path::PathBuf>>,
+    radio_station: Option<Arc<crate::config::radio_station::RadioStationSelection>>,
 }
 type HttpResult = Result<Response, HttpFailure>;
 fn failure(status: StatusCode) -> HttpFailure {
@@ -414,6 +416,8 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         )
         .route("/api/atlas/auth/rotate", post(auth::rotate))
         .route("/api/atlas/auth/logout", post(auth::logout))
+        .route("/api/atlas/radio/v1/workspaces/{workspace_id}/homes/{home_id}/station", get(radio_station::read).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/radio/v1/workspaces/{workspace_id}/homes/{home_id}/covers/{sha256}", get(radio_station::cover).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/backup/v1/settings", get(backup_settings::read).post(backup_settings::write).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/mutations", post(mutations::single))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/mutations", post(mutations::batch))

@@ -122,6 +122,11 @@ async fn run(
     let (arguments, provider_reads) =
         lifecycle::persistent::provider_reads::ProviderReadSelection::from_arguments(&arguments)
             .map_err(|error| format!("HouseAtlas cached provider settings: {error}"))?;
+    let (arguments, radio_station) =
+        houseatlas_backend::config::radio_station::RadioStationSelection::from_arguments(
+            &arguments,
+        )
+        .map_err(|error| format!("HouseAtlas radio station settings: {error}"))?;
     if let Some(command) = ServerCommand::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas settings: {error}"))?
     {
@@ -198,6 +203,7 @@ async fn run(
                         atlas_device_links,
                         atlas_display_policy,
                     },
+                    radio_station,
                     persistent_lease,
                 )
                 .await
@@ -369,6 +375,7 @@ async fn run_persistent(
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_selection: Option<ServerGeodataSelection>,
     publications: PublicationSelections,
+    radio_station: Option<houseatlas_backend::config::radio_station::RadioStationSelection>,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     if let Some(selection) = &publications.model_overview {
@@ -388,6 +395,7 @@ async fn run_persistent(
             ai_account,
             geodata_policy,
             publications,
+            radio_station,
             persistent_lease,
         )
         .await;
@@ -436,6 +444,9 @@ async fn run_persistent(
     }
     if let Some(selection) = atlas_display_policy {
         host = host.with_atlas_display_policy(selection)?;
+    }
+    if let Some(selection) = radio_station {
+        host = host.with_radio_station(selection)?;
     }
     if !config.authentication.is_password() {
         host = host.with_loopback_local()?;
@@ -488,6 +499,7 @@ async fn run_gateway(
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_policy: Option<Arc<dyn GeodataSourcePolicy>>,
     publications: PublicationSelections,
+    radio_station: Option<houseatlas_backend::config::radio_station::RadioStationSelection>,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
@@ -547,6 +559,9 @@ async fn run_gateway(
     }
     if let Some(selection) = atlas_display_policy {
         host = host.with_atlas_display_policy(selection)?;
+    }
+    if let Some(selection) = radio_station {
+        host = host.with_radio_station(selection)?;
     }
     let account_selected = ai_account.is_some();
     let ai_account =
