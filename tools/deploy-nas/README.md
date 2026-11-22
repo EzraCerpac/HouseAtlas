@@ -113,15 +113,17 @@ installed readback, model/device/visual acceptance or a released activation.
 `radio PROFILE --sha256 SHA256 [--prepare-only] [--no-auto-rollback]` selects the
 radio station profile on the live service, so the plist is never hand-edited.
 The profile must be a canonical, single-link, owner-private (0600) file of at
-most 4 KiB in a private (0700) folder, matching the SHA-256. It is NOT copied:
-the service points at that file in place and pins its hash. The tool smoke-tests
+most 4 KiB, matching the SHA-256. The tool copies it into the record's own
+private folder and the service points at that copy and pins its hash, so editing
+the source later never changes what an older record or `rollback` restores. The tool smoke-tests
 the live binary with the pair, swaps the plist through the usual record and
 verifies through the gateway. `rollback` restores the previous plist; there is
 no separate retire command.
 
 Smoke and gateway verification (also for `deploy`, which keeps the pair) request
 the station route once, expecting 200 and `no-store`, only when the profile's
-workspace and home are the ones the checks use. Unconfigured operations make no
+workspace and home are the ones the checks use; an unreadable or changed copy fails
+verification instead of skipping the request. Unconfigured operations make no
 radio request.
 
 ## Records and rollback

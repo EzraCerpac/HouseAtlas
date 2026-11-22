@@ -90,7 +90,7 @@ and compares the retained pack against its original pins.
 Both use disposable profiles and loopback.
 Installed data, actual persistence grants and authorized edit dispatch
 remain outside these cases.
-The synthetic deploy suite has 72 methods.
+The synthetic deploy suite has 74 methods.
 Its union, rollback and prune fixtures check hashed Saved PDF worker retention.
 The union and standalone rollback reject symlinks in generated frontend trees.
 The rollback fixtures also check interrupted copies and same-name conflicts.

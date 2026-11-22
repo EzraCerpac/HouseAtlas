@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -420,14 +421,46 @@ class RadioTransaction(unittest.TestCase):
     def test_radio_swap_checks_the_station_and_rollback_restores_the_plist(self):
         record = self.dep.radio(self.profile, self.digest)
         self.assertEqual((record["kind"], record["status"]), ("radio", "verified"))
-        self.assertEqual(self.smoked[0][-4:], ["--radio-station-profile", str(self.profile),
+        copy = Path(record["profile"])
+        self.assertEqual(copy.parent, Path(record["dir"]))
+        self.assertEqual((copy.read_bytes(), stat.S_IMODE(copy.stat().st_mode), stat.S_IMODE(copy.parent.stat().st_mode)),
+                         (self.profile.read_bytes(), 0o600, 0o700))
+        self.assertEqual(self.smoked[0][-4:], ["--radio-station-profile", str(copy),
                                                "--radio-station-profile-sha256", self.digest])
-        self.assertEqual(dn.radio_args(dn.read_plist(self.cfg.plist)["ProgramArguments"]), (self.profile, self.digest))
+        self.assertEqual(dn.radio_args(dn.read_plist(self.cfg.plist)["ProgramArguments"]), (copy, self.digest))
         self.assertTrue(self.stations and all(url.endswith("/workspaces/w/homes/h/station") for url in self.stations))
         self.dep.rollback()
         self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
         self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
         self.assertTrue(self.profile.exists())
+
+    def test_edited_source_cannot_break_the_rollback_pin(self):
+        first = self.dep.radio(self.profile, self.digest)
+        self.profile.write_text(json.dumps({"workspaceId": "w", "homeId": "h", "stations": []}))
+        second = self.dep.radio(self.profile, dn.sha256_file(self.profile))
+        self.assertNotEqual(first["profile"], second["profile"])
+        self.dep.rollback()
+        restored = dn.radio_args(dn.read_plist(self.cfg.plist)["ProgramArguments"])
+        self.assertEqual(restored, (Path(first["profile"]), self.digest))
+        self.assertEqual(dn.sha256_file(restored[0]), self.digest)
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+        removed, pinned = dn.prune_plan(self.cfg.setup_root, self.root / "frontend", dn.ledger_records(self.cfg.ledger), [], [], set())
+        self.assertFalse([p for p in (*removed, *(p for p, _ in pinned)) if Path(first["dir"]) in (p, *p.parents)])
+
+    def test_verification_fails_when_the_pinned_copy_is_unreadable_or_changed(self):
+        for tamper in (lambda p: p.write_text("{}"), lambda p: p.unlink()):
+            copies = []
+
+            def smoke(binary, fe, args, work, **kw):
+                copies.append(dn.radio_args(args)[0])
+                return dn.Checks()
+            self.dep.smoke = smoke
+            self.dep.wait_running = lambda binary: (tamper(copies[0]) if copies[0].exists() else None) or 1
+            with self.assertRaises(dn.DeployError):
+                self.dep.radio(self.profile, self.digest)
+            self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+            self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
+            self.assertEqual(self.stations, [])
 
     def test_prepare_only_leaves_the_service_alone(self):
         self.assertEqual(self.dep.radio(self.profile, self.digest, prepare_only=True)["status"], "prepared")
@@ -440,6 +473,9 @@ class RadioTransaction(unittest.TestCase):
         self.assertTrue(dn.radio_serves(args, "w", "h"))
         self.assertFalse(dn.radio_serves(args, "w", "other"))
         self.assertFalse(dn.radio_serves(SERVICE["ProgramArguments"], "w", "h"))
+        other = write(self.root / "other.json", json.dumps({"workspaceId": "x", "homeId": "y"}))
+        self.assertFalse(dn.radio_serves(dn.with_radio(dict(SERVICE, ProgramArguments=args), other, dn.sha256_file(other))
+                                         ["ProgramArguments"], "w", "h"))
         for expect in (True, False):
             self.stations.clear()
             dn.http_checks(self.svc, "https://gateway.invalid", assets=[], ws="w", home="h", expect_radio=expect)

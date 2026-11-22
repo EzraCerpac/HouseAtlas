@@ -223,7 +223,7 @@ def radio_args(args: list[str]) -> tuple[Path, str] | None:
 
 
 def with_radio(service: dict, path: Path, digest: str) -> dict:
-    """Select the radio profile in place: set the flag pair, or replace the one already there."""
+    """Select the radio profile: set the flag pair, or replace the one already there."""
     args = list(service["ProgramArguments"])
     if radio_args(args) is None:
         args += [RADIO_FLAGS[0], str(path), RADIO_FLAGS[1], digest]
@@ -233,14 +233,20 @@ def with_radio(service: dict, path: Path, digest: str) -> dict:
 
 
 def radio_serves(args: list[str], ws: str, home: str) -> bool:
-    """Whether the selected radio profile is for this scope, so its station route can be checked here."""
+    """Whether the selected radio profile is for this scope, so its station route can be checked here.
+
+    A selected profile that cannot be read, or no longer matches its pin, is a failure, never a skip.
+    """
     selected = radio_args(args)
     if selected is None:
         return False
     try:
-        profile = json.loads(selected[0].read_bytes())
-    except (OSError, ValueError):
-        return False
+        body = selected[0].read_bytes()
+        profile = json.loads(body)
+    except (OSError, ValueError) as error:
+        raise DeployError(f"the selected radio profile {selected[0]} cannot be read") from error
+    if hashlib.sha256(body).hexdigest() != selected[1]:
+        raise DeployError(f"the selected radio profile {selected[0]} no longer matches its SHA-256 pin")
     return isinstance(profile, dict) and (profile.get("workspaceId"), profile.get("homeId")) == (ws, home)
 
 
@@ -261,21 +267,22 @@ def release_stamp(files: dict[str, Path]) -> tuple:
     return tuple((str(path), file_identity(path)) for path in paths)
 
 
-def private_policy_bytes(path: Path, digest: str, *, what="policy source", limit=32768) -> bytes:
+def private_policy_bytes(path: Path, digest: str, *, what="policy source", limit=32768, private_parent=True) -> bytes:
     try:
-        return _private_policy_bytes(path, digest, what, limit)
+        return _private_policy_bytes(path, digest, what, limit, private_parent)
     except OSError as error:
         raise DeployError(f"{what} is unavailable or changed") from error
 
 
-def _private_policy_bytes(path: Path, digest: str, what: str, limit: int) -> bytes:
+def _private_policy_bytes(path: Path, digest: str, what: str, limit: int, private_parent: bool) -> bytes:
     """Read bounded canonical owner-private bytes without following a symlink."""
     if not path.is_absolute() or Path(os.path.realpath(path)) != path or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise DeployError(f"{what} requires a canonical absolute path and SHA-256")
     parent = path.parent
     before_parent = file_identity(parent)
     parent_stat = parent.lstat()
-    if not stat.S_ISDIR(parent_stat.st_mode) or stat.S_IMODE(parent_stat.st_mode) != 0o700 or parent_stat.st_uid != os.getuid():
+    if private_parent and (not stat.S_ISDIR(parent_stat.st_mode) or stat.S_IMODE(parent_stat.st_mode) != 0o700
+                           or parent_stat.st_uid != os.getuid()):
         raise DeployError(f"{what} parent must be private and owned by this user")
     before = file_identity(path)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -1110,17 +1117,24 @@ class Deployer:
                           expected_service=baseline, expected_inputs={**expected, "display-policy.json": digest})
 
     def radio(self, source: Path, digest: str, *, prepare_only=False, auto_rollback=True) -> dict:
-        """Select the pinned radio profile where it lies; `rollback` restores the previous plist."""
+        """Copy the pinned radio profile into the record and select the copy; `rollback` restores the previous plist."""
         cfg = self.cfg
         self.require_settled()
         baseline = sha256_file(cfg.plist)
         live = self.live()
         source = source.expanduser()
-        private_policy_bytes(source, digest, what="radio profile", limit=4096)
-        service = with_radio(live["service"], source, digest)
+        body = private_policy_bytes(source, digest, what="radio profile", limit=4096, private_parent=False)
         name = next_name(cfg.setup_root, f"radio-station-{dt.date.today():%Y%m%d}")
         d = cfg.setup_root / name
-        (d / "recovery").mkdir(parents=True)
+        d.mkdir(parents=True, mode=0o700)
+        d.chmod(0o700)
+        (d / "recovery").mkdir()
+        # The record owns an immutable copy, so a later edit of the source cannot break an older record's pin.
+        copy = d / "radio-station.json"
+        with copy.open("xb") as out:
+            out.write(body)
+        copy.chmod(0o600)
+        service = with_radio(live["service"], copy, digest)
         self.say("[1/3] Smoke-testing the radio station on throwaway state")
         assets = entry_scripts(live["frontend"] / "index.html")
         c = self.smoke(live["binary"], live["frontend"], model_args(service["ProgramArguments"]), d / "smoke", assets=assets)
@@ -1128,7 +1142,6 @@ class Deployer:
             self.say(f"  {line}")
         if c.failures:
             raise DeployError("smoke test failed; nothing live was touched")
-        private_policy_bytes(source, digest, what="radio profile", limit=4096)
         before, after = d / "recovery/service.before.plist", d / "recovery/service.after.plist"
         shutil.copy2(cfg.plist, before)
         if sha256_file(before) != baseline:
@@ -1136,7 +1149,7 @@ class Deployer:
         with open(after, "wb") as f:
             plistlib.dump(service, f)
         self.rt.run(["plutil", "-lint", str(after)])
-        record = dict(id=name, kind="radio", profile=str(source), dir=str(d), binary=str(live["binary"]),
+        record = dict(id=name, kind="radio", profile=str(copy), dir=str(d), binary=str(live["binary"]),
                       before_plist=str(before), after_plist=str(after), assets=assets, status="prepared", created=now())
         write_rollback_script(record, cfg)
         save_record(cfg.ledger, record)
@@ -1377,7 +1390,7 @@ def main(argv=None) -> int:
     p.add_argument("--sha256", required=True)
     p.add_argument("--prepare-only", action="store_true")
     p.add_argument("--no-auto-rollback", action="store_true")
-    p = sub.add_parser("radio", help="select the pinned radio station profile where it lies")
+    p = sub.add_parser("radio", help="copy the pinned radio station profile into the record and select it")
     p.add_argument("profile", type=Path)
     p.add_argument("--sha256", required=True)
     p.add_argument("--prepare-only", action="store_true")
