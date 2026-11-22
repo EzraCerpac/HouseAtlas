@@ -690,7 +690,7 @@ def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publ
                          "protected display policy exact bytes, response pins and context match")
     if expect_radio:
         code, h, _ = get(f"/api/atlas/radio/v1/workspaces/{ws}/homes/{home}/station", cookie=cookie)
-        c.expect(code == 200 and "no-store" in h.get("cache-control", ""), f"radio station {code} {h.get('cache-control')}")
+        c.expect(code == 200 and "no-store" in {d.strip().lower() for d in h.get("cache-control", "").split(",")}, f"radio station {code} {h.get('cache-control')}")
     code, _, body = get("/api/atlas/auth/session", cookie=cookie)
     csrf = json.loads(body or b"{}").get("csrfToken", "") if code == 200 else ""
     code, _, _ = rt.curl(base + "/api/atlas/auth/logout", method="POST", cookie=cookie,
