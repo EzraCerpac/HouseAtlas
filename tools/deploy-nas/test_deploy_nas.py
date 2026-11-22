@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -98,6 +99,36 @@ class Pure(unittest.TestCase):
         ]:
             with self.assertRaises(dn.DeployError):
                 dn.model_args(args)
+
+class RadioSelection(unittest.TestCase):
+    PAIR = ["--radio-station-profile", "/srv/radio/profile.json", "--radio-station-profile-sha256", "a" * 64]
+
+    def test_flag_pair_is_set_replaced_and_kept_for_smoke_and_code_deploys(self):
+        added = dn.with_radio(SERVICE, Path("/srv/radio/profile.json"), "a" * 64)["ProgramArguments"]
+        self.assertEqual(added, SERVICE["ProgramArguments"] + self.PAIR)
+        replaced = dn.with_radio(dict(SERVICE, ProgramArguments=added), Path("/srv/radio/next.json"), "b" * 64)["ProgramArguments"]
+        self.assertEqual(replaced[-4:], ["--radio-station-profile", "/srv/radio/next.json",
+                                         "--radio-station-profile-sha256", "b" * 64])
+        self.assertEqual(replaced.count("--radio-station-profile"), 1)
+        self.assertEqual(dn.model_args(added)[-4:], self.PAIR)
+        carried = dn.with_binary(dict(SERVICE, ProgramArguments=added), Path("/srv/new/houseatlas"))["ProgramArguments"]
+        self.assertEqual(carried[1:], added[1:])
+
+    def test_partial_or_duplicate_selection_is_refused(self):
+        for bad in (self.PAIR[:2], self.PAIR[2:], self.PAIR + self.PAIR[:2],
+                    ["--radio-station-profile", "relative.json", "--radio-station-profile-sha256", "a" * 64]):
+            with self.assertRaises(dn.DeployError):
+                dn.radio_args(SERVICE["ProgramArguments"] + bad)
+
+    def test_cli_parses_the_radio_command(self):
+        with patch.object(dn, "load_config"), patch.object(dn, "Deployer") as deployer:
+            self.assertEqual(dn.main(["radio", "/srv/radio/profile.json", "--sha256", "a" * 64,
+                                      "--prepare-only", "--no-auto-rollback"]), 0)
+        deployer.return_value.radio.assert_called_once_with(
+            Path("/srv/radio/profile.json"), "a" * 64, prepare_only=True, auto_rollback=False)
+        with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()):
+            dn.main(["radio", "/srv/radio/profile.json"])
+
 
 class FrontendUnion(unittest.TestCase):
     def test_keeps_old_assets_and_drops_old_pages(self):
@@ -342,6 +373,113 @@ class FakeService(dn.Runner):
         if path in ("", "saved/index.html", "saved/service-worker.js", "offline-entry-worker.js"):
             return 200, {"cache-control": dn.NO_STORE}, b""
         return 200, {}, b"{}"
+
+
+class RadioTransaction(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        t = self.root = Path(os.path.realpath(self.tmp.name))
+        self.cfg = dn.Config(setup_root=t / "setup", plist=t / "service.plist", label="example.houseatlas",
+                             gateway_url="https://gateway.invalid", smoke_template=t / "smoke.json",
+                             stop_timeout=1, start_timeout=2)
+        write(self.cfg.smoke_template, json.dumps({"homes": [{"workspaceId": "w", "homeId": "h"}]}))
+        self.cfg.plist.write_bytes(plistlib.dumps(SERVICE))
+        self.profile = write(t / "radio.json", json.dumps({"workspaceId": "w", "homeId": "h"}))
+        self.digest = dn.sha256_file(self.profile)
+        write(t / "frontend/index.html", '<script src="/assets/a.js">')
+        self.stations, self.smoked = [], []
+        owner = self
+
+        class Fake(FakeService):
+            def run(self, cmd, **kw):
+                return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+            def curl(self, url, **kw):
+                if "/radio/v1/" in url:
+                    owner.stations.append(url)
+                    return 200, {"cache-control": "no-store"}, b"{}"
+                return super().curl(url, **kw)
+
+        self.svc = Fake(self.cfg)
+        self.dep = dn.Deployer(self.cfg, self.svc, out=io.StringIO())
+        self.dep.live = lambda: dict(service=dn.read_plist(self.cfg.plist), binary=Path(SERVICE["ProgramArguments"][0]),
+                                     frontend=t / "frontend", data_dir=t / "data")
+        self.dep.smoke = lambda binary, fe, args, work, **kw: self.smoked.append(args) or dn.Checks()
+
+    def test_private_profile_refusals(self):
+        refuse = lambda *a, **kw: self.assertRaises(dn.DeployError, self.dep.radio, *a, **kw)
+        refuse(self.profile, "0" * 64)
+        self.profile.chmod(0o644)
+        refuse(self.profile, self.digest)
+        self.profile.chmod(0o600)
+        big = write(self.root / "big.json", " " * 4097)
+        refuse(big, dn.sha256_file(big))
+        self.assertEqual(self.smoked, [])
+        self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
+
+    def test_radio_swap_checks_the_station_and_rollback_restores_the_plist(self):
+        record = self.dep.radio(self.profile, self.digest)
+        self.assertEqual((record["kind"], record["status"]), ("radio", "verified"))
+        copy = Path(record["profile"])
+        self.assertEqual(copy.parent, Path(record["dir"]))
+        self.assertEqual((copy.read_bytes(), stat.S_IMODE(copy.stat().st_mode), stat.S_IMODE(copy.parent.stat().st_mode)),
+                         (self.profile.read_bytes(), 0o600, 0o700))
+        self.assertEqual(self.smoked[0][-4:], ["--radio-station-profile", str(copy),
+                                               "--radio-station-profile-sha256", self.digest])
+        self.assertEqual(dn.radio_args(dn.read_plist(self.cfg.plist)["ProgramArguments"]), (copy, self.digest))
+        self.assertTrue(self.stations and all(url.endswith("/workspaces/w/homes/h/station") for url in self.stations))
+        self.dep.rollback()
+        self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+        self.assertTrue(self.profile.exists())
+
+    def test_edited_source_cannot_break_the_rollback_pin(self):
+        first = self.dep.radio(self.profile, self.digest)
+        self.profile.write_text(json.dumps({"workspaceId": "w", "homeId": "h", "stations": []}))
+        second = self.dep.radio(self.profile, dn.sha256_file(self.profile))
+        self.assertNotEqual(first["profile"], second["profile"])
+        self.dep.rollback()
+        restored = dn.radio_args(dn.read_plist(self.cfg.plist)["ProgramArguments"])
+        self.assertEqual(restored, (Path(first["profile"]), self.digest))
+        self.assertEqual(dn.sha256_file(restored[0]), self.digest)
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+        removed, pinned = dn.prune_plan(self.cfg.setup_root, self.root / "frontend", dn.ledger_records(self.cfg.ledger), [], [], set())
+        self.assertFalse([p for p in (*removed, *(p for p, _ in pinned)) if Path(first["dir"]) in (p, *p.parents)])
+
+    def test_verification_fails_when_the_pinned_copy_is_unreadable_or_changed(self):
+        for tamper in (lambda p: p.write_text("{}"), lambda p: p.unlink()):
+            copies = []
+
+            def smoke(binary, fe, args, work, **kw):
+                copies.append(dn.radio_args(args)[0])
+                return dn.Checks()
+            self.dep.smoke = smoke
+            self.dep.wait_running = lambda binary: (tamper(copies[0]) if copies[0].exists() else None) or 1
+            with self.assertRaises(dn.DeployError):
+                self.dep.radio(self.profile, self.digest)
+            self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+            self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
+            self.assertEqual(self.stations, [])
+
+    def test_prepare_only_leaves_the_service_alone(self):
+        self.assertEqual(self.dep.radio(self.profile, self.digest, prepare_only=True)["status"], "prepared")
+        self.assertEqual(dn.read_plist(self.cfg.plist), SERVICE)
+        self.assertEqual(self.svc.calls, [])
+
+    def test_station_is_requested_only_for_the_checked_scope(self):
+        args = SERVICE["ProgramArguments"] + ["--radio-station-profile", str(self.profile),
+                                              "--radio-station-profile-sha256", self.digest]
+        self.assertTrue(dn.radio_serves(args, "w", "h"))
+        self.assertFalse(dn.radio_serves(args, "w", "other"))
+        self.assertFalse(dn.radio_serves(SERVICE["ProgramArguments"], "w", "h"))
+        other = write(self.root / "other.json", json.dumps({"workspaceId": "x", "homeId": "y"}))
+        self.assertFalse(dn.radio_serves(dn.with_radio(dict(SERVICE, ProgramArguments=args), other, dn.sha256_file(other))
+                                         ["ProgramArguments"], "w", "h"))
+        for expect in (True, False):
+            self.stations.clear()
+            dn.http_checks(self.svc, "https://gateway.invalid", assets=[], ws="w", home="h", expect_radio=expect)
+            self.assertEqual(len(self.stations), int(expect))
 
 
 class PolicyHttpChecks(unittest.TestCase):
@@ -782,6 +920,17 @@ class PersistentBuild(unittest.TestCase):
         self.assertEqual(Path(first["binary"]).read_text(), "b" * 40)
         self.assertEqual(Path(second["binary"]).read_text(), "c" * 40)
         self.assertEqual(dn.read_plist(Path(second["after_plist"]))["ProgramArguments"][0], second["binary"])
+
+    def test_code_deploy_smokes_and_keeps_the_radio_pair(self):
+        profile = write(self.root / "radio.json", "{}")
+        selected = dn.with_radio(dn.read_plist(self.cfg.plist), profile, dn.sha256_file(profile))
+        self.cfg.plist.write_bytes(plistlib.dumps(selected))
+        smoked = []
+        self.dep.smoke = lambda binary, fe, args, work, **kw: smoked.append(args) or dn.Checks()
+        record = self.prepare()
+        self.assertEqual(dn.radio_args(smoked[0]), (profile, dn.sha256_file(profile)))
+        after = dn.read_plist(Path(record["after_plist"]))["ProgramArguments"]
+        self.assertEqual(after[1:], selected["ProgramArguments"][1:])
 
     def test_explicit_target_is_created_and_inherited_environment_cannot_redirect_it(self):
         self.cfg.cargo_target_dir = self.root / "shared target"
