@@ -356,8 +356,8 @@
       "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'"],
       "toolchain": ["python3"],
       "files": ["tools/deploy-nas/test_deploy_nas.py"],
-      "scope": "Temp folders and a fake service. The frontend union, rollback and prune fixtures cover retained hashed Saved PDF workers. The union refuses same-name collisions and the rollback fixtures check atomic retry and conflict refusal, and both normal and interrupted recovery reject symlinks. No launchd, network or real data.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/deploy-nas", "pattern": "test_*.py", "expected": 64}
+      "scope": "Temp folders and a fake service. The frontend union, rollback and prune fixtures cover retained hashed Saved PDF workers. The union refuses same-name collisions and the rollback fixtures check atomic retry and conflict refusal, and both normal and interrupted recovery reject symlinks. The radio fixtures check the in-place profile pair, private-source refusals, the single station request and rollback. No launchd, network or real data.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/deploy-nas", "pattern": "test_*.py", "expected": 72}
     },
     {
       "id": "core.backup",

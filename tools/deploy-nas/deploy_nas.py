@@ -50,6 +50,7 @@ MODEL_FLAGS = {
     "display-policy.json": "--atlas-display-policy",
 }
 # The server refuses room links that do not match the selected scene, so a release carries both.
+RADIO_FLAGS = ("--radio-station-profile", "--radio-station-profile-sha256")
 REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json", "reviewed-room-links.json")
 NO_STORE = "private, no-store"
 IMMUTABLE = "public, max-age=31536000, immutable"
@@ -182,12 +183,14 @@ def with_model(service: dict, files: dict[str, Path], *, without_display_policy=
     return out
 
 
-SMOKE_FLAGS = {*MODEL_FLAGS.values(), *(f + "-sha256" for f in MODEL_FLAGS.values()), "--atlas-entry-building-id"}
+SMOKE_FLAGS = {*MODEL_FLAGS.values(), *(f + "-sha256" for f in MODEL_FLAGS.values()), *RADIO_FLAGS,
+               "--atlas-entry-building-id"}
 
 
 def model_args(args: list[str]) -> list[str]:
-    """Only the model pins and entry building: live-only selections (accounts, custody) need the live data."""
+    """Only the model pins, radio profile and entry building: live-only selections (accounts, custody) need the live data."""
     display_policy_args(args)
+    radio_args(args)
     out = []
     for i, a in enumerate(args[:-1]):
         if a in SMOKE_FLAGS:
@@ -195,20 +198,50 @@ def model_args(args: list[str]) -> list[str]:
     return out
 
 
-def display_policy_args(args: list[str]) -> tuple[Path, str] | None:
-    """Only the paired optional policy selection; never infer or repair one."""
+def paired_args(args: list[str], flags: tuple[str, str], what: str) -> tuple[Path, str] | None:
+    """Only a paired optional selection; never infer or repair one."""
     values = []
-    for flag in ("--atlas-display-policy", "--atlas-display-policy-sha256"):
+    for flag in flags:
         positions = [i for i, value in enumerate(args) if value == flag]
         if len(positions) > 1 or (positions and (positions[0] + 1 >= len(args) or args[positions[0] + 1].startswith("--"))):
-            raise DeployError("display policy requires unique paired arguments")
+            raise DeployError(f"{what} requires unique paired arguments")
         values.append(args[positions[0] + 1] if positions else None)
     path, digest = values
     if path is None and digest is None:
         return None
     if path is None or digest is None or not Path(path).is_absolute() or not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise DeployError("display policy requires an absolute path and paired SHA-256")
+        raise DeployError(f"{what} requires an absolute path and paired SHA-256")
     return Path(path), digest
+
+
+def display_policy_args(args: list[str]) -> tuple[Path, str] | None:
+    return paired_args(args, ("--atlas-display-policy", "--atlas-display-policy-sha256"), "display policy")
+
+
+def radio_args(args: list[str]) -> tuple[Path, str] | None:
+    return paired_args(args, RADIO_FLAGS, "radio station profile")
+
+
+def with_radio(service: dict, path: Path, digest: str) -> dict:
+    """Select the radio profile in place: set the flag pair, or replace the one already there."""
+    args = list(service["ProgramArguments"])
+    if radio_args(args) is None:
+        args += [RADIO_FLAGS[0], str(path), RADIO_FLAGS[1], digest]
+    else:
+        args = with_flag(with_flag(args, RADIO_FLAGS[0], str(path)), RADIO_FLAGS[1], digest)
+    return dict(service, ProgramArguments=args)
+
+
+def radio_serves(args: list[str], ws: str, home: str) -> bool:
+    """Whether the selected radio profile is for this scope, so its station route can be checked here."""
+    selected = radio_args(args)
+    if selected is None:
+        return False
+    try:
+        profile = json.loads(selected[0].read_bytes())
+    except (OSError, ValueError):
+        return False
+    return isinstance(profile, dict) and (profile.get("workspaceId"), profile.get("homeId")) == (ws, home)
 
 
 def file_identity(path: Path) -> tuple:
@@ -228,33 +261,33 @@ def release_stamp(files: dict[str, Path]) -> tuple:
     return tuple((str(path), file_identity(path)) for path in paths)
 
 
-def private_policy_bytes(path: Path, digest: str) -> bytes:
+def private_policy_bytes(path: Path, digest: str, *, what="policy source", limit=32768) -> bytes:
     try:
-        return _private_policy_bytes(path, digest)
+        return _private_policy_bytes(path, digest, what, limit)
     except OSError as error:
-        raise DeployError("policy source is unavailable or changed") from error
+        raise DeployError(f"{what} is unavailable or changed") from error
 
 
-def _private_policy_bytes(path: Path, digest: str) -> bytes:
+def _private_policy_bytes(path: Path, digest: str, what: str, limit: int) -> bytes:
     """Read bounded canonical owner-private bytes without following a symlink."""
     if not path.is_absolute() or Path(os.path.realpath(path)) != path or not re.fullmatch(r"[0-9a-f]{64}", digest):
-        raise DeployError("policy source requires a canonical absolute path and SHA-256")
+        raise DeployError(f"{what} requires a canonical absolute path and SHA-256")
     parent = path.parent
     before_parent = file_identity(parent)
     parent_stat = parent.lstat()
     if not stat.S_ISDIR(parent_stat.st_mode) or stat.S_IMODE(parent_stat.st_mode) != 0o700 or parent_stat.st_uid != os.getuid():
-        raise DeployError("policy source parent must be private and owned by this user")
+        raise DeployError(f"{what} parent must be private and owned by this user")
     before = file_identity(path)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     with os.fdopen(fd, "rb") as source:
         st = os.fstat(source.fileno())
-        if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_uid != os.getuid() or st.st_nlink != 1 or not 0 < st.st_size <= 32768:
-            raise DeployError("policy source must be a single-link private file of at most 32 KiB")
+        if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_uid != os.getuid() or st.st_nlink != 1 or not 0 < st.st_size <= limit:
+            raise DeployError(f"{what} must be a single-link private file of at most {limit // 1024} KiB")
         if (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns) != before:
-            raise DeployError("policy source changed during capture")
-        body = source.read(32769)
-    if len(body) > 32768 or hashlib.sha256(body).hexdigest() != digest or file_identity(path) != before or file_identity(parent) != before_parent:
-        raise DeployError("policy source bytes or identity changed")
+            raise DeployError(f"{what} changed during capture")
+        body = source.read(limit + 1)
+    if len(body) > limit or hashlib.sha256(body).hexdigest() != digest or file_identity(path) != before or file_identity(parent) != before_parent:
+        raise DeployError(f"{what} bytes or identity changed")
     return body
 
 
@@ -575,17 +608,19 @@ class Checks:
 
 
 def http_checks(rt: Runner, base: str, *, assets: list[str], ws: str, home: str,
-                expect_publication: str | None = None, expect_policy: str | None = None, insecure=False) -> Checks:
+                expect_publication: str | None = None, expect_policy: str | None = None, expect_radio=False,
+                insecure=False) -> Checks:
     """What a phone needs after a deploy: login, shell pages, old and new assets, model, logout."""
     c = Checks()
     try:
-        _http_checks(c, rt, base, assets, ws, home, expect_publication, expect_policy, insecure)
+        _http_checks(c, rt, base, assets, ws, home, expect_publication, expect_policy, expect_radio, insecure)
     except (ValueError, KeyError, TypeError, AttributeError) as e:  # malformed answer from the server
         c.expect(False, f"unexpected response: {type(e).__name__}: {e}")
     return c
 
 
-def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publication, expect_policy, insecure) -> None:
+def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publication, expect_policy, expect_radio,
+                 insecure) -> None:
     hdr = [f"Origin: {base}", "Sec-Fetch-Site: same-origin"]
     get = lambda path, **kw: rt.curl(base + path, headers=hdr, insecure=insecure, **kw)
     code, _, body = get("/api/atlas/auth/mode")
@@ -646,6 +681,9 @@ def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publ
                          and wire.get("workspaceId") == ws and wire.get("homeId") == home
                          and config.get("publicationId") == d["publicationId"] and config.get("semanticsSha256") == semantics,
                          "protected display policy exact bytes, response pins and context match")
+    if expect_radio:
+        code, h, _ = get(f"/api/atlas/radio/v1/workspaces/{ws}/homes/{home}/station", cookie=cookie)
+        c.expect(code == 200 and "no-store" in h.get("cache-control", ""), f"radio station {code} {h.get('cache-control')}")
     code, _, body = get("/api/atlas/auth/session", cookie=cookie)
     csrf = json.loads(body or b"{}").get("csrfToken", "") if code == 200 else ""
     code, _, _ = rt.curl(base + "/api/atlas/auth/logout", method="POST", cookie=cookie,
@@ -728,7 +766,8 @@ class Deployer:
                 raise DeployError(f"smoke server exited: {(work / 'serve.out').read_text()[-1500:]}")
             ws, home = self.scope()
             checks = http_checks(self.rt, conf["origin"], assets=assets, ws=ws, home=home,
-                                 expect_publication=expect_publication, expect_policy=(display_policy_args(serve_args) or (None, None))[1], insecure=True)
+                                 expect_publication=expect_publication, expect_policy=(display_policy_args(serve_args) or (None, None))[1],
+                                 expect_radio=radio_serves(serve_args, ws, home), insecure=True)
         finally:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(proc.pid, signal.SIGTERM)
@@ -789,9 +828,10 @@ class Deployer:
     def verify(self, record: dict, assets: list[str]) -> Checks:
         pid = self.wait_running(record["binary"])
         ws, home = self.scope()
+        args = read_plist(self.cfg.plist)["ProgramArguments"]
         c = http_checks(self.rt, self.cfg.gateway_url, assets=assets, ws=ws, home=home,
                         expect_publication=record.get("publication"),
-                        expect_policy=(display_policy_args(read_plist(self.cfg.plist)["ProgramArguments"]) or (None, None))[1])
+                        expect_policy=(display_policy_args(args) or (None, None))[1], expect_radio=radio_serves(args, ws, home))
         c.lines.insert(0, f"PASS service pid {pid} runs {record['binary']}")
         return c
 
@@ -1069,6 +1109,55 @@ class Deployer:
         return self.model(stage, prepare_only=prepare_only, auto_rollback=auto_rollback, policy_only=True,
                           expected_service=baseline, expected_inputs={**expected, "display-policy.json": digest})
 
+    def radio(self, source: Path, digest: str, *, prepare_only=False, auto_rollback=True) -> dict:
+        """Select the pinned radio profile where it lies; `rollback` restores the previous plist."""
+        cfg = self.cfg
+        self.require_settled()
+        baseline = sha256_file(cfg.plist)
+        live = self.live()
+        source = source.expanduser()
+        private_policy_bytes(source, digest, what="radio profile", limit=4096)
+        service = with_radio(live["service"], source, digest)
+        name = next_name(cfg.setup_root, f"radio-station-{dt.date.today():%Y%m%d}")
+        d = cfg.setup_root / name
+        (d / "recovery").mkdir(parents=True)
+        self.say("[1/3] Smoke-testing the radio station on throwaway state")
+        assets = entry_scripts(live["frontend"] / "index.html")
+        c = self.smoke(live["binary"], live["frontend"], model_args(service["ProgramArguments"]), d / "smoke", assets=assets)
+        for line in c.lines:
+            self.say(f"  {line}")
+        if c.failures:
+            raise DeployError("smoke test failed; nothing live was touched")
+        private_policy_bytes(source, digest, what="radio profile", limit=4096)
+        before, after = d / "recovery/service.before.plist", d / "recovery/service.after.plist"
+        shutil.copy2(cfg.plist, before)
+        if sha256_file(before) != baseline:
+            raise DeployError("the service plist changed during the smoke test; nothing live was touched, run radio again")
+        with open(after, "wb") as f:
+            plistlib.dump(service, f)
+        self.rt.run(["plutil", "-lint", str(after)])
+        record = dict(id=name, kind="radio", profile=str(source), dir=str(d), binary=str(live["binary"]),
+                      before_plist=str(before), after_plist=str(after), assets=assets, status="prepared", created=now())
+        write_rollback_script(record, cfg)
+        save_record(cfg.ledger, record)
+        if prepare_only:
+            self.say(f"Prepared {name}; nothing live was touched.")
+            return record
+        self.say("[2/3] Restarting the service with the radio station")
+        record["status"] = "swapping"
+        save_record(cfg.ledger, record)
+        try:
+            self.swap(record, d / "events.log", [], expect={baseline})
+        except Exception:
+            record["status"] = "swap-failed"
+            save_record(cfg.ledger, record)
+            self.rollback(record)
+            raise
+        record["status"] = "live"
+        save_record(cfg.ledger, record)
+        self.say("[3/3] Verifying through the gateway")
+        return self.finish(record, assets, auto_rollback)
+
     def rollback(self, record: dict | None = None, *, force=False) -> dict:
         cfg = self.cfg
         if record is None:
@@ -1119,8 +1208,9 @@ class Deployer:
             ws, home = self.scope()
             assets = sorted(set(entry_scripts(Path(record.get("frontend") or self.live()["frontend"]) / "index.html"))
                             | set(record.get("assets", [])))
+            args = read_plist(cfg.plist)["ProgramArguments"]
             c = http_checks(self.rt, cfg.gateway_url, assets=assets, ws=ws, home=home,
-                            expect_policy=(display_policy_args(read_plist(cfg.plist)["ProgramArguments"]) or (None, None))[1])
+                            expect_policy=(display_policy_args(args) or (None, None))[1], expect_radio=radio_serves(args, ws, home))
             c.lines.insert(0, f"PASS service pid {pid} runs {binary}")
         except Exception as e:
             c = Checks()
@@ -1287,6 +1377,11 @@ def main(argv=None) -> int:
     p.add_argument("--sha256", required=True)
     p.add_argument("--prepare-only", action="store_true")
     p.add_argument("--no-auto-rollback", action="store_true")
+    p = sub.add_parser("radio", help="select the pinned radio station profile where it lies")
+    p.add_argument("profile", type=Path)
+    p.add_argument("--sha256", required=True)
+    p.add_argument("--prepare-only", action="store_true")
+    p.add_argument("--no-auto-rollback", action="store_true")
     p = sub.add_parser("rollback", help="undo the newest live record")
     p.add_argument("--force", action="store_true", help="roll back even if the service plist changed since")
     p = sub.add_parser("prune", help="remove build caches and frontends that no rollback needs")
@@ -1308,6 +1403,8 @@ def main(argv=None) -> int:
                           without_display_policy=a.without_display_policy)
             elif a.cmd == "policy":
                 dep.policy(a.source, a.sha256, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
+            elif a.cmd == "radio":
+                dep.radio(a.profile, a.sha256, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
             elif a.cmd == "prune":
                 dep.prune_alone(dry_run=a.dry_run)
             else:
