@@ -148,14 +148,14 @@ const visible = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+
   assert.equal(at(station(null, undefined, { publicationId: PUBLICATION, spaceOccurrenceId: 'occ-attic' })), null);
   const place = { transform: 'matrix(1 0 0 1 0 0)', x: 2, z: 3 };
   const moving = renderToStaticMarkup(createElement('svg', null, createElement(RadioRings, { place, reduced: false })));
-  assert.equal((moving.match(/<circle /g) ?? []).length, 3);
-  assert.equal((moving.match(new RegExp(`r="${RADIO_RING_M}"`, 'g')) ?? []).length, 3);
-  assert.match(moving, /animation-delay:-1.2s/);
+  assert.equal((moving.match(/<circle /g) ?? []).length, 5);
+  assert.equal((moving.match(new RegExp(`r="${RADIO_RING_M}"`, 'g')) ?? []).length, 5);
+  assert.deepEqual([...moving.matchAll(/animation-delay:(-?[\d.]+)s/g)].map(m => Number(m[1])), [0, -1.2, -2.4, -3.6, -4.8]);
   assert.match(moving, /vector-effect="non-scaling-stroke"/);
   const still = renderToStaticMarkup(createElement('svg', null, createElement(RadioRings, { place, reduced: true })));
   assert.match(still, /class="ua-radio-rings is-still"/);
   assert.doesNotMatch(still, /animation/);
-  assert.deepEqual([...still.matchAll(/ r="([\d.]+)"/g)].map(m => Number(m[1])), [1.5, 3, 4.5]);
+  assert.deepEqual([...still.matchAll(/ r="([\d.]+)"/g)].map(m => Number(m[1])), [0.9, 1.8, 2.7, 3.6, 4.5]);
   const slot = (value, now, placeAt = () => place) => {
     const state = feedState(value);
     const feed = { subscribe: () => () => undefined, state: () => state, dispose() {} };

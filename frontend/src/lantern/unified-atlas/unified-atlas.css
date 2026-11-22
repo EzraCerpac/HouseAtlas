@@ -670,21 +670,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Possible reach from the reviewed transmitter room, on its floor. */
+/* Possible reach from the reviewed transmitter room, on its floor: amber
+   waves leaving the room one after another, lit like the card's lamp. No
+   fill, so the rooms, outlines and labels beneath stay readable. */
+.lantern-host .ua-radio-rings {
+  filter: drop-shadow(0 0 2.5px rgba(255, 196, 52, 0.95));
+  pointer-events: none;
+}
 .lantern-host .ua-radio-rings circle {
-  fill: rgba(255, 209, 92, 0.1);
-  stroke: var(--lantern-edge);
-  stroke-width: 1.5;
+  fill: none;
+  stroke: #e8930a;
+  stroke-width: 2.5;
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: ua-radio-ring 3.6s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+  animation: ua-radio-ring 6s cubic-bezier(0.25, 0.55, 0.4, 1) infinite;
 }
 .lantern-host .ua-radio-rings.is-still circle { animation: none; }
 @keyframes ua-radio-ring {
-  0% { transform: scale(0.12); opacity: 0.75; }
-  70% { opacity: 0.2; }
-  100% { transform: scale(1); opacity: 0; }
+  0% { transform: scale(0.1); opacity: 0; stroke-width: 3.25; }
+  8% { opacity: 1; }
+  55% { opacity: 0.8; }
+  100% { transform: scale(1); opacity: 0; stroke-width: 1.75; }
 }
 
 /* One level out, named for where it leads. */

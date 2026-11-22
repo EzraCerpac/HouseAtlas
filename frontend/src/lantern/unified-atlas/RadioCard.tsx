@@ -62,15 +62,17 @@ export function RadioCard({ view, placeName, time = clock }: RadioCardProps) {
   </section>;
 }
 
-/** Soft rings on the floor, in scene metres. They show possible reach only. */
+/** Rings on the floor, in scene metres. They show possible reach only. */
 export const RADIO_RING_M = 4.5;
+/** Waves leave every 1.2 s; still, they stand evenly spaced and fade outward. */
+const RADIO_RINGS = 5, RADIO_RING_GAP_S = 1.2;
 export interface RingPlace { readonly transform: string; readonly x: number; readonly z: number }
 export function RadioRings({ place, reduced }: { readonly place: RingPlace; readonly reduced: boolean }) {
-  const rings = [0, 1, 2];
+  const rings = Array.from({ length: RADIO_RINGS }, (_, at) => at);
   return <g className={`ua-radio-rings${reduced ? ' is-still' : ''}`} transform={place.transform}>
     {rings.map(at => <circle key={at} cx={place.x} cy={place.z} vectorEffect="non-scaling-stroke"
-      r={reduced ? RADIO_RING_M * (at + 1) / rings.length : RADIO_RING_M}
-      style={reduced ? { opacity: .6 - at * .18 } : { animationDelay: `${(-at * 1.2).toFixed(1)}s` }} />)}
+      r={reduced ? RADIO_RING_M * (at + 1) / RADIO_RINGS : RADIO_RING_M}
+      style={reduced ? { opacity: 1 - at * .15, strokeWidth: 3 - at * .3 } : { animationDelay: `${(-at * RADIO_RING_GAP_S).toFixed(1)}s` }} />)}
   </g>;
 }
 
