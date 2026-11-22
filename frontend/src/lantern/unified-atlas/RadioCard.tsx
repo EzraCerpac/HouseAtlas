@@ -3,7 +3,7 @@
  * The card shows only while the reading is fresh and playing: AirPlay audio is
  * arriving and the frequency is the operator's statement, not a broadcast
  * check. The viewer may tuck it to a tab, kept per viewer and home on this
- * device. */
+ * device: it collapses in place, or on phones slides to the stage's edge. */
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { dialFraction, radioView, type RadioFeed, type RadioFeedState, type RadioOnAir, type RadioTrack } from './radio';
 
@@ -144,24 +144,30 @@ function moveDrag(drag: Drag, event: ReactPointerEvent<HTMLElement>): boolean {
 }
 
 const SLIDE_MS = 220;
+/** Phones slide the card off the stage's left edge, to a tab there; wider
+ * stages collapse it in place into the tab (set by CSS on the slot). */
+const tucksToEdge = (el: HTMLElement) => getComputedStyle(el).getPropertyValue('--ua-radio-tuck').trim() === 'edge';
 interface TuckProps { readonly reduced: boolean; readonly arrival: RefObject<Arrival>; readonly change: (focus: boolean) => void }
 function TuckableCard({ view, placeName, reduced, arrival, change }: TuckProps & { readonly view: RadioOnAir; readonly placeName: string | null }) {
   const host = useRef<HTMLDivElement>(null), drag = useRef<Drag | null>(null), timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arrived = useArrival(arrival, 'card', () => host.current?.querySelector<HTMLButtonElement>('.ua-radio-hide')?.focus());
   useFocusFallback(host, arrival);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const place = (x: number, ms = 0) => {
+  const move = (transform: string, ms = 0, fade = false) => {
     const el = host.current; if (!el) return;
-    el.style.transition = ms && !reduced ? `transform ${ms}ms cubic-bezier(0.3, 0, 0.2, 1)` : 'none';
-    el.style.transform = x ? `translateX(${x}px)` : '';
+    el.style.transition = ms && !reduced ? `transform ${ms}ms cubic-bezier(0.3, 0, 0.2, 1)${fade ? `, opacity ${ms}ms ease-in` : ''}` : 'none';
+    el.style.transform = transform;
+    if (fade) el.style.opacity = '0';
   };
-  /** The tab takes focus only if the control that asked still has it when the slide ends. */
+  const place = (x: number, ms = 0) => move(x ? `translateX(${x}px)` : '', ms);
+  /** The tab takes focus only if the control that asked still has it when the motion ends. */
   const tuck = (trigger: Element) => {
     const el = host.current;
     if (!el || timer.current) return;
     const done = () => change(trigger.contains(document.activeElement));
     if (reduced) { done(); return; }
-    place(-(el.offsetWidth + 32), SLIDE_MS);
+    if (tucksToEdge(el)) place(-(el.offsetWidth + 32), SLIDE_MS);
+    else move('scale(0.25)', SLIDE_MS, true);
     timer.current = setTimeout(done, SLIDE_MS);
   };
   const release = () => { drag.current = null; host.current?.classList.remove('is-dragging'); };

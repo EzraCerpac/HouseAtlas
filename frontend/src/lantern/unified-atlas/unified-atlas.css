@@ -605,8 +605,11 @@
 /* The radio station while audio plays: a lamp, what plays, and a backlit
    medium-wave slide-rule dial. It floats over the stage beside the rail, below
    the tools, so nothing moves when it comes or goes. A sideways drag or the
-   chevron tucks it to a tab; the tab brings it out. */
+   chevron tucks it to a tab where the card was, collapsing in place
+   (--ua-radio-tuck: edge slides it off the stage's left edge instead, on
+   phones); the tab brings it out. */
 .lantern-host .ua-radio-slot {
+  --ua-radio-tuck: place;
   position: absolute;
   z-index: 4;
   top: calc(var(--ua-tools-end, 58px) + 10px);
@@ -614,13 +617,22 @@
   width: var(--ua-rail);
   pointer-events: none;
 }
+/* Tablets too narrow for the card between the rail and the right column
+   (view tools, layers and room card): it joins the rail's column, below it. */
+@container ua (max-width: 903px) {
+  @container ua-stage (min-width: 721px) {
+    .lantern-host .ua-radio-slot { top: calc(var(--ua-scope-end, 300px) + 10px); left: 16px; }
+  }
+}
 .lantern-host .ua-radio-slot > * { pointer-events: auto; }
 .lantern-host .ua-radio-dock {
+  transform-origin: 0 0;
   touch-action: pan-y;
   cursor: grab;
 }
 .lantern-host .ua-radio-dock.is-dragging { cursor: grabbing; user-select: none; }
-.lantern-host .ua-radio-dock.is-arriving { animation: ua-radio-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.lantern-host .ua-radio-dock.is-arriving { animation: ua-radio-grow 220ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+@keyframes ua-radio-grow { from { transform: scale(0.25); opacity: 0; } }
 @keyframes ua-radio-in { from { transform: translateX(calc(-100% - 32px)); } }
 .lantern-host .ua-radio {
   position: relative;
@@ -716,7 +728,8 @@
   cursor: pointer;
 }
 .lantern-host .ua-radio-tab:hover { color: var(--ink); }
-.lantern-host .ua-radio-tab.is-arriving { animation: ua-radio-tab-in 180ms ease-out; }
+.lantern-host .ua-radio-tab.is-arriving { animation: ua-radio-tab-grow 160ms ease-out; }
+@keyframes ua-radio-tab-grow { from { transform: scale(0.85); opacity: 0; } }
 @keyframes ua-radio-tab-in { from { transform: translateX(-100%); } }
 
 /* Possible reach from the reviewed transmitter room, on its floor: amber
@@ -3116,8 +3129,10 @@
 
   .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
   .lantern-host .ua-snapshot-note { display: none; }
-  /* The radio card hangs below the top row; its tab sits at the stage's left edge. */
-  .lantern-host .ua-radio-slot { top: calc(var(--ua-scope-end, 60px) + 6px); left: 8px; width: min(252px, calc(100% - 16px)); }
+  /* The radio card hangs below the top row and slides to a tab at the stage's left edge. */
+  .lantern-host .ua-radio-slot { --ua-radio-tuck: edge; top: calc(var(--ua-scope-end, 60px) + 6px); left: 8px; width: min(252px, calc(100% - 16px)); }
+  .lantern-host .ua-radio-dock.is-arriving { animation-name: ua-radio-in; animation-duration: 240ms; }
+  .lantern-host .ua-radio-tab.is-arriving { animation-name: ua-radio-tab-in; animation-duration: 180ms; }
   .lantern-host .ua-radio-tab { height: 44px; margin-left: -8px; border-left: 0; border-radius: 0 var(--r-panel) var(--r-panel) 0; }
 
   /* Back has its own slim row under the chip, named for where it leads, so
