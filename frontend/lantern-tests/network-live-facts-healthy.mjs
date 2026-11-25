@@ -349,18 +349,21 @@ try {
     assert.equal(m.card().includes(NOT_MEASURED_MISMATCH),true);assert.deepEqual([m.port.reads,m.port.posts],[0,0],'a card sends no request');
     m.store.ensure(scopeOf);await settle();
     let html=m.block();
-    for(const text of ['<dt>Device list</dt>','Changed, needs a refresh',BUTTON,'<dt>Retrieved</dt>','>Test speed now</button>','Wi-Fi scan unavailable on this collector']) assert(html.includes(text),`mismatch block shows ${text}`);
-    assert(html.indexOf('<dt>Retrieved</dt>')<html.indexOf('<dt>Device list</dt>'),'beside the retrieval it refreshes');
+    for(const text of ['<summary>Device list</summary>','Changed, needs a refresh',BUTTON,'<dt>Retrieved</dt>','>Test speed now</button>','Wi-Fi scan unavailable on this collector']) assert(html.includes(text),`mismatch block shows ${text}`);
+    assert(html.indexOf('<dt>Retrieved</dt>')<html.indexOf('<summary>Device list</summary>'),'beside the retrieval it refreshes');
+    assert(html.includes('<details class="ua-source ua-net-refresh"><summary>Device list</summary>'),'closed by default, under the speed block');
     assert.deepEqual([m.port.reads,m.port.posts],[1,0],'rendering the control sends nothing');
     // One POST per press; pending says so and blocks a second press.
     assert.equal(m.store.refresh(scopeOf),true);assert.equal(m.store.refresh(scopeOf),false,'a second press while pending sends nothing');
     assert.equal(m.port.posts,1);html=m.block();
     assert(html.includes('>Refreshing device list…</button>')&&html.includes('aria-disabled="true">Refreshing'),'pending: said, and the control stays mounted but unavailable');
+    assert(html.includes('<details class="ua-source ua-net-refresh" open=""><summary>Device list</summary>'),'pending: the disclosure is held open');
     // A refreshed answer re-reads once; the lists agree, so the control and the card's changed-list wording go.
     m.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
     assert.deepEqual([m.port.reads,m.port.posts],[2,1],'exactly one re-read after the success, and no retry');
     html=m.block();
-    assert(!html.includes(BUTTON)&&!html.includes('Changed')&&html.includes('<dt>Device list</dt>')&&html.includes(`Refreshed<span class="ua-note">recorded <time`)&&html.includes(fetched),'after agreement: the answer with its recorded time, no control');
+    assert(!html.includes(BUTTON)&&!html.includes('Changed')&&html.includes('<summary>Device list</summary>')&&html.includes(`Refreshed<span class="ua-note">recorded <time`)&&html.includes(fetched),'after agreement: the answer with its recorded time, no control');
+    assert(html.includes('<details class="ua-source ua-net-refresh" open="">'),'answered: the answer is not hidden');
     const cleared=m.card();assert(!cleared.includes(NOT_MEASURED_MISMATCH)&&cleared.includes('<span class="ua-net-reach-state">Not measured</span>'),'the card drops the changed-list wording once the re-read agrees');
     assert(m.card('2026-01-01T00:05:00Z').includes(NOT_MEASURED_MISMATCH),'a stored copy keeps its own wording');
     // The suppression covers only facts read before the refresh's own fetch; a later frame's changed list is said again, and the control returns.
@@ -395,7 +398,7 @@ try {
       const k=mount([differ,reread]);k.store.ensure(scopeOf);await settle();assert(k.card().includes('<dt>Test</dt>'));k.store.refresh(scopeOf);
       k.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
       const out=k.block(),why=reread.httpStatus??'a lost read';
-      assert(out.includes('<dt>Device list</dt>')&&out.includes('Refreshed, state not confirmed<span class="ua-note">recorded <time'),`${why}: the refresh answer stays, unconfirmed`);
+      assert(out.includes('<summary>Device list</summary>')&&out.includes('Refreshed, state not confirmed<span class="ua-note">recorded <time'),`${why}: the refresh answer stays, unconfirmed`);
       for(const gone of ['Last measured','<dt>Retrieved</dt>','Changed',BUTTON,'Test speed now','Wi-Fi']) assert(!out.includes(gone),`${why}: ${gone} is retired`);
       const card=k.card();assert(!card.includes('<dt>Test</dt>')&&card.includes(NOT_MEASURED_MISMATCH),`${why}: no test from retired results; the frame keeps its wording`);
       assert.deepEqual([k.port.reads,k.port.posts],[2,1],`${why}: no further read or retry`);
@@ -426,7 +429,7 @@ try {
       k.port.pending[0].resolve(refreshDecode({status:'refreshed',inventoryRevision:2,cache:{status:'fresh',lastSuccessfulFetchAt:fetched,lastAttemptAt:fetched,errorCode:null}}));await settle();
       const out=k.block();assert(out.includes('Last measured')&&!out.includes(BUTTON),`${expect}: measurements stay, no control`);
       if(expect==='review')assert(out.includes('Changed; it needs review before it can be refreshed')&&out.includes('Refreshed, state not confirmed<span'),'review applies beside the unconfirmed answer');
-      else assert(!out.includes('<dt>Device list</dt>'),'no refresh row without permission');
+      else assert(!out.includes('<summary>Device list</summary>'),'no refresh row without permission');
       assert(out.includes('<h4 tabindex="-1">'),'the heading can take focus from a removed control');
       assert(k.card().includes(NOT_MEASURED_MISMATCH));assert.deepEqual([k.port.reads,k.port.posts],[2,1]);k.store.dispose();
     }
@@ -475,7 +478,7 @@ try {
     { const q=mount([differ]);q.store.ensure(scopeOf);await settle();const plainTest=q.card().includes('<dt>Test</dt>');q.store.refresh(scopeOf);
       q.port.pending[0].resolve(refreshDecode({status:'failed',reason:'auth',quarantined:true,cache:{status:'access-revoked',lastSuccessfulFetchAt:'2026-01-01T01:00:00Z',lastAttemptAt:fetched,errorCode:'auth'}}));await settle();
       const out=q.block();
-      assert(out.includes('<dt>Device list</dt>')&&out.includes('Failed, the collector refused the credential; stored Network data is withheld<span class="ua-note">recorded <time'),'the quarantine answer stays');
+      assert(out.includes('<summary>Device list</summary>')&&out.includes('Failed, the collector refused the credential; stored Network data is withheld<span class="ua-note">recorded <time'),'the quarantine answer stays');
       for(const text of ['Last measured','<dt>Retrieved</dt>','Changed',BUTTON,'Test speed now','Wi-Fi']) assert(!out.includes(text),`nothing beside it reads as current: ${text}`);
       assert(plainTest&&!q.card().includes('<dt>Test</dt>'),'the device card offers no test from withheld results');
       assert.deepEqual([q.port.reads,q.port.posts],[1,1]);q.store.dispose(); }

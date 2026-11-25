@@ -509,11 +509,13 @@
 .lantern-host .ua-net-speed > .btn { justify-self: start; }
 .lantern-host .ua-net-speed .ua-net-test-answer { margin: 0; }
 .lantern-host .ua-net-wifi { margin: 0; color: var(--ink-2); font-size: var(--fs-xs); }
-/* The device-list refresh: its state, control and answer stacked in the key's narrow column. */
-.lantern-host .ua-net-refresh dd { display: grid; gap: 4px; justify-items: start; }
+/* The device-list refresh, closed by default: its state, control and answer stacked in the key's narrow column. */
+.lantern-host .ua-net-refresh > summary { font-size: var(--fs-s); }
+.lantern-host .ua-net-refresh > div { display: grid; gap: 4px; justify-items: start; margin-top: 6px; }
 @media (max-width: 759px), (pointer: coarse) {
   .lantern-host :is(.ua-net-test-actions, .ua-net-speed) .btn,
   .lantern-host .ua-net-test-port select { min-width: 44px; min-height: 44px; }
+  .lantern-host .ua-net-refresh > summary { min-height: 44px; align-content: center; }
 }
 
 .lantern-host .ua-label-hit {
